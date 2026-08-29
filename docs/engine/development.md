@@ -55,7 +55,7 @@ engine/packages/ui       generic React presentation, Narrative/WholeCanvas surfa
 engine/packages/web      browser Host and application adapters
 e2e/                     neutral Engine Conformance Story (MIT test consumer)
 template    minimal starter Story (new-project skeleton)
-examples/                curated applications (flagship VN; focused Bookshop; GUI-only SillyOS)
+examples/                curated products (One Last Sound Check; GUI-only SillyOS)
 project.config.ts        the workspace registry (application directory list)
 website/                 the public documentation site (Astro + Starlight, en + zh; deno task docs:dev)
 scripts                  maintained build, asset, and product tooling
@@ -491,8 +491,16 @@ IDs once at application construction. The runtime loads only that set, orders
 declared dependencies before dependents, validates contributions against the
 application's typed extension points, cold-compiles direct values, and then
 mounts optional code lifecycles through the existing Direct parent/child owner.
-There is no supported mutation of the active set; construct an ordinary successor
-application generation to change it.
+The active set never mutates in place. The private selection controller replaces
+one complete generation-immutable selection with a candidate successor. A
+presentation/tooling selection may publish through an R1 owner successor while
+retaining the current `GameSession`; any selection that changes Simulation,
+State, Save identity, or authoritative behavior requires the existing R2 exact
+Save + lease handoff. Candidate failure leaves the predecessor current, and the
+controller retires it only after the application-owned consumer acknowledges
+the candidate publication. Development UI may expose repeated load/unload over
+this successor operation; do not add a lookup against the selected set to a
+command, reducer, or render hot path.
 
 The application owns each extension point's payload type, contribution kind,
 collision rule, and compiled consumer plan. It also owns projecting ordered
@@ -505,10 +513,35 @@ same-realm composition contract, not a sandbox or side-effect interception layer
 
 Do not add filesystem/package discovery, a public resolver/ABI/SDK, download or
 signature policy, post-release arbitrary-code loading, or install/restart APIs to
-this entry. A no-Mod product must remain complete and omit the private runtime
-from its final graph. The maintained Engine Lab proof is test-only and deliberately
-small; SillyOS, third-party React packages, and Agent conversation are downstream
-product validation rather than fixtures for this engine slice.
+this entry. A product decides whether the supported extension surface is part of
+its development graph, its production graph, or neither; an omitted surface must
+remain complete and exclude the private runtime and literal loaders from its
+final module/source graph. Explicit production inclusion is product policy, not
+evidence of a public Mod ecosystem. The first real selection consumer is the
+first-party VN History presentation: its renderer, open control, CSS and
+lifecycle resources load on selection and unload through R1 without changing
+the Story-owned History State or Snapshot/Save bytes.
+
+### First-party VN authoring workflow
+
+Use `@sillymaker/vn/interaction` for the maintained interaction-document
+compiler/runtime policy rather than copying a product-local narrative kit.
+Use `@sillymaker/vn/preset` for the conventional static Player, or explicitly
+compose `@sillymaker/vn/ui/core` with selected optional facets such as
+`@sillymaker/vn/history`. `@sillymaker/base`
+continues to own Narrative, State, Save and replay contracts;
+`@sillymaker/ui` continues to own Managed Narrative Surface, Stage/Input and
+generic player primitives. The VN package composes those contracts and accepts
+typed product callbacks for game-specific predicates/effects. It does not own a
+second Session, command bus, service locator, text database, or source writer.
+
+Start a new product from `template/`; inspect One Last Sound Check for the
+complete product workflow, but do not fork its content or application-specific
+surfaces. Human Inspector tools and Agent-assisted authoring dispatch the same
+revision-fenced structured operation and consume the same receipt/CAS result.
+A product-specific Inspector contribution may project VN node/route/cue/text/
+voice provenance and offer source navigation, but it must not recompile the
+Story or write source files through a second path.
 
 Focused M5 checks are:
 
@@ -1592,7 +1625,7 @@ documentation together unless a concrete compatibility promise says otherwise.
 
 ## Testing policy
 
-Browser commands exercise the Engine Lab Story ([E2E engine validation design](design/e2e-engine-validation.md)); retired product suites leave with their applications. Production Narrative coverage also runs through the starter template and Bookshop. WholeCanvas browser coverage uses Engine Lab's exact `whole_canvas_conformance=1` opt-in. GUI-only applications such as the current SillyOS use the separate `startWebGuiApplicationV1` path and therefore make no Story, Narrative, or WholeCanvas claim. Focused composition tests protect omission inside Game applications. The promoted matrix exercises the same public definitions and default Hosts used by applications rather than conformance-only engine entries.
+Browser commands exercise the Engine Lab Story ([E2E engine validation design](design/e2e-engine-validation.md)); retired product suites leave with their applications. Production Narrative coverage also runs through the starter Template and One Last Sound Check. WholeCanvas browser coverage uses Engine Lab's exact `whole_canvas_conformance=1` opt-in. GUI-only applications such as the current SillyOS use the separate `startWebGuiApplicationV1` path and therefore make no Story, Narrative, or WholeCanvas claim. Focused composition tests protect omission inside Game applications. The promoted matrix exercises the same public definitions and default Hosts used by applications rather than conformance-only engine entries.
 
 Playwright tests and E2E runs are silent by default so local and CI execution do
 not play audible media. The real audio Host, playback, interruption, cleanup,

@@ -1,6 +1,6 @@
 # Production-floor execution sequence
 
-状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-27。PF0–PF7 与 Complexity
+状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-29。PF0–PF7 与 Complexity
 Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4 已于 2026-08-13 完成。CR4 的真实作者纵切没有
 暴露需要通用 PF6 harness 解决的问题，PF6 已重新裁决为
 不激活。同日以真实产品证据接受并完成了
@@ -22,8 +22,22 @@ active authority；完成里程碑摘要在
 
 ## 1. Current and next
 
-2026-08-27 所有者接受
-[VN Reference Tour](2026-08-27-vn-reference-tour.md) 已完成 M0–M5，并作为维护中的旗舰 Reference Product。它从实现开始时
+2026-08-29 所有者接受并完成
+[VN Genre Mod、History Mod 与作者工作流](2026-08-29-vn-genre-mod-authoring.md) M0–M4。它以 Template 与
+`examples/vn-last-sound-check` 两个真实消费者提取 first-party VN 共用层，把 History 做成第一个真实 optional
+presentation Mod，并通过完整 generation successor 交付开发期延迟加载、卸载与重新加载；core-only production
+receipt 结构排除其 renderer、入口、CSS、loader 和 private controller，full preset 则由产品静态选择 History。
+One Last Sound Check 同时交付只读 VN Inspector contribution；Scene 写入继续由人类与 Agent 共用的 structured
+operation/result、revision 和 CAS authority 拥有。Chromium、WebKit、mobile、named simulation、release/prebuilt、
+Deno 2.9.6 Desktop package/启动/正常关闭与独立复审均通过。该关闭没有激活 public
+resolver/ABI/SDK/distribution、post-release arbitrary-code install 或 Ren'Py DSL/runtime clone。
+
+当前没有自动激活的后继 lane。更广的 Ren'Py 能力覆盖、生产产品开放 Mod 安装或新的 reference application，均须
+由所有者依据真实产品证据另行接受；§1 后续段落只保存历史，不构成待领取队列。
+
+2026-08-27 所有者接受的
+[《最后一次试音》历史实施计划](2026-08-27-vn-reference-tour.md) 已完成 M0–M5；产品现在以
+`examples/vn-last-sound-check` 作为维护中的旗舰。它从实现开始时
 tracked Template 起步，交付一个原创、完整、紧凑、可发布的 VN，以两名角色、两个 Authoring Scene、一个
 真实选择、两条路线、两个结局和完整 Player/Save/audio/i18n/Inspector/author-task 分母验证当前推荐路径；
 它不是全引擎 API 展厅，也不建立 Ren'Py DSL、Save 兼容或自定义解释器。M0–M3 已交付并关闭：独立 package、
@@ -38,9 +52,8 @@ current-low-end qualification 作为本产品完成门槛；该资格未执行�
 按缩减后的接受范围关闭，M5 已完成 current docs、产品 metadata 与 workspace/build/deploy/site 接线的原子切换；
 这不声称已经执行远程 live deployment。Cat Cafe 已在本轮开始前独立终止：应用、
 revision-1 Save 支持、产品 E2E 与 live 发布责任
-同步结束，不迁移到 VN，也不保留 compatibility wrapper。Bookshop 继续承担 maintained minimal Narrative
-example，不是旗舰或完整 VN 产品参考；它的教学角色在 VN 完成后另行评审和显式裁决，M5 没有自动删除。
-维护的产品例子是 SillyOS + VN。Desktop production promotion 保持独立，只 gate 对应 production claim，
+同步结束，不迁移到 VN，也不保留 compatibility wrapper。VN 完成后的独立评审已显式退役 Bookshop，
+当前维护的产品例子是 SillyOS 与《最后一次试音》。Desktop production promotion 保持独立，只 gate 对应 production claim，
 不阻塞本产品。
 
 同日 Electronic Pet Reference Product 由所有者停止，未完成产品分母或接替 Cat Cafe。其

@@ -112,8 +112,8 @@ export function projectTemplateNarrativeFlowV1(
               choiceId: compiledOption.choiceId,
               textId: compiledOption.textId,
               ...(text === null || text === undefined ? {} : { text }),
-              gates: compiledOption.consumesCoins > 0
-                ? [`coins:${String(compiledOption.consumesCoins)}`]
+              gates: compiledOption.effect !== null && compiledOption.effect.consumesCoins > 0
+                ? [`coins:${String(compiledOption.effect.consumesCoins)}`]
                 : [],
             },
           });

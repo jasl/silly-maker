@@ -1,0 +1,117 @@
+{
+  "format": "sillymaker.text-content-pack",
+  "version": 2,
+  "packId": "text-pack.vn-last-sound-check.route.archive",
+  "locale": "en",
+  "entries": [
+    {
+      "textId": "text.vn-last-sound-check.archive.prepare.reel",
+      "text": "Lin pressed the tape-deck selector and kept her finger there. Zhou smoothed the faded label, then slid the blank archive form toward her."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.prepare.reel.continued",
+      "text": "The gesture felt like handing over a memory that could finally be named. The microphone lamp went dark, leaving the old reel turning slowly."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.prepare.pause",
+      "text": "Thank you—not because it's my voice, but because it kept this place alive for thirteen more years. I thought that first shift proved only my fear."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.prepare.pause.continued",
+      "text": "Instead, the people who came later heard a station still breathing. I never imagined that was what my frightened voice had carried forward."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.prepare.full",
+      "text": "Don't trim it. Send the breath at the start, the chair against the wall, and the last half-second of noise."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.prepare.full.continued",
+      "text": "The archive doesn't need a broadcaster who never made a mistake. It should remember someone carrying morning down the mountain while afraid."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.prepare.ready",
+      "text": "All right; levels are set, and the receiving window is connected. You start the reel; thirteen years ago I thought one slow second would lose the world."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.prepare.ready.continued",
+      "text": "Now I want to watch someone else send that voice for me. When the needle crossed the white line, Lin rested her hand on Play."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.prepare.deck",
+      "text": "The reel quickened, and every repaired join passed cleanly over the head. Old hiss filled the room with the clock and the wind."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.prepare.deck.continued",
+      "text": "The relay also caught two people trying not to breathe too loudly. Zhou watched Lin's hand instead of the meters."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.prepare.sent",
+      "text": "“This is Cape Hill Community Radio. Good morning. May someone hear you today.”"
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.stairs",
+      "text": "When the receive lamp steadied, Lin printed the temporary receipt while Zhou left the stopped reel on the deck. They climbed the narrow stairs without taking it."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.stairs.continued",
+      "text": "The tape finally seemed to belong to the archive rather than either of them. Above the roof, the eastern clouds had begun to pale."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.cold",
+      "text": "So this is where we hear those words from the antenna for the last time. Monitor speakers round off every crack."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.cold.continued",
+      "text": "The wind gives each pause back unchanged. When that breath played downstairs, the younger you no longer seemed trapped inside the tape."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.breaker",
+      "text": "Ten seconds to the master switch now. Watch the status lamp, and tell me only when it is completely dark."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.breaker.continued",
+      "text": "I used to shut the sound off before every sign-off. Today I want to see the last trace of light finish."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.cable",
+      "text": "An antenna cable swayed in the wind and made a metal sound too small to carry. The old six-point-eight-second call had already left the tower."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.cable.continued",
+      "text": "Along the archive line, it became a record someone could find again. Only the cable remained, keeping time for a voice that had ended."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.receipt",
+      "text": "Read the receipt once more, please. I need to know the call didn't remain only in our ears or become something polished and unfamiliar."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.receipt.continued",
+      "text": "If the opening breath is registered too, I'll believe they received all of you, not just a clean archival sample."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.confirmed",
+      "text": "Received: old station call, six point eight seconds complete, original pauses and room noise retained, marked as Cape Hill Community Radio's final live record."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.confirmed.continued",
+      "text": "The notes include your restoration report and my name on duty. They accepted a place where people worked, not a monument."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.response",
+      "text": "That's enough. When someone opens it, they will hear your younger breath before the greeting and know that what lasted thirteen years was never a perfect voice."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.response.continued",
+      "text": "It was someone sitting down at the microphone again and again. Zhou smiled and did not correct Lin for saying “we” as “you.”"
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.shutdown",
+      "text": "Only after Lin said “dark” did Zhou press the master switch. The red lamp faded, and the tower's last low hum sank into the wind."
+    },
+    {
+      "textId": "text.vn-last-sound-check.archive.roof.shutdown.continued",
+      "text": "He gave Lin the key without turning back to check. The city below entered morning quietly, while the old tape had somewhere new to go."
+    },
+    { "textId": "text.vn-last-sound-check.archive.ending.title", "text": "The Old Voice, Archived" }
+  ]
+}

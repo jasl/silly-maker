@@ -1,0 +1,29 @@
+{
+  "format": "sillymaker.motion",
+  "version": 1,
+  "motionId": "motion.vn-last-sound-check.control-room.lin-entrance",
+  "label": "林澄从控制室侧门入场",
+  "durationMs": 360,
+  "delayMs": 0,
+  "tracks": [
+    {
+      "channel": "offsetX",
+      "keyframes": [
+        { "atPermille": 0, "value": 96, "easing": "ease_out_back" },
+        { "atPermille": 1000, "value": 0 }
+      ]
+    },
+    {
+      "channel": "opacityPermille",
+      "keyframes": [
+        { "atPermille": 0, "value": 0 },
+        { "atPermille": 700, "value": 1000 },
+        { "atPermille": 1000, "value": 1000 }
+      ]
+    }
+  ],
+  "authoring": {
+    "status": "human_tuned",
+    "notes": "Cue-bound one-shot: a short side-door entrance that settles at the authored anchor."
+  }
+}

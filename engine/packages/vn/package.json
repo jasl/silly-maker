@@ -1,0 +1,29 @@
+{
+  "name": "@sillymaker/vn",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    "./interaction": "./src/base/index.ts",
+    "./history": "./src/history/index.ts",
+    "./preset": "./src/preset/index.ts",
+    "./ui": "./src/ui/index.ts",
+    "./ui/core": "./src/ui/core.ts"
+  },
+  "scripts": {
+    "test": "deno run -A npm:vitest run engine/packages/vn/src"
+  },
+  "dependencies": {
+    "@sillymaker/base": "workspace:*",
+    "@sillymaker/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  }
+}

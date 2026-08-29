@@ -18,8 +18,7 @@ export const sillyMakerConfigV1 = {
   appDirectories: [
     "e2e",
     "template",
-    "examples/bookshop",
-    "examples/vn-reference-tour",
+    "examples/vn-last-sound-check",
     "examples/silly-os",
   ],
 } as const satisfies SillymakerWorkspaceConfigV1;

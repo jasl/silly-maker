@@ -8,7 +8,6 @@ import type { PointerActionMapV1 } from "../input/pointer-button-adapter.ts";
 import type {
   NarrativeSurfaceDialogueRendererPropsV1,
   NarrativeSurfaceHistoryFeatureV1,
-  NarrativeSurfaceHistoryRendererPropsV1,
 } from "../narrative/narrative-surface-composition.tsx";
 import {
   createDefaultVnPlayerCoreInternalV1,
@@ -17,11 +16,9 @@ import {
   type DefaultVnPlayerCoreLabelsV1,
 } from "./default-vn-player-core.tsx";
 import {
+  createDefaultVnPlayerHistoryV1,
   defaultVnPlayerHistoryLabelsInternalV1,
-  DefaultVnPlayerHistoryOpenControlInternalV1,
-  DefaultVnPlayerHistoryRendererInternalV1,
   type DefaultVnPlayerHistoryLabelKeyInternalV1,
-  type DefaultVnPlayerHistoryLabelsInternalV1,
 } from "./default-vn-player-history.tsx";
 
 export interface DefaultVnPlayerLabelsV1 extends DefaultVnPlayerCoreLabelsV1 {
@@ -55,30 +52,19 @@ export interface DefaultVnPlayerV1 {
   }>;
 }
 
-function resolveHistoryLabelsInternalV1(
-  props: Readonly<{ readonly resolveText: (textId: string) => string }>,
-  textIds: CreateDefaultVnPlayerInputV1["labelTextIds"],
-): DefaultVnPlayerHistoryLabelsInternalV1 {
-  const resolve = (key: DefaultVnPlayerHistoryLabelKeyInternalV1): string => {
-    const textId = textIds?.[key];
-    return textId === undefined
-      ? defaultVnPlayerHistoryLabelsInternalV1[key]
-      : props.resolveText(textId);
-  };
-  return {
-    history: resolve("history"),
-    historyTitle: resolve("historyTitle"),
-    historyEmpty: resolve("historyEmpty"),
-    historyClose: resolve("historyClose"),
-  };
-}
-
 /**
  * Creates the engine-maintained full VN Player preset. The cohesive core owns
  * dialogue, playback, rollback, and system surfaces; this preset explicitly
  * composes the optional History presentation feature.
  */
 export function createDefaultVnPlayerV1(input: CreateDefaultVnPlayerInputV1): DefaultVnPlayerV1 {
+  const history = createDefaultVnPlayerHistoryV1({
+    ...(input.labelTextIds === undefined ? {} : {
+      labelTextIds: input.labelTextIds as Readonly<
+        Partial<Record<DefaultVnPlayerHistoryLabelKeyInternalV1, string>>
+      >,
+    }),
+  });
   const core = createDefaultVnPlayerCoreInternalV1(
     {
       heldInput: input.heldInput,
@@ -89,24 +75,11 @@ export function createDefaultVnPlayerV1(input: CreateDefaultVnPlayerInputV1): De
         >,
       }),
     },
-    (renderer) => (
-      <DefaultVnPlayerHistoryOpenControlInternalV1
-        renderer={renderer}
-        label={resolveHistoryLabelsInternalV1(renderer, input.labelTextIds).history}
-      />
-    ),
-  );
-  const HistoryRenderer = (
-    props: NarrativeSurfaceHistoryRendererPropsV1,
-  ) => (
-    <DefaultVnPlayerHistoryRendererInternalV1
-      {...props}
-      labels={resolveHistoryLabelsInternalV1(props, input.labelTextIds)}
-    />
+    history.renderOpenControl,
   );
   return {
     renderer: core.renderer,
-    history: { renderer: HistoryRenderer },
+    history: history.feature,
     input: core.input,
   };
 }

@@ -206,7 +206,7 @@ describe("authoritative determinism authority map", () => {
           index === 0
             ? Object.freeze({
               ...control,
-              entry: "examples/bookshop/src/game/simulation.ts",
+              entry: "examples/vn-last-sound-check/src/game/simulation.ts",
             })
             : control,
       );
@@ -220,7 +220,7 @@ describe("authoritative determinism authority map", () => {
           }),
         }),
       ).rejects.toThrow(
-        /authoritative closure includes negative control .*bookshop\/src\/game\/simulation\.ts/u,
+        /authoritative closure includes negative control .*vn-last-sound-check\/src\/game\/simulation\.ts/u,
       );
     },
     liveRepositoryIntegrationTimeoutV1,
@@ -234,7 +234,7 @@ describe("authoritative determinism authority map", () => {
           index === 0
             ? Object.freeze({
               ...control,
-              entry: "./examples/bookshop/src/game/simulation.ts",
+              entry: "./examples/vn-last-sound-check/src/game/simulation.ts",
             })
             : control,
       );
@@ -531,15 +531,13 @@ describe("authoritative determinism authority map", () => {
 
     expect(
       map.applications
-        .filter(({ directory }) =>
-          ["template", "examples/bookshop", "examples/vn-reference-tour"].includes(directory)
-        )
+        .filter(({ directory }) => ["template", "examples/vn-last-sound-check"].includes(directory))
         .every(({ dependencySource }) => dependencySource === "explicit_dependency_seed"),
     ).toBe(true);
     expect(
       map.applications
         .filter(({ directory }) =>
-          !["template", "examples/bookshop", "examples/vn-reference-tour"].includes(directory)
+          !["template", "examples/vn-last-sound-check"].includes(directory)
         )
         .every(({ dependencySource }) => dependencySource === "managed_build_identity"),
     ).toBe(true);

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 import { useId } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 import { systemInputActionIdsV1 } from "../input/contracts.ts";
 import type {
   NarrativeSurfaceDialogueRendererPropsV1,
+  NarrativeSurfaceHistoryFeatureV1,
   NarrativeSurfaceHistoryRendererPropsV1,
 } from "../narrative/narrative-surface-composition.tsx";
 import { DefaultVnPlayerPlaybackButtonInternalV1 } from "./default-vn-player-core-renderer.tsx";
@@ -26,6 +27,61 @@ export const defaultVnPlayerHistoryLabelsInternalV1: DefaultVnPlayerHistoryLabel
   historyEmpty: "No dialogue yet.",
   historyClose: "Close history",
 };
+
+export type DefaultVnPlayerHistoryLabelsV1 = DefaultVnPlayerHistoryLabelsInternalV1;
+export type DefaultVnPlayerHistoryLabelKeyV1 = DefaultVnPlayerHistoryLabelKeyInternalV1;
+export const defaultVnPlayerHistoryLabelsV1 = defaultVnPlayerHistoryLabelsInternalV1;
+
+export interface CreateDefaultVnPlayerHistoryInputV1 {
+  /** Optional product text IDs, resolved through the Narrative text resolver on every render. */
+  readonly labelTextIds?: Readonly<Partial<Record<DefaultVnPlayerHistoryLabelKeyV1, string>>>;
+}
+
+export interface DefaultVnPlayerHistoryV1 {
+  readonly feature: NarrativeSurfaceHistoryFeatureV1;
+  readonly renderOpenControl: (
+    props: NarrativeSurfaceDialogueRendererPropsV1,
+  ) => ReactNode;
+}
+
+function resolveHistoryLabelsV1(
+  props: Readonly<{ readonly resolveText: (textId: string) => string }>,
+  textIds: CreateDefaultVnPlayerHistoryInputV1["labelTextIds"],
+): DefaultVnPlayerHistoryLabelsV1 {
+  const resolve = (key: DefaultVnPlayerHistoryLabelKeyV1): string => {
+    const textId = textIds?.[key];
+    return textId === undefined ? defaultVnPlayerHistoryLabelsV1[key] : props.resolveText(textId);
+  };
+  return {
+    history: resolve("history"),
+    historyTitle: resolve("historyTitle"),
+    historyEmpty: resolve("historyEmpty"),
+    historyClose: resolve("historyClose"),
+  };
+}
+
+/** Creates the focused, presentation-only default History capability. */
+export function createDefaultVnPlayerHistoryV1(
+  input: CreateDefaultVnPlayerHistoryInputV1 = {},
+): DefaultVnPlayerHistoryV1 {
+  const HistoryRenderer = (
+    props: NarrativeSurfaceHistoryRendererPropsV1,
+  ): ReactElement => (
+    <DefaultVnPlayerHistoryRendererInternalV1
+      {...props}
+      labels={resolveHistoryLabelsV1(props, input.labelTextIds)}
+    />
+  );
+  return {
+    feature: { renderer: HistoryRenderer },
+    renderOpenControl: (renderer) => (
+      <DefaultVnPlayerHistoryOpenControlInternalV1
+        renderer={renderer}
+        label={resolveHistoryLabelsV1(renderer, input.labelTextIds).history}
+      />
+    ),
+  };
+}
 
 export function DefaultVnPlayerHistoryOpenControlInternalV1(props: {
   readonly renderer: NarrativeSurfaceDialogueRendererPropsV1;

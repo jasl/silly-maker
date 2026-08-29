@@ -8,10 +8,7 @@ description: "用于暴露 SillyMaker 抽象缺口、可独立运行的产品与
 
 - **最后一次试音**——维护中的旗舰 Reference Product：一部原创、完整的双路线 VN，
   覆盖默认 Player、Save/recovery、音频、i18n、响应式 UI 与 Inspector 辅助创作。
-  [查看说明](./vn-reference-tour/)或[在本站构建中游玩](../../play/vn-reference-tour/)。
+  [查看说明](./vn-last-sound-check/)或[在本站构建中游玩](../../play/vn-last-sound-check/)。
 - **SillyOS**——从 Creator Home 进入 Program Workspace 的 GUI-only 产品切片。
   唯一内置的 Agent Creator 驱动确定性本地预览和审查流程；真实 Pi、数据库、RPC、
   Mod 激活和持久化尚未接入。[立即打开](../../play/silly-os/)。
-- **Bookshop**——仓库内维护的聚焦叙事创作示例。
-
-Bookshop 在独立评审其长期教学职责之前继续维护；旗舰完成不会隐式使它退役。

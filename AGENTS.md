@@ -11,11 +11,11 @@ Backend services, CLI products, and headless products are not engine targets.
 Desktop CLI arguments may provide admitted startup configuration, and headless
 code may support development, tests, conformance, and automation. Required
 external or companion services, including LLMs, connect through typed RPC
-boundaries; they are not in-process plugins. The maintained flagship Reference
-Product is the VN Reference Tour. Bookshop remains a maintained minimal
-Narrative example, but is neither the flagship nor a complete VN product
-reference; its later teaching role requires a separate post-completion review
-and is not pre-decided. The maintained product examples are SillyOS and the VN.
+boundaries; they are not in-process plugins. The maintained flagship product is
+**One Last Sound Check** (`examples/vn-last-sound-check`). Bookshop retired in
+the explicit post-completion review; it is historical evidence rather than a
+second maintained authoring path. The maintained product examples are SillyOS
+and One Last Sound Check.
 Cat Cafe, the stopped Electronic Pet Reference Product, and
 the retired Project Tavern PoC live only as historical evidence. The active
 work may redesign gameplay, engine APIs, application hosting, state management,
@@ -35,9 +35,21 @@ Read only the documents relevant to the change:
   implemented yet.
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
-  PF6 remains evidence-gated and inactive. The current lane is
-  `docs/engine/plans/2026-08-27-vn-reference-tour.md`: the completed flagship
-  product lane for an original, compact VN that starts from the tracked
+  PF6 remains evidence-gated and inactive. The most recently completed lane is
+  `docs/engine/plans/2026-08-29-vn-genre-mod-authoring.md`: it extracted a
+  focused first-party VN interaction/compiler/runtime layer shared by Template
+  and One Last Sound Check; made History the first real optional presentation
+  Mod with development lazy load/unload, R1 successor publication and
+  production structural exclusion; and placed a real read-only VN Inspector
+  contribution beside the structured Scene operation/CAS authority shared by
+  humans and Agents without adding a Narrative/Text writer. A product may
+  explicitly include the supported extension surface in
+  production, but this closure does not activate a public resolver/ABI/SDK,
+  distribution system, post-release arbitrary-code install path, or Ren'Py
+  DSL/runtime clone. No successor lane is automatically active. The preceding
+  completed historical product lane is
+  `docs/engine/plans/2026-08-27-vn-reference-tour.md`: the original compact VN
+  **One Last Sound Check**, which starts from the tracked
   Template and demonstrates the current recommended VN authoring and Player
   path without becoming an
   all-engine API gallery or a Ren'Py DSL. M0–M1 have delivered the independent
@@ -45,7 +57,7 @@ Read only the documents relevant to the change:
   deletion of unselected starter domains, complete two-route script, two
   Authoring Scenes, author data, and named headless route simulations. M2 has
   delivered and closed the engine-maintained focused
-  `@sillymaker/ui/narrative-player` preset, flush-bottom responsive
+  first-party VN preset (now selected through `@sillymaker/vn`), flush-bottom responsive
   dialogue/choice chrome, say-only full-canvas pointer advance,
   History/playback controls, Ctrl/Tab/H/V plus middle-button hide/restore,
   portrait layout, final Stage media and ending surface, the frozen eight-asset
@@ -72,7 +84,9 @@ Read only the documents relevant to the change:
   interaction, while the production graph excludes DevDock, Inspector/source
   writers, tooling, and the private Mod runtime. The private controller and
   DevDock publication remain separately proved substrate rather than an
-  end-to-end product hot-plug system; History is only statically optional today.
+  end-to-end product hot-plug system; at that checkpoint History was only
+  statically optional. The completed VN Genre Mod lane delivered the first real
+  end-to-end History selection consumer.
   A real authoritative Mod remains an R2 consumer for a later product rather
   than a fabricated VN route. The owner-authorized Computer Use-assisted
   participant handoff is complete. M4's independent review found that the
@@ -88,14 +102,13 @@ Read only the documents relevant to the change:
   was available. That qualification was not run or passed and the flagship makes
   no corresponding low-end support claim. M4 therefore closed on the accepted
   reduced evidence scope. M5 then completed the atomic current-doc,
-  workspace/build/deploy and product-metadata cutover, making the VN Reference
-  Tour the maintained flagship without claiming a live remote deployment.
+  workspace/build/deploy and product-metadata cutover, making One Last Sound
+  Check the maintained flagship without claiming a live remote deployment.
   Cat Cafe terminated on 2026-08-27 before this lane began; its application,
   revision-1 Save support, product E2E, and live release responsibility ended
-  together, without a cross-product migration. Bookshop remains the maintained
-  minimal Narrative example, but is not the flagship or a complete VN product
-  reference; M5 did not delete it, and a post-completion review must explicitly
-  decide its teaching role. The
+  together, without a cross-product migration. The later explicit
+  post-completion review retired Bookshop and selected One Last Sound Check as
+  the sole maintained VN product reference. The
   preceding Electronic Pet lane stopped incomplete on 2026-08-27: M0–M2 and the
   committed M3 slices remain historical evidence, the remaining denominator
   will not be delivered, and its additional WIP is preserved only on
@@ -612,6 +625,14 @@ and another active plan is accepted.
   root entry does not re-export that optional path. Same-realm components are
   trusted application code; policy metadata guides cooperation and inspection,
   not DOM/network/listener/main-thread sandboxing.
+- `@sillymaker/vn` is the focused first-party VN genre layer. Its Base entry
+  owns generic interaction documents, compilation, stable derived IDs, and
+  deterministic run-to-interaction policy; focused UI entries compose existing
+  Narrative/Stage/Input primitives, and History is a separately selectable
+  presentation Mod. It owns no second Session, State, Save, replay, source
+  writer, service locator, or private Mod backend. Products provide typed
+  predicates/effects, content, theme, and special surfaces. Template and One
+  Last Sound Check consume the same layer rather than retaining copied kits.
 - `@sillymaker/web` owns browser hosting, Browser/Deno Desktop admitted GUI
   bootstrap, first-product-commit and required-readiness signaling, the single
   product-selected close participant, IndexedDB persistence adapters, mounting,

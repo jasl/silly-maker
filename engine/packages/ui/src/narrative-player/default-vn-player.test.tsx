@@ -329,6 +329,29 @@ describe("createDefaultVnPlayerCoreV1", () => {
     expect(screen.queryByRole("button", { name: "History" })).toBeNull();
     expect(document.querySelector("[data-dialogue-history-open='true']")).toBeNull();
   });
+
+  it("renders one explicitly selected auxiliary playback capability", () => {
+    const router = createInputRouterV1();
+    const player = createDefaultVnPlayerCoreV1({
+      heldInput: createHeldInputHarnessV1().port,
+      rollback: createRollbackHarnessV1().port,
+      renderAuxiliaryPlaybackControl: () => <button type="button">Optional tool</button>,
+    });
+    const Renderer = player.renderer;
+    render(
+      <PlayerSystemControllerProviderInternalV1
+        controller={createPlayerSystemControllerHarnessV1().controller}
+      >
+        <InputContextProviderV1 router={router}>
+          <main data-narrative-surface-focus-scope="dialogue" tabIndex={-1}>
+            <Renderer {...dialoguePropsV1()} />
+          </main>
+        </InputContextProviderV1>
+      </PlayerSystemControllerProviderInternalV1>,
+    );
+
+    expect(screen.getByRole("button", { name: "Optional tool" })).toBeVisible();
+  });
 });
 
 describe("createDefaultVnPlayerV1", () => {

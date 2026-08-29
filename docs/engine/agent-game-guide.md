@@ -8,10 +8,9 @@ The repository prepares three tiers of material for the agent; feed them as need
 
 1. **Handbook** (required reading, cheap in tokens): `template/AGENTS.md` — the starter skeleton's change discipline, the engine baseline (what you get for free), and the optional-wiring checklist (audio/rollback/save guard etc., one entry point each).
 2. **Quickstart** (look up per task): `docs/engine/authoring-quickstart.md` — the difficulty-tiered operating guide and diagnostics quick-reference.
-3. **Reference implementations** (study, do not inherit): `examples/bookshop`
-   is the focused narrative-authoring example. The accepted VN Reference Tour
-   will become the complete current VN product reference only after its active
-   plan closes; start new products from `template/`, not from Bookshop.
+3. **Reference implementations** (study, do not inherit):
+   `examples/vn-last-sound-check` is the complete current VN product reference.
+   Start new products from `template/`, not by forking the flagship product.
 
 A curated repository example also follows the complete
 [reference-application product contract](../../examples/AGENTS.md#reference-application-product-contract).
@@ -38,6 +37,8 @@ Process requirements:
    application's own simulate target in its sillymaker.config.ts, and update
    metadata.json.
 3. Write narrative control and stable text references in src/story/narrative.ts;
+   use `@sillymaker/vn/interaction` for the shared interaction document/compiler/runtime
+   policy instead of copying a product-local narrative kit;
    put narrative copy in assets/content/*.text-pack.json and its compact manifest
    in src/content/text-content.ts; resident UI copy stays in
    src/content/presentation.ts;
@@ -92,3 +93,7 @@ rollback, save safepoints, hit regions, or content tables. Engine contracts and
 focused conformance tests are the authority until a current product reference
 demonstrates a complete use. Incremental wiring does not make a curated or
 reference-derived example complete before its full product contract closes.
+History presentation is an optional VN Mod: the development product may
+load/unload it through the supported selection surface, while a core-only
+production graph omits its renderer, CSS, loader, and private controller. Do not
+change Story-owned History State or Save bytes to make the UI optional.

@@ -1,0 +1,214 @@
+{
+  "format": "sillymaker.authoring-scene",
+  "version": 1,
+  "sceneId": "scene.vn-last-sound-check.control-room",
+  "label": "夜间控制室",
+  "canvas": { "width": 1600, "height": 900 },
+  "layers": [
+    {
+      "layerId": "layer.vn-last-sound-check.background",
+      "label": "背景",
+      "roots": [
+        {
+          "objectId": "tag.vn-last-sound-check.background",
+          "label": "控制室",
+          "visual": { "contentId": "content.vn-last-sound-check.background.control-room" }
+        },
+        {
+          "objectId": "tag.vn-last-sound-check.control-room.window-first-light",
+          "label": "窗外微光",
+          "localTransform": {
+            "x": 1230,
+            "y": 92,
+            "scalePermille": 1000,
+            "opacityPermille": 680,
+            "mirrored": false
+          },
+          "visual": { "contentId": "content.vn-last-sound-check.effect.window-first-light" }
+        }
+      ]
+    },
+    {
+      "layerId": "layer.vn-last-sound-check.props",
+      "label": "播音设备",
+      "roots": [
+        {
+          "objectId": "tag.vn-last-sound-check.control-room.equipment-bank",
+          "label": "设备台",
+          "children": [
+            {
+              "objectId": "tag.vn-last-sound-check.control-room.mixing-console",
+              "label": "调音台",
+              "localTransform": {
+                "x": 555,
+                "y": 585,
+                "scalePermille": 1000,
+                "opacityPermille": 1000,
+                "mirrored": false
+              },
+              "visual": {
+                "contentId": "content.vn-last-sound-check.prop.mixing-console",
+                "appearance": { "state": "standby" }
+              }
+            },
+            {
+              "objectId": "tag.vn-last-sound-check.control-room.tape-machine",
+              "label": "磁带机",
+              "localTransform": {
+                "x": 270,
+                "y": 520,
+                "scalePermille": 1000,
+                "opacityPermille": 1000,
+                "mirrored": false
+              },
+              "visual": {
+                "contentId": "content.vn-last-sound-check.prop.tape-machine",
+                "appearance": { "state": "idle" }
+              }
+            },
+            {
+              "objectId": "tag.vn-last-sound-check.control-room.wall-clock",
+              "label": "挂钟",
+              "localTransform": {
+                "x": 1350,
+                "y": 135,
+                "scalePermille": 1000,
+                "opacityPermille": 1000,
+                "mirrored": false
+              },
+              "visual": { "contentId": "content.vn-last-sound-check.prop.wall-clock" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layerId": "layer.vn-last-sound-check.characters",
+      "label": "角色",
+      "roots": [
+        {
+          "objectId": "tag.vn-last-sound-check.character.zhou",
+          "label": "周遥",
+          "localTransform": {
+            "x": 430,
+            "y": 805,
+            "scalePermille": 1000,
+            "opacityPermille": 1000,
+            "mirrored": false
+          },
+          "visual": {
+            "contentId": "content.vn-last-sound-check.character.zhou",
+            "appearance": { "expression": "neutral" }
+          }
+        },
+        {
+          "objectId": "tag.vn-last-sound-check.character.lin",
+          "label": "林澄",
+          "localTransform": {
+            "x": 1110,
+            "y": 805,
+            "scalePermille": 1000,
+            "opacityPermille": 1000,
+            "mirrored": true
+          },
+          "visual": {
+            "contentId": "content.vn-last-sound-check.character.lin",
+            "appearance": { "expression": "focused" },
+            "ambient": { "motionId": "motion.vn-last-sound-check.control-room.lin-blink" }
+          }
+        }
+      ]
+    },
+    {
+      "layerId": "layer.vn-last-sound-check.foreground",
+      "label": "前景设备",
+      "roots": [
+        {
+          "objectId": "tag.vn-last-sound-check.control-room.microphone",
+          "label": "话筒",
+          "localTransform": {
+            "x": 820,
+            "y": 610,
+            "scalePermille": 1000,
+            "opacityPermille": 1000,
+            "mirrored": false
+          },
+          "visual": {
+            "contentId": "content.vn-last-sound-check.prop.microphone",
+            "appearance": { "state": "off" }
+          }
+        },
+        {
+          "objectId": "tag.vn-last-sound-check.control-room.signal-light",
+          "label": "信号灯",
+          "localTransform": {
+            "x": 1180,
+            "y": 535,
+            "scalePermille": 1000,
+            "opacityPermille": 1000,
+            "mirrored": false
+          },
+          "visual": {
+            "contentId": "content.vn-last-sound-check.prop.signal-light",
+            "appearance": { "state": "ready" }
+          }
+        }
+      ]
+    }
+  ],
+  "cues": [
+    {
+      "cueId": "cue.vn-last-sound-check.control-room.room",
+      "kind": "show",
+      "objectId": "tag.vn-last-sound-check.background"
+    },
+    {
+      "cueId": "cue.vn-last-sound-check.control-room.window-first-light",
+      "kind": "show",
+      "objectId": "tag.vn-last-sound-check.control-room.window-first-light"
+    },
+    {
+      "cueId": "cue.vn-last-sound-check.control-room.mixing-console",
+      "kind": "show",
+      "objectId": "tag.vn-last-sound-check.control-room.mixing-console"
+    },
+    {
+      "cueId": "cue.vn-last-sound-check.control-room.tape-machine",
+      "kind": "show",
+      "objectId": "tag.vn-last-sound-check.control-room.tape-machine"
+    },
+    {
+      "cueId": "cue.vn-last-sound-check.control-room.wall-clock",
+      "kind": "show",
+      "objectId": "tag.vn-last-sound-check.control-room.wall-clock"
+    },
+    {
+      "cueId": "cue.vn-last-sound-check.control-room.microphone",
+      "kind": "show",
+      "objectId": "tag.vn-last-sound-check.control-room.microphone"
+    },
+    {
+      "cueId": "cue.vn-last-sound-check.control-room.signal-light",
+      "kind": "show",
+      "objectId": "tag.vn-last-sound-check.control-room.signal-light"
+    },
+    {
+      "cueId": "cue.vn-last-sound-check.control-room.lin-enters",
+      "kind": "show",
+      "objectId": "tag.vn-last-sound-check.character.lin",
+      "motionId": "motion.vn-last-sound-check.control-room.lin-entrance"
+    },
+    {
+      "cueId": "cue.vn-last-sound-check.control-room.zhou-present",
+      "kind": "show",
+      "objectId": "tag.vn-last-sound-check.character.zhou",
+      "cut": true
+    },
+    {
+      "cueId": "cue.vn-last-sound-check.control-room.signal-light-off",
+      "kind": "hide",
+      "objectId": "tag.vn-last-sound-check.control-room.signal-light",
+      "cut": true
+    }
+  ]
+}

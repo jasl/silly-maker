@@ -1,132 +1,50 @@
 // SPDX-License-Identifier: MIT
 import type {
-  Scene,
-  SemanticStageState,
-  StageCueDispatch,
-  StageMutation,
-} from "@sillymaker/base/story";
-import { parseStageMutation } from "@sillymaker/base/story";
+  CompiledVnInteractionDocumentV1,
+  VnBranchBlockV1,
+  VnChoiceOptionV1,
+  VnEndBlockV1,
+  VnHoldBlockV1,
+  VnInteractionDocumentV1,
+  VnNarrativeNodeV1,
+  VnSayBlockV1,
+  VnSceneBindingV1,
+  VnStageBlockV1,
+  VnStageOperationV1,
+} from "@sillymaker/vn/interaction";
+import { compileVnInteractionDocumentV1 } from "@sillymaker/vn/interaction";
 
-/**
- * The interaction-document kit (the template flavor of
- * `docs/engine/proposals/interaction-table-authoring.md`).
- *
- * A document is PURE DATA: say/choice/stage/branch/hold/end blocks with
- * short names. Every id the runtime needs derives from one stable short name
- * (`node.<prefix>.<name>`, `interaction.<prefix>.<name>`,
- * `text.<prefix>.line.<name>`, …), and every derived id accepts an explicit
- * override, so migrating an existing script keeps its ids (and therefore its
- * saves and digests) byte-identical. Copy may stay inline for a tiny Story or
- * be omitted when a build-known content pack owns the explicit text id. The
- * compiler validates everything at admission (unknown speakers, duplicate
- * names, unresolved jumps, bad stage ops fail construction loudly), emits the
- * exact node objects the hand-written script used, and collects only copy the
- * document actually keeps inline. The Player compiler never constructs
- * tooling-only source metadata or a second graph.
- *
- * Behavior stays in TypeScript: stage composition is referenced through
- * scene documents (open/cue by short key) or a closed mutation vocabulary
- * (`setAppearance`), and branching is a declarative flag test. This is
- * ordinary data construction — no DSL, no runtime, no new engine API.
- */
-
-// ---- Runtime IR (unchanged; the runner in narrative.ts consumes this) ----
-
-export interface TemplateChoiceOptionV1 {
-  readonly choiceId: string;
-  readonly textId: string;
-  /** Coins atomically consumed by the resolve command; 0 for free options. */
+/** Product-owned choice behavior; the VN Genre Mod keeps it opaque. */
+export type TemplateChoiceEffectV1 = {
   readonly consumesCoins: number;
-  /** Flags recorded into narrative state when this option is chosen. */
   readonly setFlags: readonly string[];
-  readonly next: string;
-}
+};
 
-export type TemplateNarrativeNodeV1 =
-  | {
-    readonly kind: "say";
-    readonly nodeId: string;
-    readonly definitionId: string;
-    readonly seenRevision: number;
-    readonly speakerTextId: string | null;
-    readonly textId: string;
-    readonly next: string;
-  }
-  | {
-    readonly kind: "stage";
-    readonly mutations: (stage: SemanticStageState) => readonly StageMutation[];
-    readonly nodeId: string;
-    /** Static annotation of contents this node may show (for lint). */
-    readonly mayShow: readonly string[];
-    /**
-     * Static annotation of the scene dispatches this node performs (cue
-     * references and whole-scene opens), in op order. The runner forwards
-     * them as presentation edge context when the node actually mutates the
-     * stage; `setAppearance` ops contribute none.
-     */
-    readonly dispatches: readonly StageCueDispatch[];
-    readonly next: string;
-  }
-  | {
-    readonly kind: "choice";
-    readonly nodeId: string;
-    readonly definitionId: string;
-    readonly seenRevision: number;
-    readonly promptTextId: string;
-    readonly options: readonly TemplateChoiceOptionV1[];
-  }
-  | {
-    readonly kind: "branch";
-    readonly nodeId: string;
-    /** Static successor annotation for the lint/prediction graph. */
-    readonly successors: readonly string[];
-    /** Pure flag-conditioned routing; must pick a successor. */
-    readonly choose: (context: { readonly flags: readonly string[] }) => string;
-  }
-  | {
-    /** Holds the screen for an authoritative duration; expiry advances. */
-    readonly kind: "hold";
-    readonly nodeId: string;
-    readonly definitionId: string;
-    readonly seenRevision: number;
-    /** Authoritative dwell in milliseconds; never a wall-clock deadline. */
-    readonly durationMs: number;
-    /** Player input may fold the remaining wait into one tick. */
-    readonly skippable: boolean;
-    /**
-     * Declared-condition reroute arms (the branch `when` vocabulary on the
-     * hold timeline): evaluated when the hold opens and at every
-     * hold-fenced time settlement, declaration-order first match wins. A
-     * match ends the occurrence at that instant and the runner continues
-     * from the arm's `next` in the same commit; no match keeps holding
-     * until expiry advances to `next`.
-     */
-    readonly when: readonly { readonly flag: string; readonly next: string }[];
-    readonly next: string;
-  }
-  | { readonly kind: "end"; readonly nodeId: string };
+/** Product-owned branch/hold condition; the VN Genre Mod only invokes it. */
+export type TemplatePredicateV1 = {
+  readonly flag: string;
+};
 
-// ---- Document input (pure data; no functions) ----
+export type TemplateChoiceOptionV1 = VnChoiceOptionV1<TemplateChoiceEffectV1>;
+export type TemplateNarrativeNodeV1 = VnNarrativeNodeV1<
+  TemplateChoiceEffectV1,
+  TemplatePredicateV1
+>;
+export type TemplateSayBlockV1 = VnSayBlockV1;
+export type TemplateStageOpV1 = VnStageOperationV1;
+export type TemplateStageBlockV1 = VnStageBlockV1;
+export type TemplateBranchCaseV1 = VnBranchBlockV1<TemplatePredicateV1>["cases"][number];
+export type TemplateBranchBlockV1 = VnBranchBlockV1<TemplatePredicateV1>;
+export type TemplateHoldWhenArmV1 = NonNullable<
+  VnHoldBlockV1<TemplatePredicateV1>["when"]
+>[number];
+export type TemplateHoldBlockV1 = VnHoldBlockV1<TemplatePredicateV1>;
+export type TemplateEndBlockV1 = VnEndBlockV1;
+export type TemplateSceneBindingV1 = VnSceneBindingV1;
 
-export interface TemplateSayBlockV1 {
-  readonly kind: "say";
-  readonly name: string;
-  /** A key declared in `speakers`; null narrates without a speaker. */
-  readonly speaker: string | null;
-  /** Inline default-locale copy; omit when `textId` resolves from a content pack. */
-  readonly text?: string;
-  /** Override the derived `text.<prefix>.line.<name>` (keeps old saves). */
-  readonly textId?: string;
-  /** Override the derived `interaction.<prefix>.<name>`. */
-  readonly definitionId?: string;
-  readonly next: string;
-  /** Bump when the line's meaning changes and Seen should reset. */
-  readonly seenRevision?: number;
-}
-
+/** Compact starter syntax normalized into one opaque Genre-Mod effect. */
 export interface TemplateChoiceOptionInputV1 {
   readonly name: string;
-  /** Inline default-locale copy; omit when `textId` resolves elsewhere. */
   readonly text?: string;
   readonly textId?: string;
   readonly next: string;
@@ -137,94 +55,11 @@ export interface TemplateChoiceOptionInputV1 {
 export interface TemplateChoiceBlockV1 {
   readonly kind: "choice";
   readonly name: string;
-  /** Inline default-locale prompt; omit when `promptTextId` resolves elsewhere. */
   readonly prompt?: string;
   readonly promptTextId?: string;
   readonly definitionId?: string;
   readonly options: readonly TemplateChoiceOptionInputV1[];
   readonly seenRevision?: number;
-}
-
-/**
- * One stage operation. Scene composition (show/hide, placements, cue
- * motions) is referenced by scene short name + cue key; mid-scene
- * appearance beats on standing content stay script-owned through the
- * closed `setAppearance` vocabulary.
- */
-export type TemplateStageOpV1 =
-  | { readonly scene: string; readonly open: true }
-  | { readonly scene: string; readonly cue: string }
-  | {
-    readonly setAppearance: {
-      readonly layerId: string;
-      readonly tag: string;
-      readonly appearance: Readonly<Record<string, string>>;
-    };
-  };
-
-export interface TemplateStageBlockV1 {
-  readonly kind: "stage";
-  readonly name: string;
-  readonly ops: readonly TemplateStageOpV1[];
-  readonly next: string;
-}
-
-export interface TemplateBranchCaseV1 {
-  /** Route here when the flag is set; omit on the last case for else. */
-  readonly when?: { readonly flag: string };
-  readonly next: string;
-}
-
-export interface TemplateBranchBlockV1 {
-  readonly kind: "branch";
-  readonly name: string;
-  readonly cases: readonly TemplateBranchCaseV1[];
-}
-
-/** One declared-condition reroute arm on a hold block. */
-export interface TemplateHoldWhenArmV1 {
-  /** Same predicate vocabulary as a branch case; required (no else arm). */
-  readonly when: { readonly flag: string };
-  readonly next: string;
-}
-
-/**
- * An authoritative timed hold between two beats (the engine `hold`
- * interaction): the screen holds for `durationMs`, the Narrative Host
- * reports elapsed milliseconds as hold-fenced time-tick commits, and
- * expiry advances to `next`. Remaining time lives in authoritative State,
- * so a mid-hold Save restores the wait instead of replaying a wall clock.
- * Ported MV `WAIT n` frame counts convert here: `round(n × 1000 / 60)`.
- *
- * Optional `when` arms abort the wait on a declared condition: the branch
- * `when` vocabulary evaluated on the hold's occurrence timeline (at open
- * and at every hold-fenced settlement), first match wins, no implicit
- * else — else is "keep holding / expire to `next`".
- */
-export interface TemplateHoldBlockV1 {
-  readonly kind: "hold";
-  readonly name: string;
-  /** Positive integer milliseconds. */
-  readonly durationMs: number;
-  /** Player input folds the remaining wait; original WAIT is never skippable. */
-  readonly skippable?: boolean;
-  /**
-   * Optional opening stage batch: compiles to a stage node entered before
-   * the hold, so the held picture is real committed stage state (never a
-   * silent flash). Jumps to this block land on the stage node.
-   */
-  readonly ops?: readonly TemplateStageOpV1[];
-  /** Declared-condition reroute arms; non-empty when present. */
-  readonly when?: readonly TemplateHoldWhenArmV1[];
-  /** Override the derived `interaction.<prefix>.<name>`. */
-  readonly definitionId?: string;
-  readonly seenRevision?: number;
-  readonly next: string;
-}
-
-export interface TemplateEndBlockV1 {
-  readonly kind: "end";
-  readonly name: string;
 }
 
 export type TemplateInteractionBlockV1 =
@@ -236,13 +71,8 @@ export type TemplateInteractionBlockV1 =
   | TemplateEndBlockV1;
 
 export interface TemplateInteractionDocV1 {
-  /** The id prefix, e.g. `"template"` → `node.template.<name>`. */
   readonly prefix: string;
   readonly docId: string;
-  /**
-   * Speaker key → inline default-locale name or an explicit text reference.
-   * The object form may omit copy when a content pack owns the text.
-   */
   readonly speakers?: Readonly<
     Record<string, string | { readonly textId: string; readonly text?: string }>
   >;
@@ -250,316 +80,74 @@ export interface TemplateInteractionDocV1 {
   readonly blocks: readonly TemplateInteractionBlockV1[];
 }
 
-/** Scene handle the compiler resolves stage ops against. */
-export interface TemplateSceneBindingV1 {
-  readonly scene: Scene;
-  /** Short cue key → real cue id (`courtyard` → `cue.template.opening.courtyard`). */
-  readonly cues?: Readonly<Record<string, string>>;
-}
-
 export interface TemplateCompileInputV1 {
   readonly doc: TemplateInteractionDocV1;
   readonly scenes?: Readonly<Record<string, TemplateSceneBindingV1>>;
-  /** `@label` cross-document targets → real nodeIds. */
   readonly externalTargets?: Readonly<Record<string, string>>;
 }
 
-export interface TemplateCompiledInteractionV1 {
-  readonly entryNodeId: string;
-  readonly nodes: readonly TemplateNarrativeNodeV1[];
-  /** Default-locale entries collected from the inline block text. */
-  readonly textEntries: readonly { readonly textId: string; readonly text: string }[];
-}
+export type TemplateCompiledInteractionV1 = CompiledVnInteractionDocumentV1<
+  TemplateChoiceEffectV1,
+  TemplatePredicateV1
+>;
 
-// ---- Compiler ----
-
-function failV1(doc: TemplateInteractionDocV1, at: string, reason: string): never {
-  throw new TypeError(`template.interaction_doc_invalid:${doc.docId}/${at}:${reason}`);
-}
-
+/** Thin product adapter over the first-party VN interaction compiler. */
 export function compileTemplateInteractionDocV1(
   input: TemplateCompileInputV1,
 ): TemplateCompiledInteractionV1 {
-  const { doc } = input;
-  const scenes = input.scenes ?? {};
-  const externalTargets = input.externalTargets ?? {};
-  const nodeId = (name: string): string => `node.${doc.prefix}.${name}`;
-
-  const blockNames = new Set<string>();
-  /** Hold blocks with an opening stage batch; jumps land on `<name>-stage`. */
-  const holdOpsBlocks = new Set<string>();
-  for (const block of doc.blocks) {
-    if (blockNames.has(block.name)) failV1(doc, block.name, "duplicate_block_name");
-    blockNames.add(block.name);
-    if (block.kind === "hold" && block.ops !== undefined && block.ops.length > 0) {
-      const stageName = `${block.name}-stage`;
-      if (blockNames.has(stageName)) failV1(doc, stageName, "duplicate_block_name");
-      blockNames.add(stageName);
-      holdOpsBlocks.add(block.name);
-    }
-  }
-  if (!blockNames.has(doc.entry)) failV1(doc, doc.entry, "entry_missing");
-
-  const textByTextId = new Map<string, string>();
-  const collectText = (at: string, textId: string, text: string): string => {
-    const existing = textByTextId.get(textId);
-    if (existing !== undefined && existing !== text) failV1(doc, at, `text_conflict:${textId}`);
-    textByTextId.set(textId, text);
-    return textId;
-  };
-  const resolveTextId = (
-    at: string,
-    explicitTextId: string | undefined,
-    derivedTextId: string,
-    text: string | undefined,
-  ): string => {
-    if (text === undefined && explicitTextId === undefined) {
-      failV1(doc, at, "text_id_required_without_inline_text");
-    }
-    const textId = explicitTextId ?? derivedTextId;
-    if (text !== undefined) collectText(at, textId, text);
-    return textId;
-  };
-  const speakerTextId = (at: string, key: string | null): string | null => {
-    if (key === null) return null;
-    const speaker = input.doc.speakers?.[key];
-    if (speaker === undefined) failV1(doc, at, `speaker_unknown:${key}`);
-    return typeof speaker === "string" ? `text.${doc.prefix}.speaker.${key}` : speaker.textId;
-  };
-  for (const [key, speaker] of Object.entries(doc.speakers ?? {})) {
-    if (typeof speaker === "string") {
-      collectText(`speakers/${key}`, `text.${doc.prefix}.speaker.${key}`, speaker);
-    } else if (speaker.text !== undefined) {
-      collectText(`speakers/${key}`, speaker.textId, speaker.text);
-    }
-  }
-  const resolveNext = (at: string, next: string): string => {
-    if (next.startsWith("@")) {
-      const target = externalTargets[next.slice(1)];
-      if (target === undefined) failV1(doc, at, `external_target_unknown:${next}`);
-      return target;
-    }
-    if (!blockNames.has(next)) failV1(doc, at, `next_unresolved:${next}`);
-    // A hold block with an opening stage batch is entered through its
-    // compiled stage node so the held picture commits before the wait.
-    if (holdOpsBlocks.has(next)) return nodeId(`${next}-stage`);
-    return nodeId(next);
-  };
-
-  const compileStageOps = (blockName: string, ops: readonly TemplateStageOpV1[]) =>
-    ops.map((op, index) => {
-      const at = `${blockName}/op-${String(index)}`;
-      if ("setAppearance" in op) {
-        const parsed = parseStageMutation(
-          {
-            kind: "setAppearance",
-            layerId: op.setAppearance.layerId,
-            tag: op.setAppearance.tag,
-            appearance: op.setAppearance.appearance,
-          },
-          `/${at}`,
-        );
-        const mutations = [parsed];
-        return ({
-          mutations: () => mutations,
-          mayShow: [] as readonly string[],
-          dispatches: [] as readonly StageCueDispatch[],
-        });
-      }
-      const binding = scenes[op.scene];
-      if (binding === undefined) failV1(doc, at, `scene_unknown:${op.scene}`);
-      if ("open" in op) {
-        return ({
-          mutations: (stage: SemanticStageState) => binding.scene.openMutations(stage),
-          mayShow: binding.scene.mayShow,
-          dispatches: [
-            { sceneId: binding.scene.sceneId, open: true as const },
-          ] as readonly StageCueDispatch[],
-        });
-      }
-      const cueId = binding.cues?.[op.cue];
-      if (cueId === undefined) failV1(doc, at, `cue_unknown:${op.scene}/${op.cue}`);
-      return ({
-        mutations: (stage: SemanticStageState) => binding.scene.cueMutations(cueId, stage),
-        mayShow: binding.scene.cueMayShow(cueId),
-        dispatches: [
-          { sceneId: binding.scene.sceneId, cueId },
-        ] as readonly StageCueDispatch[],
+  const blocks: VnInteractionDocumentV1<
+    TemplateChoiceEffectV1,
+    TemplatePredicateV1
+  >["blocks"] = input.doc.blocks.map((block) => {
+    if (block.kind === "branch") {
+      block.cases.forEach((branchCase, index) => {
+        if (branchCase.when !== undefined && branchCase.when.flag.length === 0) {
+          throw new TypeError(
+            `template.interaction_doc_invalid:${input.doc.docId}/${block.name}/case-${
+              String(index)
+            }:branch_flag_invalid`,
+          );
+        }
       });
-    });
-
-  const nodes: TemplateNarrativeNodeV1[] = [];
-
-  for (const block of doc.blocks) {
-    const id = nodeId(block.name);
-    switch (block.kind) {
-      case "say": {
-        const textId = resolveTextId(
-          block.name,
-          block.textId,
-          `text.${doc.prefix}.line.${block.name}`,
-          block.text,
-        );
-        nodes.push({
-          kind: "say",
-          nodeId: id,
-          definitionId: block.definitionId ?? `interaction.${doc.prefix}.${block.name}`,
-          seenRevision: block.seenRevision ?? 1,
-          speakerTextId: speakerTextId(block.name, block.speaker),
-          textId,
-          next: resolveNext(block.name, block.next),
-        });
-        break;
-      }
-      case "choice": {
-        const promptTextId = resolveTextId(
-          block.name,
-          block.promptTextId,
-          `text.${doc.prefix}.choice.${block.name}.prompt`,
-          block.prompt,
-        );
-        // Same-name options inside one choice would silently share their
-        // derived choice/text ids; reuse across different choices stays
-        // legal (a shared "back" label is meant to share its entry).
-        const optionNames = new Set<string>();
-        const options = block.options.map((option): TemplateChoiceOptionV1 => {
-          if (optionNames.has(option.name)) {
-            failV1(doc, `${block.name}/${option.name}`, "duplicate_option_name");
-          }
-          optionNames.add(option.name);
-          const at = `${block.name}/${option.name}`;
-          return ({
-            choiceId: `choice.${doc.prefix}.${option.name}`,
-            textId: resolveTextId(
-              at,
-              option.textId,
-              `text.${doc.prefix}.choice.${option.name}`,
-              option.text,
-            ),
-            consumesCoins: option.consumesCoins ?? 0,
-            setFlags: [...(option.setFlags ?? [])],
-            next: resolveNext(at, option.next),
-          });
-        });
-        nodes.push({
-          kind: "choice",
-          nodeId: id,
-          definitionId: block.definitionId ?? `interaction.${doc.prefix}.${block.name}`,
-          seenRevision: block.seenRevision ?? 1,
-          promptTextId,
-          options: options,
-        });
-        break;
-      }
-      case "stage": {
-        if (block.ops.length === 0) failV1(doc, block.name, "stage_ops_empty");
-        const compiledOps = compileStageOps(block.name, block.ops);
-        const lastOp = compiledOps.at(-1);
-        if (lastOp === undefined) failV1(doc, block.name, "stage_ops_empty");
-        nodes.push({
-          kind: "stage",
-          nodeId: id,
-          mutations: (
-            stage: SemanticStageState,
-          ) => (compiledOps.flatMap((op) => [...op.mutations(stage)])),
-          mayShow: lastOp.mayShow,
-          dispatches: compiledOps.flatMap((op) => [...op.dispatches]),
-          next: resolveNext(block.name, block.next),
-        });
-        break;
-      }
-      case "branch": {
-        if (block.cases.length === 0) failV1(doc, block.name, "branch_cases_empty");
-        let seenElse = false;
-        const compiledCases = block.cases.map((branchCase, index) => {
-          const at = `${block.name}/case-${String(index)}`;
-          if (branchCase.when === undefined) {
-            if (seenElse) failV1(doc, at, "branch_else_duplicate");
-            if (index !== block.cases.length - 1) failV1(doc, at, "branch_else_not_last");
-            seenElse = true;
-          } else {
-            if (seenElse) failV1(doc, at, "branch_case_after_else");
-            if (typeof branchCase.when.flag !== "string" || branchCase.when.flag.length === 0) {
-              failV1(doc, at, "branch_flag_invalid");
-            }
-          }
-          return ({
-            flag: branchCase.when?.flag,
-            next: resolveNext(at, branchCase.next),
-          });
-        });
-        nodes.push({
-          kind: "branch",
-          nodeId: id,
-          successors: compiledCases.map((branchCase) => branchCase.next),
-          choose: (context: { readonly flags: readonly string[] }): string => {
-            for (const branchCase of compiledCases) {
-              if (branchCase.flag === undefined || context.flags.includes(branchCase.flag)) {
-                return branchCase.next;
-              }
-            }
-            throw new TypeError(`template.narrative_branch_unmatched:${id}`);
-          },
-        });
-        break;
-      }
-      case "hold": {
-        if (!Number.isSafeInteger(block.durationMs) || block.durationMs < 1) {
-          failV1(doc, block.name, "hold_duration_invalid");
-        }
-        if (block.when !== undefined && block.when.length === 0) {
-          failV1(doc, block.name, "hold_when_empty");
-        }
-        const whenArms = (block.when ?? []).map((arm, index) => {
-          const at = `${block.name}/when-${String(index)}`;
-          if (typeof arm.when.flag !== "string" || arm.when.flag.length === 0) {
-            failV1(doc, at, "hold_when_flag_invalid");
-          }
-          return ({ flag: arm.when.flag, next: resolveNext(at, arm.next) });
-        });
-        if (holdOpsBlocks.has(block.name)) {
-          const stageName = `${block.name}-stage`;
-          const stageId = nodeId(stageName);
-          const compiledOps = compileStageOps(stageName, block.ops ?? []);
-          const lastOp = compiledOps.at(-1);
-          if (lastOp === undefined) failV1(doc, stageName, "stage_ops_empty");
-          nodes.push({
-            kind: "stage",
-            nodeId: stageId,
-            mutations: (
-              stage: SemanticStageState,
-            ) => (compiledOps.flatMap((op) => [...op.mutations(stage)])),
-            mayShow: lastOp.mayShow,
-            dispatches: compiledOps.flatMap((op) => [...op.dispatches]),
-            next: id,
-          });
-        }
-        nodes.push({
-          kind: "hold",
-          nodeId: id,
-          definitionId: block.definitionId ?? `interaction.${doc.prefix}.${block.name}`,
-          seenRevision: block.seenRevision ?? 1,
-          durationMs: block.durationMs,
-          skippable: block.skippable ?? false,
-          when: whenArms,
-          next: resolveNext(block.name, block.next),
-        });
-        break;
-      }
-      case "end": {
-        nodes.push({ kind: "end", nodeId: id });
-        break;
-      }
-      default: {
-        const exhaustive: never = block;
-        throw new TypeError(`template.interaction_doc_block_unknown:${String(exhaustive)}`);
-      }
+      return block;
     }
-  }
-
-  return ({
-    entryNodeId: holdOpsBlocks.has(doc.entry) ? nodeId(`${doc.entry}-stage`) : nodeId(doc.entry),
-    nodes: nodes,
-    textEntries: [...textByTextId.entries()].map(([textId, text]) => ({ textId, text })),
+    if (block.kind === "hold") {
+      block.when?.forEach((arm, index) => {
+        if (arm.when.flag.length === 0) {
+          throw new TypeError(
+            `template.interaction_doc_invalid:${input.doc.docId}/${block.name}/when-${
+              String(index)
+            }:hold_when_flag_invalid`,
+          );
+        }
+      });
+      return block;
+    }
+    if (block.kind !== "choice") return block;
+    return {
+      ...block,
+      options: block.options.map((option) => ({
+        name: option.name,
+        ...(option.text === undefined ? {} : { text: option.text }),
+        ...(option.textId === undefined ? {} : { textId: option.textId }),
+        next: option.next,
+        effect: {
+          consumesCoins: option.consumesCoins ?? 0,
+          setFlags: option.setFlags ?? [],
+        },
+      })),
+    };
+  });
+  return compileVnInteractionDocumentV1({
+    doc: {
+      prefix: input.doc.prefix,
+      docId: input.doc.docId,
+      ...(input.doc.speakers === undefined ? {} : { speakers: input.doc.speakers }),
+      entry: input.doc.entry,
+      blocks,
+    },
+    ...(input.scenes === undefined ? {} : { scenes: input.scenes }),
+    ...(input.externalTargets === undefined ? {} : { externalTargets: input.externalTargets }),
+    errorPrefix: "template",
   });
 }

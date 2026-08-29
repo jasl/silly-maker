@@ -647,7 +647,7 @@ describe("runProjectCliV1", () => {
         "--include",
         "dist",
         "--output",
-        "../SyntheticApp.app",
+        "../SyntheticApp",
         "main.ts",
       ],
       cwd: "/repo/test/dist-desktop/staging",
@@ -711,7 +711,7 @@ describe("runProjectCliV1", () => {
       "--include",
       "companion",
       "--output",
-      "../SyntheticApp.app",
+      "../SyntheticApp",
       "main.ts",
     ]);
     expect(fake.log.copies).toContainEqual({
@@ -931,7 +931,10 @@ describe("runProjectCliV1", () => {
       expect(result.code).toBe(0);
       expect(JSON.parse(result.out.join("\n"))).toMatchObject({ outputPath });
       const desktopRun = fake.log.runs[1];
-      expect(desktopRun?.args).toContain(`../${outputName}`);
+      const denoOutputName = hostPlatform === "darwin"
+        ? outputName.slice(0, -".app".length)
+        : outputName;
+      expect(desktopRun?.args).toContain(`../${denoOutputName}`);
       expect(desktopRun?.args.includes("--icon")).toBe(expectsIcon);
       expect(fake.log.copies.some((copy) => copy.destination.endsWith("/icon.png"))).toBe(
         expectsIcon,

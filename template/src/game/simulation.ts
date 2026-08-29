@@ -293,14 +293,14 @@ export function createTemplateGameSimulationV1(): TemplateGameSimulationV1 {
           const option = templateChoiceOptionsForV1(pending.definitionId).find(
             (candidate) => candidate.choiceId === resolution.choiceId,
           );
-          if (option !== undefined && option.consumesCoins > 0) {
-            if (coins < option.consumesCoins) {
+          if (option !== undefined && option.effect !== null && option.effect.consumesCoins > 0) {
+            if (coins < option.effect.consumesCoins) {
               return transaction.reject({ code: "template.insufficient_coins" });
             }
             transaction.emit({
               kind: "template.coins_changed",
-              delta: -option.consumesCoins,
-              balance: coins - option.consumesCoins,
+              delta: -option.effect.consumesCoins,
+              balance: coins - option.effect.consumesCoins,
             });
           }
         }

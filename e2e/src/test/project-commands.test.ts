@@ -26,8 +26,7 @@ describe("project commands against the real repository config", () => {
     expect(listStoryApplicationIdsV1(validatedProjectV1)).toEqual([
       "e2e",
       "template",
-      "example-bookshop",
-      "example-vn-reference-tour",
+      "example-vn-last-sound-check",
     ]);
 
     for (const applicationId of listStoryApplicationIdsV1(validatedProjectV1)) {

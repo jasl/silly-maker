@@ -4,7 +4,7 @@
 `defineNarrativeSurfaceV1` 构造 composition-owned
 `NarrativeSurfaceDefinitionV1`；一个 shared kernel、Narrative Host 与 Semantic Stage
 authority 统一处理 Say/Choice/Hold/Barrier/History、player timing、输入、focus/inert、
-恢复与 stale fencing。Engine Lab、template 与 Bookshop 是当前维护中的消费者，
+恢复与 stale fencing。Engine Lab、Template 与 One Last Sound Check 是当前维护中的消费者，
 Cat Cafe 的已迁移路线随产品退役，SillyOS 显式省略，production browser
 promotion 仍由中立合同保留。旧 conformance entry、
 `DialoguePanelV1`、`VnLayerV1`、advance surface 和 raw playback exports 已删除。
@@ -182,6 +182,32 @@ writable writer。产品继续拥有主题与品牌、Story、Stage/media render
 preset 的表现，也可以 eject/替换整个 renderer。替换必须取代 preset，而不是与它并行安装第二个
 Narrative writer。
 
+### 6.1 First-party VN core and optional History
+
+The first-party `@sillymaker/vn` layer is a genre composition, not a second
+Narrative runtime. Base continues to own PendingInteraction, authoritative
+History, State, Save and replay; UI continues to own the Managed Narrative
+Surface, Stage/Input and generic player machinery. The VN layer supplies the
+shared interaction-document compiler/runtime policy and focused React
+composition entries. Products retain their own State, predicates/effects,
+content, theme and special surfaces.
+
+History presentation is the first real optional VN Mod. Its literal dynamic
+entry owns only the History renderer, open control, CSS and reversible
+presentation resources. The Story-owned backlog exists independently of that
+selection. A complete generation successor publishes the selected feature or
+`null`; the consumer acknowledges only after React commit. Unload closes an
+already open History surface before predecessor retirement, and final disposal
+waits for the selected resource owner. This is R1: it keeps the same
+`GameSession` and cannot alter Snapshot, Save, replay, Seen, Back/Forward or
+History retention.
+
+Development may expose load, unload and reload repeatedly. A production product
+may explicitly include the same extension surface, or select a core-only build
+that structurally omits the History implementation, CSS, literal loader and
+private controller. This does not expose a public Mod resolver, SDK or
+post-release arbitrary-code install path.
+
 S4b.1c 的 Title/WholeCanvas 共存浏览器路线暴露并关闭了一项 Narrative Host
 corrective：readiness/focus settlement 必须在入队与 microtask 执行时复验 portal shell
 的 ancestor `[inert]`，祖先仍隔离时保持 preparing，并在重新 exposed 后才完成当前
@@ -334,6 +360,12 @@ panel）。执行由 [VN Scene Workspace 计划](../plans/2026-08-14-vn-scene-wo
 
 Editor 输出普通 TS 或由 TS 引用的稳定 Story data。编辑器预览不得维护一套无法由正常 application/harness 重现的规则实现。
 
+2026-08-29 的 first-party VN lane 增加第一个真实产品 contribution：One Last Sound Check 的
+dev-only Inspector property tool 把当前 Scene/Object 投影到已编译 Narrative node、route、cue、text pack、
+voice binding 与唯一 source location。它只读已有编译结果，不建立第二个 graph/compiler。后续可写 VN 工具、
+游戏专属 Inspector 和 Agent-assisted edit 必须共用现有 structured operation/result、document revision、
+undo/redo history 与 CAS executor；UI 和 Agent 都不能直接取得 source writer、Authoring Host、Session 或 Save。
+
 ## 11. Player rollback path
 
 Player Back/Forward 已基于现有 immutable GameSnapshot 交付：
@@ -397,3 +429,10 @@ VN foundations 的共同验收是一条 3–5 分钟 Engine Conformance Story �
 本设计吸收成熟 VN 引擎需要解决的问题，不复制 Ren'Py code、schema、naming、parser、object model 或 Save format。Ren'Py 研究证据见 [research note](../../research/renpy-engine-study.md)。
 
 TypeScript/JavaScript 继续是唯一脚本环境；不实现 Ren'Py DSL/ATL parser、Screen Language、Python Store、Displayable tree 或自定义脚本沙箱。
+
+后续能力覆盖可以由真实 VN/商业移植分别激活：更完整剧情控制流；NVL、气泡、多角色同时对话和 side image；
+typed React screen/component composition 与明确 Action/Value；camera、复杂 layer/image transform；video、Live2D、
+model displayable 和复杂粒子 adapter；Gallery、Music Room、Scene Replay、Achievement；翻译提取、字体/图片翻译、
+self-voicing；Launcher、Interactive Director 和脚本导航。它们应复用 React/CSS/TypeScript、Semantic Stage、
+Code Surface、authoring documents 与 structured operations，并按独立产品价值拆成少数内聚能力；不得为“对齐”
+Ren'Py 而复制其语法、解释器或 object model。

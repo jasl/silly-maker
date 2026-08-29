@@ -164,9 +164,10 @@ async function measureAuthoringBuildGraphV1(input: {
 async function measurePlayerEntryBuildGraphV1(input: {
   readonly appDirectory:
     | "template"
-    | "examples/vn-reference-tour"
+    | "examples/vn-last-sound-check"
     | "engine/packages/tooling/test-fixtures/gui-only-application"
-    | "engine/packages/tooling/test-fixtures/narrative-player-core-application";
+    | "engine/packages/tooling/test-fixtures/narrative-player-core-application"
+    | "engine/packages/tooling/test-fixtures/vn-last-sound-check-core-application";
   readonly entry: string;
 }): Promise<BuildDependencyReceiptInternalV1> {
   const applicationSlug = input.appDirectory.replaceAll("/", "-");
@@ -701,15 +702,91 @@ describe("build dependency receipt", () => {
     );
   });
 
-  it("keeps the VN production graph free of development authoring and debug surfaces", async () => {
+  it("keeps the real VN product core graph free of History and private Mod runtime", async () => {
     const receipt = await measurePlayerEntryBuildGraphV1({
-      appDirectory: "examples/vn-reference-tour",
+      appDirectory: "engine/packages/tooling/test-fixtures/vn-last-sound-check-core-application",
       entry: "index.html",
     });
-    expect(receipt.applicationId).toBe("example-vn-reference-tour");
+    expect(receipt.applicationId).toBe("conformance-vn-last-sound-check-core");
+    const moduleIds = receiptModuleIdsV1(receipt);
+
+    expect(moduleIds).toContain(
+      "examples/vn-last-sound-check/src/application/composition.tsx",
+    );
+    expect(moduleIds).toContain("engine/packages/vn/src/ui/core.ts");
+    expect(moduleIds).not.toContain(
+      "engine/packages/ui/src/narrative-player/default-vn-player-history.tsx",
+    );
+    expect(moduleIds).not.toContain(
+      "engine/packages/ui/src/narrative-player/default-vn-player-history.module.css",
+    );
+    expect(
+      moduleIds.filter((moduleId) =>
+        moduleId.startsWith("engine/packages/composition/src/mod-runtime/")
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps the unopened VN development bootstrap free of History and private Mod runtime", async () => {
+    const receipt = await measurePlayerEntryBuildGraphV1({
+      appDirectory: "examples/vn-last-sound-check",
+      entry: "src/tooling/development-application.tsx",
+    });
+    expect(receipt.applicationId).toBe("example-vn-last-sound-check");
+    const initialModuleIds = initialEntryModuleIdsV1(receipt);
+
+    expect(initialModuleIds).toContain(
+      "examples/vn-last-sound-check/src/tooling/development-application.tsx",
+    );
+    expect(initialModuleIds).toContain(
+      "engine/packages/vn/src/ui/history-presentation-bridge.tsx",
+    );
+    expect(initialModuleIds).not.toContain(
+      "examples/vn-last-sound-check/src/tooling/history-mod-development.tsx",
+    );
+    expect(initialModuleIds).not.toContain(
+      "engine/packages/ui/src/narrative-player/default-vn-player-history.tsx",
+    );
+    expect(
+      initialModuleIds.filter((moduleId) =>
+        moduleId.startsWith("engine/packages/composition/src/mod-runtime/")
+      ),
+    ).toEqual([]);
+
+    expect(receipt.chunks).toContainEqual(
+      expect.objectContaining({
+        isEntry: false,
+        isDynamicEntry: true,
+        facadeModuleId: "examples/vn-last-sound-check/src/tooling/history-mod-development.tsx",
+      }),
+    );
+    const completeModuleIds = receiptModuleIdsV1(receipt);
+    expect(completeModuleIds).toContain(
+      "engine/packages/ui/src/narrative-player/default-vn-player-history.tsx",
+    );
+    expect(
+      completeModuleIds.some((moduleId) =>
+        moduleId.startsWith("engine/packages/composition/src/mod-runtime/")
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps the VN production graph free of development authoring and debug surfaces", async () => {
+    const receipt = await measurePlayerEntryBuildGraphV1({
+      appDirectory: "examples/vn-last-sound-check",
+      entry: "index.html",
+    });
+    expect(receipt.applicationId).toBe("example-vn-last-sound-check");
     const moduleIds = receiptModuleIdsV1(receipt);
     const facets = classifyStaticGameDependencyFacetsInternalV1(moduleIds);
 
+    expect(moduleIds).toContain("engine/packages/vn/src/preset/index.ts");
+    expect(moduleIds).toContain(
+      "engine/packages/ui/src/narrative-player/default-vn-player-history.tsx",
+    );
+    expect(moduleIds).toContain(
+      "engine/packages/ui/src/narrative-player/default-vn-player-history.module.css",
+    );
     expect(facets.authoringImplementation).toEqual([]);
     expect(facets.inspectorAuthoringImplementation).toEqual([]);
     expect(facets.devSourceImplementation).toEqual([]);
@@ -717,7 +794,7 @@ describe("build dependency receipt", () => {
     expect(facets.dynamicExtensionImplementation).toEqual([]);
     expect(
       moduleIds.filter((moduleId) =>
-        moduleId.startsWith("examples/vn-reference-tour/src/tooling/")
+        moduleId.startsWith("examples/vn-last-sound-check/src/tooling/")
       ),
     ).toEqual([]);
     expect(

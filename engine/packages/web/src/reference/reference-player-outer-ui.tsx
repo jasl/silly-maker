@@ -189,6 +189,7 @@ function createReferenceDevDockContributionLoadOwnerInternalV1(input: {
   acknowledgeCommitted(): void;
 }): ReferenceDevDockContributionLoadOwnerInternalV1 {
   const ownedHandles = new Set<OwnedReferenceDevDockContributionHandleInternalV1>();
+  const pendingLoads = new Set<Promise<void>>();
   let disposalStarted = false;
   let disposal: Promise<void> | null = null;
 
@@ -201,9 +202,10 @@ function createReferenceDevDockContributionLoadOwnerInternalV1(input: {
       .finally(() => ownedHandles.delete(owned));
     return owned.disposal;
   };
-  const disposeHandles = async (): Promise<void> => {
-    const results = await Promise.allSettled([...ownedHandles].map(disposeHandle));
-    const failure = results.find(
+  const disposeAll = async (): Promise<void> => {
+    const pendingResults = await Promise.allSettled([...pendingLoads]);
+    const handleResults = await Promise.allSettled([...ownedHandles].map(disposeHandle));
+    const failure = [...pendingResults, ...handleResults].find(
       (result): result is PromiseRejectedResult => result.status === "rejected",
     );
     if (failure !== undefined) throw failure.reason;
@@ -211,30 +213,43 @@ function createReferenceDevDockContributionLoadOwnerInternalV1(input: {
 
   return {
     async load(): Promise<DevDockContributionLoadHandleV1> {
-      const source = await input.load();
-      const owned: OwnedReferenceDevDockContributionHandleInternalV1 = {
-        source,
-        disposal: null,
-      };
-      ownedHandles.add(owned);
-      const handle: DevDockContributionLoadHandleV1 = {
-        contributions: source.contributions,
-        acknowledgeCommitted() {
-          source.acknowledgeCommitted?.();
-          input.acknowledgeCommitted();
-        },
-        dispose: () => disposeHandle(owned),
-      };
       if (disposalStarted) {
-        // A loader that outlives application teardown must not hold the close
-        // barrier open, but any handle it eventually returns still retires.
-        void disposeHandle(owned).catch(() => undefined);
+        throw new TypeError("web.reference_dev_dock_load_owner_disposed");
       }
-      return handle;
+      let sourceAcquired = false;
+      const loading = (async (): Promise<DevDockContributionLoadHandleV1> => {
+        const source = await input.load();
+        sourceAcquired = true;
+        const owned: OwnedReferenceDevDockContributionHandleInternalV1 = {
+          source,
+          disposal: null,
+        };
+        ownedHandles.add(owned);
+        const handle: DevDockContributionLoadHandleV1 = {
+          contributions: source.contributions,
+          acknowledgeCommitted() {
+            source.acknowledgeCommitted?.();
+            input.acknowledgeCommitted();
+          },
+          dispose: () => disposeHandle(owned),
+        };
+        if (disposalStarted) await disposeHandle(owned);
+        return handle;
+      })();
+      const closeBarrier = loading.then(
+        () => undefined,
+        (error) => sourceAcquired ? Promise.reject(error) : undefined,
+      );
+      pendingLoads.add(closeBarrier);
+      void closeBarrier.then(
+        () => pendingLoads.delete(closeBarrier),
+        () => pendingLoads.delete(closeBarrier),
+      );
+      return await loading;
     },
     dispose(): Promise<void> {
       disposalStarted = true;
-      disposal ??= disposeHandles();
+      disposal ??= disposeAll();
       return disposal;
     },
   };

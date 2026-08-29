@@ -138,7 +138,8 @@ export interface NarrativeSurfaceHistoryRendererPropsV1 {
   readonly history: DeepReadonly<NarrativeHistoryV1>;
   readonly playerProfile: DeepReadonly<PlayerProfileV1>;
   readonly resolveText: (textId: string) => string;
-  readonly onCloseHistory: () => void;
+  /** Returns false only when the captured History surface is no longer current. */
+  readonly onCloseHistory: () => boolean;
 }
 
 export type NarrativeSurfaceRendererPropsV1 =
@@ -147,6 +148,11 @@ export type NarrativeSurfaceRendererPropsV1 =
 
 export interface NarrativeSurfaceHistoryFeatureV1 {
   readonly renderer: ComponentType<NarrativeSurfaceHistoryRendererPropsV1>;
+  /** Optional cold-path selection state for a dynamically supplied renderer. */
+  readonly active?: Readonly<{
+    getCurrent(): boolean;
+    subscribe(listener: () => void): () => void;
+  }>;
 }
 
 export interface DefineNarrativeSurfaceInputV1<TSemanticPublication> {
@@ -226,6 +232,12 @@ interface NarrativeSurfaceCompositionRendererContextInternalV1 {
 }
 
 const inactiveNarrativeSurfaceCompositionBoundActionInternalV1 = (): boolean => false;
+const inactiveNarrativeSurfaceSubscriptionInternalV1 = (
+  _listener: () => void,
+): () => void => {
+  return () => undefined;
+};
+const narrativeSurfaceHistoryActiveInternalV1 = (): boolean => true;
 const narrativeSurfaceCompositionBoundActionContextInternalV1 = createContext<
   NarrativeSurfaceCompositionRendererContextInternalV1 | null
 >(null);
@@ -338,6 +350,12 @@ function NarrativeSurfacePublicDialogueRendererAdapterInternalV1(
     context.getSelectionInternalV1,
     context.getSelectionInternalV1,
   );
+  const historyActivePort = props.binding.history?.active ?? null;
+  const historyPresentationActive = useSyncExternalStore(
+    historyActivePort?.subscribe ?? inactiveNarrativeSurfaceSubscriptionInternalV1,
+    historyActivePort?.getCurrent ?? narrativeSurfaceHistoryActiveInternalV1,
+    historyActivePort?.getCurrent ?? narrativeSurfaceHistoryActiveInternalV1,
+  );
   const activate = useCapturedNarrativeSurfaceActionInternalV1(
     context,
     systemInputActionIdsV1.narrativeAdvance,
@@ -364,12 +382,12 @@ function NarrativeSurfacePublicDialogueRendererAdapterInternalV1(
   );
   const openHistory = useMemo(
     () =>
-      props.binding.history === null
+      props.binding.history === null || !historyPresentationActive
         ? inactiveNarrativeSurfaceCompositionBoundActionInternalV1
         : context.captureActionInternalV1({
           actionId: playerInputActionIdsV1.toggleHistory,
         }),
-    [context, props.binding],
+    [context, historyPresentationActive, props.binding],
   );
   const replayVoice = useCapturedNarrativeSurfaceActionInternalV1(
     context,
@@ -423,7 +441,7 @@ function NarrativeSurfacePublicDialogueRendererAdapterInternalV1(
       choiceAvailability: currentAvailability,
       playerProfile: props.rendererProps.playerProfile,
       playerView,
-      history: props.binding.history === null ? null : {
+      history: props.binding.history === null || !historyPresentationActive ? null : {
         available: (selection?.history.entries.length ?? 0) > 0,
         onOpen: onOpenHistory,
       },
@@ -461,7 +479,7 @@ function NarrativeSurfacePublicHistoryRendererAdapterInternalV1(
     (textId: string): string => props.binding.resolveText(locale, textId),
     [locale, props.binding],
   );
-  const onCloseHistory = useCallback((): void => void closeHistory(), [closeHistory]);
+  const onCloseHistory = useCallback((): boolean => closeHistory(), [closeHistory]);
   return createElement(props.binding.history.renderer, {
     kind: "history" as const,
     history: props.rendererProps.history,
@@ -532,6 +550,7 @@ function createNarrativeSurfacePublicCandidateInternalV1(
         },
         availabilityPort: {
           readHistoryAvailabilityInternalV1: () =>
+            (binding.history?.active?.getCurrent() ?? true) &&
             (observation?.getSelectionInternalV1()?.history ?? selection.history).entries.length >
               0,
         },
@@ -1555,59 +1574,18 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
     if (disposed || generation === null || !generation.active) {
       return inactiveNarrativeSurfaceCompositionBoundActionInternalV1;
     }
-    const hostPhysicalRegistrationToken = generation.hostPhysicalRegistrationToken;
-    if (hostPhysicalRegistrationToken === null) {
+    const historyLifecycle = generation.session.getHistoryChildLifecycleInternalV1();
+    if (historyLifecycle === null) {
       return inactiveNarrativeSurfaceCompositionBoundActionInternalV1;
     }
-    let capturedAdmission: NarrativeStablePhysicalActionAdmissionInternalV1 | null = null;
     return (): boolean => {
-      const physicalIngress = generation.physicalIngress;
       if (
-        current !== generation || physicalIngress === null ||
-        generation.hostPhysicalRegistrationToken !== hostPhysicalRegistrationToken ||
-        generation.physicalIngress !== physicalIngress ||
-        !physicalIngress.isCurrentInternalV1()
+        disposed || current !== generation || !generation.active ||
+        generation.session.getHistoryChildLifecycleInternalV1() !== historyLifecycle
       ) return false;
       try {
-        const admission = capturedAdmission ??
-          createNarrativeStablePhysicalActionAdmissionInternalV1({
-            bridge: generation.bridge,
-            inputRouter: physicalIngress.inputRouter,
-            isGestureCurrent: physicalIngress.isGestureCurrent,
-          });
-        if (generation.physicalAdmission !== admission) {
-          const predecessor = generation.physicalAdmission;
-          generation.physicalAdmission = admission;
-          noThrow(() => predecessor?.disposeInternalV1());
-        }
-        const envelope = admission.createEnvelopeInternalV1({
-          actionId: parseManagedSurfaceActionIdV1(playerInputActionIdsV1.toggleHistory),
-          gestureId: generation.runtime.gestureLease.begin(),
-        });
-        if (
-          current !== generation || generation.physicalIngress !== physicalIngress ||
-          !physicalIngress.isCurrentInternalV1() || generation.authenticatedRouteInProgress
-        ) return false;
-        generation.authenticatedRouteInProgress = true;
-        let result: ReturnType<NarrativeStablePhysicalActionAdmissionInternalV1["routeInternalV1"]>;
-        try {
-          result = admission.routeInternalV1(envelope, null);
-        } finally {
-          generation.authenticatedRouteInProgress = false;
-        }
-        const kind = result.consumerResult?.kind;
-        if (kind === "closed" || kind === "dismissed") {
-          capturedAdmission = admission;
-          if (generation.physicalAdmission === admission) {
-            generation.physicalAdmission = null;
-          }
-          noThrow(() => admission.disposeInternalV1());
-          return true;
-        }
-        if (kind === "locked") {
-          capturedAdmission = admission;
-          return true;
-        }
+        const kind = historyLifecycle.closeCurrentHistoryChildInternalV1().kind;
+        if (kind === "closed" || kind === "dismissed" || kind === "locked") return true;
         return false;
       } catch {
         return false;

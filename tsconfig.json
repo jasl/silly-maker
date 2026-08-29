@@ -11,10 +11,7 @@
       "path": "./template"
     },
     {
-      "path": "./examples/bookshop"
-    },
-    {
-      "path": "./examples/vn-reference-tour"
+      "path": "./examples/vn-last-sound-check"
     },
     {
       "path": "./examples/silly-os"

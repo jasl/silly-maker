@@ -433,8 +433,8 @@ independent of Deno Desktop APIs; the web Player is the stable fallback.
 ## Publish to static hosting (GitHub Pages / Cloudflare Workers)
 
 `deno task site:build` composes a publishable static site at `dist/site`: the
-Astro/Starlight documentation at the root, the maintained flagship VN Reference
-Product at `/play/vn-reference-tour/`, and the GUI-only SillyOS Creator Preview
+Astro/Starlight documentation at the root, the maintained flagship VN
+**One Last Sound Check** at `/play/vn-last-sound-check/`, and the GUI-only SillyOS Creator Preview
 at `/play/silly-os/`. The VN path packages the complete two-route _One Last
 Sound Check_ Browser product; its inclusion is static publish wiring, not
 evidence that a remote live deployment has occurred. SillyOS currently exposes the Creator Home → Program

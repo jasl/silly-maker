@@ -76,6 +76,10 @@ export interface CreateDefaultVnPlayerCoreInputV1 {
   readonly rollback: CoreRollbackPortV1;
   /** Optional product text IDs, resolved through the Narrative text resolver on every render. */
   readonly labelTextIds?: Readonly<Partial<Record<DefaultVnPlayerCoreLabelKeyV1, string>>>;
+  /** Optional focused capability rendered beside the core playback controls. */
+  readonly renderAuxiliaryPlaybackControl?: (
+    props: NarrativeSurfaceDialogueRendererPropsV1,
+  ) => ReactNode;
 }
 
 export interface DefaultVnPlayerCoreV1 {
@@ -477,5 +481,8 @@ export function createDefaultVnPlayerCoreInternalV1(
 export function createDefaultVnPlayerCoreV1(
   input: CreateDefaultVnPlayerCoreInputV1,
 ): DefaultVnPlayerCoreV1 {
-  return createDefaultVnPlayerCoreInternalV1(input);
+  return createDefaultVnPlayerCoreInternalV1(
+    input,
+    input.renderAuxiliaryPlaybackControl,
+  );
 }

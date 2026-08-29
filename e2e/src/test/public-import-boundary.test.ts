@@ -14,7 +14,7 @@ const repositoryRootV1 = fileURLToPath(new URL("../../..", import.meta.url));
 const guardedSourceRootsV1 = [
   join(repositoryRootV1, "e2e", "src"),
   join(repositoryRootV1, "examples", "e2e"),
-  join(repositoryRootV1, "examples", "vn-reference-tour", "src"),
+  join(repositoryRootV1, "examples", "vn-last-sound-check", "src"),
 ] as const;
 
 async function listSourceFilesV1(root: string): Promise<readonly string[]> {
@@ -50,18 +50,20 @@ describe("public import boundary", () => {
     const violations = findForbiddenImportSpecifiersV1(
       [
         'import { internal } from "@sillymaker/base/src/runtime/session/game-session.ts";',
+        'import { compiler } from "@sillymaker/vn/src/base/interaction-document.ts";',
         'import { glue } from "@silly-maker/story-poc";',
         'import { old } from "../../../engine/packages/base/src/index.ts";',
-        'import { crossStory } from "../../../examples/bookshop/src/index.ts";',
+        'import { crossStory } from "../../../examples/silly-os/src/index.ts";',
         'import { allowed } from "@sillymaker/base";',
       ].join("\n"),
     );
 
     expect(violations).toEqual([
       "@sillymaker/base/src/runtime/session/game-session.ts",
+      "@sillymaker/vn/src/base/interaction-document.ts",
       "@silly-maker/story-poc",
       "../../../engine/packages/base/src/index.ts",
-      "../../../examples/bookshop/src/index.ts",
+      "../../../examples/silly-os/src/index.ts",
     ]);
   });
 

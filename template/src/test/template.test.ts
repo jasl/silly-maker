@@ -354,8 +354,8 @@ describe("template story baseline", () => {
     expect(hold).toMatchObject({
       kind: "hold",
       when: [
-        { flag: "flag.template.spotted", next: "node.template.caught" },
-        { flag: "flag.template.tired", next: "node.template.rest-stage" },
+        { predicate: { flag: "flag.template.spotted" }, next: "node.template.caught" },
+        { predicate: { flag: "flag.template.tired" }, next: "node.template.rest-stage" },
       ],
       next: "node.template.close",
     });
@@ -541,7 +541,7 @@ describe("template story baseline", () => {
     ).not.toThrow();
   });
 
-  it("keeps branch choosers inside their static successor annotations", () => {
+  it("keeps branch cases inside their static successor annotations", () => {
     const flagSets: readonly (readonly string[])[] = [
       [],
       ["flag.template.cat_found"],
@@ -550,7 +550,11 @@ describe("template story baseline", () => {
     for (const node of templateScriptV1) {
       if (node.kind !== "branch") continue;
       for (const flags of flagSets) {
-        expect(node.successors, node.nodeId).toContain(node.choose({ flags }));
+        const selected = node.cases.find((branchCase) =>
+          branchCase.predicate === null || flags.includes(branchCase.predicate.flag)
+        );
+        expect(selected, node.nodeId).toBeDefined();
+        expect(node.successors, node.nodeId).toContain(selected!.next);
       }
     }
   });

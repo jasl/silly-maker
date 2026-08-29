@@ -1,10 +1,11 @@
-# VN Reference Tour 实施计划
+# 《最后一次试音》历史实施计划（原 VN Reference Tour）
 
 状态：**2026-08-27 经所有者接受，2026-08-29 M0–M5 全部关闭并完成旗舰切换。
 引擎维护的 focused default VN Player preset、say-only 全画布推进、贴底布局、Ctrl/Tab/H/V 与鼠标中键、
 最终 Stage/ending 媒体、冻结的八项音频、current-voice replay、voice-aware Auto、interaction-level
-Back/Forward、产品入口、Save/recovery、Settings、作者接手与产品证据均已交付。VN Reference Tour 现为
-维护中的旗舰 Reference Product；M5 完成的是仓库与发布接线，不声称已经执行远程 live deployment。**
+Back/Forward、产品入口、Save/recovery、Settings、作者接手与产品证据均已交付。产品现位于
+`examples/vn-last-sound-check`，以《最后一次试音》作为维护中的游戏名；M5 完成的是仓库与发布接线，
+不声称已经执行远程 live deployment。Bookshop 已在后续独立评审中退役。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 是唯一跨计划排序入口。本计划同时拥有
 产品分母、实现顺序、证据门槛与旗舰提升条件；Bookshop 的后续教学角色不由本计划预裁。它不是 broad engine
@@ -196,10 +197,11 @@ choice、History 与轻量 auto/skip 控件；`say` 阶段一个透明全画布�
 因按键仍按住而重新越界启动；pending 离开 active Say 也会清除 transient hidden。未修饰 `Tab` 只拥有
 Skip 路由，`Shift+Tab` 进入播放控件且 `Escape` 返回 gameplay scope。竖屏选择 `expand-height` layout variant，
 宽屏与窄屏继续复用同一 authored Stage。
-这些已验证的通用 chrome/interaction/input 行为已迁入 `@sillymaker/ui/narrative-player` focused default VN
-Player preset；Template 与本产品显式选择同一 renderer/input 默认，产品本地原型已经删除，没有双轨
-renderer。产品只保留 theme、media、Story 与 special surfaces；Bookshop 暂时保留低层自定义 renderer，等待
-VN 完成后的独立教学角色评审。focused UI tests、真实
+这些已验证的通用 chrome/interaction/input 行为最初迁入 UI focused default VN Player；后续
+[VN Genre Mod 车道](2026-08-29-vn-genre-mod-authoring.md) 已把对外所有权收敛到 `@sillymaker/vn`：Template 与
+本产品从官方 entry 选择同一 core/preset，产品本地原型和 UI 顶层完整 preset export 均已删除，没有双轨
+renderer。产品只保留 theme、media、Story 与 special surfaces；Bookshop 已在产品完成后的独立教学角色评审中
+退役。focused UI tests、真实
 Chromium 宽/窄屏行为和 React Doctor 覆盖该切片。当时完整 VN Back/Forward 仍开放：旧 Core 只能按 command
 建立 checkpoint/barrier，无法把 `time_tick` 对交互级历史隐藏，也没有 roll-forward；因此该切片没有先接一条
 语义错误的 PageUp/滚轮路径。
@@ -490,8 +492,12 @@ compact VN 伪造新的工具 Mod：
 - Scene operation vocabulary/schema/result 随 Studio contract 公开给这些 build-known tools，envelope admission、
   executor 和 source owner 仍为内部实现。binding 的同步或异步 cleanup 由既有 Inspector composition 在
   rollback、successor retirement 与 final close 等待；
-- VN Reference Tour 与 Template 当前都不需要专属 Scene tool，因此保持空选择。其他 document family、完整
-  workspace/editor replacement、public resolver/manifest/SDK 仍需独立真实 consumer 和 focused contract。
+- 《最后一次试音》现已成为第一个真实产品 consumer：它选择一个 dev-only、只读的
+  `sceneInspector.properties` contribution，把当前 Scene/对象连接到已编译 Narrative 节点、route、Cue、文本包
+  和 voice binding，并复用既有 dev-source port 导航到唯一源文件。该工具不重复编译 Story、不新增 writer；未来
+  可写扩展必须与人类/Agent 共用上述 structured operation/result/CAS 路径。Template 仍保持空选择。其他
+  document family、完整 workspace/editor replacement、public resolver/manifest/SDK 仍需独立真实 consumer 和
+  focused contract。
 
 **M4 关闭记录（2026-08-29）：** 上述作者任务、自动化证据、独立 product/engine review、Starter
 classification 与最终 110/82 产品分母均已关闭。所有者因没有合适设备，明确取消代表性真实

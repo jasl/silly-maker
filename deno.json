@@ -8,11 +8,11 @@
     "./engine/packages/studio",
     "./engine/packages/tooling",
     "./engine/packages/ui",
+    "./engine/packages/vn",
     "./engine/packages/web",
     "./e2e",
     "./template",
-    "./examples/bookshop",
-    "./examples/vn-reference-tour",
+    "./examples/vn-last-sound-check",
     "./examples/silly-os",
     "./website"
   ],

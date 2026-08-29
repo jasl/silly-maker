@@ -656,6 +656,20 @@ function desktopOutputMarkerV1(outputPath: string): string {
   return outputPath.endsWith(".app") ? `${outputPath}/Contents/Info.plist` : outputPath;
 }
 
+/**
+ * The Darwin assembler adds `.app` to the requested output stem. Passing the
+ * final bundle suffix makes current stable Deno produce `<name>.app.app`.
+ * Other platforms need their explicit suffix to select MSI/AppImage output.
+ */
+function denoDesktopOutputNameV1(
+  outputName: string,
+  target: DesktopTargetTripleV1 | "host",
+  hostPlatform: NonNullable<ProjectCommandRunnerV1["hostPlatform"]>,
+): string {
+  const isDarwin = target === "host" ? hostPlatform === "darwin" : target.endsWith("apple-darwin");
+  return isDarwin ? outputName.slice(0, -".app".length) : outputName;
+}
+
 /** Config icons are `.png`/`.icns` — macOS formats; skip them on other targets. */
 function desktopIconAppliesV1(target: DesktopTargetTripleV1 | "host"): boolean {
   return target.endsWith("apple-darwin");
@@ -851,9 +865,11 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
         `/applications/${applicationId}/web/desktop/companion/artifacts`,
       );
     }
+    const outputName = desktopOutputNameV1(artifactStem, target, hostPlatform);
     return {
       target,
-      outputName: desktopOutputNameV1(artifactStem, target, hostPlatform),
+      outputName,
+      denoOutputName: denoDesktopOutputNameV1(outputName, target, hostPlatform),
       companionArtifact,
     };
   });
@@ -970,7 +986,7 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
     : [`--compress=${compression}`];
 
   const outputs: StoryDesktopOutputV1[] = [];
-  for (const { target, outputName, companionArtifact } of outputPlans) {
+  for (const { target, outputName, denoOutputName, companionArtifact } of outputPlans) {
     const companionExecutableName = companionArtifact === null
       ? null
       : target === "host"
@@ -1012,7 +1028,7 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
             ? iconArgs
             : []),
           "--output",
-          `../${outputName}`,
+          `../${denoOutputName}`,
           "main.ts",
         ],
         { cwd: stagingDir },

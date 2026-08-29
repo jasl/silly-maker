@@ -11,14 +11,9 @@ claim.
 - **One Last Sound Check** — the maintained flagship Reference Product: an
   original, complete two-route VN with the default Player, Save/recovery,
   audio, localization, responsive UI, and Inspector-assisted authoring.
-  [Read the case study](./vn-reference-tour/) or
-  [play it in this site build](../play/vn-reference-tour/).
+  [Read the case study](./vn-last-sound-check/) or
+  [play it in this site build](../play/vn-last-sound-check/).
 - **SillyOS** — a GUI-only Creator Home → Program Workspace product slice. Its
   one built-in Agent Creator drives a deterministic local preview and review
   flow; real Pi, database, RPC, Mod activation, and persistence are not connected.
   [Open it](../play/silly-os/).
-- **Bookshop** — a focused narrative-authoring example maintained in the
-  repository.
-
-Bookshop remains maintained while its long-term teaching role is reviewed
-separately; flagship completion does not retire it implicitly.

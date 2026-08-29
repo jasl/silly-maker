@@ -5,23 +5,17 @@ import type {
   NarrativeHistory,
   PendingInteraction,
   SemanticStageState,
-  StageCueDispatch,
-  StageMutation,
   TimeTick,
 } from "@sillymaker/base/story";
-import {
-  appendNarrativeHistory,
-  interactionOccurrenceId,
-  emptyNarrativeHistory,
-  parsePendingInteraction,
-  reduceAdmittedStageMutations,
-  settleHoldTimeline,
-} from "@sillymaker/base/story";
+import { emptyNarrativeHistory } from "@sillymaker/base/story";
+import { createVnInteractionRuntimeV1 } from "@sillymaker/vn/interaction";
 
 import type {
+  TemplateChoiceEffectV1,
   TemplateChoiceOptionV1,
   TemplateInteractionDocV1,
   TemplateNarrativeNodeV1,
+  TemplatePredicateV1,
   TemplateSceneBindingV1,
 } from "./narrative-kit.ts";
 import { compileTemplateInteractionDocV1 } from "./narrative-kit.ts";
@@ -290,25 +284,32 @@ export const templateCompiledOpeningV1 = compileTemplateInteractionDocV1({
 
 export const templateScriptV1: readonly TemplateNarrativeNodeV1[] = templateCompiledOpeningV1.nodes;
 
-const nodesByIdV1: ReadonlyMap<string, TemplateNarrativeNodeV1> = new Map(
-  templateScriptV1.map((node) => [node.nodeId, node]),
-);
-
-export const templateNodeIdsV1: readonly string[] = templateScriptV1.map((node) => node.nodeId);
-
-function requireNodeV1(nodeId: string): TemplateNarrativeNodeV1 {
-  const node = nodesByIdV1.get(nodeId);
-  if (node === undefined) throw new TypeError(`template.narrative_node_missing:${nodeId}`);
-  return node;
+function withFlagsV1(flags: readonly string[], added: readonly string[]): readonly string[] {
+  if (added.length === 0) return flags;
+  return [...new Set([...flags, ...added])].toSorted();
 }
+
+const templateNarrativeRuntimeV1 = createVnInteractionRuntimeV1<
+  TemplateNarrativeStateV1,
+  TemplateChoiceEffectV1,
+  TemplatePredicateV1
+>({
+  entryNodeId: templateCompiledOpeningV1.entryNodeId,
+  nodes: templateCompiledOpeningV1.nodes,
+  errorPrefix: "template",
+  matchesPredicate: (state, predicate) => state.flags.includes(predicate.flag),
+  applyChoiceEffect: (state, effect) => ({
+    ...state,
+    flags: withFlagsV1(state.flags, effect.setFlags),
+  }),
+});
+
+export const templateNodeIdsV1: readonly string[] = templateNarrativeRuntimeV1.nodeIds;
 
 export function templateChoiceOptionsForV1(
   definitionId: string,
 ): readonly TemplateChoiceOptionV1[] {
-  for (const node of templateScriptV1) {
-    if (node.kind === "choice" && node.definitionId === definitionId) return node.options;
-  }
-  return [];
+  return templateNarrativeRuntimeV1.choiceOptionsFor(definitionId);
 }
 
 /** The single choice-availability rule shared by view, preview, and dispatch. */
@@ -316,7 +317,8 @@ export function templateChoiceBlockedByV1(
   option: TemplateChoiceOptionV1,
   coins: number,
 ): "template.insufficient_coins" | null {
-  return coins >= option.consumesCoins ? null : "template.insufficient_coins";
+  const cost = option.effect?.consumesCoins ?? 0;
+  return coins >= cost ? null : "template.insufficient_coins";
 }
 
 /**
@@ -341,275 +343,37 @@ export function templateInteractionContextV1(
   };
 }
 
-export interface TemplateNarrativeRunResultV1 {
-  readonly narrative: TemplateNarrativeStateV1;
-  readonly stageMutations: readonly StageMutation[];
-  /**
-   * Presentation edge context for this run's stage mutations: the scene
-   * dispatches of every stage node that actually mutated the stage, in
-   * execution order. Idempotent re-entries (no mutations) contribute none.
-   */
-  readonly stageDispatches: readonly StageCueDispatch[];
-}
+export type TemplateNarrativeRunResultV1 = ReturnType<
+  typeof templateNarrativeRuntimeV1.runUntilInteraction
+>;
 
-function pendingForNodeV1(node: TemplateNarrativeNodeV1, sequence: number): PendingInteraction {
-  const occurrenceId = interactionOccurrenceId(sequence);
-  switch (node.kind) {
-    case "say":
-      return parsePendingInteraction({
-        kind: "say",
-        definitionId: node.definitionId,
-        seenRevision: node.seenRevision,
-        occurrenceId,
-        speakerTextId: node.speakerTextId,
-        textId: node.textId,
-        advancePolicy: "confirm",
-      });
-    case "choice":
-      return parsePendingInteraction({
-        kind: "choice",
-        definitionId: node.definitionId,
-        seenRevision: node.seenRevision,
-        occurrenceId,
-        promptTextId: node.promptTextId,
-        options: node.options.map(({ choiceId, textId }) => ({ choiceId, textId })),
-      });
-    case "hold":
-      return parsePendingInteraction({
-        kind: "hold",
-        definitionId: node.definitionId,
-        seenRevision: node.seenRevision,
-        occurrenceId,
-        totalMs: node.durationMs,
-        remainingMs: node.durationMs,
-        skippable: node.skippable,
-      });
-    default:
-      throw new TypeError(`template.narrative_node_not_interactive:${node.nodeId}`);
-  }
-}
-
-/**
- * Executes pure nodes from the cursor until the next interaction boundary
- * or the end of the script. Stage mutations are collected for the stage
- * owner and applied to a local view so later nodes observe them.
- * Deterministic: the same narrative state and stage produce the same result.
- */
 export function runTemplateNarrativeUntilInteractionV1(
   narrative: TemplateNarrativeStateV1,
   stage: SemanticStageState,
 ): TemplateNarrativeRunResultV1 {
-  if (narrative.cursor === null) {
-    throw new TypeError("template.narrative_cursor_missing");
-  }
-  let cursor: string | null = narrative.cursor;
-  let sequence = narrative.sequence;
-  let localStage = stage;
-  const collected: StageMutation[] = [];
-  const collectedDispatches: StageCueDispatch[] = [];
-
-  for (let steps = 0; steps < 64; steps += 1) {
-    if (cursor === null) break;
-    const node = requireNodeV1(cursor);
-    if (node.kind === "branch") {
-      const next = node.choose({ flags: narrative.flags });
-      if (!node.successors.includes(next)) {
-        throw new TypeError(`template.narrative_branch_invalid:${node.nodeId}`);
-      }
-      cursor = next;
-      continue;
-    }
-    if (node.kind === "stage") {
-      const mutations = node.mutations(localStage);
-      if (mutations.length > 0) {
-        const outcome = reduceAdmittedStageMutations(localStage, mutations);
-        if (outcome.kind !== "applied") {
-          throw new TypeError(`template.narrative_stage_invalid:${node.nodeId}`);
-        }
-        localStage = outcome.state;
-        collected.push(...mutations);
-        collectedDispatches.push(...node.dispatches);
-      }
-      cursor = node.next;
-      continue;
-    }
-    if (node.kind === "end") {
-      return ({
-        narrative: {
-          phase: "completed" as const,
-          cursor: null,
-          pending: null,
-          sequence,
-          flags: narrative.flags,
-          history: narrative.history,
-        },
-        stageMutations: collected,
-        stageDispatches: collectedDispatches,
-      });
-    }
-    if (node.kind === "hold") {
-      // The entry check of the declared-condition arms: a predicate already
-      // true when the hold opens reroutes immediately against the
-      // in-transaction working state — the empty bar never opens.
-      // Declaration-order first match, the same rule the timeline walk uses.
-      const arm = node.when.find((candidate) => narrative.flags.includes(candidate.flag));
-      if (arm !== undefined) {
-        cursor = arm.next;
-        continue;
-      }
-    }
-    sequence += 1;
-    return ({
-      narrative: {
-        phase: "active" as const,
-        cursor: node.nodeId,
-        pending: pendingForNodeV1(node, sequence),
-        sequence,
-        flags: narrative.flags,
-        history: narrative.history,
-      },
-      stageMutations: collected,
-      stageDispatches: collectedDispatches,
-    });
-  }
-  throw new TypeError("template.narrative_runaway_script");
+  return templateNarrativeRuntimeV1.runUntilInteraction(narrative, stage);
 }
 
-function withFlagsV1(flags: readonly string[], added: readonly string[]): readonly string[] {
-  if (added.length === 0) return flags;
-  return ([...new Set([...flags, ...added])].toSorted());
-}
-
-/**
- * Applies an accepted input resolution to the pending node: moves the
- * cursor to the continuation, records flags, and appends the history
- * entry. Always consumes the pending boundary — holds are pure
- * time-settlement boundaries and never reach here (the shared evaluator
- * rejects every input resolution against them). The caller runs the
- * script from the returned cursor; validation already happened in that
- * evaluator.
- */
 export function templateNarrativeAfterResolutionV1(
   narrative: TemplateNarrativeStateV1,
   resolution: InteractionResolution,
 ): TemplateNarrativeStateV1 {
-  const pending = narrative.pending;
-  if (pending === null || narrative.cursor === null) {
-    throw new TypeError("template.narrative_nothing_pending");
-  }
-  const node = requireNodeV1(narrative.cursor);
-  let next: string;
-  let flags = narrative.flags;
-  let history = narrative.history;
-  if (node.kind === "choice" && resolution.kind === "choose") {
-    const option = node.options.find((candidate) => candidate.choiceId === resolution.choiceId);
-    if (option === undefined) throw new TypeError("template.narrative_choice_missing");
-    next = option.next;
-    flags = withFlagsV1(flags, option.setFlags);
-    history = appendNarrativeHistory(history, {
-      kind: "choice",
-      occurrenceId: pending.occurrenceId,
-      definitionId: pending.definitionId,
-      seenRevision: pending.seenRevision,
-      speakerTextId: null,
-      textId: option.textId,
-      voiceAssetId: null,
-    });
-  } else if (node.kind === "say") {
-    next = node.next;
-    history = appendNarrativeHistory(history, {
-      kind: "say",
-      occurrenceId: pending.occurrenceId,
-      definitionId: pending.definitionId,
-      seenRevision: pending.seenRevision,
-      speakerTextId: node.speakerTextId,
-      textId: node.textId,
-      voiceAssetId: null,
-    });
-  } else {
-    throw new TypeError(`template.narrative_resolution_mismatch:${node.nodeId}`);
-  }
-  return ({
-    phase: "active" as const,
-    cursor: next,
-    pending: null,
-    sequence: narrative.sequence,
-    flags,
-    history,
-  });
+  return templateNarrativeRuntimeV1.afterResolution(narrative, resolution);
 }
 
-/**
- * The continuation of an accepted hold-scoped time tick: `holding` is a
- * partial settlement — the same occurrence stays pending with its
- * authoritative `remainingMs` decremented and the caller commits that
- * state without running the script; `advanced` means the occurrence ended
- * — expiry continues from the node's `next`, a matched `when` arm from
- * that arm's `next` — and the caller runs the script from there. The tick
- * goes through the shared `settleHoldTimeline` walk (a skip fold obeys
- * the same rule and cannot step past a matching arm); its hold fence was
- * already checked by `evaluateTimeTick`.
- */
-export type TemplateNarrativeTimeContinuationV1 =
-  | { readonly kind: "advanced"; readonly narrative: TemplateNarrativeStateV1 }
-  | { readonly kind: "holding"; readonly narrative: TemplateNarrativeStateV1 };
+export type TemplateNarrativeTimeContinuationV1 = ReturnType<
+  typeof templateNarrativeRuntimeV1.afterTimeTick
+>;
 
 export function templateNarrativeAfterTimeTickV1(
   narrative: TemplateNarrativeStateV1,
   tick: TimeTick,
 ): TemplateNarrativeTimeContinuationV1 {
-  const pending = narrative.pending;
-  if (pending === null || pending.kind !== "hold" || narrative.cursor === null) {
-    throw new TypeError("template.narrative_no_hold_pending");
-  }
-  const node = requireNodeV1(narrative.cursor);
-  if (node.kind !== "hold") {
-    throw new TypeError(`template.narrative_resolution_mismatch:${node.nodeId}`);
-  }
-  // Template holds declare no own tick effects or frame swaps, so the walk
-  // has no crossings: the arms are checked at t=0 (catching flags written
-  // since the previous settlement) and the remainder folds or expires.
-  const outcome = settleHoldTimeline({
-    pending,
-    elapsedMs: tick.elapsedMs,
-    arms: node.when.map((arm) => () => narrative.flags.includes(arm.flag)),
-  });
-  if (outcome.kind === "holding") {
-    return ({
-      kind: "holding" as const,
-      narrative: { ...narrative, pending: outcome.pending },
-    });
-  }
-  let cursor = node.next;
-  if (outcome.kind === "rerouted") {
-    const arm = node.when[outcome.armIndex];
-    if (arm === undefined) {
-      throw new TypeError(`template.narrative_hold_arm_missing:${node.nodeId}`);
-    }
-    cursor = arm.next;
-  }
-  return ({
-    kind: "advanced" as const,
-    narrative: {
-      phase: "active" as const,
-      cursor,
-      pending: null,
-      sequence: narrative.sequence,
-      flags: narrative.flags,
-      history: narrative.history,
-    },
-  });
+  return templateNarrativeRuntimeV1.afterTimeTick(narrative, tick);
 }
 
 export function templateNarrativeAtBeginV1(
   narrative: TemplateNarrativeStateV1,
 ): TemplateNarrativeStateV1 {
-  return ({
-    phase: "active" as const,
-    cursor: templateEntryNodeIdV1,
-    pending: null,
-    sequence: narrative.sequence,
-    flags: narrative.flags,
-    history: narrative.history,
-  });
+  return templateNarrativeRuntimeV1.atBegin(narrative);
 }

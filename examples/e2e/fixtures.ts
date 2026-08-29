@@ -12,13 +12,6 @@ export function templateTargetUrlV1(query = ""): string {
   return `http://${templateTargetV1.host}:${String(templateTargetV1.port)}/${query}`;
 }
 
-/** Bookshop: scripted Choice availability changing within one Narrative occurrence. */
-export const bookshopTargetV1 = { host: hostV1, port: 41735 };
-
-export function bookshopTargetUrlV1(query = ""): string {
-  return `http://${bookshopTargetV1.host}:${String(bookshopTargetV1.port)}/${query}`;
-}
-
 /** SillyOS: GUI-only Creator product preview and Program workspace. */
 export const sillyOsTargetV1 = { host: hostV1, port: 41739 };
 
@@ -26,11 +19,13 @@ export function sillyOsTargetUrlV1(query = ""): string {
   return `http://${sillyOsTargetV1.host}:${String(sillyOsTargetV1.port)}/${query}`;
 }
 
-/** VN Reference Tour: current product-owned Player, Stage, and audio path. */
-export const vnReferenceTourTargetV1 = { host: hostV1, port: 41741 };
+/** One Last Sound Check: current product-owned Player, Stage, and audio path. */
+export const vnLastSoundCheckTargetV1 = { host: hostV1, port: 41741 };
 
-export function vnReferenceTourTargetUrlV1(query = ""): string {
-  return `http://${vnReferenceTourTargetV1.host}:${String(vnReferenceTourTargetV1.port)}/${query}`;
+export function vnLastSoundCheckTargetUrlV1(query = ""): string {
+  return `http://${vnLastSoundCheckTargetV1.host}:${
+    String(vnLastSoundCheckTargetV1.port)
+  }/${query}`;
 }
 
 interface PageDiagnosticsV1 {

@@ -1,6 +1,6 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受，最近审查修订 2026-08-27。已 promotion 的稳定能力以
+状态：2026-07-19 接受，最近审查修订 2026-08-29。已 promotion 的稳定能力以
 [features](features.md) 为准；已交付但仍 provisional/package-private 的实验 seam 以对应 active
 plan closure 与 [architecture](architecture.md) 为准；历史交付见
 [roadmap archive](roadmap-archive.md)。当前执行入口只有
@@ -85,6 +85,15 @@ Simulation/权威领域的 Mod 通过 R2 exact Save + lease handoff 建立同窗
 直接访问 `window`、DOM、IndexedDB、内部 `src/**` 或未公开 store 不受兼容承诺保护。Story 可使用明确的 Host/renderer escape hatch，但它们必须在 package ownership、Save 边界和测试中可见。
 
 ## 4. Current execution priority — production floor
+
+最近完成的有界 lane 是
+[VN Genre Mod、History Mod 与作者工作流](plans/2026-08-29-vn-genre-mod-authoring.md)：Template 和 One Last
+Sound Check 已共同消费 first-party VN interaction/compiler/runtime 共用层；History 已成为第一个真实 optional
+presentation Mod，交付开发期延迟加载、R1 selection successor、卸载和 production 结构排除；One Last Sound
+Check 的只读 VN Inspector contribution 与人类/Agent 共用的 structured Scene operation/CAS authority 位于同一
+Authoring Host，但不建立 Narrative/Text writer。Bookshop 已退役，不再作为第二套作者或测试路径。该关闭没有
+激活 public resolver/ABI/SDK/distribution，也没有把后续 Ren'Py 能力覆盖扩张为另一个脚本语言或运行时。
+当前没有自动激活的后继 lane。
 
 在把 Story 成果提升为 engine-level genre pack、Mod、renderer 或 editor
 能力之前，按 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md)
@@ -319,7 +328,7 @@ promotion；前者后来于 2026-08-28 独立关闭并开放显式开发入口�
 Desktop production claim，不阻塞 core 或其他工作。
 
 2026-08-27 所有者另行接受
-[VN Reference Tour](plans/2026-08-27-vn-reference-tour.md) 已完成当前产品车道的 M0–M5，并成为维护中的旗舰
+[《最后一次试音》](plans/2026-08-27-vn-reference-tour.md) 已完成当前产品车道的 M0–M5，并成为维护中的旗舰
 Reference Product。它从 tracked Template 起步，
 以原创、完整、紧凑的可发布短篇验证 SillyMaker 当前推荐的 Visual Novel authoring、Narrative/Stage、
 Player QoL、Save/rollback、audio、locale-addressable content、responsive Input 与 Inspector/human/Agent
@@ -342,8 +351,8 @@ blocker。2026-08-29 所有者因没有合适设备，取消代表性真实 curr
 该资格未执行、未通过，也不形成低端设备支持声明。M4 按缩减后的证据范围关闭，M5 已完成旗舰、current docs、
 产品 metadata 与 workspace/build/deploy/site 接线切换，但不声称远程 live deployment。Cat Cafe 已在
 本轮开始前独立终止，应用、revision-1 Save 支持、产品 E2E 与 live 发布责任同步结束，不做跨产品 Save 迁移
-或兼容 wrapper。Bookshop 继续保持 maintained minimal Narrative example，不是旗舰或完整 VN 产品参考；
-教学角色在 VN 完成后另行评审并显式裁决，M5 没有自动删除。维护的产品例子是 SillyOS + VN。
+或兼容 wrapper。VN 完成后的独立评审已显式退役 Bookshop；维护的产品例子是 SillyOS 与
+`examples/vn-last-sound-check`。
 
 此前同日接受的
 [Electronic Pet Reference Product](plans/2026-08-27-electronic-pet-reference-product.md) 已由所有者停止且未
@@ -513,7 +522,8 @@ canary 用于冻结作者 API，不阻塞每个 runtime migration commit。
 System dialogs、Workspace Overlay、Narrative/History 与 WholeCanvas 已共享同一个
 composition-owned Managed Surface authority，没有平行 writable lifecycle。Narrative
 通过公开 definition factory 进入一个 production Host，并绑定同一 Semantic Stage
-authority；Engine Lab、template、Bookshop、Cat Cafe 已迁移，SillyOS 显式省略。
+authority；Engine Lab、Template 与 One Last Sound Check 是当前消费者，已退役的 Bookshop/Cat Cafe
+只保留历史迁移证据，SillyOS 显式省略。
 WholeCanvas 通过公开 definition 或 narrow application source 进入同一 kernel；
 Splash/Title 属于 package front door，Cat Cafe ending 与 Engine Lab opt-in route 是两名
 消费者，SillyOS 继续省略。S4b.1c、PF5/M3、Complexity Reset 与 PF7 stabilization 均已
@@ -602,6 +612,12 @@ Story-local 的 narrative/VN、management/time economy、combat、card、
 JRPG/ATB、grid tactics 与 companion 可以随真实产品持续实验。只有被第二消费者和
 发布需求证明后，才把共享边界提升为 engine-level capability/package；production
 floor 延后的是这种通用化，不是 Story 玩法开发。
+
+2026-08-29 完成的 VN lane 是这条规则的第一个 first-party genre promotion：`@sillymaker/vn` 只组合 interaction
+document/compiler/runtime policy 和 focused React entries，Base 继续拥有 Narrative/State/Save/replay，UI
+继续拥有 Managed Surface/Stage/Input primitives，产品拥有自己的 predicates/effects/content/theme。Template
+与 One Last Sound Check 是两个消费者；不允许 product-local kit 的近似复制继续并存。History State 与 History
+presentation 分离，后者是首个可独立选择、延迟加载和卸载的 optional VN Mod。
 
 ### Shared combat core candidates
 
@@ -754,9 +770,12 @@ Agent workspace 需要 tab/split/task/approval/artifact/history 等独立领域�
 ## 12. Strategic track H — Mod incubation
 
 [Mod design](design/mod-system.md) 的 public resolver/ABI/SDK/distribution 仍是 accepted direction /
-incubation，不是当前实现队列。2026-08-25 已关闭计划的 M5 只激活 private、build-known、
-application-local Mod Runtime，用来组合当前应用 generation 的第一方 data/code slices；它不构成公共
-生态或 post-release install。
+incubation，不是当前实现队列。2026-08-25 已关闭计划的 M5 激活 private、build-known、
+application-local Mod Runtime；2026-08-29 已关闭的 VN lane 在其上增加完整 selection successor，并以
+History presentation 作为第一个真实 application consumer。active set 在每个 generation 内仍冻结；开发期
+load/unload 通过候选 generation、publication acknowledgement 和 predecessor retirement 完成，不原地改
+registry。production 产品可以显式把相同扩展面包含进最终图，也可以完全结构排除，但这仍不构成公共生态、
+post-release install protocol 或任意代码宿主。
 
 AR1 已选择的 private Direct Extension Runtime 不等于激活 Mod：它没有 resolver、manifest、
 public ABI、external SDK、post-release install 或 distribution，并且仍可从 ordinary
@@ -771,8 +790,8 @@ no-extension game build 完全排除。历史 Cordis adapter/vendor 已删除。
 5. external package smoke 证明 application 可在仓库外消费 engine；
 6. resolver/manifest 不需要万能 `install(context)` 或 load-order override。
 
-当前 M5 就是该构建期可信 first-party capability 阶段。发布后 declarative Mod、trusted code Artifact
-与隔离扩展分别立项。不在没有产品需求时建设 untrusted sandbox。
+当前 first-party VN/History 工作就是该构建期可信 capability 阶段的产品化验证。发布后 declarative Mod、
+trusted code Artifact 与隔离扩展分别立项。不在没有产品需求时建设 untrusted sandbox。
 
 完成 PF7 或当前 private M5 都不激活 public Mod platform。即使上述 gates 全部满足，也必须另行接受
 新的 active implementation plan，才能开始 resolver、public ABI、external SDK 或 distribution 工作。

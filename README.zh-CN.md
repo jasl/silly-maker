@@ -8,7 +8,7 @@ coding agent 在同一组所有权边界与运行证据内实现。浏览器与
 [Deno](https://deno.com/) Desktop preview 是当前目标。
 
 **查看维护中的旗舰 VN Reference Product**：
-[《最后一次试音》](examples/vn-reference-tour/) 是原创、完整的双路线 Visual Novel，验证当前推荐的
+[《最后一次试音》](examples/vn-last-sound-check/) 是原创、完整的双路线 Visual Novel，验证当前推荐的
 Narrative/Stage、Player、Save、音频、本地化、响应式与 Inspector 作者路径。它的可发布 Browser artifact
 已接入静态站构建；本仓库不声称已经执行远程 live deployment。
 
@@ -73,7 +73,7 @@ engine/packages/ui       通用 React GUI/游戏 UI 与 presentation 运行时
 engine/packages/web      浏览器 Host、IndexedDB/HTTP 持久化、挂载与自动化
 e2e/                     中立引擎一致性 Story（Engine Lab）
 template/                新游戏起点骨架
-examples/                产品与聚焦示例（旗舰 VN、bookshop、silly-os）
+examples/                维护中的产品（最后一次试音、SillyOS）
 project.config.ts        仓库级聚合命令使用的应用目录清单
 scripts/                 构建身份、资产校验、桌面存档服务器、发布站组装
 docs/                    内部工程文档（计划、研究、提案、政策）

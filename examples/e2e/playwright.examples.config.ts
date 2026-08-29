@@ -2,14 +2,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
 import {
-  bookshopTargetUrlV1,
-  bookshopTargetV1,
   sillyOsTargetUrlV1,
   sillyOsTargetV1,
   templateTargetUrlV1,
   templateTargetV1,
-  vnReferenceTourTargetUrlV1,
-  vnReferenceTourTargetV1,
+  vnLastSoundCheckTargetUrlV1,
+  vnLastSoundCheckTargetV1,
 } from "./fixtures.ts";
 
 /** Examples browser suite: one dev server per example application; desktop dual-engine acceptance. */
@@ -31,16 +29,6 @@ export default defineConfig({
     },
     {
       command:
-        `deno run -A npm:vite --mode example-bookshop --host ${bookshopTargetV1.host} --port ${
-          String(bookshopTargetV1.port)
-        } --strictPort`,
-      cwd: "../..",
-      reuseExistingServer: false,
-      timeout: 120_000,
-      url: bookshopTargetUrlV1(),
-    },
-    {
-      command:
         `deno run -A npm:vite --mode example-silly-os --host ${sillyOsTargetV1.host} --port ${
           String(sillyOsTargetV1.port)
         } --strictPort`,
@@ -51,13 +39,13 @@ export default defineConfig({
     },
     {
       command:
-        `deno run -A npm:vite --mode example-vn-reference-tour --host ${vnReferenceTourTargetV1.host} --port ${
-          String(vnReferenceTourTargetV1.port)
+        `deno run -A npm:vite --mode example-vn-last-sound-check --host ${vnLastSoundCheckTargetV1.host} --port ${
+          String(vnLastSoundCheckTargetV1.port)
         } --strictPort`,
       cwd: "../..",
       reuseExistingServer: false,
       timeout: 120_000,
-      url: vnReferenceTourTargetUrlV1(),
+      url: vnLastSoundCheckTargetUrlV1(),
     },
   ],
   projects: [

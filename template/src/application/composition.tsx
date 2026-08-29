@@ -16,7 +16,7 @@ import type {
   SaveOverlayLabelsV1,
 } from "@sillymaker/ui";
 import { defineNarrativeSurfaceV1, SemanticStageV1 } from "@sillymaker/ui";
-import { createDefaultVnPlayerV1 } from "@sillymaker/ui/narrative-player";
+import { createDefaultVnPlayerV1 } from "@sillymaker/vn/preset";
 import type { WebGameApplicationV1, WebGameOuterUiV1 } from "@sillymaker/web";
 
 import type {

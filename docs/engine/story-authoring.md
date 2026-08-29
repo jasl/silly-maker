@@ -302,6 +302,29 @@ The Engine Lab demonstrates this in:
 
 Reuse the engine pattern, not the Tavern-specific ten-module partition, names, numbers, or content structure.
 
+### Author a first-party VN interaction document
+
+Start from the tracked Template and use the focused `@sillymaker/vn/interaction`
+interaction-document/compiler/runtime entry. Do not copy either the Template or
+One Last Sound Check narrative kit into a new product. The shared layer owns the
+generic `say`/`choice`/`stage`/`branch`/`hold`/`end` control blocks, stable
+derived IDs and deterministic run-to-interaction policy. The product supplies
+typed predicates and choice effects over its own State; it keeps text packs,
+characters, media, routes and special surfaces locally.
+
+This authoring layer is ordinary TypeScript plus admitted JSON-safe data. It is
+not a Ren'Py DSL, runtime expression evaluator, command bus or service locator.
+Base remains the only Narrative/State/Save/replay authority. When a product
+needs a new control concept, first determine whether it composes from existing
+blocks and product callbacks; promote a new shared block only with a second real
+consumer and a deterministic contract.
+
+The default VN presentation can select the optional History Mod. Its presence
+does not change authored History State or Save bytes. Development may load or
+unload the presentation through a selection successor; a production product may
+include that extension surface explicitly or use a core-only graph that omits
+the History implementation and loader.
+
 ### Compose a Host application
 
 A Story ships one `WebGameApplicationV1` declaration (core definition with the semantic adapter, validators, and optional Story extensions; projector; optional Narrative and WholeCanvas definitions; UI slots; Workspace Overlay definitions; labels; input maps) and boots it with `startWebGameApplicationV1`. The composers own the Session, persistence, capability session, startup/runtime diagnostics, input adapters, automation, and disposal — an entry never assembles engine services by hand. Eligible component-only presentation modules may receive Vite React Fast Refresh; application declaration, core/domain, config, ineligible, and unclassified changes fall back to full-page reload unless the product owns an admitted R2 boundary. `installWebGameApplicationHmrV1` is the opt-in successor/persistence-handoff helper. Engine Lab is its first maintained dev-only consumer: a Story-owned Vite identity plugin injects real `BuildIdentity` into a literal-self-accepting composition candidate, then the Web composer replaces Game/Session on the same Host/root. This is conformance evidence, not the default for every Story; ordinary product entries still contain no HMR construction.
@@ -320,8 +343,8 @@ only the authoritative read-only backlog and close action. Neither owns a player
 controller, clock, Host, Semantic Stage, Session, History writer, or writable
 lifecycle store. `DefaultGameRootV1` mounts the production Host from
 the composition definition, so do not add `slots.narrative`, a direct semantic
-writer, or a second stage claimant. Engine Lab, the starter template, Bookshop,
-and the VN Reference Tour are the maintained Game examples. A GUI-only application such as
+writer, or a second stage claimant. Engine Lab, the starter Template, and One
+Last Sound Check are the maintained Game examples. A GUI-only application such as
 the current SillyOS uses `startWebGuiApplicationV1` instead of omitting fields
 from a Game Story declaration.
 

@@ -100,27 +100,15 @@ const applicationPoliciesV1 = [
     dependencySeedEntries: ["template/src/game/simulation-definition.ts"],
   },
   {
-    applicationId: "example-bookshop",
-    callbackOwnerEntry: "examples/bookshop/src/game/simulation-definition.ts",
-    presentationEntry: "examples/bookshop/src/content/presentation.ts",
+    applicationId: "example-vn-last-sound-check",
+    callbackOwnerEntry: "examples/vn-last-sound-check/src/game/simulation-definition.ts",
+    presentationEntry: "examples/vn-last-sound-check/src/content/presentation.ts",
     coreDefinition: {
-      module: "examples/bookshop/src/application/core-definition.ts",
-      exportName: "bookshopCoreApplicationDefinitionV1",
+      module: "examples/vn-last-sound-check/src/application/core-definition.ts",
+      exportName: "vnLastSoundCheckCoreApplicationDefinitionV1",
     },
     dependencySeedEntries: [
-      "examples/bookshop/src/game/simulation-definition.ts",
-    ],
-  },
-  {
-    applicationId: "example-vn-reference-tour",
-    callbackOwnerEntry: "examples/vn-reference-tour/src/game/simulation-definition.ts",
-    presentationEntry: "examples/vn-reference-tour/src/content/presentation.ts",
-    coreDefinition: {
-      module: "examples/vn-reference-tour/src/application/core-definition.ts",
-      exportName: "vnReferenceTourCoreApplicationDefinitionV1",
-    },
-    dependencySeedEntries: [
-      "examples/vn-reference-tour/src/game/simulation-definition.ts",
+      "examples/vn-last-sound-check/src/game/simulation-definition.ts",
     ],
   },
 ] satisfies readonly ApplicationAuthorityPolicyV1[];

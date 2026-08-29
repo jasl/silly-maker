@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { parseNonNegativeSafeInteger } from "@sillymaker/base/values";
 import type { InputActionIdV1 } from "@sillymaker/ui/input";
-import { createDefaultVnPlayerCoreV1 } from "@sillymaker/ui/narrative-player/core";
+import { createDefaultVnPlayerCoreV1 } from "@sillymaker/vn/ui/core";
 
 const zeroV1 = parseNonNegativeSafeInteger(0);
 const emptyHeldActionsV1: ReadonlySet<InputActionIdV1> = new Set();

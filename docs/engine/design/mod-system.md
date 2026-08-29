@@ -7,7 +7,9 @@ Mod Runtime；public resolver/ABI/SDK/distribution 仍是 **incubation**。本�
 [architecture](../architecture.md) 与 [story authoring](../story-authoring.md) 显式组合，不能把
 private workspace entry 描述成已经发布的 Mod SDK、安装器或市场。执行优先级由 [roadmap](../roadmap.md) 与
 [production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
-控制；设计存在不构成 M0 激活。
+控制；设计存在不构成 public M0 激活。当前
+[VN Genre Mod、History Mod 与作者工作流](../plans/2026-08-29-vn-genre-mod-authoring.md) 只激活
+first-party Stage A 与 focused History R1 consumer，不激活 §11 的公共生态。
 
 当前产品 Host target 是 Browser 与 Deno Desktop；Electron 仅为未来 adapter，Node.js server、
 通用 CLI 和 headless runtime 不是产品 target。辅助 headless conformance 仍可验证无 UI 的 Base
@@ -531,8 +533,11 @@ IO、Save、Context 或 service locator。新的文档族工具另建 focused co
 editor/plugin framework。
 
 resolved Mod set 在每个 generation 内仍冻结。动态装卸产生新 generation，而不是改变冻结对象；
-代码实现已经被浏览器求值后不承诺从 ESM/CSS cache 物理擦除，卸载承诺的是 publication、listener、
-resource handle 和 lifecycle owner 退出。
+候选 generation 必须先完成 admission、mount 与 application-owned publication acknowledgement，才退休
+predecessor。代码实现已经被浏览器求值后不承诺从 ESM/CSS cache 物理擦除，卸载承诺的是 publication、
+listener、resource handle 和 lifecycle owner 退出。开发环境可以自由重复这套 load/unload successor；
+production 是否包含同一扩展入口由产品显式决定，省略时 loader/controller/implementation 必须从 final graph
+结构排除。这个产品选择不等于 public install protocol。
 
 ## 10. Distribution stages and trust
 
@@ -543,7 +548,9 @@ resource handle 和 lifecycle owner 退出。
 第一阶段只支持在应用构建前安装和显式激活的可信 TypeScript/JavaScript
 package。它与应用同 bundle、同 realm，拥有普通 JavaScript 可获得的权限。
 
-这是 V1 的实现目标，也是 first-party VN/经营/养成包的起点。
+这是 V1 的实现目标，也是 first-party VN/经营/养成包的起点。一个产品可以把 build-known catalog 与
+selection surface 带入 production，但 catalog 外任意路径、远端代码、npm runtime resolution 和公共安装格式
+仍不属于 Stage A。
 
 ### Stage B — post-release declarative artifact
 
@@ -619,8 +626,11 @@ VN 是 SillyMaker 的基础能力，应该以一等 first-party capability 交�
 - 遵守明确 compatibility policy。
 
 “first-party Mod”不表示把所有现有 VN primitive 从 `@sillymaker/ui` 或 Base
-搬走。Engine 保留可复用机制；VN Mod/pack 组合 narrative、stage、player
-policy、窗口和默认 presentation，具体 ownership 由实现前的 package audit 决定。
+搬走。Engine 保留可复用机制；focused `@sillymaker/vn` package 组合 interaction document/compiler/runtime
+policy 与选择性的 React presentation。Base 继续拥有 Narrative/State/Save/replay，UI 继续拥有 Managed
+Narrative Surface、Stage/Input 和通用 player primitives；应用拥有自己的 predicate/effect、内容、State、
+theme 与特殊表面。VN package 不导入 private Mod Runtime，应用 adapter 才拥有 literal loaders、selection
+controller 与 publication acknowledgement。
 
 VN 本身是一组内聚能力，不是一个不可裁剪的大包：
 
@@ -633,13 +643,15 @@ VN 本身是一组内聚能力，不是一个不可裁剪的大包：
   省略 UI 不能静默改变 Snapshot bytes、Save lineage 或 replay 语义。
 
 可选能力必须从未选择的 final module/source graph 结构排除，不能只以运行时 `enabled: false` 冒充
-减包。当前只证明 History 专用 renderer、入口控制与 CSS 的 focused core/full 静态排除，以及中立 private
-successor controller 的 R1 候选/提交/失败保留/退休合同；没有为证明动态装卸而保留伪造的 VN Tooling Mod。
-DevDock load handle 与 Scene Inspector properties contribution 已是公开的 build-known tooling output
-contracts；private controller 与 DevDock publication seam 仍未由真实产品端到端连接。因此这里交付的仍是
-private hot-swap substrate 加 focused public contribution surfaces，不是 public、完整的热插拔 Mod 系统。
-shared generic Narrative family 仍包含通用 History 协作机制。若未来真实产品需要运行期切换 History UI，
-目标路由是 R1；若同时改变 History 的 State schema/retention policy，则按 R2 compatibility/migration 处理。
+减包。History presentation 是第一个真实 consumer：literal dynamic loader 首次选择时取得 renderer、入口、
+CSS 与 resource handle；R1 successor 在 React consumer commit acknowledgement 后切换，卸载到 `null` 时先关闭
+已打开 surface 再等待 owner 释放。它与 traditional static full preset 运行同一 Narrative authority；core-only
+build 不含 History implementation、loader 或 private controller。shared generic Narrative family 只保留通用
+History 协作机制，authoritative History State/retention 仍由 Story/Save 拥有。改变其 schema/retention policy
+必须走 R2 compatibility/migration，不能冒充 presentation hot swap。
+
+DevDock load handle 与 Scene Inspector properties contribution 是公开的 build-known tooling output contracts；
+它们和 History 已证明 focused hot-swap/publication surface，但不是 public、完整的 Mod resolver/ABI/SDK。
 
 ### SLG should be capability slices
 

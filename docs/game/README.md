@@ -1,8 +1,8 @@
 # Game design index
 
-状态：活动游戏设计索引。[VN Reference Tour](../engine/plans/2026-08-27-vn-reference-tour.md) 已完成 M0–M5，
-现为维护中的旗舰 Reference Product。Bookshop 继续承担 maintained minimal Narrative example，不是旗舰或
-完整 VN 产品参考；它的教学角色在 VN 完成后单独评审，不由 M5 预裁。维护的产品例子是 SillyOS + VN。
+状态：活动游戏设计索引。[《最后一次试音》](../engine/plans/2026-08-27-vn-reference-tour.md) 已完成 M0–M5，
+现为维护中的旗舰产品。Bookshop 已在 VN 完成后的独立评审中退役；维护的产品例子是 SillyOS 与
+`examples/vn-last-sound-check`。
 2026-08-29 所有者因没有合适设备，取消代表性真实 current-low-end qualification 作为 VN 完成门槛；该资格
 未执行、未通过，也不形成低端设备支持声明。Cat Cafe 已独立终止，其 revision-1 Save、产品 E2E 与 live
 发布责任同步结束。Tavern 题材是
@@ -10,7 +10,7 @@
 
 ## Active design
 
-- [VN Reference Tour](../engine/plans/2026-08-27-vn-reference-tour.md)：从 tracked Template 起步的原创完整
+- [《最后一次试音》](../engine/plans/2026-08-27-vn-reference-tour.md)：从 tracked Template 起步的原创完整
   Visual Novel；以紧凑小产品验证当前推荐 Narrative/Stage、Player/Save/audio/i18n 与 Inspector 作者路径，
   不建立 Ren'Py DSL 或全引擎 API 展厅。
 

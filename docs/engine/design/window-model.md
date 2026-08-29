@@ -161,7 +161,8 @@ Ren'Py-aligned chrome、全画布 say advance 与 Ctrl/Tab/H 政策。它不是 
 也不拥有 Story、theme/media 或特殊 surface；产品可以 theme/override，或 eject 后以自己的 renderer
 完整替换。
 
-Engine Lab、template、Bookshop 与 Cat Cafe 已迁移到这一公开 seam；SillyOS 显式省略。
+Engine Lab、Template 与 One Last Sound Check 是这一公开 seam 的当前消费者；已退役的 Bookshop 与
+Cat Cafe 只保留历史迁移证据，SillyOS 显式省略。
 旧 `DialoguePanelV1`、`VnLayerV1`、advance surface、raw text-reveal/playback 与
 conformance-only exports 已删除，不保留平行播放器或任意 `slots.narrative` writer。
 production browser promotion 已通过。

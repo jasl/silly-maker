@@ -46,8 +46,7 @@ describe("closed runtime asset verification", () => {
     expect(runtimeAssetStoryChecksV1.map(({ storyId }) => storyId)).toEqual([
       "story.e2e.engine-lab",
       "story.template.starter",
-      "story.example.bookshop",
-      "story.example.vn-reference-tour",
+      "story.example.vn-last-sound-check",
     ]);
   });
 
@@ -111,20 +110,18 @@ describe("closed runtime asset verification", () => {
     ).resolves.toEqual([
       "story.e2e.engine-lab",
       "story.template.starter",
-      "story.example.bookshop",
-      "story.example.vn-reference-tour",
+      "story.example.vn-last-sound-check",
     ]);
     expect(applicationDirectories).toEqual([
       "e2e",
       "template",
-      "examples/bookshop",
-      "examples/vn-reference-tour",
+      "examples/vn-last-sound-check",
     ]);
     expect(reads.length).toBeGreaterThan(0);
     expect(reads.some((path) => path.includes(`template${sep}assets${sep}content`))).toBe(true);
     expect(
       reads.some((path) =>
-        path.includes(`examples${sep}vn-reference-tour${sep}assets${sep}content`)
+        path.includes(`examples${sep}vn-last-sound-check${sep}assets${sep}content`)
       ),
     ).toBe(true);
   }, 30_000);

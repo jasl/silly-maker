@@ -9529,7 +9529,9 @@ describe("Narrative stable Managed Surface family", () => {
       ) => NarrativeStableHistoryChildLifecycleResultInternalV1
     >();
     expectTypeOf<keyof NarrativeStableHistoryChildLifecycleInternalV1>()
-      .toEqualTypeOf<"redeemHistoryOpenIntentInternalV1">();
+      .toEqualTypeOf<
+        "redeemHistoryOpenIntentInternalV1" | "closeCurrentHistoryChildInternalV1"
+      >();
     expectTypeOf<
       NarrativeStableHistoryChildLifecycleInternalV1[
         "redeemHistoryOpenIntentInternalV1"
@@ -9537,6 +9539,11 @@ describe("Narrative stable Managed Surface family", () => {
     >().toEqualTypeOf<
       (intent: unknown) => NarrativeStableHistoryChildPreparationResultInternalV1
     >();
+    expectTypeOf<
+      NarrativeStableHistoryChildLifecycleInternalV1[
+        "closeCurrentHistoryChildInternalV1"
+      ]
+    >().toEqualTypeOf<() => NarrativeStableHistoryChildLifecycleResultInternalV1>();
     expectTypeOf<Parameters<typeof createNarrativeStableHistoryChildLifecycleInternalV1>>()
       .toEqualTypeOf<[
         Readonly<{ readonly bridge: NarrativeStablePublisherBridgeInternalV1 }>,

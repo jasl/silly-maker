@@ -153,11 +153,10 @@ describe("AR0 Web document-entry startup", () => {
     expect(entry.shell).toHaveAttribute("data-sillymaker-startup-controller", "disposed");
   });
 
-  it("does not let a never-resolving optional contribution block the product", async () => {
+  it("does not let an unresolved optional contribution block the product", async () => {
     const entry = installDocumentEntryV1();
-    const loadOptional = vi.fn(
-      () => new Promise<never>(() => undefined),
-    );
+    const optional = deferredValueV1<DevDockContributionLoadHandleV1>();
+    const loadOptional = vi.fn(() => optional.promise);
     const application = {
       ...labGameApplicationV1,
       ui(input: Parameters<typeof labGameApplicationV1.ui>[0]) {
@@ -197,6 +196,7 @@ describe("AR0 Web document-entry startup", () => {
       expect(signalCountV1(entry.signals, "first_product_commit")).toBe(1);
       expect(signalCountV1(entry.signals, "optional_capability_ready")).toBe(0);
     } finally {
+      optional.resolve({ contributions: createDevDockContributionSetV1({ panels: [] }) });
       await started.dispose();
     }
   });
@@ -385,6 +385,74 @@ describe("AR0 Web document-entry startup", () => {
     } finally {
       released.resolve();
       await firstDisposal.catch(() => undefined);
+      await started.dispose().catch(() => undefined);
+    }
+  });
+
+  it("waits for a late DevDock handle's async disposal during application disposal", async () => {
+    installDocumentEntryV1();
+    const optional = deferredValueV1<DevDockContributionLoadHandleV1>();
+    const released = deferredValueV1<void>();
+    const disposeOptional = vi.fn(() => released.promise);
+    const loadOptional = vi.fn(() => optional.promise);
+    let capabilities: RuntimeCapabilityPortV1 | null = null;
+    const devDockControl = createDevDockControlV1();
+    const application = Object.freeze({
+      ...labGameApplicationV1,
+      ui(input: Parameters<typeof labGameApplicationV1.ui>[0]) {
+        capabilities = input.capabilities;
+        return Object.freeze({
+          ...labGameApplicationV1.ui(input),
+          outerUi: createReferencePlayerOuterUiV1({
+            instance: input.instance,
+            capabilities: input.capabilities,
+            playerProfile: input.playerProfile,
+            presentationFreeze: input.presentationFreeze,
+            presentationRate: input.presentationRate,
+            control: devDockControl,
+            loadContributions: loadOptional,
+          }),
+        });
+      },
+    });
+
+    const started = await startWebGameApplicationV1(
+      application,
+      runtimeOptionsV1(createMemoryHostRecordStoreV1()),
+    );
+    let applicationDisposal = Promise.resolve();
+    try {
+      await act(async () => {
+        await capabilities?.setEnabled("debug_tools", true);
+      });
+      act(() => devDockControl.open("startup.optional"));
+      await waitFor(() => expect(loadOptional).toHaveBeenCalledOnce());
+
+      let disposalSettled = false;
+      act(() => {
+        applicationDisposal = started.dispose().then(() => {
+          disposalSettled = true;
+        });
+      });
+      await Promise.resolve();
+      expect(disposalSettled).toBe(false);
+
+      optional.resolve({
+        contributions: optionalDevDockContributionsV1(),
+        dispose: disposeOptional,
+      });
+      await waitFor(() => expect(disposeOptional).toHaveBeenCalledOnce());
+      await Promise.resolve();
+      expect(disposalSettled).toBe(false);
+
+      released.resolve();
+      await expect(applicationDisposal).resolves.toBeUndefined();
+      expect(disposalSettled).toBe(true);
+      expect(disposeOptional).toHaveBeenCalledOnce();
+    } finally {
+      optional.resolve({ contributions: optionalDevDockContributionsV1() });
+      released.resolve();
+      await applicationDisposal.catch(() => undefined);
       await started.dispose().catch(() => undefined);
     }
   });

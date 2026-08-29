@@ -104,18 +104,17 @@ test("reduced motion preserves route changes without animated movement", async (
     });
 });
 
-test("the composed site exposes the flagship player and keeps maintained examples", async ({ page }) => {
+test("the composed site exposes the maintained products", async ({ page }) => {
   await page.goto(websiteUrlV1);
 
   const flagshipCard = page.locator("a.sm-example-card--vn");
   await expect(flagshipCard).toContainText("One Last Sound Check");
-  await expect(page.locator("a.sm-example-card--bookshop")).toContainText("Bookshop");
   await expect(page.locator("a.sm-example-card--os")).toContainText("SillyOS");
 
   await flagshipCard.click();
-  await expect(page).toHaveURL(/\/examples\/vn-reference-tour\/$/u);
+  await expect(page).toHaveURL(/\/examples\/vn-last-sound-check\/$/u);
   await page.getByRole("link", { name: "Play the VN in this site build" }).click();
-  await expect(page).toHaveURL(/\/play\/vn-reference-tour\/$/u);
+  await expect(page).toHaveURL(/\/play\/vn-last-sound-check\/$/u);
   await expect(page.locator("[data-title-screen='true']")).toBeVisible();
   await expect(page.getByRole("button", { name: "新游戏" })).toBeVisible();
 

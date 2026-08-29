@@ -502,6 +502,7 @@ export interface NarrativeStableHistoryChildLifecycleInternalV1 {
   redeemHistoryOpenIntentInternalV1(
     intent: unknown,
   ): NarrativeStableHistoryChildPreparationResultInternalV1;
+  closeCurrentHistoryChildInternalV1(): NarrativeStableHistoryChildLifecycleResultInternalV1;
 }
 
 export type NarrativeStablePlaybackModeToggleDispatchResultInternalV1 =
@@ -3349,6 +3350,18 @@ export function createNarrativeStableHistoryChildLifecycleInternalV1(
         lifecycle,
         intent,
       );
+    },
+    closeCurrentHistoryChildInternalV1(): NarrativeStableHistoryChildLifecycleResultInternalV1 {
+      const lifecycleRecord = narrativeStableHistoryChildLifecycleRecordsInternalV1.get(lifecycle);
+      const preparationRecord = lifecycleRecord?.bridgeRecord.currentHistoryCandidateRecord ?? null;
+      if (
+        lifecycleRecord === undefined || preparationRecord === null ||
+        preparationRecord.lifecycle !== lifecycle ||
+        preparationRecord.lifecycleRecord !== lifecycleRecord
+      ) {
+        return narrativeStableHistoryChildLifecycleStaleResultInternalV1;
+      }
+      return preparationRecord.controller.closeInternalV1();
     },
   };
   narrativeStableHistoryChildLifecycleRecordsInternalV1.set(

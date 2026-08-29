@@ -10,7 +10,7 @@
  */
 const forbiddenSpecifierPatternsV1: readonly RegExp[] = Object.freeze([
   /^@silly-maker\//u,
-  /^@sillymaker\/(?:base|ui|web)\/src(?:\/|$)/u,
+  /^@sillymaker\/(?:base|ui|vn|web)\/src(?:\/|$)/u,
   /(?:^|\/)engine\/packages\/[^/]+\/src(?:\/|$)/u,
   /(?:^|\/)(?:e2e|examples|template)\/(?:[^/]+\/)*src(?:\/|$)/u,
 ]);

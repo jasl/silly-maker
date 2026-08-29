@@ -1638,6 +1638,26 @@ describe("Narrative stable session", () => {
     ready.fixture.disposePortal();
   });
 
+  it("lets the exact History lifecycle owner close its current child without input routing", () => {
+    const fixture = createPreparingHistoryHostFixtureV1("lifecycle-close", 42);
+    const lifecycle = historyLifecycleV1(fixture.fixture.session);
+
+    expectExactHistoryLifecycleResultV1(
+      lifecycle.closeCurrentHistoryChildInternalV1(),
+      "closed",
+    );
+    expect(fixture.fixture.runtime.renderSource.getSnapshotInternalV1().entries).toEqual([
+      expect.objectContaining({ kind: "dialogue", phase: "active" }),
+    ]);
+    expectExactHistoryLifecycleResultV1(
+      lifecycle.closeCurrentHistoryChildInternalV1(),
+      "stale",
+    );
+
+    fixture.fixture.runtime.attachment.releaseInternalV1();
+    fixture.fixture.disposePortal();
+  });
+
   it("maps every internal dismiss kind in both History phases to canonical family results", () => {
     const dismissKinds = [
       "back",

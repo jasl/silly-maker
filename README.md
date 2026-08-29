@@ -10,7 +10,7 @@ evidence. Browser and [Deno](https://deno.com/) Desktop preview are the current
 targets.
 
 **Explore the maintained flagship VN Reference Product**:
-[One Last Sound Check](examples/vn-reference-tour/) is an original, complete,
+[One Last Sound Check](examples/vn-last-sound-check/) is an original, complete,
 two-route Visual Novel that exercises the recommended Narrative/Stage, Player,
 Save, audio, localization, responsive, and Inspector authoring paths. Its
 publishable Browser artifact is wired into the static site; this repository does
@@ -83,7 +83,7 @@ engine/packages/ui       Generic React GUI/game UI and presentation runtime
 engine/packages/web      Browser host, IndexedDB/HTTP persistence, mounting, automation
 e2e/                     The neutral engine-conformance Story (Engine Lab)
 template/                The starter skeleton for new games
-examples/                Products and focused examples (flagship VN, bookshop, silly-os)
+examples/                Maintained products (One Last Sound Check, SillyOS)
 project.config.ts        Repository directory list for aggregate commands
 scripts/                 Build identity, asset checks, desktop save server, site composer
 docs/                    Internal engineering docs (plans, research, proposals, policies)
