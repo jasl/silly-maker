@@ -3,36 +3,40 @@ import {
   type BoundedCanonicalJsonLimitsInternalV1,
   projectBoundedCanonicalJsonInternalV1,
 } from "@sillymaker/base/runtime/internal";
+import type { StrictJsonValueV1 } from "@sillymaker/base/strict-json";
 
-import type { AgentRpcDiagnosticInternalV1, AgentRpcStreamEventInternalV1 } from "./contracts.ts";
+import type {
+  AgentSessionCancelInputV1,
+  AgentSessionDiagnosticV1,
+  AgentSessionStreamEventV1,
+  AgentSessionSubmitInputV1,
+} from "../session/contracts.ts";
 
 type CanonicalRecordInternalV1 = Readonly<Record<string, unknown>>;
 
-const rpcProjectionLimitsInternalV1: BoundedCanonicalJsonLimitsInternalV1 = {
+const projectionLimitsInternalV1: BoundedCanonicalJsonLimitsInternalV1 = {
   maxBytes: 65_536 as BoundedCanonicalJsonLimitsInternalV1["maxBytes"],
   maxDepth: 16 as BoundedCanonicalJsonLimitsInternalV1["maxDepth"],
   maxNodes: 2_048 as BoundedCanonicalJsonLimitsInternalV1["maxNodes"],
 };
-
 const identifierPatternInternalV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
-const maxChunkLengthInternalV1 = 8_192;
-const maxSubmitLengthInternalV1 = 8_192;
+const maxTextLengthInternalV1 = 8_192;
 
-export type AgentRpcAdmissionResultInternalV1<TValue> =
+export type AgentSessionAdmissionResultInternalV1<TValue> =
   | { readonly kind: "admitted"; readonly value: TValue }
-  | { readonly kind: "rejected"; readonly diagnostic: AgentRpcDiagnosticInternalV1 };
+  | { readonly kind: "rejected"; readonly diagnostic: AgentSessionDiagnosticV1 };
 
 function diagnosticInternalV1(
-  code: AgentRpcDiagnosticInternalV1["code"],
+  code: AgentSessionDiagnosticV1["code"],
   path: string,
-): AgentRpcDiagnosticInternalV1 {
+): AgentSessionDiagnosticV1 {
   return { code, path };
 }
 
 function rejectionInternalV1<TValue>(
-  code: AgentRpcDiagnosticInternalV1["code"],
+  code: AgentSessionDiagnosticV1["code"],
   path: string,
-): AgentRpcAdmissionResultInternalV1<TValue> {
+): AgentSessionAdmissionResultInternalV1<TValue> {
   return { kind: "rejected", diagnostic: diagnosticInternalV1(code, path) };
 }
 
@@ -46,18 +50,18 @@ function exactRecordInternalV1(
   return value as CanonicalRecordInternalV1;
 }
 
-function projectRecordInternalV1(
-  value: unknown,
-): AgentRpcAdmissionResultInternalV1<unknown> {
+function projectInternalV1(value: unknown): AgentSessionAdmissionResultInternalV1<unknown> {
   let projected: ReturnType<typeof projectBoundedCanonicalJsonInternalV1>;
   try {
-    projected = projectBoundedCanonicalJsonInternalV1(value, rpcProjectionLimitsInternalV1);
+    projected = projectBoundedCanonicalJsonInternalV1(value, projectionLimitsInternalV1);
   } catch {
-    return rejectionInternalV1("rpc.record_invalid", "/");
+    return rejectionInternalV1("agent_session.record_invalid", "/");
   }
   if (projected.kind === "rejected") {
     return rejectionInternalV1(
-      projected.code === "limit.bytes" ? "rpc.record_too_large" : "rpc.record_invalid",
+      projected.code === "limit.bytes"
+        ? "agent_session.record_too_large"
+        : "agent_session.record_invalid",
       "/",
     );
   }
@@ -72,74 +76,95 @@ function validSequenceInternalV1(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-export type AgentRpcAdmittedResponseInternalV1 =
+function validTextInternalV1(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= maxTextLengthInternalV1;
+}
+
+export function admitAgentSessionSubmitInputInternalV1(
+  value: AgentSessionSubmitInputV1,
+): AgentSessionAdmissionResultInternalV1<AgentSessionSubmitInputV1> {
+  const projection = projectInternalV1(value);
+  if (projection.kind === "rejected") return projection;
+  const record = exactRecordInternalV1(projection.value, ["sessionId", "text"]);
+  if (record === null || !validIdentifierInternalV1(record.sessionId)) {
+    return rejectionInternalV1("agent_session.record_invalid", "/sessionId");
+  }
+  if (!validTextInternalV1(record.text)) {
+    return rejectionInternalV1("agent_session.record_invalid", "/text");
+  }
+  return { kind: "admitted", value: { sessionId: record.sessionId, text: record.text } };
+}
+
+export function admitAgentSessionCancelInputInternalV1(
+  value: AgentSessionCancelInputV1,
+): AgentSessionAdmissionResultInternalV1<AgentSessionCancelInputV1> {
+  const projection = projectInternalV1(value);
+  if (projection.kind === "rejected") return projection;
+  const record = exactRecordInternalV1(projection.value, ["sessionId", "runId"]);
+  if (record === null || !validIdentifierInternalV1(record.sessionId)) {
+    return rejectionInternalV1("agent_session.record_invalid", "/sessionId");
+  }
+  if (!validIdentifierInternalV1(record.runId)) {
+    return rejectionInternalV1("agent_session.record_invalid", "/runId");
+  }
+  return {
+    kind: "admitted",
+    value: { sessionId: record.sessionId, runId: record.runId },
+  };
+}
+
+export type AgentSessionAdmittedResponseInternalV1 =
   | { readonly kind: "started"; readonly sessionId: string }
   | { readonly kind: "submitted"; readonly runId: string }
   | { readonly kind: "cancel_requested" };
 
-export function admitAgentRpcResponseInternalV1(
-  method: "start" | "submit" | "cancel",
+export function admitAgentSessionResponseInternalV1(
+  operation: "start" | "submit" | "cancel",
   value: unknown,
-): AgentRpcAdmissionResultInternalV1<AgentRpcAdmittedResponseInternalV1> {
-  const projection = projectRecordInternalV1(value);
+): AgentSessionAdmissionResultInternalV1<AgentSessionAdmittedResponseInternalV1> {
+  const projection = projectInternalV1(value);
   if (projection.kind === "rejected") return projection;
-  switch (method) {
+  switch (operation) {
     case "start": {
       const record = exactRecordInternalV1(projection.value, ["kind", "sessionId"]);
       if (
         record === null || record.kind !== "started" ||
         !validIdentifierInternalV1(record.sessionId)
-      ) {
-        return rejectionInternalV1("rpc.record_invalid", "/response");
-      }
-      return {
-        kind: "admitted",
-        value: { kind: "started", sessionId: record.sessionId },
-      };
+      ) return rejectionInternalV1("agent_session.record_invalid", "/response");
+      return { kind: "admitted", value: { kind: "started", sessionId: record.sessionId } };
     }
     case "submit": {
       const record = exactRecordInternalV1(projection.value, ["kind", "runId"]);
       if (
         record === null || record.kind !== "submitted" ||
         !validIdentifierInternalV1(record.runId)
-      ) {
-        return rejectionInternalV1("rpc.record_invalid", "/response");
-      }
-      return {
-        kind: "admitted",
-        value: { kind: "submitted", runId: record.runId },
-      };
+      ) return rejectionInternalV1("agent_session.record_invalid", "/response");
+      return { kind: "admitted", value: { kind: "submitted", runId: record.runId } };
     }
     case "cancel": {
       const record = exactRecordInternalV1(projection.value, ["kind"]);
       if (record === null || record.kind !== "cancel_requested") {
-        return rejectionInternalV1("rpc.record_invalid", "/response");
+        return rejectionInternalV1("agent_session.record_invalid", "/response");
       }
-      return {
-        kind: "admitted",
-        value: { kind: "cancel_requested" },
-      };
+      return { kind: "admitted", value: { kind: "cancel_requested" } };
     }
   }
-  const exhaustive: never = method;
-  throw new TypeError(`Unknown Agent RPC method ${String(exhaustive)}`);
+  const exhaustive: never = operation;
+  throw new TypeError(`Unknown Agent Session operation ${String(exhaustive)}`);
 }
 
-export function admitAgentRpcStreamRecordInternalV1(
+export function admitAgentSessionStreamEventInternalV1(
   value: unknown,
-  connectionGeneration: number,
-): AgentRpcAdmissionResultInternalV1<AgentRpcStreamEventInternalV1> {
-  const projection = projectRecordInternalV1(value);
+): AgentSessionAdmissionResultInternalV1<AgentSessionStreamEventV1> {
+  const projection = projectInternalV1(value);
   if (projection.kind === "rejected") return projection;
   if (
     projection.value === null || typeof projection.value !== "object" ||
     Array.isArray(projection.value)
-  ) {
-    return rejectionInternalV1("rpc.record_invalid", "/");
-  }
+  ) return rejectionInternalV1("agent_session.record_invalid", "/");
   const discriminator = projection.value as CanonicalRecordInternalV1;
   if (typeof discriminator.kind !== "string") {
-    return rejectionInternalV1("rpc.record_invalid", "/kind");
+    return rejectionInternalV1("agent_session.record_invalid", "/kind");
   }
   const common = (keys: readonly string[]): CanonicalRecordInternalV1 | null => {
     const record = exactRecordInternalV1(projection.value, keys);
@@ -150,17 +175,15 @@ export function admitAgentRpcStreamRecordInternalV1(
     return record;
   };
   switch (discriminator.kind) {
-    case "artifact_chunk": {
+    case "output_text_delta": {
       const record = common(["kind", "sessionId", "runId", "sequence", "text"]);
-      if (
-        record === null || typeof record.text !== "string" ||
-        record.text.length > maxChunkLengthInternalV1
-      ) return rejectionInternalV1("rpc.record_invalid", "/text");
+      if (record === null || !validTextInternalV1(record.text)) {
+        return rejectionInternalV1("agent_session.record_invalid", "/text");
+      }
       return {
         kind: "admitted",
         value: {
-          kind: "artifact_chunk",
-          connectionGeneration,
+          kind: "output_text_delta",
           sessionId: record.sessionId as string,
           runId: record.runId as string,
           sequence: record.sequence as number,
@@ -168,29 +191,27 @@ export function admitAgentRpcStreamRecordInternalV1(
         },
       };
     }
-    case "artifact_complete": {
-      const record = common(["kind", "sessionId", "runId", "sequence", "candidate"]);
-      if (record === null) return rejectionInternalV1("rpc.record_invalid", "/");
+    case "output_data": {
+      const record = common(["kind", "sessionId", "runId", "sequence", "value"]);
+      if (record === null) return rejectionInternalV1("agent_session.record_invalid", "/");
       return {
         kind: "admitted",
         value: {
-          kind: "artifact_complete" as const,
-          connectionGeneration,
+          kind: "output_data",
           sessionId: record.sessionId as string,
           runId: record.runId as string,
           sequence: record.sequence as number,
-          candidate: record.candidate,
+          value: record.value as StrictJsonValueV1,
         },
       };
     }
     case "run_completed": {
       const record = common(["kind", "sessionId", "runId", "sequence"]);
-      if (record === null) return rejectionInternalV1("rpc.record_invalid", "/");
+      if (record === null) return rejectionInternalV1("agent_session.record_invalid", "/");
       return {
         kind: "admitted",
         value: {
           kind: "run_completed",
-          connectionGeneration,
           sessionId: record.sessionId as string,
           runId: record.runId as string,
           sequence: record.sequence as number,
@@ -199,40 +220,24 @@ export function admitAgentRpcStreamRecordInternalV1(
     }
     case "run_failed": {
       const record = common(["kind", "sessionId", "runId", "sequence", "code"]);
-      if (
-        record === null || !validIdentifierInternalV1(record.code)
-      ) return rejectionInternalV1("rpc.record_invalid", "/code");
+      if (record === null || !validIdentifierInternalV1(record.code)) {
+        return rejectionInternalV1("agent_session.record_invalid", "/code");
+      }
       return {
         kind: "admitted",
         value: {
           kind: "run_failed",
-          connectionGeneration,
           sessionId: record.sessionId as string,
           runId: record.runId as string,
           sequence: record.sequence as number,
-          diagnostic: diagnosticInternalV1("rpc.request_failed", `/remote/${record.code}`),
+          diagnostic: diagnosticInternalV1(
+            "agent_session.operation_failed",
+            `/remote/${record.code}`,
+          ),
         },
       };
     }
     default:
-      return rejectionInternalV1("rpc.record_invalid", "/kind");
+      return rejectionInternalV1("agent_session.record_invalid", "/kind");
   }
-}
-
-export function createAgentRpcRequestInternalV1(
-  requestId: number,
-  method: "start" | "submit" | "cancel",
-  params?: Readonly<Record<string, unknown>>,
-): AgentRpcAdmissionResultInternalV1<unknown> {
-  if (
-    params?.text !== undefined &&
-    (typeof params.text !== "string" || params.text.length === 0 ||
-      params.text.length > maxSubmitLengthInternalV1)
-  ) return rejectionInternalV1("rpc.record_invalid", "/params/text");
-  return projectRecordInternalV1({
-    revision: 1,
-    requestId,
-    method,
-    ...(params === undefined ? {} : { params }),
-  });
 }

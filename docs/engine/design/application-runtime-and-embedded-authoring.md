@@ -380,12 +380,13 @@ descendants，再 dispose optional companion、同步或异步 binding resources
 
 embedded mode 可以在 typed Inspector binding 上选择正好一个 package-private neutral companion。
 它只提交 compatibility identity、content signature、owner/renderer/disposer；Host 不提供任意 lookup、
-command bus、workspace DSL、surface set 或 service locator。现有 Agent 类型仍只从
-`@sillymaker/studio/internal/agent` 进入。Engine Lab 显式选择 deterministic fake Agent companion，
+command bus、workspace DSL、surface set 或 service locator。现有 Agent Host、`UiArtifact` 与 renderer
+类型仍只从 `@sillymaker/studio/internal/agent` 进入；Session client/factory/types 从 focused public
+`@sillymaker/agent/session` 进入。Engine Lab 显式选择 deterministic fake Agent companion，
 Template 的完整 Author graph 则排除 Agent/RPC。Artifact action 必须与 current Authoring Scene
 document identity/draft revision receipt 配对后才可用，并通过同一 structured-operation executor；
-它不能保存文件、改 Game State 或调用 external effect。这是 private Agent seam，不是 public
-plugin/Mod ABI。
+它不能保存文件、改 Game State 或调用 external effect。这是 private Agent Host/UiArtifact seam，
+不是 public plugin/Mod ABI；public Session/Run 合同也不授予这些 authority。
 
 Browser Chromium/WebKit evidence 只保护合同级行为：standalone/embedded Inspector 可用，
 virtualized list/tree 与真实 preview/ghost/facets 可观察，有限编辑通过 Authoring Scene CAS，
@@ -435,16 +436,17 @@ execution result，供 build-known game/editor tools 编译；工具只从
 admission owner、executor、Authoring Host、Session 和 source IO 仍为内部实现。这不是 public Mod resolver/
 ABI/SDK、RPC schema、任意 operation handler registry 或持久化 operation log。
 
-## 7. Agent GUI, RPC client, and UiArtifact seam
+## 7. Public Agent Session/Run and private Agent GUI/UiArtifact seam
 
-引擎只定义 transport/provider-neutral client 与 artifact 边界；真实 Agent 产品、后台和 LLM 由
-后续产品计划证明：
+引擎公开一个 focused transport/provider-neutral Session/Run client，同时保留 private Agent Host 与
+artifact 边界；真实 Agent 产品、后台和 LLM 由后续产品计划证明：
 
 - 产品选择 Agent capability 时，Agent Host 的 session、run/step、cancel/resume 与 GUI lifecycle
   构成一个内聚 required domain，不为追求细粒度 plugin 化而拆散；本地 panel、tool UI 或 renderer
   可以是 optional contribution，真实模型、工具后台和 companion service 仍统一经 RPC；
-- Agent Host 拥有 GUI/session；RPC client 只 connect/observe/submit/cancel/reconnect；
-- deterministic fake 实现同一 RPC client port，不建立第二套只供测试使用的 lifecycle；
+- private Agent Host 拥有 GUI/session 与 Artifact 解释；public Session client 只
+  connect/observe/start/submit/cancel/reconnect/dispose；
+- private deterministic fake 实现同一 public connector port，不建立第二套只供测试使用的 lifecycle；
 - required service 慢、离线或失败时，Agent domain 不得谎报 ready，但 shell、配置、诊断和 retry
   GUI 仍可用；不依赖它的 Game/Authoring sibling 继续工作；
 - cross-process event 按不可信数据做 shape、顺序、大小和取消 admission；
@@ -464,9 +466,9 @@ ABI/SDK、RPC schema、任意 operation handler registry 或持久化 operation 
 
 首次只用 deterministic fake 跑通 Engine Lab dev-only embedded Host 的 stream → admitted
 `UiArtifact` → render → admitted intent → §6 Scene operation；该纵切不保存文件、不提交
-authoritative state、不调用真实网络或 external effect。真实 RPC transport/backend、具体
-OpenUI/A2UI adapter、conversation/task persistence 与 tool execution 均后置。在真实第二消费者前，
-这些形状保持 experimental/package-internal，且不泄漏任何协议实现类型。
+authoritative state、不调用真实网络或 external effect。后续 SillyOS 并行产品实现提供了第二消费者
+压力，只足以提升中立 Session/Run connector/client；真实 RPC transport/backend、具体 OpenUI/A2UI
+adapter、conversation/task persistence、tool execution 以及 Agent Host/Artifact product surface 均后置。
 
 实现状态（2026-08-22）：AR4 已按本节交付 workspace-private `@sillymaker/agent/internal`。同一个
 observable RPC client port 和 deterministic fake 覆盖 explicit readiness、start/submit/cancel/
@@ -493,10 +495,15 @@ Engine Lab Player release graph 显式排除 Agent/RPC implementation modules；
 Agent source graph 仍静态耦合，后续 AR5/M5 已通过 neutral companion split 与 Inspector graph
 negative control 关闭该结构缺口。
 
-这些实现形状仍是 provisional internal seam：没有 root/public Agent export，也没有 real transport、
-backend/LLM、具体 wire protocol、Agent/session/artifact persistence、tool execution、permission UI、
-OpenUI/A2UI adapter、Effect Broker 或 Desktop HMR。`features.md` 只记录这条 private seam 的现状，
-真实第二消费者与后续 promotion 之前不得表述为 public Agent ABI。
+实现状态（2026-08-30，focused promotion 已交付）：`@sillymaker/agent/session` 公开唯一的语义级
+Session/Run client、connector/connection port、snapshot/diagnostic/result 与 stream event 类型。
+`start` 无产品参数，`submit` 只接收非空 `sessionId` 与 text；stream 只表达
+`output_text_delta`、bounded Strict JSON `output_data`、`run_completed` 与 `run_failed`。公共合同不暴露
+raw request envelope、request ID、具体 wire、provider、connection generation、Agent Host、
+`UiArtifact` 或 deterministic fake。connector 的 unknown response/event 由 client 边界 admission 一次；
+currentness、连续 sequence、cancel/reconnect 和 awaited disposal 继续由同一实现拥有。SillyOS 的产品
+connector 迁移尚未 handoff，不能据此宣称真实 backend/provider、conversation persistence、tool execution、
+permission UI、OpenUI/A2UI adapter、Effect Broker 或 public Agent product/renderer ABI 已交付。
 
 实现状态（2026-08-25，AR5 保留、M5 已吸收）：Inspector core publication/embedded surface 只
 依赖 package-private 的 neutral single-companion bridge；Agent client/Host/renderer 只从显式

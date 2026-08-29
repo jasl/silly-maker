@@ -1,88 +1,100 @@
 // SPDX-License-Identifier: MIT
 import type {
-  AgentRpcRawConnectResultInternalV1,
-  AgentRpcRawConnectionInternalV1,
-  AgentRpcRawTransportInternalV1,
-} from "./contracts.ts";
+  AgentSessionConnectionV1,
+  AgentSessionConnectorConnectResultV1,
+  AgentSessionConnectorV1,
+} from "../session/contracts.ts";
 
-export type DeterministicFakeAgentRpcModeInternalV1 =
+export type DeterministicFakeAgentSessionModeInternalV1 =
   | "unconfigured"
   | "slow"
   | "offline"
   | "failed"
   | "ready";
 
-export interface DeterministicFakeAgentRpcRequestInternalV1 {
+export interface DeterministicFakeAgentSessionOperationInternalV1 {
   readonly connection: number;
-  readonly record: unknown;
+  readonly operation: "start" | "submit" | "cancel";
+  readonly input: unknown;
 }
 
-export interface DeterministicFakeAgentRpcTransportInternalV1 {
-  readonly transport: AgentRpcRawTransportInternalV1;
-  setMode(mode: DeterministicFakeAgentRpcModeInternalV1): void;
-  resolveSlowConnectAs(mode: Exclude<DeterministicFakeAgentRpcModeInternalV1, "slow">): void;
-  emit(record: unknown): void;
-  emitToConnection(connection: number, record: unknown): void;
+export interface DeterministicFakeAgentSessionConnectorInternalV1 {
+  readonly connector: AgentSessionConnectorV1;
+  setMode(mode: DeterministicFakeAgentSessionModeInternalV1): void;
+  resolveSlowConnectAs(
+    mode: Exclude<DeterministicFakeAgentSessionModeInternalV1, "slow">,
+  ): void;
+  emit(candidate: unknown): void;
+  emitToConnection(connection: number, candidate: unknown): void;
   queueResponse(response: unknown): void;
-  getRequests(): readonly DeterministicFakeAgentRpcRequestInternalV1[];
+  getOperations(): readonly DeterministicFakeAgentSessionOperationInternalV1[];
   getConnectionCount(): number;
   getCloseCount(): number;
 }
 
 interface FakeConnectionRecordInternalV1 {
   readonly ordinal: number;
-  readonly onRecord: (record: unknown) => void;
-  readonly connection: AgentRpcRawConnectionInternalV1;
+  readonly onEvent: (candidate: unknown) => void;
+  readonly connection: AgentSessionConnectionV1;
 }
 
 interface PendingSlowConnectInternalV1 {
-  readonly onRecord: (record: unknown) => void;
-  readonly resolve: (result: AgentRpcRawConnectResultInternalV1) => void;
+  readonly onEvent: (candidate: unknown) => void;
+  readonly resolve: (result: AgentSessionConnectorConnectResultV1) => void;
 }
 
-function rawRecordInternalV1(value: unknown): Readonly<Record<string, unknown>> {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Readonly<Record<string, unknown>>
-    : {};
-}
-
-export function createDeterministicFakeAgentRpcTransportInternalV1(
-  initialMode: DeterministicFakeAgentRpcModeInternalV1 = "ready",
-): DeterministicFakeAgentRpcTransportInternalV1 {
+export function createDeterministicFakeAgentSessionConnectorInternalV1(
+  initialMode: DeterministicFakeAgentSessionModeInternalV1 = "ready",
+): DeterministicFakeAgentSessionConnectorInternalV1 {
   let mode = initialMode;
   let nextSession = 1;
   let nextRun = 1;
   let closeCount = 0;
   const connections: FakeConnectionRecordInternalV1[] = [];
   const pendingSlow: PendingSlowConnectInternalV1[] = [];
-  const requests: DeterministicFakeAgentRpcRequestInternalV1[] = [];
+  const operations: DeterministicFakeAgentSessionOperationInternalV1[] = [];
   const queuedResponses: unknown[] = [];
 
+  const responseFor = (
+    ordinal: number,
+    operation: DeterministicFakeAgentSessionOperationInternalV1["operation"],
+    input: unknown,
+  ): Promise<unknown> => {
+    operations.push({ connection: ordinal, operation, input });
+    if (queuedResponses.length > 0) {
+      const response = queuedResponses.shift();
+      if (response instanceof Error) return Promise.reject(response);
+      return Promise.resolve(response);
+    }
+    switch (operation) {
+      case "start":
+        return Promise.resolve({ kind: "started", sessionId: `session.${nextSession++}` });
+      case "submit":
+        return Promise.resolve({ kind: "submitted", runId: `run.${nextRun++}` });
+      case "cancel":
+        return Promise.resolve({ kind: "cancel_requested" });
+    }
+    const exhaustive: never = operation;
+    throw new TypeError(`Unknown fake Agent Session operation ${String(exhaustive)}`);
+  };
+
   const createConnection = (
-    onRecord: (record: unknown) => void,
-  ): AgentRpcRawConnectResultInternalV1 => {
+    onEvent: (candidate: unknown) => void,
+  ): AgentSessionConnectorConnectResultV1 => {
     const ordinal = connections.length + 1;
     let closed = false;
-    const connection: AgentRpcRawConnectionInternalV1 = {
-      request(value: unknown): Promise<unknown> {
-        requests.push({ connection: ordinal, record: value });
+    const connection: AgentSessionConnectionV1 = {
+      start(): Promise<unknown> {
         if (closed) return Promise.reject(new Error("fake connection closed"));
-        if (queuedResponses.length > 0) {
-          const response = queuedResponses.shift();
-          if (response instanceof Error) return Promise.reject(response);
-          return Promise.resolve(response);
-        }
-        const request = rawRecordInternalV1(value);
-        switch (request.method) {
-          case "start":
-            return Promise.resolve({ kind: "started", sessionId: `session.${nextSession++}` });
-          case "submit":
-            return Promise.resolve({ kind: "submitted", runId: `run.${nextRun++}` });
-          case "cancel":
-            return Promise.resolve({ kind: "cancel_requested" });
-          default:
-            return Promise.resolve({ kind: "unknown" });
-        }
+        return responseFor(ordinal, "start", undefined);
+      },
+      submit(input): Promise<unknown> {
+        if (closed) return Promise.reject(new Error("fake connection closed"));
+        return responseFor(ordinal, "submit", input);
+      },
+      cancel(input): Promise<unknown> {
+        if (closed) return Promise.reject(new Error("fake connection closed"));
+        return responseFor(ordinal, "cancel", input);
       },
       close(): Promise<void> {
         if (closed) return Promise.resolve();
@@ -91,14 +103,14 @@ export function createDeterministicFakeAgentRpcTransportInternalV1(
         return Promise.resolve();
       },
     };
-    connections.push({ ordinal, onRecord, connection });
+    connections.push({ ordinal, onEvent, connection });
     return { kind: "connected", connection };
   };
 
   const connectResult = (
-    targetMode: Exclude<DeterministicFakeAgentRpcModeInternalV1, "slow">,
-    onRecord: (record: unknown) => void,
-  ): AgentRpcRawConnectResultInternalV1 => {
+    targetMode: Exclude<DeterministicFakeAgentSessionModeInternalV1, "slow">,
+    onEvent: (candidate: unknown) => void,
+  ): AgentSessionConnectorConnectResultV1 => {
     switch (targetMode) {
       case "unconfigured":
         return { kind: "unconfigured" };
@@ -107,52 +119,48 @@ export function createDeterministicFakeAgentRpcTransportInternalV1(
       case "failed":
         return { kind: "unavailable", reason: "failed" };
       case "ready":
-        return createConnection(onRecord);
+        return createConnection(onEvent);
     }
     const exhaustive: never = targetMode;
-    throw new TypeError(`Unknown fake transport mode ${String(exhaustive)}`);
+    throw new TypeError(`Unknown fake connector mode ${String(exhaustive)}`);
   };
 
-  const transport: AgentRpcRawTransportInternalV1 = {
+  const connector: AgentSessionConnectorV1 = {
     isConfigured: () => mode !== "unconfigured",
-    async connect(input: {
-      readonly onRecord: (record: unknown) => void;
-    }): Promise<AgentRpcRawConnectResultInternalV1> {
-      if (mode !== "slow") return connectResult(mode, input.onRecord);
-      return await new Promise<AgentRpcRawConnectResultInternalV1>((resolve) => {
-        pendingSlow.push({ onRecord: input.onRecord, resolve });
+    async connect(input): Promise<AgentSessionConnectorConnectResultV1> {
+      if (mode !== "slow") return connectResult(mode, input.onEvent);
+      return await new Promise<AgentSessionConnectorConnectResultV1>((resolve) => {
+        pendingSlow.push({ onEvent: input.onEvent, resolve });
       });
     },
   };
 
   return {
-    transport,
-    setMode(nextMode: DeterministicFakeAgentRpcModeInternalV1): void {
+    connector,
+    setMode(nextMode): void {
       mode = nextMode;
     },
-    resolveSlowConnectAs(
-      nextMode: Exclude<DeterministicFakeAgentRpcModeInternalV1, "slow">,
-    ): void {
+    resolveSlowConnectAs(nextMode): void {
       const pending = pendingSlow.shift();
       if (pending === undefined) throw new TypeError("No slow fake connection is pending");
       mode = nextMode;
-      pending.resolve(connectResult(nextMode, pending.onRecord));
+      pending.resolve(connectResult(nextMode, pending.onEvent));
     },
-    emit(record: unknown): void {
-      const connection = connections.at(-1);
-      if (connection === undefined) throw new TypeError("Fake transport has no connection");
-      connection.onRecord(record);
+    emit(candidate): void {
+      const active = connections.at(-1);
+      if (active === undefined) throw new TypeError("Fake connector has no connection");
+      active.onEvent(candidate);
     },
-    emitToConnection(connection: number, record: unknown): void {
-      const target = connections[connection - 1];
+    emitToConnection(connectionOrdinal, candidate): void {
+      const target = connections[connectionOrdinal - 1];
       if (target === undefined) throw new TypeError("Unknown fake connection");
-      // Deliberately calls through even after close so generation fences are observable.
-      target.onRecord(record);
+      // Deliberately calls through after close so the client's internal fence is observable.
+      target.onEvent(candidate);
     },
-    queueResponse(response: unknown): void {
+    queueResponse(response): void {
       queuedResponses.push(response);
     },
-    getRequests: () => [...requests],
+    getOperations: () => [...operations],
     getConnectionCount: () => connections.length,
     getCloseCount: () => closeCount,
   };

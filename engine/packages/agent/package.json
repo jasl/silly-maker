@@ -5,6 +5,7 @@
   "type": "module",
   "license": "MIT",
   "exports": {
+    "./session": "./src/session/index.ts",
     "./internal": "./src/internal.ts"
   },
   "scripts": {

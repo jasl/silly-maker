@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { createAgentRpcClientInternalV1 } from "../rpc/client.ts";
-import { createDeterministicFakeAgentRpcTransportInternalV1 } from "../rpc/deterministic-fake-transport.ts";
+import { createAgentSessionClientV1 } from "@sillymaker/agent/session";
+import { createDeterministicFakeAgentSessionConnectorInternalV1 } from "../rpc/deterministic-fake-transport.ts";
 import { createAgentHostInternalV1 } from "./agent-host.ts";
 
 const actionIdInternalV1 = "sillymaker.authoring.scene.nudge_selected_x";
@@ -22,7 +22,7 @@ function artifactCandidateInternalV1(label: string, actionId = actionIdInternalV
 }
 
 function streamInternalV1(
-  kind: "artifact_chunk" | "artifact_complete",
+  kind: "output_text_delta" | "output_data",
   runId: string,
   sequence: number,
   extra: Readonly<Record<string, unknown>>,
@@ -37,16 +37,19 @@ function streamInternalV1(
 }
 
 describe("createAgentHostInternalV1", () => {
-  it("keeps required RPC readiness explicit while retry remains available", async () => {
-    const fake = createDeterministicFakeAgentRpcTransportInternalV1("unconfigured");
-    const client = createAgentRpcClientInternalV1({ transport: fake.transport });
+  it("keeps required Session readiness explicit while retry remains available", async () => {
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1("unconfigured");
+    const client = createAgentSessionClientV1({ connector: fake.connector });
     const host = createAgentHostInternalV1({ client, allowedActionIds: [actionIdInternalV1] });
 
     expect(host.getSnapshot().readiness).toBe("unconfigured");
     await host.connect();
     expect(host.getSnapshot()).toMatchObject({
       readiness: "unconfigured",
-      diagnostic: { source: "rpc", diagnostic: { code: "rpc.unconfigured" } },
+      diagnostic: {
+        source: "session",
+        diagnostic: { code: "agent_session.unconfigured" },
+      },
     });
     fake.setMode("slow");
     const slowRetry = host.retry();
@@ -60,22 +63,22 @@ describe("createAgentHostInternalV1", () => {
   });
 
   it("preserves predecessor Artifact/draft across invalid completion, cancellation, and late events", async () => {
-    const fake = createDeterministicFakeAgentRpcTransportInternalV1();
-    const client = createAgentRpcClientInternalV1({ transport: fake.transport });
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+    const client = createAgentSessionClientV1({ connector: fake.connector });
     const host = createAgentHostInternalV1({ client, allowedActionIds: [actionIdInternalV1] });
     await host.connect();
     await host.start();
     await host.submit("first");
-    fake.emit(streamInternalV1("artifact_complete", "run.1", 1, {
-      candidate: artifactCandidateInternalV1("first"),
+    fake.emit(streamInternalV1("output_data", "run.1", 1, {
+      value: artifactCandidateInternalV1("first"),
     }));
     const predecessor = host.getSnapshot().artifact;
     expect(predecessor).toMatchObject({ revision: 1, document: { root: { kind: "column" } } });
 
     await host.submit("invalid successor");
-    fake.emit(streamInternalV1("artifact_chunk", "run.2", 1, { text: "partial draft" }));
-    fake.emit(streamInternalV1("artifact_complete", "run.2", 2, {
-      candidate: artifactCandidateInternalV1("invalid", "remote.unknown"),
+    fake.emit(streamInternalV1("output_text_delta", "run.2", 1, { text: "partial draft" }));
+    fake.emit(streamInternalV1("output_data", "run.2", 2, {
+      value: artifactCandidateInternalV1("invalid", "remote.unknown"),
     }));
     expect(host.getSnapshot()).toMatchObject({
       run: { runId: "run.2", status: "failed" },
@@ -83,20 +86,20 @@ describe("createAgentHostInternalV1", () => {
       artifact: { revision: 1 },
       diagnostic: { source: "artifact", diagnostic: { code: "artifact.action_unknown" } },
     });
-    fake.emit(streamInternalV1("artifact_complete", "run.2", 3, {
-      candidate: artifactCandidateInternalV1("must stay rejected"),
+    fake.emit(streamInternalV1("output_data", "run.2", 3, {
+      value: artifactCandidateInternalV1("must stay rejected"),
     }));
     expect(host.getSnapshot().artifact).toBe(predecessor);
 
     await host.submit("second valid");
-    fake.emit(streamInternalV1("artifact_complete", "run.3", 1, {
-      candidate: artifactCandidateInternalV1("second"),
+    fake.emit(streamInternalV1("output_data", "run.3", 1, {
+      value: artifactCandidateInternalV1("second"),
     }));
     expect(host.getSnapshot().artifact?.revision).toBe(2);
-    const requestCountBeforeReopen = fake.getRequests().length;
+    const operationCountBeforeReopen = fake.getOperations().length;
     expect(host.reopenArtifact(1)).toBe(true);
     expect(host.getSnapshot().artifact).toBe(predecessor);
-    expect(fake.getRequests()).toHaveLength(requestCountBeforeReopen);
+    expect(fake.getOperations()).toHaveLength(operationCountBeforeReopen);
 
     const admittedIntent = host.admitIntent({
       schemaRevision: 1,
@@ -109,10 +112,10 @@ describe("createAgentHostInternalV1", () => {
     expect(admittedIntent.kind).toBe("admitted");
 
     await host.submit("cancel me");
-    fake.emit(streamInternalV1("artifact_chunk", "run.4", 1, { text: "keep me" }));
+    fake.emit(streamInternalV1("output_text_delta", "run.4", 1, { text: "keep me" }));
     await host.cancel();
-    fake.emit(streamInternalV1("artifact_complete", "run.4", 2, {
-      candidate: artifactCandidateInternalV1("late cancel"),
+    fake.emit(streamInternalV1("output_data", "run.4", 2, {
+      value: artifactCandidateInternalV1("late cancel"),
     }));
     expect(host.getSnapshot()).toMatchObject({
       run: { runId: "run.4", status: "cancel_requested" },
@@ -122,17 +125,17 @@ describe("createAgentHostInternalV1", () => {
 
     await host.submit("old run");
     await host.submit("successor run");
-    fake.emit(streamInternalV1("artifact_complete", "run.5", 1, {
-      candidate: artifactCandidateInternalV1("late predecessor"),
+    fake.emit(streamInternalV1("output_data", "run.5", 1, {
+      value: artifactCandidateInternalV1("late predecessor"),
     }));
     expect(host.getSnapshot().artifact?.revision).toBe(1);
-    fake.emit(streamInternalV1("artifact_complete", "run.6", 1, {
-      candidate: artifactCandidateInternalV1("successor"),
+    fake.emit(streamInternalV1("output_data", "run.6", 1, {
+      value: artifactCandidateInternalV1("successor"),
     }));
     expect(host.getSnapshot().artifact?.revision).toBe(3);
 
     await host.submit("remote failure");
-    fake.emit(streamInternalV1("artifact_chunk", "run.7", 1, { text: "unfinished" }));
+    fake.emit(streamInternalV1("output_text_delta", "run.7", 1, { text: "unfinished" }));
     fake.emit(Object.freeze({
       kind: "run_failed",
       sessionId: "session.1",
@@ -147,16 +150,16 @@ describe("createAgentHostInternalV1", () => {
     });
 
     await host.dispose();
-    fake.emit(streamInternalV1("artifact_complete", "run.7", 3, {
-      candidate: artifactCandidateInternalV1("late dispose"),
+    fake.emit(streamInternalV1("output_data", "run.7", 3, {
+      value: artifactCandidateInternalV1("late dispose"),
     }));
     expect(host.getSnapshot()).toMatchObject({ readiness: "disposed", artifact: { revision: 3 } });
   });
 
-  it("returns RPC connections and subscriptions to zero over repeated activation", async () => {
+  it("returns Session connections and subscriptions to zero over repeated activation", async () => {
     for (let iteration = 0; iteration < 10; iteration += 1) {
-      const fake = createDeterministicFakeAgentRpcTransportInternalV1();
-      const client = createAgentRpcClientInternalV1({ transport: fake.transport });
+      const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+      const client = createAgentSessionClientV1({ connector: fake.connector });
       const host = createAgentHostInternalV1({
         client,
         allowedActionIds: [actionIdInternalV1],
@@ -177,8 +180,8 @@ describe("createAgentHostInternalV1", () => {
 
       fake.emitToConnection(
         1,
-        streamInternalV1("artifact_complete", "run.1", 1, {
-          candidate: artifactCandidateInternalV1("late after dispose"),
+        streamInternalV1("output_data", "run.1", 1, {
+          value: artifactCandidateInternalV1("late after dispose"),
         }),
       );
       expect(host.getSnapshot()).toBe(disposedSnapshot);

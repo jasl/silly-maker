@@ -10,11 +10,11 @@ import type {
   UiIntentAdmissionResultInternalV1,
 } from "../artifact/contract.ts";
 import type {
-  AgentRpcClientPortInternalV1,
-  AgentRpcClientSnapshotInternalV1,
-  AgentRpcDiagnosticInternalV1,
-  AgentRpcStreamEventInternalV1,
-} from "../rpc/contracts.ts";
+  AgentSessionClientSnapshotV1,
+  AgentSessionClientV1,
+  AgentSessionDiagnosticV1,
+  AgentSessionStreamEventV1,
+} from "../session/contracts.ts";
 
 export type AgentHostReadinessInternalV1 =
   | "unconfigured"
@@ -24,7 +24,7 @@ export type AgentHostReadinessInternalV1 =
   | "disposed";
 
 export type AgentHostDiagnosticInternalV1 =
-  | { readonly source: "rpc"; readonly diagnostic: AgentRpcDiagnosticInternalV1 }
+  | { readonly source: "session"; readonly diagnostic: AgentSessionDiagnosticV1 }
   | { readonly source: "artifact"; readonly diagnostic: UiArtifactDiagnosticInternalV1 }
   | {
     readonly source: "host";
@@ -51,7 +51,7 @@ export interface AgentHostSnapshotInternalV1 {
   readonly identity: number;
   readonly revision: number;
   readonly readiness: AgentHostReadinessInternalV1;
-  readonly rpc: AgentRpcClientSnapshotInternalV1;
+  readonly session: AgentSessionClientSnapshotV1;
   readonly sessionId: string | null;
   readonly run: AgentHostRunSnapshotInternalV1 | null;
   readonly draft: AgentHostDraftSnapshotInternalV1 | null;
@@ -79,9 +79,9 @@ const encoderInternalV1 = new TextEncoder();
 let nextAgentHostIdentityInternalV1 = 0;
 
 function readinessInternalV1(
-  rpc: AgentRpcClientSnapshotInternalV1,
+  session: AgentSessionClientSnapshotV1,
 ): AgentHostReadinessInternalV1 {
-  switch (rpc.status.kind) {
+  switch (session.status.kind) {
     case "unconfigured":
       return "unconfigured";
     case "connecting":
@@ -94,14 +94,14 @@ function readinessInternalV1(
     case "unavailable":
       return "unavailable";
   }
-  const exhaustive: never = rpc.status;
-  throw new TypeError(`Unknown RPC readiness ${String(exhaustive)}`);
+  const exhaustive: never = session.status;
+  throw new TypeError(`Unknown Agent Session readiness ${String(exhaustive)}`);
 }
 
-function rpcDiagnosticInternalV1(
-  diagnostic: AgentRpcDiagnosticInternalV1,
+function sessionDiagnosticInternalV1(
+  diagnostic: AgentSessionDiagnosticV1,
 ): AgentHostDiagnosticInternalV1 {
-  return { source: "rpc", diagnostic };
+  return { source: "session", diagnostic };
 }
 
 function artifactDiagnosticInternalV1(
@@ -118,7 +118,7 @@ function hostDiagnosticInternalV1(
 }
 
 export function createAgentHostInternalV1(input: {
-  readonly client: AgentRpcClientPortInternalV1;
+  readonly client: AgentSessionClientV1;
   readonly allowedActionIds: readonly string[];
 }): AgentHostInternalV1 {
   const identity = ++nextAgentHostIdentityInternalV1;
@@ -138,12 +138,12 @@ export function createAgentHostInternalV1(input: {
 
   const rebuildSnapshot = (): void => {
     revision += 1;
-    const rpc = input.client.getSnapshot();
+    const session = input.client.getSnapshot();
     snapshot = {
       identity,
       revision,
-      readiness: disposed ? "disposed" : readinessInternalV1(rpc),
-      rpc,
+      readiness: disposed ? "disposed" : readinessInternalV1(session),
+      session,
       sessionId,
       run,
       draft,
@@ -168,24 +168,24 @@ export function createAgentHostInternalV1(input: {
   const onClientSnapshot = (): void => {
     const clientSnapshot = input.client.getSnapshot();
     if (clientSnapshot.diagnostic !== null) {
-      diagnostic = rpcDiagnosticInternalV1(clientSnapshot.diagnostic);
-    } else if (clientSnapshot.status.kind === "ready" && diagnostic?.source === "rpc") {
+      diagnostic = sessionDiagnosticInternalV1(clientSnapshot.diagnostic);
+    } else if (clientSnapshot.status.kind === "ready" && diagnostic?.source === "session") {
       diagnostic = null;
     }
     publish();
   };
 
-  const matchesActiveRun = (event: AgentRpcStreamEventInternalV1): boolean =>
+  const matchesActiveRun = (event: AgentSessionStreamEventV1): boolean =>
     !disposed && sessionId === event.sessionId && run?.runId === event.runId &&
     run.status === "streaming";
 
-  const onStream = (event: AgentRpcStreamEventInternalV1): void => {
+  const onStream = (event: AgentSessionStreamEventV1): void => {
     if (!matchesActiveRun(event)) return;
     const currentRun = run;
     if (currentRun === null) return;
     run = { ...currentRun, lastSequence: event.sequence };
     switch (event.kind) {
-      case "artifact_chunk": {
+      case "output_text_delta": {
         const text = `${draft?.text ?? ""}${event.text}`;
         if (encoderInternalV1.encode(text).byteLength > maxDraftBytesInternalV1) {
           run = { ...run, status: "failed" };
@@ -197,9 +197,9 @@ export function createAgentHostInternalV1(input: {
         publish();
         return;
       }
-      case "artifact_complete": {
+      case "output_data": {
         const admitted = admitUiArtifactCandidateInternalV1(
-          event.candidate,
+          event.value,
           input.allowedActionIds,
         );
         if (admitted.kind === "rejected") {
@@ -250,7 +250,7 @@ export function createAgentHostInternalV1(input: {
         if (draft !== null && draft.status === "streaming") {
           draft = { ...draft, status: "failed" };
         }
-        diagnostic = rpcDiagnosticInternalV1(event.diagnostic);
+        diagnostic = sessionDiagnosticInternalV1(event.diagnostic);
         publish();
         return;
     }
@@ -284,7 +284,7 @@ export function createAgentHostInternalV1(input: {
       if (disposed || expected !== operationGeneration) return;
       if (result.kind !== "started") {
         diagnostic = result.kind === "unavailable"
-          ? rpcDiagnosticInternalV1(result.diagnostic)
+          ? sessionDiagnosticInternalV1(result.diagnostic)
           : hostDiagnosticInternalV1("agent.operation_unavailable", "/start");
         publish();
         return;
@@ -308,7 +308,7 @@ export function createAgentHostInternalV1(input: {
       if (disposed || expected !== operationGeneration || sessionId !== currentSessionId) return;
       if (result.kind !== "submitted") {
         diagnostic = result.kind === "unavailable"
-          ? rpcDiagnosticInternalV1(result.diagnostic)
+          ? sessionDiagnosticInternalV1(result.diagnostic)
           : hostDiagnosticInternalV1("agent.operation_unavailable", "/submit");
         publish();
         return;
@@ -343,7 +343,7 @@ export function createAgentHostInternalV1(input: {
       });
       if (disposed || result.kind === "cancel_requested") return;
       if (result.kind === "unavailable") {
-        diagnostic = rpcDiagnosticInternalV1(result.diagnostic);
+        diagnostic = sessionDiagnosticInternalV1(result.diagnostic);
         publish();
       }
     },

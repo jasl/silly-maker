@@ -46,7 +46,7 @@ Dependency reference rule: engine and Story sources (everything Vite builds or v
 
 ```text
 engine/packages/base     framework-neutral authoring, contracts, and runtime
-engine/packages/agent    experimental workspace-private Agent/RPC/UiArtifact seam
+engine/packages/agent    public Session/Run client plus private Agent Host/UiArtifact/fake
 engine/packages/composition internal cold-path kernel and focused public trusted Mod façade
 engine/packages/state    experimental neutral State Runtime facade over Base
 engine/packages/tooling  non-browser CLI, Vite/identity, JSONL, and Desktop preview tools
@@ -303,33 +303,38 @@ deno run -A npm:vitest run \
 deno task typecheck
 ```
 
-### Experimental Agent/RPC vertical slice
+### Public Agent Session and private Agent/UiArtifact vertical slice
 
-AR4 is implemented only through `@sillymaker/agent/internal` and
-`@sillymaker/studio/internal/agent`. These are workspace-private engine seams, not Story-facing
-public APIs. Do not add a root Agent export, provider-specific protocol type, raw Session/
-`FilePort`/document-session writer, or direct source/game mutation to them. A product-side
+Create the transport/provider-neutral client and import its contracts through public
+`@sillymaker/agent/session`. Agent Host, `UiArtifact` admission/renderer, deterministic fake, and
+the Inspector companion remain behind `@sillymaker/agent/internal` and
+`@sillymaker/studio/internal/agent`. Do not add a root Agent export, provider-specific protocol
+type, raw request envelope/request ID, Session/`FilePort`/document-session writer, or direct
+source/game mutation to either boundary. A product-side
 binding admits an allowlist of inert action IDs and structured Authoring Scene operations once; a remote
 Artifact carries only those IDs, and the embedded surface executes a captured Authoring Scene
 document/revision envelope through the existing Scene executor.
 
 Core Authoring publication and the embedded surface import only the package-private neutral
-single-companion contract. Agent client/Host/renderer imports belong behind the explicit
-`@sillymaker/studio/internal/agent` entry and its experimental runtime leaf. Keep the bridge to
+single-companion contract. The selected companion imports the public Session client and keeps
+Agent Host/renderer imports behind the explicit `@sillymaker/studio/internal/agent` entry and its
+experimental runtime leaf. Keep the bridge to
 one selected sibling: compatible R1 candidates reuse its owner, a changed compatibility ID or
 content signature rejects before replacement, and terminal candidate-plus-rollback failure
 retires the owner once. Do not turn this seam into a registry, public plugin surface, or Mod ABI.
 
-The deterministic fake is the maintained AR4 transport. Extend its controlled mode,
+The deterministic fake is the maintained private connector. Extend its controlled mode,
 connection, queued-response, or late-record hooks when a reproducible lifecycle case is
-missing; do not create a second fake-only Agent state machine. Raw records remain untrusted:
-preserve bounded canonical projection, exact response/event shapes, per-run contiguous
+missing; do not create a second fake-only Agent state machine. Connector response/event
+candidates remain untrusted: preserve bounded canonical projection, exact response/event shapes, per-run contiguous
 sequence admission keyed by `(sessionId, runId)`, connection/lifecycle generation fencing,
-and atomic rejection. A raw adapter must settle submit before forwarding that tuple's first
-stream event; it owns bounded reordering when wire frames arrive first. Replacement after a
-request-failed connection must close the predecessor. Local cancel must retire the run from
-stream acceptance before awaiting the RPC response, and remote `run_failed` must terminate
-both the active run and streaming draft. Invalid completion, unknown nodes/actions,
+and atomic rejection. The public connection implements semantic `start/submit/cancel/close` rather
+than generic `request(unknown)`. A product connector must settle submit before forwarding that
+tuple's first stream event; it owns bounded reordering when wire frames arrive first. Replacement
+after a failed connection operation must close the predecessor. The private Agent Host marks its
+presentation run `cancel_requested` before awaiting the connector response and stops presenting late
+output; the public Session client keeps that tuple current until `run_completed` or `run_failed`.
+Remote `run_failed` must terminate both the active run and streaming draft. Invalid completion, unknown nodes/actions,
 old-run/old-connection records, and cancellation-late completion must leave the predecessor
 Artifact unchanged.
 
@@ -342,7 +347,7 @@ becomes ready later, an Authoring revision may pair the same Artifact before ena
 current vertical slice changes only the existing in-memory Scene draft and must keep source IO
 writes, Save/State, network, and external effects at zero.
 
-Focused AR4 checks are:
+Focused Agent checks are:
 
 ```sh
 deno run -A npm:vitest run engine/packages/agent/src e2e/src/test/authoring-host-lifetime.test.tsx
@@ -358,7 +363,8 @@ Authoring R1, and Application R3 reload/recovery. Dirty Authoring and the explic
 held Agent are checked as visible behavior; internal Host/session/run/connection/Artifact identity,
 CAS, and detailed failure/currentness stay in the focused unit/headless suites. None of these is
 real-backend, OpenUI/A2UI, persistence, Desktop, or universal physical failure/rollback evidence.
-Keep the private seam out of `features.md` until a later promotion has a real second consumer.
+Keep `features.md` aligned with the public Session contract while describing the Host/UiArtifact
+vertical slice and SillyOS downstream migration as private or pending.
 
 ### Addressable runtime unit workflow
 
@@ -675,7 +681,7 @@ its ordinary title screen again while the adopted Session remains exact. Do not
 use `auto.current` alone as the handoff and do not broaden this work into
 Desktop HMR or predecessor rollback.
 
-The AR5 headless seam keeps an in-flight Agent snapshot, request count, and RPC
+The AR5 headless seam keeps an in-flight Agent snapshot, semantic operation count, and connector
 connection exact across a post-retirement successor UI-start failure and later
 valid retry. Inspector publication jsdom tests separately require terminal candidate-plus-rollback
 failure to dispose the companion owner once, and the Agent Host test repeats ten

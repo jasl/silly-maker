@@ -22,8 +22,10 @@ journal/reducer transaction 对齐；早期 proposal/fact public shape 已删除
 旧 Studio Flow consumer 随 M5 产品面删除，但没有因此删除 extension runtime 或 Flow projection。
 AR2 随后交付 package-private structured operations；AR3 又把 standalone 与
 dev-only embedded author surface 收口到同一个 private Authoring Host，并以 Engine Lab 的真实
-authoring binding 和 Game/Session successor 证明 sibling lifetime。AR4 typed RPC/UiArtifact
-seam 与 AR5 Browser/Agent structural-exclusion 主线也已交付；package-private、explicit、
+authoring binding 和 Game/Session successor 证明 sibling lifetime。AR4 private typed RPC/UiArtifact
+seam 与 AR5 Browser/Agent structural-exclusion 主线也已交付；2026-08-30 当前 focused lane 已把其中
+provider-neutral Session/Run client 与 connector 提升到 public `@sillymaker/agent/session`，而 Host、
+`UiArtifact` 与 deterministic fake 仍为 private。package-private、explicit、
 ordinary-path default-off 的 Desktop HMR adapter 已通过指定 canary characterization，并在
 Deno 2.9.6 stable 上完成 source/behavior revalidation。显式维护入口为
 `deno task app desktop-dev <application-id>`；它不进入普通 Browser dev/build 或 static Desktop
@@ -114,6 +116,27 @@ Save 或 replay。普通 build、Template 和未选择产品结构排除 decoder
 这不是 runtime npm resolver、目录扫描、任意 post-release code、marketplace、same-realm sandbox 或通用
 authoritative-gameplay R2 API。SillyOS 当前只以 deterministic local fake 验证 GUI 产品结构，不代表 Pi、数据库、
 RPC、Mod 激活或持久化已经接通。
+
+## Public Agent Session/Run
+
+- `@sillymaker/agent/session` 是 focused transport/provider-neutral 公共入口。它公开一个 observable client、
+  connector/connection ports、snapshot/diagnostic/results 和 stream events，不公开 root Agent barrel。
+- connection 只实现语义级 `start`、`submit`、`cancel`、`close`；client 另外拥有
+  `connect`、`reconnect`、subscriptions 与 awaited `dispose`。`start` 无产品参数，`submit` 只接收非空
+  `sessionId` 与 text。
+- stream 只有 `output_text_delta`、bounded Strict JSON `output_data`、`run_completed` 与
+  `run_failed`。client 以 `(sessionId, runId)` 拥有 active-run currentness、连续正 sequence、旧连接/旧
+  lifecycle fencing、terminal retirement 和 diagnostics；`cancel_requested` 只确认请求已被接收，直到远端
+  terminal 前 tuple 仍由 client 保持 current。connection generation 是内部实现，不进入 snapshot。
+- connector 的 unknown response/event 在公共 client 边界做一次 bounded canonical projection 与 exact
+  admission。submit response 必须先 settle，connector 才能交付该 Run 的首个 event；真实 wire 若乱序，
+  产品 connector 负责 bounded reorder。
+- 公共入口不包含 raw request envelope、request ID、Worker/network/provider wire、真实 backend、Agent
+  Host、`UiArtifact` admission/renderer、deterministic fake、conversation persistence、tool/permission、
+  OpenUI/A2UI 或 external-effect authority。Engine Lab 的 private Host 仅把中立 `output_data` 解释为
+  `UiArtifact`；该语义不属于 Session 合同。
+- SillyOS 的并行产品实现提供了 promotion 压力，但 downstream connector 迁移尚未 handoff。当前公共合同
+  因此不能被描述为已经接通 Pi/provider、Program bootstrap、附件、数据库或动态 UI 产品闭环。
 
 ## Internal composition kernel
 

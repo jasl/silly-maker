@@ -1,6 +1,6 @@
 # Production-floor execution sequence
 
-状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-29。PF0–PF7 与 Complexity
+状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-30。PF0–PF7 与 Complexity
 Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4 已于 2026-08-13 完成。CR4 的真实作者纵切没有
 暴露需要通用 PF6 harness 解决的问题，PF6 已重新裁决为
 不激活。同日以真实产品证据接受并完成了
@@ -21,6 +21,17 @@ active authority；完成里程碑摘要在
 [roadmap archive](../roadmap-archive.md)，更细的历史仍由 Git 保留。
 
 ## 1. Current and next
+
+2026-08-30 所有者接受并完成
+[Neutral Agent Session/Run 与 SillyOS Engine Handback](2026-08-30-sillyos-neutral-engine-handback.md)。
+该 engine slice 只把已由 Engine Lab 与 SillyOS 并行产品实现共同施压的 transport/provider-neutral
+Session/Run seam 提升为 focused public `@sillymaker/agent/session`：connector/connection 只暴露语义级
+`start`、text `submit`、`cancel` 与 awaited close，client 拥有 connect/reconnect、observable status、
+`(sessionId, runId)` currentness、连续 stream admission 和 disposal fence；公共 stream 只有
+`output_text_delta`、bounded Strict JSON `output_data`、`run_completed` 与 `run_failed`。raw request
+envelope、request ID、Worker/provider wire 和 connection generation 不进入公共合同；Agent Host、
+`UiArtifact` admission/renderer 与 deterministic fake 仍为 private。SillyOS downstream migration 等待其
+并行 UI-foundation worktree handoff，不是已关闭 engine slice 的关闭门槛；当前未自动激活后继。
 
 2026-08-29 所有者接受并完成
 [Production Mod V1](2026-08-29-production-mod-v1.md) M0–M4。它把上一轮已经证明的 private、
@@ -678,6 +689,7 @@ one-shot setter 与 constructor factory 选择、formatter delta 或历史计划
 - genre-wide combat/card/SLG pack；
 - advanced renderer；
 - AR6 后由所有者另行选择并立案的作品、examples 或产品实现；
-- 真实 Agent/OpenUI/A2UI adapter、Agent persistence 与 Effect Broker；
+- 真实 Agent backend/provider connector、public Agent Host/UiArtifact/OpenUI/A2UI adapter、Agent
+  persistence 与 Effect Broker；
 - machine/browser/runtime patch pinning；
 - unmeasured performance hard gates。

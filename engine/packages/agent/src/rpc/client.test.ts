@@ -1,102 +1,99 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { createAgentRpcClientInternalV1 } from "./client.ts";
-import { createDeterministicFakeAgentRpcTransportInternalV1 } from "./deterministic-fake-transport.ts";
-import type { AgentRpcStreamEventInternalV1 } from "./contracts.ts";
+import {
+  createAgentSessionClientV1,
+  type AgentSessionStreamEventV1,
+} from "@sillymaker/agent/session";
+import { createDeterministicFakeAgentSessionConnectorInternalV1 } from "./deterministic-fake-transport.ts";
 
-function streamRecordInternalV1(
-  kind: "artifact_chunk" | "artifact_complete" | "run_completed",
+function streamEventCandidateInternalV1(
+  kind: "output_text_delta" | "output_data" | "run_completed",
   sequence: number,
   extra: Readonly<Record<string, unknown>> = {},
 ): Readonly<Record<string, unknown>> {
-  return Object.freeze({
+  return {
     kind,
     sessionId: "session.1",
     runId: "run.1",
     sequence,
     ...extra,
-  });
+  };
 }
 
-describe("createAgentRpcClientInternalV1", () => {
+describe("createAgentSessionClientV1", () => {
   it("keeps unconfigured, slow, offline, failed, and retry states explicit", async () => {
-    const fake = createDeterministicFakeAgentRpcTransportInternalV1("unconfigured");
-    const client = createAgentRpcClientInternalV1({ transport: fake.transport });
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1("unconfigured");
+    const client = createAgentSessionClientV1({ connector: fake.connector });
 
     expect(client.getSnapshot().status).toEqual({ kind: "unconfigured" });
     await expect(client.connect()).resolves.toMatchObject({
       kind: "unavailable",
-      diagnostic: { code: "rpc.unconfigured" },
+      diagnostic: { code: "agent_session.unconfigured" },
     });
 
     fake.setMode("slow");
     const slow = client.reconnect();
-    expect(client.getSnapshot().status).toMatchObject({ kind: "connecting" });
+    expect(client.getSnapshot().status).toEqual({ kind: "connecting" });
     fake.resolveSlowConnectAs("offline");
     await expect(slow).resolves.toMatchObject({
       kind: "unavailable",
-      diagnostic: { code: "rpc.offline" },
+      diagnostic: { code: "agent_session.offline" },
     });
     expect(client.getSnapshot().status).toMatchObject({ kind: "unavailable" });
 
     fake.setMode("failed");
     await expect(client.reconnect()).resolves.toMatchObject({
       kind: "unavailable",
-      diagnostic: { code: "rpc.connection_failed" },
+      diagnostic: { code: "agent_session.connection_failed" },
     });
     fake.setMode("ready");
     await expect(client.reconnect()).resolves.toEqual({ kind: "ready" });
-    expect(client.getSnapshot()).toMatchObject({
-      status: { kind: "ready" },
-      diagnostic: null,
-    });
+    expect(client.getSnapshot()).toMatchObject({ status: { kind: "ready" }, diagnostic: null });
   });
 
-  it("admits one ordered stream across reconnect without duplicate chunks or resubmission", async () => {
-    const fake = createDeterministicFakeAgentRpcTransportInternalV1();
-    const client = createAgentRpcClientInternalV1({ transport: fake.transport });
-    const events: AgentRpcStreamEventInternalV1[] = [];
+  it("admits one ordered stream across reconnect without duplicate output or resubmission", async () => {
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+    const client = createAgentSessionClientV1({ connector: fake.connector });
+    const events: AgentSessionStreamEventV1[] = [];
     client.subscribeStream((event) => events.push(event));
 
     await client.connect();
-    const started = await client.start();
-    expect(started).toEqual({ kind: "started", sessionId: "session.1" });
+    await expect(client.start()).resolves.toEqual({ kind: "started", sessionId: "session.1" });
     await expect(client.submit({ sessionId: "session.1", text: "build UI" })).resolves.toEqual({
       kind: "submitted",
       runId: "run.1",
     });
 
-    fake.emit(streamRecordInternalV1("artifact_chunk", 1, { text: "A" }));
-    fake.emit(streamRecordInternalV1("artifact_chunk", 1, { text: "A" }));
+    fake.emit(streamEventCandidateInternalV1("output_text_delta", 1, { text: "A" }));
+    fake.emit(streamEventCandidateInternalV1("output_text_delta", 1, { text: "A" }));
     expect(events).toHaveLength(1);
-    expect(client.getSnapshot().diagnostic?.code).toBe("rpc.sequence_duplicate");
+    expect(client.getSnapshot().diagnostic?.code).toBe("agent_session.sequence_duplicate");
 
-    fake.emit(streamRecordInternalV1("artifact_chunk", 3, { text: "gap" }));
+    fake.emit(streamEventCandidateInternalV1("output_text_delta", 3, { text: "gap" }));
     expect(events).toHaveLength(1);
-    expect(client.getSnapshot().diagnostic?.code).toBe("rpc.sequence_gap");
-    fake.emit(streamRecordInternalV1("artifact_chunk", 2, { text: "B" }));
+    expect(client.getSnapshot().diagnostic?.code).toBe("agent_session.sequence_gap");
+    fake.emit(streamEventCandidateInternalV1("output_text_delta", 2, { text: "B" }));
     expect(events.map((event) => event.sequence)).toEqual([1, 2]);
 
-    const requestCount = fake.getRequests().length;
+    const operationCount = fake.getOperations().length;
     await expect(client.reconnect()).resolves.toEqual({ kind: "ready" });
-    expect(fake.getRequests()).toHaveLength(requestCount);
-    fake.emitToConnection(1, streamRecordInternalV1("run_completed", 3));
+    expect(fake.getOperations()).toHaveLength(operationCount);
+    fake.emitToConnection(1, streamEventCandidateInternalV1("run_completed", 3));
     expect(events).toHaveLength(2);
-    fake.emit(streamRecordInternalV1("artifact_chunk", 2, { text: "B" }));
-    expect(events).toHaveLength(2);
-    fake.emit(streamRecordInternalV1("run_completed", 3));
-    expect(events.at(-1)).toMatchObject({
+    fake.emit(streamEventCandidateInternalV1("run_completed", 3));
+    expect(events.at(-1)).toEqual({
       kind: "run_completed",
+      sessionId: "session.1",
+      runId: "run.1",
       sequence: 3,
-      connectionGeneration: 2,
     });
   });
 
   it("scopes reusable run IDs by session", async () => {
-    const fake = createDeterministicFakeAgentRpcTransportInternalV1();
-    const client = createAgentRpcClientInternalV1({ transport: fake.transport });
-    const events: AgentRpcStreamEventInternalV1[] = [];
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+    const client = createAgentSessionClientV1({ connector: fake.connector });
+    const events: AgentSessionStreamEventV1[] = [];
     client.subscribeStream((event) => events.push(event));
 
     await client.connect();
@@ -106,27 +103,83 @@ describe("createAgentRpcClientInternalV1", () => {
       runId: "run.1",
     });
     await expect(client.start()).resolves.toEqual({ kind: "started", sessionId: "session.2" });
-    fake.queueResponse(Object.freeze({ kind: "submitted", runId: "run.1" }));
+    fake.queueResponse({ kind: "submitted", runId: "run.1" });
     await expect(client.submit({ sessionId: "session.2", text: "second" })).resolves.toEqual({
       kind: "submitted",
       runId: "run.1",
     });
-    fake.emit(Object.freeze({
-      kind: "artifact_chunk",
+    fake.emit({
+      kind: "output_text_delta",
       sessionId: "session.2",
       runId: "run.1",
       sequence: 1,
       text: "second session",
-    }));
+    });
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ sessionId: "session.2", runId: "run.1", sequence: 1 });
   });
 
-  it("retires a failed raw connection before connect replaces it", async () => {
-    const fake = createDeterministicFakeAgentRpcTransportInternalV1();
-    const client = createAgentRpcClientInternalV1({ transport: fake.transport });
+  it("keeps more than 64 active submitted runs current and retires only terminal tuples", async () => {
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+    const client = createAgentSessionClientV1({ connector: fake.connector });
+    const events: AgentSessionStreamEventV1[] = [];
+    client.subscribeStream((event) => events.push(event));
     await client.connect();
-    fake.queueResponse(new Error("request failed"));
+    await client.start();
+
+    for (let index = 0; index < 65; index += 1) {
+      await expect(client.submit({ sessionId: "session.1", text: `run ${index}` })).resolves
+        .toMatchObject({ kind: "submitted" });
+    }
+    fake.emit(streamEventCandidateInternalV1("output_text_delta", 1, { text: "still current" }));
+    fake.emit(streamEventCandidateInternalV1("run_completed", 2));
+    fake.emit(streamEventCandidateInternalV1("output_text_delta", 3, { text: "late" }));
+
+    expect(events.map((event) => event.kind)).toEqual(["output_text_delta", "run_completed"]);
+    expect(client.getSnapshot().diagnostic?.code).toBe("agent_session.unknown_run");
+  });
+
+  it("retires a terminal tuple before notifying observers", async () => {
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+    const client = createAgentSessionClientV1({ connector: fake.connector });
+    const events: AgentSessionStreamEventV1[] = [];
+    client.subscribeStream((event) => {
+      events.push(event);
+      if (event.kind === "run_completed") {
+        fake.emit(streamEventCandidateInternalV1("output_text_delta", 2, { text: "late" }));
+      }
+    });
+    await client.connect();
+    await client.start();
+    await client.submit({ sessionId: "session.1", text: "build UI" });
+
+    fake.emit(streamEventCandidateInternalV1("run_completed", 1));
+
+    expect(events.map((event) => event.kind)).toEqual(["run_completed"]);
+    expect(client.getSnapshot().diagnostic?.code).toBe("agent_session.unknown_run");
+  });
+
+  it("rejects same-session reuse of a terminal run ID", async () => {
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+    const client = createAgentSessionClientV1({ connector: fake.connector });
+    await client.connect();
+    await client.start();
+    await client.submit({ sessionId: "session.1", text: "first" });
+    fake.emit(streamEventCandidateInternalV1("run_completed", 1));
+    fake.queueResponse({ kind: "submitted", runId: "run.1" });
+
+    await expect(client.submit({ sessionId: "session.1", text: "second" })).resolves
+      .toMatchObject({
+        kind: "unavailable",
+        diagnostic: { code: "agent_session.record_invalid", path: "/response/runId" },
+      });
+  });
+
+  it("retires a failed connection before connect replaces it", async () => {
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+    const client = createAgentSessionClientV1({ connector: fake.connector });
+    await client.connect();
+    fake.queueResponse(new Error("operation failed"));
 
     await expect(client.start()).resolves.toMatchObject({ kind: "unavailable" });
     expect(fake.getConnectionCount()).toBe(1);
@@ -138,20 +191,39 @@ describe("createAgentRpcClientInternalV1", () => {
     expect(fake.getCloseCount()).toBe(2);
   });
 
-  it("projects raw records without invoking accessors and enforces canonical limits", async () => {
-    const fake = createDeterministicFakeAgentRpcTransportInternalV1();
-    const client = createAgentRpcClientInternalV1({ transport: fake.transport });
+  it("projects candidates without invoking accessors and enforces canonical limits", async () => {
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+    const client = createAgentSessionClientV1({ connector: fake.connector });
     await client.connect();
     await client.start();
+    const operationCount = fake.getOperations().length;
+    let inputGetterCalls = 0;
+    const accessorInput = { sessionId: "session.1" } as {
+      sessionId: string;
+      text: string;
+    };
+    Object.defineProperty(accessorInput, "text", {
+      enumerable: true,
+      get() {
+        inputGetterCalls += 1;
+        return "must not run";
+      },
+    });
+    await expect(client.submit(accessorInput)).resolves.toMatchObject({
+      kind: "unavailable",
+      diagnostic: { code: "agent_session.record_invalid" },
+    });
+    expect(inputGetterCalls).toBe(0);
+    expect(fake.getOperations()).toHaveLength(operationCount);
     await client.submit({ sessionId: "session.1", text: "build UI" });
     let getterCalls = 0;
-    const accessorRecord = {
-      kind: "artifact_chunk",
+    const accessorCandidate = {
+      kind: "output_text_delta",
       sessionId: "session.1",
       runId: "run.1",
       sequence: 1,
     } as Record<string, unknown>;
-    Object.defineProperty(accessorRecord, "text", {
+    Object.defineProperty(accessorCandidate, "text", {
       enumerable: true,
       get() {
         getterCalls += 1;
@@ -159,18 +231,20 @@ describe("createAgentRpcClientInternalV1", () => {
       },
     });
 
-    fake.emit(accessorRecord);
+    fake.emit(accessorCandidate);
     expect(getterCalls).toBe(0);
-    expect(client.getSnapshot().diagnostic?.code).toBe("rpc.record_invalid");
+    expect(client.getSnapshot().diagnostic?.code).toBe("agent_session.record_invalid");
     expect(() => fake.emit(null)).not.toThrow();
-    expect(client.getSnapshot().diagnostic?.code).toBe("rpc.record_invalid");
-    fake.emit(streamRecordInternalV1("artifact_chunk", 1, { text: "x".repeat(70_000) }));
-    expect(client.getSnapshot().diagnostic?.code).toBe("rpc.record_too_large");
+    expect(client.getSnapshot().diagnostic?.code).toBe("agent_session.record_invalid");
+    fake.emit(streamEventCandidateInternalV1("output_text_delta", 1, {
+      text: "x".repeat(70_000),
+    }));
+    expect(client.getSnapshot().diagnostic?.code).toBe("agent_session.record_too_large");
   });
 
   it("fences a slow connection that resolves after local dispose", async () => {
-    const fake = createDeterministicFakeAgentRpcTransportInternalV1("slow");
-    const client = createAgentRpcClientInternalV1({ transport: fake.transport });
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1("slow");
+    const client = createAgentSessionClientV1({ connector: fake.connector });
     const connecting = client.connect();
 
     await client.dispose();

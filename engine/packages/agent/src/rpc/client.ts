@@ -1,66 +1,69 @@
 // SPDX-License-Identifier: MIT
 import {
-  admitAgentRpcResponseInternalV1,
-  admitAgentRpcStreamRecordInternalV1,
-  createAgentRpcRequestInternalV1,
+  admitAgentSessionCancelInputInternalV1,
+  admitAgentSessionResponseInternalV1,
+  admitAgentSessionStreamEventInternalV1,
+  admitAgentSessionSubmitInputInternalV1,
+  type AgentSessionAdmittedResponseInternalV1,
 } from "./admission.ts";
 import type {
-  AgentRpcCallFailureInternalV1,
-  AgentRpcCancelResultInternalV1,
-  AgentRpcClientPortInternalV1,
-  AgentRpcClientSnapshotInternalV1,
-  AgentRpcConnectResultInternalV1,
-  AgentRpcDiagnosticInternalV1,
-  AgentRpcRawConnectionInternalV1,
-  AgentRpcRawTransportInternalV1,
-  AgentRpcStartResultInternalV1,
-  AgentRpcStreamEventInternalV1,
-  AgentRpcSubmitResultInternalV1,
-} from "./contracts.ts";
+  AgentSessionCallFailureV1,
+  AgentSessionCancelResultV1,
+  AgentSessionClientSnapshotV1,
+  AgentSessionClientV1,
+  AgentSessionConnectionV1,
+  AgentSessionConnectorV1,
+  AgentSessionConnectResultV1,
+  AgentSessionDiagnosticV1,
+  AgentSessionStartResultV1,
+  AgentSessionStreamEventV1,
+  AgentSessionSubmitResultV1,
+} from "../session/contracts.ts";
 
 const readyResultInternalV1 = { kind: "ready" as const };
 const supersededResultInternalV1 = { kind: "superseded" as const };
 const disposedResultInternalV1 = { kind: "disposed" as const };
-const maxTrackedRunsInternalV1 = 64;
 
 function runKeyInternalV1(sessionId: string, runId: string): string {
-  // The admitted identifier grammar excludes NUL, so this is collision-free.
   return `${sessionId}\u0000${runId}`;
 }
 
 function diagnosticInternalV1(
-  code: AgentRpcDiagnosticInternalV1["code"],
+  code: AgentSessionDiagnosticV1["code"],
   path: string,
-): AgentRpcDiagnosticInternalV1 {
+): AgentSessionDiagnosticV1 {
   return { code, path };
 }
 
 function unavailableInternalV1(
-  diagnostic: AgentRpcDiagnosticInternalV1,
-): AgentRpcCallFailureInternalV1 {
+  diagnostic: AgentSessionDiagnosticV1,
+): AgentSessionCallFailureV1 {
   return { kind: "unavailable", diagnostic };
 }
 
-export function createAgentRpcClientInternalV1(input: {
-  readonly transport: AgentRpcRawTransportInternalV1;
-}): AgentRpcClientPortInternalV1 {
+export function createAgentSessionClientV1(input: {
+  readonly connector: AgentSessionConnectorV1;
+}): AgentSessionClientV1 {
   const listeners = new Set<() => void>();
-  const streamListeners = new Set<(event: AgentRpcStreamEventInternalV1) => void>();
-  const trackedRuns = new Map<string, true>();
+  const streamListeners = new Set<(event: AgentSessionStreamEventV1) => void>();
+  const activeRuns = new Set<string>();
+  const seenRuns = new Set<string>();
   const lastSequences = new Map<string, number>();
+  const closingConnections = new Set<Promise<void>>();
   let disposed = false;
   let revision = 0;
-  let nextRequestId = 1;
   let nextConnectionGeneration = 0;
   let lifecycleEpoch = 0;
-  let connection: AgentRpcRawConnectionInternalV1 | null = null;
+  let pendingSubmitOperations = 0;
+  let connection: AgentSessionConnectionV1 | null = null;
   let activeConnectionGeneration: number | null = null;
-  let connectAttempt: Promise<AgentRpcConnectResultInternalV1> | null = null;
-  let status: AgentRpcClientSnapshotInternalV1["status"] = input.transport.isConfigured()
+  let connectAttempt: Promise<AgentSessionConnectResultV1> | null = null;
+  let disposeAttempt: Promise<void> | null = null;
+  let status: AgentSessionClientSnapshotV1["status"] = input.connector.isConfigured()
     ? { kind: "disconnected" }
     : { kind: "unconfigured" };
-  let lastDiagnostic: AgentRpcDiagnosticInternalV1 | null = null;
-  let snapshot!: AgentRpcClientSnapshotInternalV1;
+  let lastDiagnostic: AgentSessionDiagnosticV1 | null = null;
+  let snapshot!: AgentSessionClientSnapshotV1;
 
   const rebuildSnapshot = (): void => {
     revision += 1;
@@ -76,47 +79,71 @@ export function createAgentRpcClientInternalV1(input: {
       }
     }
   };
-  const report = (diagnostic: AgentRpcDiagnosticInternalV1): void => {
+  const report = (diagnostic: AgentSessionDiagnosticV1): void => {
     lastDiagnostic = diagnostic;
     publish();
   };
-  const setUnavailable = (diagnostic: AgentRpcDiagnosticInternalV1): void => {
+  const setUnavailable = (diagnostic: AgentSessionDiagnosticV1): void => {
     status = { kind: "unavailable", diagnostic };
     lastDiagnostic = diagnostic;
     publish();
   };
   rebuildSnapshot();
 
-  const acceptRawRecord = (
-    raw: unknown,
+  const closeConnection = (target: AgentSessionConnectionV1): Promise<void> => {
+    const closing = (async () => {
+      try {
+        await target.close();
+      } catch {
+        // Closing still retires the local resource even when the adapter reports a fault.
+      }
+    })();
+    closingConnections.add(closing);
+    void closing.then(() => closingConnections.delete(closing));
+    return closing;
+  };
+
+  const waitForClosingConnections = async (): Promise<void> => {
+    while (closingConnections.size > 0) {
+      await Promise.all([...closingConnections]);
+    }
+  };
+
+  const acceptAdmittedEvent = (
+    event: AgentSessionStreamEventV1,
     expectedGeneration: number,
     expectedEpoch: number,
+    allowSubmitBarrier: boolean,
   ): void => {
     if (
       disposed || lifecycleEpoch !== expectedEpoch ||
       activeConnectionGeneration !== expectedGeneration
     ) return;
-    const admitted = admitAgentRpcStreamRecordInternalV1(raw, expectedGeneration);
-    if (admitted.kind === "rejected") {
-      report(admitted.diagnostic);
-      return;
-    }
-    const event = admitted.value;
     const runKey = runKeyInternalV1(event.sessionId, event.runId);
-    if (!trackedRuns.has(runKey)) {
-      report(diagnosticInternalV1("rpc.unknown_run", "/runId"));
+    if (!activeRuns.has(runKey)) {
+      if (allowSubmitBarrier && pendingSubmitOperations > 0) {
+        queueMicrotask(() => {
+          acceptAdmittedEvent(event, expectedGeneration, expectedEpoch, false);
+        });
+        return;
+      }
+      report(diagnosticInternalV1("agent_session.unknown_run", "/runId"));
       return;
     }
     const previous = lastSequences.get(runKey) ?? 0;
     if (event.sequence <= previous) {
-      report(diagnosticInternalV1("rpc.sequence_duplicate", "/sequence"));
+      report(diagnosticInternalV1("agent_session.sequence_duplicate", "/sequence"));
       return;
     }
     if (event.sequence !== previous + 1) {
-      report(diagnosticInternalV1("rpc.sequence_gap", "/sequence"));
+      report(diagnosticInternalV1("agent_session.sequence_gap", "/sequence"));
       return;
     }
     lastSequences.set(runKey, event.sequence);
+    if (event.kind === "run_completed" || event.kind === "run_failed") {
+      activeRuns.delete(runKey);
+      lastSequences.delete(runKey);
+    }
     for (const listener of [...streamListeners]) {
       try {
         listener(event);
@@ -126,7 +153,24 @@ export function createAgentRpcClientInternalV1(input: {
     }
   };
 
-  const performConnect = (): Promise<AgentRpcConnectResultInternalV1> => {
+  const acceptEventCandidate = (
+    candidate: unknown,
+    expectedGeneration: number,
+    expectedEpoch: number,
+  ): void => {
+    if (
+      disposed || lifecycleEpoch !== expectedEpoch ||
+      activeConnectionGeneration !== expectedGeneration
+    ) return;
+    const admitted = admitAgentSessionStreamEventInternalV1(candidate);
+    if (admitted.kind === "rejected") {
+      report(admitted.diagnostic);
+      return;
+    }
+    acceptAdmittedEvent(admitted.value, expectedGeneration, expectedEpoch, true);
+  };
+
+  const performConnect = (): Promise<AgentSessionConnectResultV1> => {
     if (disposed) return Promise.resolve(disposedResultInternalV1);
     if (status.kind === "ready") return Promise.resolve(readyResultInternalV1);
     if (connectAttempt !== null) return connectAttempt;
@@ -135,44 +179,36 @@ export function createAgentRpcClientInternalV1(input: {
     const previousConnection = connection;
     connection = null;
     activeConnectionGeneration = null;
-    status = { kind: "connecting", connectionGeneration: generation };
+    status = { kind: "connecting" };
     lastDiagnostic = null;
     publish();
-    const attempt = (async (): Promise<AgentRpcConnectResultInternalV1> => {
+    const attempt = (async (): Promise<AgentSessionConnectResultV1> => {
       if (previousConnection !== null) {
-        try {
-          await previousConnection.close();
-        } catch {
-          // A replacement attempt still fences an old local connection that failed to close.
-        }
+        await closeConnection(previousConnection);
         if (disposed || lifecycleEpoch !== expectedEpoch) {
           return disposed ? disposedResultInternalV1 : supersededResultInternalV1;
         }
       }
-      let connected: Awaited<ReturnType<AgentRpcRawTransportInternalV1["connect"]>>;
+      let connected: Awaited<ReturnType<AgentSessionConnectorV1["connect"]>>;
       try {
-        connected = await input.transport.connect({
-          onRecord: (record) => acceptRawRecord(record, generation, expectedEpoch),
+        connected = await input.connector.connect({
+          onEvent: (candidate) => acceptEventCandidate(candidate, generation, expectedEpoch),
         });
       } catch {
         if (disposed) return disposedResultInternalV1;
         if (lifecycleEpoch !== expectedEpoch) return supersededResultInternalV1;
-        const diagnostic = diagnosticInternalV1("rpc.connection_failed", "/connect");
+        const diagnostic = diagnosticInternalV1("agent_session.connection_failed", "/connect");
         setUnavailable(diagnostic);
         return unavailableInternalV1(diagnostic);
       }
       if (disposed || lifecycleEpoch !== expectedEpoch) {
         if (connected.kind === "connected") {
-          try {
-            await connected.connection.close();
-          } catch {
-            // A superseded local connection is already unreachable.
-          }
+          await closeConnection(connected.connection);
         }
         return disposed ? disposedResultInternalV1 : supersededResultInternalV1;
       }
       if (connected.kind === "unconfigured") {
-        const diagnostic = diagnosticInternalV1("rpc.unconfigured", "/connect");
+        const diagnostic = diagnosticInternalV1("agent_session.unconfigured", "/connect");
         status = { kind: "unconfigured" };
         lastDiagnostic = diagnostic;
         publish();
@@ -180,7 +216,9 @@ export function createAgentRpcClientInternalV1(input: {
       }
       if (connected.kind === "unavailable") {
         const diagnostic = diagnosticInternalV1(
-          connected.reason === "offline" ? "rpc.offline" : "rpc.connection_failed",
+          connected.reason === "offline"
+            ? "agent_session.offline"
+            : "agent_session.connection_failed",
           "/connect",
         );
         setUnavailable(diagnostic);
@@ -188,7 +226,7 @@ export function createAgentRpcClientInternalV1(input: {
       }
       connection = connected.connection;
       activeConnectionGeneration = generation;
-      status = { kind: "ready", connectionGeneration: generation };
+      status = { kind: "ready" };
       lastDiagnostic = null;
       publish();
       return readyResultInternalV1;
@@ -200,35 +238,32 @@ export function createAgentRpcClientInternalV1(input: {
     return attempt;
   };
 
-  const call = async (
-    method: "start" | "submit" | "cancel",
-    params?: Readonly<Record<string, unknown>>,
-  ): Promise<
-    | { readonly kind: "started"; readonly sessionId: string }
-    | { readonly kind: "submitted"; readonly runId: string }
-    | { readonly kind: "cancel_requested" }
-    | AgentRpcCallFailureInternalV1
-  > => {
+  const invoke = async (
+    operation: "start" | "submit" | "cancel",
+    call: (active: AgentSessionConnectionV1) => Promise<unknown>,
+    commit?: (
+      value: AgentSessionAdmittedResponseInternalV1,
+    ) => AgentSessionAdmittedResponseInternalV1 | AgentSessionCallFailureV1,
+  ) => {
     if (disposed) return disposedResultInternalV1;
     const active = connection;
     const generation = activeConnectionGeneration;
     const expectedEpoch = lifecycleEpoch;
     if (active === null || generation === null || status.kind !== "ready") {
-      const diagnostic = lastDiagnostic ?? diagnosticInternalV1("rpc.offline", "/request");
+      const diagnostic = lastDiagnostic ??
+        diagnosticInternalV1("agent_session.offline", "/operation");
       return unavailableInternalV1(diagnostic);
     }
-    const request = createAgentRpcRequestInternalV1(nextRequestId++, method, params);
-    if (request.kind === "rejected") return unavailableInternalV1(request.diagnostic);
-    let raw: unknown;
+    let candidate: unknown;
     try {
-      raw = await active.request(request.value);
+      candidate = await call(active);
     } catch {
       if (disposed) return disposedResultInternalV1;
       if (
         active !== connection || generation !== activeConnectionGeneration ||
         expectedEpoch !== lifecycleEpoch
       ) return supersededResultInternalV1;
-      const diagnostic = diagnosticInternalV1("rpc.request_failed", "/request");
+      const diagnostic = diagnosticInternalV1("agent_session.operation_failed", "/operation");
       setUnavailable(diagnostic);
       return unavailableInternalV1(diagnostic);
     }
@@ -237,83 +272,97 @@ export function createAgentRpcClientInternalV1(input: {
       active !== connection || generation !== activeConnectionGeneration ||
       expectedEpoch !== lifecycleEpoch
     ) return supersededResultInternalV1;
-    const admitted = admitAgentRpcResponseInternalV1(method, raw);
+    const admitted = admitAgentSessionResponseInternalV1(operation, candidate);
     if (admitted.kind === "rejected") {
       report(admitted.diagnostic);
       return unavailableInternalV1(admitted.diagnostic);
     }
-    return admitted.value;
+    return commit?.(admitted.value) ?? admitted.value;
   };
 
-  const client: AgentRpcClientPortInternalV1 = {
+  const client: AgentSessionClientV1 = {
     getSnapshot: () => snapshot,
     subscribe(listener: () => void): () => void {
       if (disposed) return () => {};
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    subscribeStream(listener: (event: AgentRpcStreamEventInternalV1) => void): () => void {
+    subscribeStream(listener: (event: AgentSessionStreamEventV1) => void): () => void {
       if (disposed) return () => {};
       streamListeners.add(listener);
       return () => streamListeners.delete(listener);
     },
     connect: performConnect,
-    async start(): Promise<AgentRpcStartResultInternalV1> {
-      const result = await call("start");
-      return result.kind === "started" ? result : result as AgentRpcCallFailureInternalV1;
+    async start(): Promise<AgentSessionStartResultV1> {
+      const result = await invoke("start", (active) => active.start());
+      return result.kind === "started" ? result : result as AgentSessionCallFailureV1;
     },
-    async submit(callInput: {
-      readonly sessionId: string;
-      readonly text: string;
-    }): Promise<AgentRpcSubmitResultInternalV1> {
-      const result = await call("submit", {
-        sessionId: callInput.sessionId,
-        text: callInput.text,
-      });
-      if (result.kind !== "submitted") return result as AgentRpcCallFailureInternalV1;
-      const runKey = runKeyInternalV1(callInput.sessionId, result.runId);
-      if (trackedRuns.has(runKey)) {
-        const diagnostic = diagnosticInternalV1("rpc.record_invalid", "/response/runId");
-        report(diagnostic);
-        return unavailableInternalV1(diagnostic);
+    async submit(callInput): Promise<AgentSessionSubmitResultV1> {
+      const admittedInput = admitAgentSessionSubmitInputInternalV1(callInput);
+      if (admittedInput.kind === "rejected") {
+        report(admittedInput.diagnostic);
+        return unavailableInternalV1(admittedInput.diagnostic);
       }
-      while (trackedRuns.size >= maxTrackedRunsInternalV1) {
-        const oldestRunKey = trackedRuns.keys().next().value as string | undefined;
-        if (oldestRunKey === undefined) break;
-        trackedRuns.delete(oldestRunKey);
-        lastSequences.delete(oldestRunKey);
+      pendingSubmitOperations += 1;
+      try {
+        const result = await invoke(
+          "submit",
+          (active) => active.submit(admittedInput.value),
+          (admittedResponse) => {
+            if (admittedResponse.kind !== "submitted") return admittedResponse;
+            const runKey = runKeyInternalV1(
+              admittedInput.value.sessionId,
+              admittedResponse.runId,
+            );
+            if (seenRuns.has(runKey)) {
+              const diagnostic = diagnosticInternalV1(
+                "agent_session.record_invalid",
+                "/response/runId",
+              );
+              report(diagnostic);
+              return unavailableInternalV1(diagnostic);
+            }
+            seenRuns.add(runKey);
+            activeRuns.add(runKey);
+            lastSequences.set(runKey, 0);
+            return admittedResponse;
+          },
+        );
+        return result.kind === "submitted" ? result : result as AgentSessionCallFailureV1;
+      } finally {
+        pendingSubmitOperations -= 1;
       }
-      trackedRuns.set(runKey, true);
-      lastSequences.set(runKey, 0);
-      return result;
     },
-    async cancel(callInput: {
-      readonly sessionId: string;
-      readonly runId: string;
-    }): Promise<AgentRpcCancelResultInternalV1> {
-      const result = await call("cancel", callInput);
-      return result.kind === "cancel_requested" ? result : result as AgentRpcCallFailureInternalV1;
+    async cancel(callInput): Promise<AgentSessionCancelResultV1> {
+      const admittedInput = admitAgentSessionCancelInputInternalV1(callInput);
+      if (admittedInput.kind === "rejected") {
+        report(admittedInput.diagnostic);
+        return unavailableInternalV1(admittedInput.diagnostic);
+      }
+      const result = await invoke("cancel", (active) => active.cancel(admittedInput.value));
+      return result.kind === "cancel_requested" ? result : result as AgentSessionCallFailureV1;
     },
-    async reconnect(): Promise<AgentRpcConnectResultInternalV1> {
+    async reconnect(): Promise<AgentSessionConnectResultV1> {
       if (disposed) return disposedResultInternalV1;
       lifecycleEpoch += 1;
       connectAttempt = null;
       const previous = connection;
       connection = null;
       activeConnectionGeneration = null;
-      status = input.transport.isConfigured() ? { kind: "disconnected" } : { kind: "unconfigured" };
+      status = input.connector.isConfigured() ? { kind: "disconnected" } : { kind: "unconfigured" };
       publish();
       if (previous !== null) {
-        try {
-          await previous.close();
-        } catch {
-          // Reconnect replaces the local resource even when close reports a fault.
-        }
+        await closeConnection(previous);
       }
       return await performConnect();
     },
-    async dispose(): Promise<void> {
-      if (disposed) return;
+    dispose(): Promise<void> {
+      if (disposeAttempt !== null) return disposeAttempt;
+      let settleDisposal!: () => void;
+      const attempt = new Promise<void>((resolve) => {
+        settleDisposal = resolve;
+      });
+      disposeAttempt = attempt;
       disposed = true;
       lifecycleEpoch += 1;
       connectAttempt = null;
@@ -324,13 +373,20 @@ export function createAgentRpcClientInternalV1(input: {
       publish();
       listeners.clear();
       streamListeners.clear();
-      if (previous !== null) {
-        try {
-          await previous.close();
-        } catch {
-          // Local disposal cannot make a remote-effect claim.
+      activeRuns.clear();
+      seenRuns.clear();
+      lastSequences.clear();
+      const cleanup = (async () => {
+        if (previous !== null) {
+          await closeConnection(previous);
         }
-      }
+        await waitForClosingConnections();
+      })();
+      void cleanup.then(
+        () => settleDisposal(),
+        () => settleDisposal(),
+      );
+      return attempt;
     },
   };
   return client;

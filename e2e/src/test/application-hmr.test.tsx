@@ -6,10 +6,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createAgentHostInternalV1,
-  createAgentRpcClientInternalV1,
-  createDeterministicFakeAgentRpcTransportInternalV1,
+  createDeterministicFakeAgentSessionConnectorInternalV1,
 } from "@sillymaker/agent/internal";
 import type { AgentHostInternalV1 } from "@sillymaker/agent/internal";
+import { createAgentSessionClientV1 } from "@sillymaker/agent/session";
 import { digestBytes } from "@sillymaker/base";
 import type { ResolveCoreGameApplicationOptionsV1 } from "@sillymaker/base/runtime";
 import {
@@ -130,8 +130,8 @@ function applicationWithBuildIdentityV1(buildIdentityInput: BuildIdentityInputV1
 }
 
 async function inFlightAgentV1() {
-  const fake = createDeterministicFakeAgentRpcTransportInternalV1();
-  const client = createAgentRpcClientInternalV1({ transport: fake.transport });
+  const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+  const client = createAgentSessionClientV1({ connector: fake.connector });
   const host = createAgentHostInternalV1({
     client,
     allowedActionIds: ["engine-lab.scene.move-alpha"],
@@ -141,7 +141,7 @@ async function inFlightAgentV1() {
   await host.start();
   await host.submit("hold through Game R2");
   fake.emit(Object.freeze({
-    kind: "artifact_chunk",
+    kind: "output_text_delta",
     sessionId: "session.1",
     runId: "run.1",
     sequence: 1,
@@ -454,12 +454,12 @@ describe("Engine Lab maintained application HMR boundary", () => {
     startedApplicationsV1.push(predecessor);
     const { fake, host: agentHost } = await inFlightAgentV1();
     const agentPredecessor = agentHost.getSnapshot();
-    const requestCount = fake.getRequests().length;
+    const operationCount = fake.getOperations().length;
     expect(agentPredecessor).toMatchObject({
       readiness: "ready",
       sessionId: "session.1",
       run: { runId: "run.1", generation: 2, status: "streaming" },
-      rpc: { status: { kind: "ready", connectionGeneration: 1 } },
+      session: { status: { kind: "ready" } },
     });
 
     const successorStartFailure = new Error("accepted Game successor failed in UI start");
@@ -523,7 +523,7 @@ describe("Engine Lab maintained application HMR boundary", () => {
     expect(successor).toBeUndefined();
     expect(failures).toEqual([successorStartFailure]);
     expect(agentHost.getSnapshot()).toBe(agentPredecessor);
-    expect(fake.getRequests()).toHaveLength(requestCount);
+    expect(fake.getOperations()).toHaveLength(operationCount);
     expect(fake.getConnectionCount()).toBe(1);
     expect(fake.getCloseCount()).toBe(0);
 
@@ -541,16 +541,16 @@ describe("Engine Lab maintained application HMR boundary", () => {
       slotId: "manual.1",
     });
     expect(agentHost.getSnapshot()).toBe(agentPredecessor);
-    expect(fake.getRequests()).toHaveLength(requestCount);
+    expect(fake.getOperations()).toHaveLength(operationCount);
     expect(fake.getConnectionCount()).toBe(1);
     expect(fake.getCloseCount()).toBe(0);
 
     fake.emit(Object.freeze({
-      kind: "artifact_complete",
+      kind: "output_data",
       sessionId: "session.1",
       runId: "run.1",
       sequence: 2,
-      candidate: Object.freeze({
+      value: Object.freeze({
         schemaRevision: 1,
         root: Object.freeze({
           kind: "action",
@@ -571,7 +571,7 @@ describe("Engine Lab maintained application HMR boundary", () => {
       sessionId: "session.1",
       run: { runId: "run.1", generation: 2, status: "completed" },
       artifact: { revision: 1, source: { sessionId: "session.1", runId: "run.1" } },
-      rpc: { status: { kind: "ready", connectionGeneration: 1 } },
+      session: { status: { kind: "ready" } },
     });
   });
 });

@@ -48,7 +48,7 @@ export function EmbeddedAgentSurfaceInternalV1(
   useEffect(() => {
     if (
       props.publicationRole !== "visible" ||
-      props.host.getSnapshot().rpc.status.kind !== "disconnected"
+      props.host.getSnapshot().session.status.kind !== "disconnected"
     ) return undefined;
     void props.host.connect();
     return undefined;
@@ -116,10 +116,6 @@ export function EmbeddedAgentSurfaceInternalV1(
   };
 
   const diagnosticCode = diagnosticCodeInternalV1(snapshot.diagnostic);
-  const rpcConnectionGeneration = snapshot.rpc.status.kind === "connecting" ||
-      snapshot.rpc.status.kind === "ready"
-    ? snapshot.rpc.status.connectionGeneration
-    : null;
   const canSubmit = props.publicationRole === "visible" && snapshot.readiness === "ready" &&
     snapshot.sessionId !== null && snapshot.run?.status !== "streaming" && prompt.length > 0;
 
@@ -132,9 +128,6 @@ export function EmbeddedAgentSurfaceInternalV1(
       data-agent-session-id={snapshot.sessionId ?? ""}
       data-agent-run-id={snapshot.run?.runId ?? ""}
       data-agent-run-generation={snapshot.run === null ? "" : String(snapshot.run.generation)}
-      data-agent-rpc-connection-generation={rpcConnectionGeneration === null
-        ? ""
-        : String(rpcConnectionGeneration)}
     >
       <header className={styles["agent-toolbar"]}>
         <strong>Agent / UiArtifact 实验</strong>

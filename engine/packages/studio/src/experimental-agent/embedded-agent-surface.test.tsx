@@ -6,9 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createAgentHostInternalV1,
-  createAgentRpcClientInternalV1,
-  createDeterministicFakeAgentRpcTransportInternalV1,
+  createDeterministicFakeAgentSessionConnectorInternalV1,
 } from "@sillymaker/agent/internal";
+import { createAgentSessionClientV1 } from "@sillymaker/agent/session";
 
 import type {
   SceneAuthoringCurrentV1,
@@ -46,8 +46,8 @@ function artifactInternalV1() {
 }
 
 async function setupHostInternalV1() {
-  const fake = createDeterministicFakeAgentRpcTransportInternalV1();
-  const client = createAgentRpcClientInternalV1({ transport: fake.transport });
+  const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+  const client = createAgentSessionClientV1({ connector: fake.connector });
   const host = createAgentHostInternalV1({ client, allowedActionIds: [actionIdInternalV1] });
   await host.connect();
   await host.start();
@@ -89,15 +89,13 @@ describe("EmbeddedAgentSurfaceInternalV1", () => {
     expect(surface).toHaveAttribute("data-agent-session-id", "session.1");
     expect(surface).toHaveAttribute("data-agent-run-id", "run.1");
     expect(surface).toHaveAttribute("data-agent-run-generation", "2");
-    expect(surface).toHaveAttribute("data-agent-rpc-connection-generation", "1");
-
     act(() => {
       fake.emit(Object.freeze({
-        kind: "artifact_complete",
+        kind: "output_data",
         sessionId: "session.1",
         runId: "run.1",
         sequence: 1,
-        candidate: artifactInternalV1(),
+        value: artifactInternalV1(),
       }));
     });
     const action = view.getByRole("button", { name: "应用" });
@@ -128,11 +126,11 @@ describe("EmbeddedAgentSurfaceInternalV1", () => {
     const { fake, host, binding } = await setupHostInternalV1();
     act(() => {
       fake.emit(Object.freeze({
-        kind: "artifact_complete",
+        kind: "output_data",
         sessionId: "session.1",
         runId: "run.1",
         sequence: 1,
-        candidate: artifactInternalV1(),
+        value: artifactInternalV1(),
       }));
       fake.emit(Object.freeze({
         kind: "run_completed",
@@ -154,16 +152,15 @@ describe("EmbeddedAgentSurfaceInternalV1", () => {
         publicationRole="probe"
       />,
     );
-    const requestCount = fake.getRequests().length;
+    const operationCount = fake.getOperations().length;
     const surface = view.container.querySelector("[data-experimental-agent-host]");
     expect(surface).toHaveAttribute("data-agent-session-id", "session.1");
     expect(surface).toHaveAttribute("data-agent-run-id", "run.1");
     expect(surface).toHaveAttribute("data-agent-run-generation", "2");
-    expect(surface).toHaveAttribute("data-agent-rpc-connection-generation", "1");
     expect(view.getByRole("button", { name: "生成 Artifact" })).toBeDisabled();
     expect(view.getByRole("button", { name: "应用" })).toBeDisabled();
     fireEvent.submit(view.container.querySelector("form")!);
-    expect(fake.getRequests()).toHaveLength(requestCount);
+    expect(fake.getOperations()).toHaveLength(operationCount);
     expect(execute).not.toHaveBeenCalled();
     await host.dispose();
   });

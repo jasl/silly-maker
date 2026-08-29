@@ -2,11 +2,8 @@
 // Engine Lab's dev-only Inspector binding. The Project Authoring Index owns
 // source discovery; the Story contributes only its real presentation seams
 // and the explicitly selected experimental Agent companion.
-import {
-  createAgentRpcClientInternalV1,
-  createDeterministicFakeAgentRpcTransportInternalV1,
-} from "@sillymaker/agent/internal";
-import type { AgentRpcClientPortInternalV1 } from "@sillymaker/agent/internal";
+import { createDeterministicFakeAgentSessionConnectorInternalV1 } from "@sillymaker/agent/internal";
+import { createAgentSessionClientV1, type AgentSessionClientV1 } from "@sillymaker/agent/session";
 import type { InspectorBindingV1 } from "@sillymaker/studio";
 import { defineExperimentalEmbeddedAgentBindingInternalV1 } from "@sillymaker/studio/internal/agent";
 
@@ -46,9 +43,9 @@ function labAgentArtifactV1(actionId = labAgentActionIdV1): unknown {
 }
 
 /** Deterministic dev-only service: no network, model, tool, storage, or source access. */
-function createLabAgentClientV1(): AgentRpcClientPortInternalV1 {
-  const fake = createDeterministicFakeAgentRpcTransportInternalV1("offline");
-  const client = createAgentRpcClientInternalV1({ transport: fake.transport });
+function createLabAgentClientV1(): AgentSessionClientV1 {
+  const fake = createDeterministicFakeAgentSessionConnectorInternalV1("offline");
+  const client = createAgentSessionClientV1({ connector: fake.connector });
   const timers = new Set<ReturnType<typeof setTimeout>>();
   const schedule = (delayMs: number, callback: () => void): void => {
     const timer = setTimeout(() => {
@@ -64,7 +61,7 @@ function createLabAgentClientV1(): AgentRpcClientPortInternalV1 {
     subscribeStream: client.subscribeStream,
     connect: client.connect,
     start: client.start,
-    async submit(input: Parameters<AgentRpcClientPortInternalV1["submit"]>[0]) {
+    async submit(input: Parameters<AgentSessionClientV1["submit"]>[0]) {
       const result = await client.submit(input);
       if (result.kind !== "submitted") return result;
       const runId = result.runId;
@@ -84,7 +81,7 @@ function createLabAgentClientV1(): AgentRpcClientPortInternalV1 {
       const heldForSuccessor = input.text === "换代期间保持流";
       schedule(0, () => {
         fake.emit({
-          kind: "artifact_chunk",
+          kind: "output_text_delta",
           sessionId: input.sessionId,
           runId,
           sequence: 1,
@@ -98,11 +95,11 @@ function createLabAgentClientV1(): AgentRpcClientPortInternalV1 {
       if (heldForSuccessor) return result;
       schedule(late ? 250 : 80, () => {
         fake.emit({
-          kind: "artifact_complete",
+          kind: "output_data",
           sessionId: input.sessionId,
           runId,
           sequence: 2,
-          candidate: complete,
+          value: complete,
         });
       });
       schedule(late ? 275 : 100, () => {
@@ -116,7 +113,7 @@ function createLabAgentClientV1(): AgentRpcClientPortInternalV1 {
       return result;
     },
     cancel: client.cancel,
-    reconnect(): ReturnType<AgentRpcClientPortInternalV1["reconnect"]> {
+    reconnect(): ReturnType<AgentSessionClientV1["reconnect"]> {
       fake.setMode("ready");
       return client.reconnect();
     },

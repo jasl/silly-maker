@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { AgentRpcClientPortInternalV1 } from "@sillymaker/agent/internal";
+import type { AgentSessionClientV1 } from "@sillymaker/agent/session";
 
 import { admitSceneAuthoringOperationV1 } from "../core/scene-operations/admission.ts";
 import type { SceneAuthoringOperationV1 } from "../core/scene-operations/contract.ts";
@@ -9,7 +9,7 @@ const actionIdPatternInternalV1 = /^[a-z][a-z0-9]*(?:[._:-][a-z0-9]+)+$/u;
 
 export interface ExperimentalEmbeddedAgentBindingInputInternalV1 {
   readonly configurationId: string;
-  readonly createClient: () => AgentRpcClientPortInternalV1;
+  readonly createClient: () => AgentSessionClientV1;
   /** Trusted product-side actions. Remote Artifacts carry only these IDs. */
   readonly sceneActions: Readonly<Record<string, unknown>>;
 }
@@ -19,7 +19,7 @@ export interface ExperimentalEmbeddedAgentBindingInternalV1 {
   readonly actionSignature: string;
   readonly allowedActionIds: readonly string[];
   readonly sceneActions: Readonly<Record<string, SceneAuthoringOperationV1>>;
-  readonly createClient: () => AgentRpcClientPortInternalV1;
+  readonly createClient: () => AgentSessionClientV1;
 }
 
 function admitSceneActionsInternalV1(

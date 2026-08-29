@@ -35,7 +35,13 @@ Read only the documents relevant to the change:
   implemented yet.
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
-  PF6 remains evidence-gated and inactive. The most recently completed lane is
+  PF6 remains evidence-gated and inactive. The most recently completed focused lane is
+  `docs/engine/plans/2026-08-30-sillyos-neutral-engine-handback.md`: it
+  promoted only the transport/provider-neutral Session/Run
+  client and connector to public `@sillymaker/agent/session`; raw request/wire,
+  Agent Host, UiArtifact and deterministic fake remain private, and the SillyOS
+  downstream migration has not yet been handed off. No successor lane is active.
+  The preceding completed lane is
   `docs/engine/plans/2026-08-29-production-mod-v1.md`: it promoted the selected
   build-time trusted Mod contract to public `@sillymaker/composition/mod`, kept
   the private Direct lifecycle behind that boundary, added real staged package
@@ -181,7 +187,7 @@ Read only the documents relevant to the change:
   native common-runtime smoke also proves GUI ready,
   same-window Game/Session restart, and close-flush/normal exit without promoting
   Desktop authoring, HMR, packaging, or durability. AR4 also delivered
-  2026-08-22: the only Agent entry is the workspace-private
+  2026-08-22: the Agent implementation initially entered only through workspace-private
   `@sillymaker/agent/internal`; its transport-neutral RPC client, observable Agent
   Host, bounded `UiArtifact`/`UiIntent` admission, closed renderer, generation/
   sequence/cancellation fencing, and deterministic fake back Engine Lab's
@@ -197,7 +203,10 @@ Read only the documents relevant to the change:
   single-companion bridge: the complete Template Author graph excludes Agent/RPC,
   while Engine Lab selects the private Agent companion explicitly. The Studio
   manifest keeps a workspace Agent dependency for that opt-in entry, but final
-  module/source structural exclusion is proved. AR5 Browser physical evidence is
+  module/source structural exclusion is proved. The active 2026-08-30 handback
+  lane later promotes only the semantic Session/Run client/connector at
+  `@sillymaker/agent/session`; Host/UiArtifact/fake remain private and SillyOS has
+  not yet migrated. AR5 Browser physical evidence is
   intentionally limited to contract-level R1 rejection/retry, shared-presentation
   Player R2 + Authoring R1, and Application R3 recovery; deeper Agent/currentness
   details stay in unit/headless contracts. The one-off paired performance runner
@@ -295,7 +304,8 @@ Read only the documents relevant to the change:
   This lane does not activate
   State Format V2, ECS, a final Blueprint/Timeline editor, public Mod ABI, or
   Desktop HMR. AR4/AR5 did not add
-  a real backend or transport, public Agent ABI, OpenUI/A2UI, Agent persistence,
+  a real backend or transport, public Agent product/Host/UiArtifact ABI,
+  OpenUI/A2UI, Agent persistence,
   live Desktop HMR, or Desktop production promotion.
   Desktop persistence remains an accepted, unfinished, conditional promotion
   lane while the adapter is preview.
@@ -306,8 +316,9 @@ Read only the documents relevant to the change:
   embedded shells, structured authoring operations, and separated gameplay,
   authoring, Agent-session, and UiArtifact authorities. It records the closed
   AR1 comparison, selected private Direct backend, and delivered private AR4
-  fake vertical slice, but does not activate a public Mod or Agent ABI, Cordis
-  API, real RPC backend/protocol, OpenUI/A2UI adapter, Agent persistence, Effect
+  fake vertical slice. The later focused public Agent Session/Run contract does
+  not activate a public Agent Host/UiArtifact product ABI, Cordis API, real RPC
+  backend/protocol, OpenUI/A2UI adapter, Agent persistence, Effect
   Broker, Electron/Node Host, Desktop HMR, or Player source editor.
 - `docs/engine/plans/2026-08-18-experimental-composition-state-runtime.md` —
   completed external strangler evidence and the curated promotion boundary for
@@ -665,18 +676,21 @@ product-specific Stage B consumer, not a universal `.sillymod` format.
   Base Session and transaction runner; it never owns a second State, digest,
   Save, replay, queue, or CommandLog authority. Production Story migration
   remains evidence-gated.
-- `@sillymaker/agent` is an experimental workspace-private GUI/RPC seam. Its only
-  package entry is `./internal`; it owns the transport-neutral client, bounded
-  cross-process admission, Agent GUI/session lifecycle, immutable
-  `UiArtifact` revisions, admitted `UiIntent`, and a closed React renderer. The
-  deterministic fake uses the same client port as a future transport. It is not
-  a public Agent ABI, provider SDK, OpenUI/A2UI adapter, persistence owner, tool
-  executor, or external-effect authority. Ordinary Template/Engine Lab Player
+- `@sillymaker/agent` exposes the focused public `./session` entry for the
+  transport/provider-neutral Session/Run client, semantic connector/connection
+  ports, bounded response/event admission, observable status, currentness,
+  ordered stream, cancel/reconnect and awaited disposal. Workspace-private
+  `./internal` retains the Agent GUI/session Host, immutable `UiArtifact`
+  revisions, admitted `UiIntent`, closed React renderer, and deterministic fake.
+  The public entry exposes no raw request/request ID/wire/provider or connection
+  generation. Neither entry is a provider SDK, public Agent Host/renderer ABI,
+  OpenUI/A2UI adapter, persistence owner, tool executor, or external-effect
+  authority. Ordinary Template/Engine Lab Player
   graphs exclude it. AR5's neutral single-companion split and generated negative
   measurement also prove that a complete Authoring final graph excludes Agent/RPC;
   Engine Lab's Inspector binding selects the private single Agent companion only
   through its explicit opt-in entry, not as an Inspector or final-graph requirement
-  and not as a public ABI.
+  and not as a public Host/UiArtifact ABI.
 - `@sillymaker/ui` owns reusable React presentation, input, interaction,
   overlays, diagnostics UI, assets, characters, stages, and semantic-publication
   bridges. Its focused `./code-surface` entry cold-compiles build-known literal
