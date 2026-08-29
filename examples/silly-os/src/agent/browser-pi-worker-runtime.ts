@@ -26,6 +26,7 @@ import {
   isBrowserPiSelectionAvailableV1,
   probeBrowserPiProviderSelectionV1,
   projectBrowserPiProviderCatalogV1,
+  resolveBrowserPiReasoningEffortV1,
 } from "./browser-pi-provider-runtime-bridge.js";
 import { createDeterministicPiAgentV1 } from "./browser-pi-runtime-bridge.js";
 import {
@@ -35,6 +36,7 @@ import {
   type BrowserPiWorkerAnyOutboundMessageV1,
   type BrowserPiWorkerExecutionBindingV1,
   type BrowserPiModelSelectionV1,
+  type BrowserPiReasoningEffortV1,
   type BrowserPiWorkerRuntimeV1,
   type BrowserPiWorkspaceFailureCodeV1,
   type BrowserPiWorkspaceMutationReceiptWireV1,
@@ -186,6 +188,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   let credentialKey: string | null = null;
   let configuredRuntime: BrowserPiWorkerRuntimeV1 | null = null;
   let configuredSelection: BrowserPiModelSelectionV1 | null = null;
+  let configuredPreferredReasoningEffort: BrowserPiReasoningEffortV1 | null = null;
   let connectionTestInProgress = false;
   let connectionTestAbort: AbortController | null = null;
   let connectionReady = false;
@@ -513,9 +516,11 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     const runtime = configuredRuntime;
     const apiKey = credentialKey;
     const selection = configuredSelection;
+    const preferredReasoningEffort = configuredPreferredReasoningEffort;
     const client = workspaceClient;
     if (
       runtime === null || apiKey === null || client === null || workspacePhase !== "open" ||
+      preferredReasoningEffort === null ||
       (runtime === "pi_provider" && selection === null)
     ) {
       return null;
@@ -547,6 +552,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     const agentInput = {
       submit,
       workspaceTools,
+      reasoningEffort: resolveBrowserPiReasoningEffortV1(selection, preferredReasoningEffort),
       onCandidate(value: unknown): void {
         if (activeRun !== run || run.terminal || run.requestedFailure !== null) {
           throw new Error("Creator run was cancelled");
@@ -885,6 +891,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     credentialKey = credential;
     configuredRuntime = message.runtime;
     configuredSelection = message.selection;
+    configuredPreferredReasoningEffort = message.preferredReasoningEffort;
     configurationInProgress = false;
     cancelCredentialHandoff = null;
     connectionReady = true;
@@ -894,6 +901,10 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       requestId: message.requestId,
       runtime: message.runtime,
       selection: message.selection,
+      effectiveReasoningEffort: resolveBrowserPiReasoningEffortV1(
+        message.selection,
+        message.preferredReasoningEffort,
+      ),
       distribution: browserPiDistributionIdentityV1,
     }));
   };
@@ -1274,6 +1285,60 @@ export function createBrowserPiWorkerRuntimeV1(input: {
           kind: "model_selected",
           requestId: message.requestId,
           selection: message.selection,
+          effectiveReasoningEffort: resolveBrowserPiReasoningEffortV1(
+            message.selection,
+            configuredPreferredReasoningEffort ?? "medium",
+          ),
+        }));
+      });
+      return;
+    }
+    if (message.kind === "set_reasoning_effort") {
+      if (ports.length !== 0) {
+        postProtocolFailure("invalid_message");
+        return;
+      }
+      const respondUnavailable = (code: "not_configured" | "busy"): void => {
+        post(Object.freeze({
+          revision: 1,
+          kind: "reasoning_effort_selection_failure",
+          requestId: message.requestId,
+          code,
+        }));
+      };
+      if (
+        configuredRuntime === null || credentialKey === null ||
+        configuredPreferredReasoningEffort === null
+      ) {
+        respondUnavailable("not_configured");
+        return;
+      }
+      if (configurationInProgress || connectionTestInProgress) {
+        respondUnavailable("busy");
+        return;
+      }
+      enqueue(() => {
+        if (
+          configuredRuntime === null || credentialKey === null ||
+          configuredPreferredReasoningEffort === null
+        ) {
+          respondUnavailable("not_configured");
+          return;
+        }
+        if (connectionTestInProgress || (activeRun !== null && !activeRun.terminal)) {
+          respondUnavailable("busy");
+          return;
+        }
+        configuredPreferredReasoningEffort = message.preferredReasoningEffort;
+        post(Object.freeze({
+          revision: 1,
+          kind: "reasoning_effort_selected",
+          requestId: message.requestId,
+          preferredReasoningEffort: message.preferredReasoningEffort,
+          effectiveReasoningEffort: resolveBrowserPiReasoningEffortV1(
+            configuredSelection,
+            message.preferredReasoningEffort,
+          ),
         }));
       });
       return;
@@ -1355,6 +1420,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       credentialKey = null;
       configuredRuntime = null;
       configuredSelection = null;
+      configuredPreferredReasoningEffort = null;
       connectionReady = false;
       networkAccessCache = null;
       networkClient?.close();

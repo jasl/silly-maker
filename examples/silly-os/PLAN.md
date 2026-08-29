@@ -2127,6 +2127,58 @@ responsive/keyboard regressions. Production build/chunk evidence, the local
 dual-engine gate, the committed Cloudflare deployment, and the public-origin
 qualifier are closed and reported independently.
 
+#### P1-B1d — Pi-owned reasoning effort (delivered locally 2026-08-30)
+
+The former Browser bridge hard-coded Pi `thinkingLevel: "off"`. This bounded
+slice now delivers the missing vertical path without creating a SillyOS
+reasoning/provider layer.
+
+- Fixed, lockfile-pinned Pi remains the authority for each built-in model's
+  exact supported thinking levels, clamping behavior, and Provider-specific
+  request mapping. The catalog projection carries only that bounded capability
+  data; React does not copy a support table or infer support from model names.
+- The product label is **Reasoning effort**, mapped directly to Pi
+  `thinkingLevel`. One ordinary device-local preference defaults to `medium`.
+  The current built-in route displays and executes Pi's clamped effective
+  value; switching to a narrower model does not rewrite the global preference.
+- Creator Home and the Program-workspace follow-up composer reuse one control
+  beside their shared model picker. An effort-only change updates the live
+  Agent configuration without changing enabled models, the preferred model,
+  credentials, Provider availability, or Program/Workspace state.
+- Test Connection remains an independent point-in-time credential/model
+  diagnostic and does not gate or mutate this preference; its existing bounded
+  request semantics stay unchanged. Save, Replace, Forget, Vault Lock/Unlock,
+  and endpoint binding are also orthogonal.
+- The current custom-endpoint schema declares no reasoning capability. Custom
+  routes therefore stay effective `off`; SillyOS must not infer a level set
+  from their API family, endpoint, or model id. A later schema revision may add
+  explicit capability data.
+- The exact effort is admitted through the product-private typed Agent Worker
+  protocol and reaches fixed Pi Agent construction. Fixed Pi's own clamp helper
+  determines the effective value at that boundary; deterministic fixtures may
+  observe the same admitted control without making a live-Provider reasoning
+  claim.
+
+Acceptance is a strict catalog/protocol/settings/Worker path proving Pi-owned
+level projection, default and reopen behavior, effective clamping across a
+reasoning and non-reasoning built-in route, custom-route `off`, effort-only
+reconfiguration, and the exact value reaching real Pi construction. Focused
+Home and Program-workspace component coverage must prove one shared keyboard-
+reachable control; ordinary startup must still exclude the lazy Pi graph. No
+SillyMaker engine API, credential schema, Test Connection semantics, public Pi
+ABI, or Provider qualification is changed by this slice.
+
+Closure: fixed Pi supplies and clamps the exact level set; the strict Worker
+protocol carries one preferred value and returns the effective route value;
+the real Pi Agent receives that effective value; an ordinary bounded
+device-local repository defaults to `medium` and participates in Clear All;
+Home and Program workspace reuse the same keyboard-operable control. Active
+runs and point-in-time connection tests fence effort changes as busy, while a
+model switch retains the global preference and recomputes only the effective
+value. Custom endpoints remain `off`. Local focused contracts and the Web
+production build close this product-side slice; public live-Provider reasoning
+qualification remains outside the claim.
+
 #### P1-D — Deno Desktop companion parity
 
 After the Browser route is sound, adapt the same `CreatorAgentPortV1` and shared

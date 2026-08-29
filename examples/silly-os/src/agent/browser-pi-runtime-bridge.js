@@ -83,7 +83,7 @@ function createPiAgentV1(input) {
     initialState: {
       systemPrompt: input.systemPrompt,
       model: input.model,
-      thinkingLevel: "off",
+      thinkingLevel: input.reasoningEffort,
       tools: [...input.workspaceTools, tool],
     },
     toolExecution: "sequential",

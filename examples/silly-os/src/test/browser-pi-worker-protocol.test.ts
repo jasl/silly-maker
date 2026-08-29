@@ -103,6 +103,8 @@ function catalogV1(): Record<string, unknown> {
           api: "openai-responses",
           baseUrl: "https://api.openai.com/v1",
           reasoning: false,
+          supportedReasoningEfforts: ["off"],
+          defaultReasoningEffort: "off",
           input: ["text", "image"],
           contextWindow: 1_047_576,
           maxTokens: 32_768,
@@ -120,6 +122,8 @@ function catalogV1(): Record<string, unknown> {
           api: "anthropic-messages",
           baseUrl: "https://api.anthropic.com",
           reasoning: true,
+          supportedReasoningEfforts: ["off", "minimal", "low", "medium", "high"],
+          defaultReasoningEffort: "medium",
           input: ["text", "image"],
           contextWindow: 200_000,
           maxTokens: 64_000,
@@ -156,6 +160,7 @@ describe("Browser Pi Worker protocol", () => {
         api: "openai-responses",
         baseUrl: "https://api.openai.com/v1",
       },
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "sentinel" },
     } as const;
     expect(admitBrowserPiWorkerInboundMessageV1(live)).toEqual(live);
@@ -280,12 +285,30 @@ describe("Browser Pi Worker protocol", () => {
       ...selectModel,
       credential: "forbidden",
     })).toBeNull();
+    const setReasoningEffort = {
+      revision: 1,
+      kind: "set_reasoning_effort",
+      requestId: 5,
+      preferredReasoningEffort: "xhigh",
+    } as const;
+    expect(admitBrowserPiWorkerInboundMessageV1(setReasoningEffort)).toEqual(
+      setReasoningEffort,
+    );
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      ...setReasoningEffort,
+      preferredReasoningEffort: "extreme",
+    })).toBeNull();
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      ...setReasoningEffort,
+      effectiveReasoningEffort: "xhigh",
+    })).toBeNull();
     expect(admitBrowserPiWorkerOutboundMessageV1({
       revision: 1,
       kind: "configured",
       requestId: 2,
       runtime: live.runtime,
       selection: live.selection,
+      effectiveReasoningEffort: "off",
       distribution: browserPiDistributionIdentityV1,
     })).not.toBeNull();
     expect(admitBrowserPiWorkerOutboundMessageV1({
@@ -305,11 +328,13 @@ describe("Browser Pi Worker protocol", () => {
       kind: "model_selected",
       requestId: 4,
       selection: selectModel.selection,
+      effectiveReasoningEffort: "off",
     })).toEqual({
       revision: 1,
       kind: "model_selected",
       requestId: 4,
       selection: selectModel.selection,
+      effectiveReasoningEffort: "off",
     });
     for (
       const code of [
@@ -332,6 +357,32 @@ describe("Browser Pi Worker protocol", () => {
       requestId: 4,
       code: "credential_invalid",
     })).toBeNull();
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "reasoning_effort_selected",
+      requestId: 5,
+      preferredReasoningEffort: "xhigh",
+      effectiveReasoningEffort: "high",
+    })).toEqual({
+      revision: 1,
+      kind: "reasoning_effort_selected",
+      requestId: 5,
+      preferredReasoningEffort: "xhigh",
+      effectiveReasoningEffort: "high",
+    });
+    for (const code of ["not_configured", "busy"] as const) {
+      expect(admitBrowserPiWorkerOutboundMessageV1({
+        revision: 1,
+        kind: "reasoning_effort_selection_failure",
+        requestId: 5,
+        code,
+      })).toEqual({
+        revision: 1,
+        kind: "reasoning_effort_selection_failure",
+        requestId: 5,
+        code,
+      });
+    }
   });
 
   it("admits only bounded catalog projections with derived Provider availability", () => {
@@ -364,6 +415,27 @@ describe("Browser Pi Worker protocol", () => {
     expect(admitBrowserPiProviderCatalogWireV1({
       ...catalog,
       providers: [{ ...openAi, models: [models[0], models[0]] }, providers[1]],
+    })).toBeNull();
+    expect(admitBrowserPiProviderCatalogWireV1({
+      ...catalog,
+      providers: [{
+        ...openAi,
+        models: [{ ...models[0], supportedReasoningEfforts: ["off", "off"] }],
+      }, providers[1]],
+    })).toBeNull();
+    expect(admitBrowserPiProviderCatalogWireV1({
+      ...catalog,
+      providers: [{
+        ...openAi,
+        models: [{ ...models[0], supportedReasoningEfforts: ["medium", "off"] }],
+      }, providers[1]],
+    })).toBeNull();
+    expect(admitBrowserPiProviderCatalogWireV1({
+      ...catalog,
+      providers: [{
+        ...openAi,
+        models: [{ ...models[0], defaultReasoningEffort: "medium" }],
+      }, providers[1]],
     })).toBeNull();
   });
 

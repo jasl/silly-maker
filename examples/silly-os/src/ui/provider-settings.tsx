@@ -22,6 +22,7 @@ import {
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
+import type { BrowserPiReasoningEffortV1 } from "../agent/browser-pi-worker-protocol.ts";
 import {
   credentialVaultBindingsEqualV2,
   type CredentialVaultBindingV2,
@@ -63,6 +64,8 @@ export interface ProviderSettingsModelV1 {
   readonly name: string;
   readonly api: string;
   readonly baseUrl: string;
+  readonly supportedReasoningEfforts: readonly BrowserPiReasoningEffortV1[];
+  readonly defaultReasoningEffort: BrowserPiReasoningEffortV1;
   readonly availability: ProviderSettingsAvailabilityV1;
 }
 

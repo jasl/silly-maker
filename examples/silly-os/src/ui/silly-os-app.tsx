@@ -12,6 +12,7 @@ import {
 import type {
   BrowserPiCustomModelApiV1,
   BrowserPiModelSelectionV1,
+  BrowserPiReasoningEffortV1,
   BrowserPiWorkerRuntimeV1,
 } from "../agent/browser-pi-worker-protocol.ts";
 import {
@@ -41,6 +42,13 @@ import {
 } from "../product/browser-data-reset-coordinator.ts";
 import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
 import type { ProgramNetworkAccessV1 } from "../product/program-network-access.ts";
+import {
+  browserAgentPreferencesRevisionV1,
+  createBrowserAgentPreferencesRepositoryV1,
+  defaultBrowserAgentReasoningEffortV1,
+  type BrowserAgentPreferencesRepositoryV1,
+  type BrowserAgentPreferencesSnapshotV1,
+} from "../product/browser-agent-preferences-repository.ts";
 import { recommendedBrowserProviderBuiltinModelRefsV1 } from "../product/browser-provider-model-recommendations.ts";
 import { browserWorkspaceDownloadFileNameMaximumUtf8BytesV1 } from "../workspace/browser-workspace-host-protocol.ts";
 import {
@@ -158,6 +166,15 @@ function createProviderSettingsRepositoryV1(): BrowserProviderSettingsRepository
   }
 }
 
+function createAgentPreferencesRepositoryV1(): BrowserAgentPreferencesRepositoryV1 | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return createBrowserAgentPreferencesRepositoryV1({ storage: window.localStorage });
+  } catch {
+    return null;
+  }
+}
+
 function createDataResetCoordinatorV1(): BrowserDataResetCoordinatorV1 | null {
   if (typeof window === "undefined") return null;
   try {
@@ -188,6 +205,8 @@ interface CreatorProviderModelChoiceV1 {
   readonly value: string;
   readonly modelName: string;
   readonly providerName: string;
+  readonly supportedReasoningEfforts: readonly BrowserPiReasoningEffortV1[];
+  readonly defaultReasoningEffort: BrowserPiReasoningEffortV1;
   readonly selection: BrowserPiModelSelectionV1;
   readonly preference: BrowserProviderPreferredModelRefV1;
 }
@@ -272,6 +291,8 @@ function creatorProviderModelChoicesV1(
           value: builtinModelRefKeyV1(preference),
           modelName: model.name,
           providerName: provider.name,
+          supportedReasoningEfforts: model.supportedReasoningEfforts,
+          defaultReasoningEffort: model.defaultReasoningEffort,
           selection: {
             kind: "builtin",
             providerId: provider.providerId,
@@ -288,6 +309,8 @@ function creatorProviderModelChoicesV1(
     value: customModelRefKeyV1(profile.profileId),
     modelName: profile.modelId,
     providerName: profile.displayName,
+    supportedReasoningEfforts: Object.freeze(["off"]),
+    defaultReasoningEffort: "off",
     selection: { kind: "custom", profile },
     preference: { kind: "custom", profileId: profile.profileId },
   }));
@@ -311,6 +334,13 @@ function emptyProviderSettingsSnapshotV1(): BrowserProviderSettingsSnapshotV1 {
     customProfiles: Object.freeze([]),
     enabledBuiltinModels: Object.freeze([]),
     preferredModel: null,
+  });
+}
+
+function defaultAgentPreferencesSnapshotV1(): BrowserAgentPreferencesSnapshotV1 {
+  return Object.freeze({
+    revision: browserAgentPreferencesRevisionV1,
+    preferredReasoningEffort: defaultBrowserAgentReasoningEffortV1,
   });
 }
 
@@ -456,11 +486,16 @@ export function SillyOsAppV1({
     BrowserPiModelSelectionV1 | null
   >(null);
   const [providerModelSelectionPending, setProviderModelSelectionPending] = useState(false);
+  const [reasoningEffortSelectionPending, setReasoningEffortSelectionPending] = useState(false);
+  const [effectiveReasoningEffort, setEffectiveReasoningEffort] = useState<
+    BrowserPiReasoningEffortV1 | null
+  >(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [providerCatalog, setProviderCatalog] = useState<ProviderSettingsCatalogV1>({
     phase: "loading",
   });
   const [providerSettingsRepository] = useState(createProviderSettingsRepositoryV1);
+  const [agentPreferencesRepository] = useState(createAgentPreferencesRepositoryV1);
   const [dataResetCoordinator] = useState(createDataResetCoordinatorV1);
   const [providerSettingsSnapshot, setProviderSettingsSnapshot] = useState<
     BrowserProviderSettingsSnapshotV1
@@ -471,6 +506,17 @@ export function SillyOsAppV1({
     } catch (error) {
       reportFailure("silly_os.provider_settings_load_failed", error);
       return emptyProviderSettingsSnapshotV1();
+    }
+  });
+  const [agentPreferencesSnapshot, setAgentPreferencesSnapshot] = useState<
+    BrowserAgentPreferencesSnapshotV1
+  >(() => {
+    if (agentPreferencesRepository === null) return defaultAgentPreferencesSnapshotV1();
+    try {
+      return agentPreferencesRepository.read();
+    } catch (error) {
+      reportFailure("silly_os.agent_preferences_load_failed", error);
+      return defaultAgentPreferencesSnapshotV1();
     }
   });
   const [credentialVault, setCredentialVault] = useState<ProviderSettingsVaultV1>({
@@ -540,6 +586,9 @@ export function SillyOsAppV1({
   const providerModelSelectionEpochRef = useRef(0);
   const providerModelSelectionPendingRef = useRef(false);
   const providerModelSelectionSettlementRef = useRef<Promise<void>>(Promise.resolve());
+  const reasoningEffortSelectionEpochRef = useRef(0);
+  const reasoningEffortSelectionPendingRef = useRef(false);
+  const reasoningEffortSelectionSettlementRef = useRef<Promise<void>>(Promise.resolve());
   const providerCatalogEpochRef = useRef(0);
   const settingsReturnTargetRef = useRef<SettingsReturnTargetV1>("home");
   const agentSetupSettlementRef = useRef<Promise<void>>(Promise.resolve());
@@ -594,6 +643,7 @@ export function SillyOsAppV1({
   ): Promise<void> => {
     const precedingTeardown = agentTeardownRef.current;
     const modelSelectionSettlement = providerModelSelectionSettlementRef.current;
+    const reasoningSelectionSettlement = reasoningEffortSelectionSettlementRef.current;
     const workspaceSettlement = agentWorkspaceLifecycleRef.current;
     const terminalSettlement = agentTerminalSettlementRef.current;
     const teardown = finalPhase === "forgotten"
@@ -601,6 +651,7 @@ export function SillyOsAppV1({
       : Promise.all([
         precedingTeardown.catch(() => undefined),
         modelSelectionSettlement.catch(() => undefined),
+        reasoningSelectionSettlement.catch(() => undefined),
         workspaceSettlement.catch(() => undefined),
         terminalSettlement.catch(() => undefined),
       ]).then(() => port.dispose()).catch(() => undefined);
@@ -614,6 +665,8 @@ export function SillyOsAppV1({
     connectionTestEpochRef.current += 1;
     providerModelSelectionEpochRef.current += 1;
     providerModelSelectionPendingRef.current = false;
+    reasoningEffortSelectionEpochRef.current += 1;
+    reasoningEffortSelectionPendingRef.current = false;
     providerCatalogEpochRef.current += 1;
     workspaceExportEpochRef.current += 1;
     workspaceExportAbortRef.current?.abort();
@@ -630,6 +683,7 @@ export function SillyOsAppV1({
     await Promise.all([
       agentSetupSettlementRef.current.catch(() => undefined),
       providerModelSelectionSettlementRef.current.catch(() => undefined),
+      reasoningEffortSelectionSettlementRef.current.catch(() => undefined),
       agentWorkspaceLifecycleRef.current.catch(() => undefined),
       agentTerminalSettlementRef.current.catch(() => undefined),
       agentTeardownRef.current.catch(() => undefined),
@@ -1001,6 +1055,18 @@ export function SillyOsAppV1({
     }
   };
 
+  const persistReasoningEffortPreferenceV1 = (
+    preferredReasoningEffort: BrowserPiReasoningEffortV1,
+  ): void => {
+    if (agentPreferencesRepository === null) return;
+    try {
+      agentPreferencesRepository.setPreferredReasoningEffort(preferredReasoningEffort);
+      setAgentPreferencesSnapshot(agentPreferencesRepository.read());
+    } catch (error) {
+      reportFailure("silly_os.agent_preferences_save_failed", error);
+    }
+  };
+
   const configurePiAgentCredentialV1 = (
     selection: BrowserPiModelSelectionV1 | null,
     configureCredential: (
@@ -1013,7 +1079,11 @@ export function SillyOsAppV1({
   ): Promise<boolean> => {
     providerModelSelectionEpochRef.current += 1;
     providerModelSelectionPendingRef.current = false;
+    reasoningEffortSelectionEpochRef.current += 1;
+    reasoningEffortSelectionPendingRef.current = false;
     setProviderModelSelectionPending(false);
+    setReasoningEffortSelectionPending(false);
+    setEffectiveReasoningEffort(null);
     const factory = agentFactoryRef.current;
     const networkBrokerFactory = networkBrokerFactoryRef.current;
     if (
@@ -1038,7 +1108,11 @@ export function SillyOsAppV1({
       connectionTestEpochRef.current += 1;
       providerModelSelectionEpochRef.current += 1;
       providerModelSelectionPendingRef.current = false;
+      reasoningEffortSelectionEpochRef.current += 1;
+      reasoningEffortSelectionPendingRef.current = false;
       setProviderModelSelectionPending(false);
+      setReasoningEffortSelectionPending(false);
+      setEffectiveReasoningEffort(null);
       workspaceExportEpochRef.current += 1;
       workspaceExportAbortRef.current?.abort();
       workspaceExportAbortRef.current = null;
@@ -1062,12 +1136,14 @@ export function SillyOsAppV1({
           onConnectionLost,
           openNetworkBroker: () => networkBrokerFactory(),
           runtime: "deterministic_test",
+          preferredReasoningEffort: agentPreferencesSnapshot.preferredReasoningEffort,
           workspaceAuthority,
         })
         : factory({
           onConnectionLost,
           openNetworkBroker: () => networkBrokerFactory(),
           runtime: "pi_provider",
+          preferredReasoningEffort: agentPreferencesSnapshot.preferredReasoningEffort,
           selection: selection as BrowserPiModelSelectionV1,
           workspaceAuthority,
         });
@@ -1106,6 +1182,7 @@ export function SillyOsAppV1({
           reportFailure("silly_os.browser_pi_configure_failed", configured.diagnostic);
           return false;
         }
+        setEffectiveReasoningEffort(configured.effectiveReasoningEffort);
         const configuredSelection = piRuntime === "pi_provider" ? selection : null;
         activeProviderSelectionRef.current = configuredSelection;
         setActiveProviderSelection(configuredSelection);
@@ -1174,7 +1251,11 @@ export function SillyOsAppV1({
     connectionTestEpochRef.current += 1;
     providerModelSelectionEpochRef.current += 1;
     providerModelSelectionPendingRef.current = false;
+    reasoningEffortSelectionEpochRef.current += 1;
+    reasoningEffortSelectionPendingRef.current = false;
     setProviderModelSelectionPending(false);
+    setReasoningEffortSelectionPending(false);
+    setEffectiveReasoningEffort(null);
     workspaceExportEpochRef.current += 1;
     workspaceExportAbortRef.current?.abort();
     workspaceExportAbortRef.current = null;
@@ -1249,6 +1330,7 @@ export function SillyOsAppV1({
           await Promise.all([
             agentSetupSettlementRef.current.catch(() => undefined),
             providerModelSelectionSettlementRef.current.catch(() => undefined),
+            reasoningEffortSelectionSettlementRef.current.catch(() => undefined),
             agentWorkspaceLifecycleRef.current.catch(() => undefined),
             agentTerminalSettlementRef.current.catch(() => undefined),
             agentTeardownRef.current.catch(() => undefined),
@@ -1261,7 +1343,11 @@ export function SillyOsAppV1({
           if (providerSettingsRepository === null) {
             throw new TypeError("sillyos.provider_settings.repository_unavailable");
           }
+          if (agentPreferencesRepository === null) {
+            throw new TypeError("sillyos.agent_preferences.repository_unavailable");
+          }
           providerSettingsRepository.clear();
+          agentPreferencesRepository.clear();
         },
       });
 
@@ -1295,6 +1381,7 @@ export function SillyOsAppV1({
         diagnosticCodes.push("provider_settings_clear_failed");
       } else {
         setProviderSettingsSnapshot(emptyProviderSettingsSnapshotV1());
+        setAgentPreferencesSnapshot(defaultAgentPreferencesSnapshotV1());
       }
 
       if (diagnosticCodes.length === 0) {
@@ -1490,6 +1577,7 @@ export function SillyOsAppV1({
         }
         activeProviderSelectionRef.current = selected.selection;
         setActiveProviderSelection(selected.selection);
+        setEffectiveReasoningEffort(selected.effectiveReasoningEffort);
         if (persistPreference) persistProviderPreferenceV1(selected.selection);
         return true;
       } catch (error) {
@@ -1512,7 +1600,7 @@ export function SillyOsAppV1({
   const selectProviderModelChoiceV1 = (choice: CreatorProviderModelChoiceV1): void => {
     if (
       internalPiTest || agentConfigurationPendingRef.current ||
-      providerModelSelectionPendingRef.current
+      providerModelSelectionPendingRef.current || reasoningEffortSelectionPendingRef.current
     ) return;
     const activeSelection = activeProviderSelectionRef.current;
     if (
@@ -1524,6 +1612,46 @@ export function SillyOsAppV1({
       return;
     }
     void activateVaultSelectionV1(choice.selection, true);
+  };
+
+  const selectReasoningEffortV1 = (preferredReasoningEffort: BrowserPiReasoningEffortV1): void => {
+    const port = agentPortRef.current;
+    if (
+      internalPiTest || port === null || agentSnapshot?.phase === "running" ||
+      !agentWorkerHoldsCredentialV1(piAgentSetupStatus) ||
+      agentConfigurationPendingRef.current || providerModelSelectionPendingRef.current ||
+      reasoningEffortSelectionPendingRef.current
+    ) return;
+
+    const epoch = ++reasoningEffortSelectionEpochRef.current;
+    reasoningEffortSelectionPendingRef.current = true;
+    setReasoningEffortSelectionPending(true);
+    const settlement = (async (): Promise<void> => {
+      try {
+        const selected = await port.selectReasoningEffort(preferredReasoningEffort);
+        if (
+          reasoningEffortSelectionEpochRef.current !== epoch ||
+          agentPortRef.current !== port || !agentDrainRegistry.isAccepting()
+        ) return;
+        if (selected.kind !== "selected") {
+          reportFailure("silly_os.browser_pi_reasoning_effort_select_failed", selected.diagnostic);
+          return;
+        }
+        setEffectiveReasoningEffort(selected.effectiveReasoningEffort);
+        persistReasoningEffortPreferenceV1(selected.preferredReasoningEffort);
+      } catch (error) {
+        if (
+          reasoningEffortSelectionEpochRef.current === epoch &&
+          agentPortRef.current === port && agentDrainRegistry.isAccepting()
+        ) reportFailure("silly_os.browser_pi_reasoning_effort_select_failed", error);
+      } finally {
+        if (reasoningEffortSelectionEpochRef.current === epoch) {
+          reasoningEffortSelectionPendingRef.current = false;
+          setReasoningEffortSelectionPending(false);
+        }
+      }
+    })();
+    reasoningEffortSelectionSettlementRef.current = settlement;
   };
 
   const testProviderConnectionV1 = (selection: ProviderSettingsSelectionV1): void => {
@@ -2084,6 +2212,7 @@ export function SillyOsAppV1({
   };
 
   const agentMutationPending = agentSnapshot?.phase === "running" ||
+    reasoningEffortSelectionPending ||
     (agentSnapshot?.terminalRuns.length ?? 0) > 0;
   const agentWorkspaceLifecyclePending = agentSnapshot?.workspace.phase === "opening" ||
     agentSnapshot?.workspace.phase === "closing";
@@ -2125,6 +2254,13 @@ export function SillyOsAppV1({
   const preferredProviderIsActive = preferredProviderChoice !== null &&
     agentPort !== null && agentWorkerHoldsCredentialV1(piAgentSetupStatus) &&
     sameProviderSelectionV1(activeProviderSelection, preferredProviderChoice.selection);
+  const creatorReasoningEffortOptions = preferredProviderChoice?.supportedReasoningEfforts ??
+    Object.freeze(["off"] as const);
+  const provisionalReasoningEffort = preferredProviderChoice?.defaultReasoningEffort ?? "off";
+  const creatorReasoningEffortValue = effectiveReasoningEffort !== null &&
+      creatorReasoningEffortOptions.includes(effectiveReasoningEffort)
+    ? effectiveReasoningEffort
+    : provisionalReasoningEffort;
   const creatorProviderModelStatus = usableProviderModelChoices.length === 0
     ? "required" as const
     : providerModelSelectionPending || agentConfigurationPendingRef.current
@@ -2147,6 +2283,16 @@ export function SillyOsAppV1({
       modelName: choice.modelName,
       providerName: choice.providerName,
     })),
+    reasoningEffort: {
+      status: reasoningEffortSelectionPending
+        ? "initializing" as const
+        : piAgentSetupStatus === "failed"
+        ? "failed" as const
+        : "ready" as const,
+      selectedValue: creatorReasoningEffortValue,
+      options: creatorReasoningEffortOptions,
+      onSelect: selectReasoningEffortV1,
+    },
     onSelect: selectCreatorProviderModelV1,
     onOpenSettings: () => openModelSettingsV1(surface),
   } as const);
@@ -2166,6 +2312,7 @@ export function SillyOsAppV1({
       connectionTest.phase === "testing" || piAgentSetupStatus === "failed" ||
       agentFactoryRef.current === null || networkBrokerFactoryRef.current === null ||
       agentConfigurationPendingRef.current || providerModelSelectionPendingRef.current ||
+      reasoningEffortSelectionPendingRef.current ||
       !agentDrainRegistry.isAccepting()
     ) return;
     const port = agentPortRef.current;
@@ -2244,6 +2391,7 @@ export function SillyOsAppV1({
             copy={copy}
             createDisabled={durability.phase !== "ready" ||
               !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus) ||
+              reasoningEffortSelectionPending ||
               (!internalPiTest && creatorProviderModelStatus !== "ready")}
             programCatalog={{
               status: durability.phase === "loading" && durability.operation === "catalog"

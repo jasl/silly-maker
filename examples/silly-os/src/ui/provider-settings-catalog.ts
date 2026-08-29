@@ -47,6 +47,8 @@ export function projectProviderSettingsCatalogV1(
         name: model.name,
         api: model.api,
         baseUrl: model.baseUrl,
+        supportedReasoningEfforts: model.supportedReasoningEfforts,
+        defaultReasoningEffort: model.defaultReasoningEffort,
         availability: settingsAvailabilityV1(model.availability),
       }));
       return {

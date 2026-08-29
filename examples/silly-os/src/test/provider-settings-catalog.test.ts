@@ -16,6 +16,8 @@ function catalogModelV1(id: string, baseUrl = "https://api.anthropic.com") {
     input: ["text"] as const,
     contextWindow: 200_000,
     maxTokens: 32_000,
+    supportedReasoningEfforts: ["off", "low", "medium", "high"] as const,
+    defaultReasoningEffort: "medium" as const,
     availability: "available" as const,
   };
 }
@@ -45,6 +47,10 @@ describe("SillyOS Provider settings catalog presentation", () => {
       "claude-sonnet-4-5",
       "claude-opus-4-6",
     ]);
+    expect(projected.providers[0]?.models[0]).toMatchObject({
+      supportedReasoningEfforts: ["off", "low", "medium", "high"],
+      defaultReasoningEffort: "medium",
+    });
   });
 
   it("keeps exact dated records when Pi exposes no matching same-route alias", () => {

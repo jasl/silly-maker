@@ -6,6 +6,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getSillyOsCopyV1 } from "../content/copy.ts";
+import type { BrowserPiReasoningEffortV1 } from "../agent/browser-pi-worker-protocol.ts";
 import type {
   CreatorSessionSnapshotV1,
   PreviewProgramV1,
@@ -145,6 +146,18 @@ function renderAgentChatV1(
   );
 }
 
+function reasoningEffortControlV1(options: {
+  readonly status?: "ready" | "initializing" | "failed";
+  readonly onSelect?: (value: BrowserPiReasoningEffortV1) => void;
+} = {}) {
+  return {
+    status: options.status ?? "ready" as const,
+    selectedValue: "medium" as const,
+    options: ["off", "minimal", "low", "medium", "high"] as const,
+    onSelect: options.onSelect ?? vi.fn(),
+  };
+}
+
 describe("SillyOS Workspace composer model selection", () => {
   it("renders one Program-level network toggle that is off by default", async () => {
     const onChange = vi.fn(() => Promise.resolve(true));
@@ -182,6 +195,7 @@ describe("SillyOS Workspace composer model selection", () => {
   it("uses the shared picker and hides the persistent live Provider card when ready or completed", () => {
     const onOpenSettings = vi.fn();
     const onSelect = vi.fn();
+    const onSelectReasoningEffort = vi.fn();
     const onCancel = vi.fn();
     const onForget = vi.fn();
     const providerModel = {
@@ -199,6 +213,7 @@ describe("SillyOS Workspace composer model selection", () => {
           providerName: "Anthropic",
         },
       ],
+      reasoningEffort: reasoningEffortControlV1({ onSelect: onSelectReasoningEffort }),
       onSelect,
       onOpenSettings,
     };
@@ -220,6 +235,11 @@ describe("SillyOS Workspace composer model selection", () => {
       "builtin:anthropic:claude-sonnet-5",
     );
     expect(picker).toBeEnabled();
+    const reasoningPicker = screen.getByRole("combobox", {
+      name: "Agent Creator reasoning effort",
+    });
+    expect(reasoningPicker).toHaveAttribute("data-selected-value", "medium");
+    expect(reasoningPicker).toBeEnabled();
 
     fireEvent.click(picker);
     const option = screen.getByRole("option", { name: /Claude Sonnet 5/u });
@@ -228,6 +248,12 @@ describe("SillyOS Workspace composer model selection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Model settings" }));
     expect(onOpenSettings).toHaveBeenCalledOnce();
     expect(picker).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(reasoningPicker);
+    expect(screen.getByRole("listbox", { name: "Agent Creator reasoning effort" }))
+      .toBeVisible();
+    fireEvent.click(screen.getByRole("option", { name: "High" }));
+    expect(onSelectReasoningEffort).toHaveBeenCalledWith("high");
 
     view.rerender(
       <ChatPaneV1
@@ -269,6 +295,7 @@ describe("SillyOS Workspace composer model selection", () => {
             providerName: "Anthropic",
           },
         ],
+        reasoningEffort: reasoningEffortControlV1(),
         onSelect: vi.fn(),
         onOpenSettings: vi.fn(),
       },
@@ -284,6 +311,8 @@ describe("SillyOS Workspace composer model selection", () => {
 
     const picker = screen.getByRole("combobox", { name: "Agent Creator model" });
     expect(picker).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Agent Creator reasoning effort" }))
+      .toBeDisabled();
     expect(picker.closest("[data-model-state]"))
       .toHaveAttribute("data-model-state", "initializing");
     expect(screen.getByText("Switching model…")).toBeVisible();
@@ -310,6 +339,7 @@ describe("SillyOS Workspace composer model selection", () => {
             providerName: "OpenAI",
           },
         ],
+        reasoningEffort: reasoningEffortControlV1(),
         onSelect: vi.fn(),
         onOpenSettings: vi.fn(),
       },
@@ -324,6 +354,8 @@ describe("SillyOS Workspace composer model selection", () => {
     });
 
     expect(screen.getByRole("combobox", { name: "Agent Creator model" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Agent Creator reasoning effort" }))
+      .toBeDisabled();
     expect(screen.queryByText("Model Provider")).toBeNull();
     expect(screen.queryByRole("button", { name: "Forget Provider key" })).toBeNull();
     expect(view.container.querySelector('[data-pi-agent-runtime="pi_provider"]')).toHaveAttribute(

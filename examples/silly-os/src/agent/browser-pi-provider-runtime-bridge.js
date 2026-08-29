@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-import { createProvider } from "@earendil-works/pi-ai";
+import {
+  clampThinkingLevel,
+  createProvider,
+  getSupportedThinkingLevels,
+} from "@earendil-works/pi-ai";
 import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
 import { googleGenerativeAIApi } from "@earendil-works/pi-ai/api/google-generative-ai.lazy";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
@@ -117,6 +121,12 @@ function resolveSelectionV1(selection) {
   return { provider, model, custom: false };
 }
 
+export function resolveBrowserPiReasoningEffortV1(selection, preferredReasoningEffort) {
+  if (selection === null || selection.kind === "custom") return "off";
+  const resolved = resolveSelectionV1(selection);
+  return resolved === null ? "off" : clampThinkingLevel(resolved.model, preferredReasoningEffort);
+}
+
 export function projectBrowserPiProviderCatalogV1() {
   const providers = providersV1().map((provider) => {
     const modelIds = new Set();
@@ -125,12 +135,15 @@ export function projectBrowserPiProviderCatalogV1() {
         throw new Error("Pinned Pi catalog has an invalid model identity");
       }
       modelIds.add(model.id);
+      const supportedReasoningEfforts = Object.freeze([...getSupportedThinkingLevels(model)]);
       return Object.freeze({
         id: model.id,
         name: model.name,
         api: model.api,
         baseUrl: model.baseUrl,
         reasoning: model.reasoning,
+        supportedReasoningEfforts,
+        defaultReasoningEffort: clampThinkingLevel(model, "medium"),
         input: Object.freeze([...model.input]),
         contextWindow: model.contextWindow,
         maxTokens: model.maxTokens,
@@ -208,6 +221,10 @@ export function createBrowserPiProviderAgentV1(input) {
     ...resolved.model,
     maxTokens: Math.min(resolved.model.maxTokens, 2_048),
   };
+  const effectiveReasoningEffort = resolveBrowserPiReasoningEffortV1(
+    input.selection,
+    input.reasoningEffort,
+  );
 
   let apiKey = input.apiKey;
   const agent = createPiAgentV1({
@@ -231,6 +248,7 @@ export function createBrowserPiProviderAgentV1(input) {
     },
     getApiKey: (providerId) => providerId === resolved.provider.id ? apiKey : undefined,
     model: boundedModel,
+    reasoningEffort: effectiveReasoningEffort,
     systemPrompt: creatorSystemPromptV1,
   });
   return {

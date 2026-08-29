@@ -16,6 +16,7 @@ import {
   createBrowserPiWorkspaceToolsV1,
 } from "../agent/browser-pi-worker-runtime.ts";
 import { piNetworkDisabledErrorCodeV1 } from "../agent/pi-network-tool-binder.ts";
+import { resolveBrowserPiReasoningEffortV1 } from "../agent/browser-pi-provider-runtime-bridge.js";
 import type {
   BrowserPiModelSelectionFailureCodeV1,
   BrowserPiModelSelectionV1,
@@ -1151,7 +1152,7 @@ async function configureAndTestProductPortV1(
   port: CreatorAgentPortV1,
   apiKey = "sentinel-browser-key",
 ): Promise<void> {
-  await expect(port.configureCredential(apiKey)).resolves.toEqual({ kind: "configured" });
+  await expect(port.configureCredential(apiKey)).resolves.toMatchObject({ kind: "configured" });
   await expect(port.testConnection()).resolves.toEqual({ kind: "ready" });
 }
 
@@ -1267,6 +1268,7 @@ class RuntimeMismatchBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
             requestId: envelope.requestId,
             runtime: mismatchedRuntime,
             selection,
+            effectiveReasoningEffort: "off",
             distribution: browserPiDistributionIdentityV1,
           },
         });
@@ -1324,6 +1326,8 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   readonly workspaceReceiptAcknowledgements: number[] = [];
   private configuredRuntime: unknown = null;
   private configuredSelection: unknown = null;
+  private configuredPreferredReasoningEffort: unknown = null;
+  private configuredEffectiveReasoningEffort = "off";
   latestPiRunId: string | null = null;
   latestExecution: BrowserPiWorkerExecutionBindingV1 | null = null;
   private readonly messageListeners = new Set<(event: { readonly data: unknown }) => void>();
@@ -1356,12 +1360,14 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
       }
       this.configuredRuntime = envelope.runtime;
       this.configuredSelection = envelope.selection;
+      this.configuredPreferredReasoningEffort = envelope.preferredReasoningEffort;
       this.emit({
         revision: 1,
         kind: "configured",
         requestId: envelope.requestId,
         runtime: envelope.runtime,
         selection: envelope.selection,
+        effectiveReasoningEffort: this.configuredEffectiveReasoningEffort,
         distribution: browserPiDistributionIdentityV1,
       });
       return;
@@ -1403,8 +1409,20 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
           kind: "model_selected",
           requestId: envelope.requestId,
           selection: envelope.selection,
+          effectiveReasoningEffort: this.configuredEffectiveReasoningEffort,
         });
       }
+      return;
+    }
+    if (envelope.kind === "set_reasoning_effort") {
+      this.configuredPreferredReasoningEffort = envelope.preferredReasoningEffort;
+      this.emit({
+        revision: 1,
+        kind: "reasoning_effort_selected",
+        requestId: envelope.requestId,
+        preferredReasoningEffort: envelope.preferredReasoningEffort,
+        effectiveReasoningEffort: this.configuredEffectiveReasoningEffort,
+      });
       return;
     }
     const record = envelope.record as Readonly<Record<string, unknown>>;
@@ -1706,6 +1724,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "deterministic_test",
       selection: null,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "key" },
     } as Record<string, unknown>;
     Object.defineProperty(accessor, "kind", {
@@ -1766,6 +1785,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "pi_provider",
       selection: availableSelectionV1,
+      preferredReasoningEffort: "medium",
       credential: {
         kind: "vault_handoff",
         handoffId: "credential.handoff.1",
@@ -1814,6 +1834,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "pi_provider",
       selection: availableSelectionV1,
+      preferredReasoningEffort: "medium",
       credential: {
         kind: "vault_handoff",
         handoffId: "credential.handoff.1",
@@ -1908,12 +1929,14 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       });
       const configureRequestId = index * 2 + 1;
       const testRequestId = configureRequestId + 1;
+      const effectiveReasoningEffort = resolveBrowserPiReasoningEffortV1(selection, "medium");
       runtime.receive({
         revision: 1,
         kind: "configure",
         requestId: configureRequestId,
         runtime: "pi_provider",
         selection,
+        preferredReasoningEffort: "medium",
         credential: { kind: "api_key", value: `sentinel-live-key-${index}` },
       });
       expect(messages).toEqual([{
@@ -1922,6 +1945,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         requestId: configureRequestId,
         runtime: "pi_provider",
         selection,
+        effectiveReasoningEffort,
         distribution: browserPiDistributionIdentityV1,
       }]);
       expect(probeInputs).toEqual([]);
@@ -1946,6 +1970,69 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     }
   });
 
+  it("keeps reasoning preference unchanged while Test Connection is in flight", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    let probeStarted = false;
+    let settleProbe!: (value: boolean) => void;
+    const probeResult = new Promise<boolean>((resolve) => {
+      settleProbe = resolve;
+    });
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+      probeProviderSelection: () => {
+        probeStarted = true;
+        return probeResult;
+      },
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "pi_provider",
+      selection: copilotAnthropicSelectionV1,
+      preferredReasoningEffort: "medium",
+      credential: { kind: "api_key", value: "reasoning-test-key" },
+    });
+    runtime.receive(connectionTestRequestV1(2, copilotAnthropicSelectionV1));
+    await waitUntilV1(() => probeStarted);
+
+    runtime.receive({
+      revision: 1,
+      kind: "set_reasoning_effort",
+      requestId: 3,
+      preferredReasoningEffort: "max",
+    });
+    expect(messages.at(-1)).toEqual({
+      revision: 1,
+      kind: "reasoning_effort_selection_failure",
+      requestId: 3,
+      code: "busy",
+    });
+
+    settleProbe(true);
+    await waitUntilV1(() => messages.some((message) => message.kind === "ready"));
+    runtime.receive({
+      revision: 1,
+      kind: "select_model",
+      requestId: 4,
+      selection: copilotCompletionsSelectionV1,
+    });
+    await waitUntilV1(() =>
+      messages.some((message) => message.kind === "model_selected" && message.requestId === 4)
+    );
+    expect(messages.at(-1)).toEqual({
+      revision: 1,
+      kind: "model_selected",
+      requestId: 4,
+      selection: copilotCompletionsSelectionV1,
+      effectiveReasoningEffort: resolveBrowserPiReasoningEffortV1(
+        copilotCompletionsSelectionV1,
+        "medium",
+      ),
+    });
+    runtime.dispose();
+  });
+
   it("switches one credential across its builtin route and uses the new model for probes and runs", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const probeInputs: {
@@ -1955,6 +2042,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const agentInputs: {
       readonly apiKey: string;
       readonly selection: BrowserPiModelSelectionV1;
+      readonly reasoningEffort: string;
       readonly workspaceTools: readonly string[];
     }[] = [];
     let settlePrompt: ((value: { readonly stopReason: "aborted" }) => void) | null = null;
@@ -1969,6 +2057,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         agentInputs.push({
           apiKey: input.apiKey,
           selection: structuredClone(input.selection),
+          reasoningEffort: input.reasoningEffort,
           workspaceTools: input.workspaceTools.map((tool) => tool.name),
         });
         return {
@@ -2001,6 +2090,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 2,
       runtime: "pi_provider",
       selection: copilotAnthropicSelectionV1,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "route-sentinel-key" },
     });
     runtime.receive({
@@ -2017,6 +2107,32 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       kind: "model_selected",
       requestId: 3,
       selection: copilotCompletionsSelectionV1,
+      effectiveReasoningEffort: resolveBrowserPiReasoningEffortV1(
+        copilotCompletionsSelectionV1,
+        "medium",
+      ),
+    });
+
+    runtime.receive({
+      revision: 1,
+      kind: "set_reasoning_effort",
+      requestId: 35,
+      preferredReasoningEffort: "max",
+    });
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "reasoning_effort_selected" && message.requestId === 35
+      )
+    );
+    expect(messages.at(-1)).toEqual({
+      revision: 1,
+      kind: "reasoning_effort_selected",
+      requestId: 35,
+      preferredReasoningEffort: "max",
+      effectiveReasoningEffort: resolveBrowserPiReasoningEffortV1(
+        copilotCompletionsSelectionV1,
+        "max",
+      ),
     });
 
     runtime.receive(connectionTestRequestV1(4, copilotCompletionsSelectionV1));
@@ -2050,8 +2166,30 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     expect(agentInputs).toEqual([{
       apiKey: "route-sentinel-key",
       selection: copilotCompletionsSelectionV1,
+      reasoningEffort: resolveBrowserPiReasoningEffortV1(
+        copilotCompletionsSelectionV1,
+        "max",
+      ),
       workspaceTools: ["read", "write", "edit", "bash", "grep", "fetch_url", "download"],
     }]);
+
+    runtime.receive({
+      revision: 1,
+      kind: "set_reasoning_effort",
+      requestId: 36,
+      preferredReasoningEffort: "low",
+    });
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "reasoning_effort_selection_failure" && message.requestId === 36
+      )
+    );
+    expect(messages.at(-1)).toEqual({
+      revision: 1,
+      kind: "reasoning_effort_selection_failure",
+      requestId: 36,
+      code: "busy",
+    });
 
     runtime.receive({
       revision: 1,
@@ -2082,11 +2220,30 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         (message.record as Readonly<Record<string, unknown>>).kind === "run_failed"
       )
     );
-    runtime.receive(connectionTestRequestV1(10, copilotCompletionsSelectionV1));
+    runtime.receive({
+      revision: 1,
+      kind: "select_model",
+      requestId: 37,
+      selection: copilotAnthropicSelectionV1,
+    });
+    await waitUntilV1(() =>
+      messages.some((message) => message.kind === "model_selected" && message.requestId === 37)
+    );
+    expect(messages.at(-1)).toEqual({
+      revision: 1,
+      kind: "model_selected",
+      requestId: 37,
+      selection: copilotAnthropicSelectionV1,
+      effectiveReasoningEffort: resolveBrowserPiReasoningEffortV1(
+        copilotAnthropicSelectionV1,
+        "max",
+      ),
+    });
+    runtime.receive(connectionTestRequestV1(10, copilotAnthropicSelectionV1));
     await waitUntilV1(() => probeInputs.length === 2);
     expect(probeInputs.at(-1)).toEqual({
       apiKey: "route-sentinel-key",
-      selection: copilotCompletionsSelectionV1,
+      selection: copilotAnthropicSelectionV1,
     });
     expect(JSON.stringify(messages)).not.toContain("route-sentinel-key");
     runtime.dispose();
@@ -2111,6 +2268,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 20,
       runtime: "pi_provider",
       selection: copilotAnthropicSelectionV1,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "preserved-route-key" },
     });
     runtime.receive({
@@ -2174,6 +2332,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 24,
       runtime: "pi_provider",
       selection: customSelectionV1,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "preserved-custom-key" },
     });
     customRuntime.receive({
@@ -2240,6 +2399,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 30,
       runtime: "pi_provider",
       selection: copilotAnthropicSelectionV1,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "testing-sentinel-key" },
     });
     runtime.receive(connectionTestRequestV1(31, copilotAnthropicSelectionV1));
@@ -2303,6 +2463,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 41,
       runtime: "pi_provider",
       selection: customSelectionV1,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "custom-sentinel-key" },
     });
     runtime.receive({
@@ -2311,6 +2472,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 42,
       runtime: "pi_provider",
       selection: customSelectionV1,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "second-key" },
     });
     runtime.receive(connectionTestRequestV1(43, customSelectionV1));
@@ -2327,6 +2489,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         requestId: 41,
         runtime: "pi_provider",
         selection: customSelectionV1,
+        effectiveReasoningEffort: "off",
         distribution: browserPiDistributionIdentityV1,
       },
       { revision: 1, kind: "protocol_failure", code: "already_configured" },
@@ -2383,6 +2546,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 44,
       runtime: "pi_provider",
       selection: customSelectionV1,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "pending-custom-key" },
     });
     expect(messages.at(-1)?.kind).toBe("configured");
@@ -2412,6 +2576,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 45,
       runtime: "pi_provider",
       selection: customSelectionV1,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "timed-out-custom-key" },
     });
     expect(messages.at(-1)?.kind).toBe("configured");
@@ -2489,6 +2654,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 8,
       runtime: "pi_provider",
       selection: selectedAnthropicModel,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "available-sentinel-key" },
     });
     expect(messages.at(-1)).toMatchObject({ kind: "configured", requestId: 8 });
@@ -2526,6 +2692,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "deterministic_test",
       selection: null,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "sentinel-browser-key" },
     });
     runtime.receive(connectionTestRequestV1(99, null));
@@ -2559,6 +2726,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "deterministic_test",
       selection: null,
+      effectiveReasoningEffort: "off",
       distribution: browserPiDistributionIdentityV1,
     });
     expect(messages[1]).toMatchObject({ kind: "ready", requestId: 99 });
@@ -2670,6 +2838,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "deterministic_test",
       selection: null,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "sentinel-edit-key" },
     });
     runtime.receive(connectionTestRequestV1(99, null));
@@ -2776,6 +2945,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "deterministic_test",
       selection: null,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "sentinel-bash-key" },
     });
     runtime.receive(connectionTestRequestV1(99, null));
@@ -2901,6 +3071,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "deterministic_test",
       selection: null,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "sentinel-file-ops-key" },
     });
     runtime.receive(connectionTestRequestV1(99, null));
@@ -3014,6 +3185,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "deterministic_test",
       selection: null,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "sentinel-grep-key" },
     });
     runtime.receive(connectionTestRequestV1(99, null));
@@ -3095,6 +3267,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "deterministic_test",
       selection: null,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "key" },
     });
     runtime.receive(connectionTestRequestV1(99, null));
@@ -3222,6 +3395,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "deterministic_test",
       selection: null,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "key" },
     });
     runtime.receive(connectionTestRequestV1(99, null));
@@ -3402,6 +3576,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "deterministic_test",
       selection: null,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "sentinel-network-key" },
     }, [brokerLease.agentPort]);
     const execution = await attachRuntimeWorkspaceV1(
@@ -3579,6 +3754,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "pi_provider",
       selection: availableSelectionV1,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "sentinel-network-disabled-key" },
     }, [brokerLease.agentPort]);
     const execution = await attachRuntimeWorkspaceV1(
@@ -3649,6 +3825,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "deterministic_test",
       selection: null,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "sentinel-download-key" },
     }, [brokerLease.agentPort]);
     const execution = await attachRuntimeWorkspaceV1(
@@ -3746,6 +3923,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "deterministic_test",
       selection: null,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "sentinel-download-timeout-key" },
     }, [brokerLease.agentPort]);
     const execution = await attachRuntimeWorkspaceV1(
@@ -3838,6 +4016,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 1,
       runtime: "deterministic_test",
       selection: null,
+      preferredReasoningEffort: "medium",
       credential: { kind: "api_key", value: "sentinel-network-key" },
     }, [brokerLease.agentPort]);
     const execution = await attachRuntimeWorkspaceV1(
@@ -4233,6 +4412,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
 
     await expect(port.configureCredential("sentinel-browser-key")).resolves.toEqual({
       kind: "configured",
+      effectiveReasoningEffort: "off",
     });
     expect(workerFactoryCalls).toBe(1);
     expect(worker.testConnectionRequests).toBe(0);
@@ -4258,6 +4438,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     });
     await expect(port.configureCredential("sentinel-browser-key")).resolves.toEqual({
       kind: "configured",
+      effectiveReasoningEffort: "off",
     });
     await expect(
       port.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
@@ -4414,6 +4595,12 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(workerFactoryCalls).toBe(0);
     await expect(port.configureCredential("creator-selection-key")).resolves.toEqual({
       kind: "configured",
+      effectiveReasoningEffort: "off",
+    });
+    await expect(port.selectReasoningEffort("max")).resolves.toEqual({
+      kind: "selected",
+      preferredReasoningEffort: "max",
+      effectiveReasoningEffort: "off",
     });
     await openProductWorkspaceV1(port);
     const unchangedSnapshot = port.getSnapshot();
@@ -4448,6 +4635,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     await expect(port.selectModel(copilotCompletionsSelectionV1)).resolves.toEqual({
       kind: "selected",
       selection: copilotCompletionsSelectionV1,
+      effectiveReasoningEffort: "off",
     });
     expect(port.getSnapshot()).toBe(unchangedSnapshot);
     expect(worker.startRequests).toBe(1);
@@ -4604,7 +4792,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
         // oxlint-disable-next-line unicorn/require-post-message-target-origin -- MessagePort has no targetOrigin
         deliveryPort.postMessage(recovered);
       },
-    })).resolves.toEqual({ kind: "configured" });
+    })).resolves.toEqual({ kind: "configured", effectiveReasoningEffort: "off" });
     expect(calls).toEqual([{
       binding,
       handoffId: "credential.handoff.transport.1",
@@ -4680,6 +4868,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(worker).toBeNull();
     await expect(transport.configureCredential("sentinel-browser-key")).resolves.toEqual({
       kind: "configured",
+      effectiveReasoningEffort: "off",
     });
     expect(worker).not.toBeNull();
     await expect(client.connect()).resolves.toEqual({ kind: "ready" });
@@ -4732,18 +4921,40 @@ describe("SillyOS Browser Pi transport and product port", () => {
     });
     await expect(transport.configureCredential("transport-selection-key")).resolves.toEqual({
       kind: "configured",
+      effectiveReasoningEffort: resolveBrowserPiReasoningEffortV1(
+        copilotAnthropicSelectionV1,
+        "medium",
+      ),
+    });
+    await expect(transport.setReasoningEffort("max")).resolves.toEqual({
+      kind: "selected",
+      preferredReasoningEffort: "max",
+      effectiveReasoningEffort: resolveBrowserPiReasoningEffortV1(
+        copilotAnthropicSelectionV1,
+        "max",
+      ),
     });
     await expect(transport.selectModel(copilotCompletionsSelectionV1)).resolves.toEqual({
       kind: "selected",
       selection: copilotCompletionsSelectionV1,
+      effectiveReasoningEffort: resolveBrowserPiReasoningEffortV1(
+        copilotCompletionsSelectionV1,
+        "max",
+      ),
     });
     expect(worker).not.toBeNull();
     const posted = (worker as unknown as InMemoryBrowserPiWorkerV1).posted;
-    expect(posted).toHaveLength(2);
+    expect(posted).toHaveLength(3);
     expect(posted[1]).toEqual({
       revision: 1,
-      kind: "select_model",
+      kind: "set_reasoning_effort",
       requestId: 2,
+      preferredReasoningEffort: "max",
+    });
+    expect(posted[2]).toEqual({
+      revision: 1,
+      kind: "select_model",
+      requestId: 3,
       selection: copilotCompletionsSelectionV1,
     });
     expect(posted.filter((message) => JSON.stringify(message).includes("transport-selection-key")))
@@ -4769,6 +4980,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
 
     await expect(transport.configureCredential("sentinel-browser-key")).resolves.toEqual({
       kind: "configured",
+      effectiveReasoningEffort: "off",
     });
     await expect(transport.testConnection()).resolves.toEqual({ kind: "ready" });
     await expect(client.connect()).resolves.toEqual({ kind: "ready" });

@@ -18,6 +18,7 @@ const harnessV1 = vi.hoisted(() => {
     ...model,
     id: "gpt-4.1-mini",
     name: "GPT-4.1 mini",
+    reasoning: true,
   });
   const unavailableModel = Object.freeze({
     ...model,
@@ -103,11 +104,13 @@ import {
   isBrowserPiSelectionAvailableV1,
   probeBrowserPiProviderSelectionV1,
   projectBrowserPiProviderCatalogV1,
+  resolveBrowserPiReasoningEffortV1,
 } from "../agent/browser-pi-provider-runtime-bridge.js";
 import type { BrowserPiProviderCatalogWireV1 } from "../agent/browser-pi-worker-protocol.ts";
 
 interface CapturedAgentInputV1 {
   readonly model: unknown;
+  readonly reasoningEffort: string;
   readonly streamFn: (
     model: unknown,
     context: { readonly messages: readonly unknown[] },
@@ -137,6 +140,58 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
     expect(browserPiCreatorToolChoiceV1(true)).toBe("none");
   });
 
+  it("projects Pi-native reasoning support and clamps one global preference per route", () => {
+    const catalog = projectBrowserPiProviderCatalogV1() as BrowserPiProviderCatalogWireV1;
+    expect(
+      catalog.providers[0]?.models.map((model) => ({
+        id: model.id,
+        supportedReasoningEfforts: model.supportedReasoningEfforts,
+        defaultReasoningEffort: model.defaultReasoningEffort,
+      })),
+    ).toEqual([
+      {
+        id: "gpt-4.1-nano",
+        supportedReasoningEfforts: ["off"],
+        defaultReasoningEffort: "off",
+      },
+      {
+        id: "gpt-4.1-mini",
+        supportedReasoningEfforts: ["off", "minimal", "low", "medium", "high"],
+        defaultReasoningEffort: "medium",
+      },
+      {
+        id: "gpt-4o-mini",
+        supportedReasoningEfforts: ["off"],
+        defaultReasoningEffort: "off",
+      },
+    ]);
+
+    expect(resolveBrowserPiReasoningEffortV1({
+      kind: "builtin",
+      providerId: "openai",
+      modelId: "gpt-4.1-nano",
+      ...openAISelectionRouteV1,
+    }, "max")).toBe("off");
+    expect(resolveBrowserPiReasoningEffortV1({
+      kind: "builtin",
+      providerId: "openai",
+      modelId: "gpt-4.1-mini",
+      ...openAISelectionRouteV1,
+    }, "max")).toBe("high");
+    expect(resolveBrowserPiReasoningEffortV1({
+      kind: "custom",
+      profile: {
+        profileId: "custom.reasoning-off",
+        displayName: "Custom reasoning-off profile",
+        api: "openai-responses",
+        baseUrl: "https://gateway.example.test/v1",
+        modelId: "private-model",
+        contextWindow: 32_768,
+        maxTokens: 4_096,
+      },
+    }, "max")).toBe("off");
+  });
+
   it("passes the neutral choice through the actual Pi streamSimple call", () => {
     createBrowserPiProviderAgentV1({
       apiKey: "test-only-key",
@@ -155,11 +210,13 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
         text: "Test a neutral tool choice.",
       }),
       workspaceTools: Object.freeze([]),
+      reasoningEffort: "high",
       onCandidate: vi.fn(),
       onTextDelta: vi.fn(),
     });
     const input = harnessV1.createdInputs.at(-1) as CapturedAgentInputV1 | undefined;
     if (input === undefined) throw new Error("Pi Agent input was not captured");
+    expect(input.reasoningEffort).toBe("off");
 
     input.streamFn(harnessV1.model, { messages: [] }, {});
     input.streamFn(harnessV1.model, {
@@ -256,6 +313,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
         text: "Use another model on the same route.",
       }),
       workspaceTools: Object.freeze([]),
+      reasoningEffort: "medium",
       onCandidate: vi.fn(),
       onTextDelta: vi.fn(),
     });
@@ -265,6 +323,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
       provider: "openai",
       api: "openai-responses",
     });
+    expect(captured?.reasoningEffort).toBe("medium");
 
     const unavailableSelection = {
       kind: "builtin",
@@ -292,6 +351,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
           text: "Reject an unsupported route family.",
         }),
         workspaceTools: Object.freeze([]),
+        reasoningEffort: "medium",
         onCandidate: vi.fn(),
         onTextDelta: vi.fn(),
       })
@@ -360,6 +420,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
           text: "Use the custom endpoint.",
         }),
         workspaceTools: Object.freeze([]),
+        reasoningEffort: "max",
         onCandidate: vi.fn(),
         onTextDelta: vi.fn(),
       });
@@ -369,6 +430,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
         api,
         baseUrl: "https://gateway.example.test/v1",
       });
+      expect(captured?.reasoningEffort).toBe("off");
     }
   });
 });

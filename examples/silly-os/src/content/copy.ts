@@ -191,6 +191,16 @@ export interface SillyOsCopyV1 {
   readonly creatorModelSwitching: string;
   readonly creatorNoConnectedModels: string;
   readonly creatorModelSettings: string;
+  readonly creatorReasoningEffort: string;
+  readonly creatorReasoningEffortSelection: string;
+  readonly creatorReasoningEffortSwitching: string;
+  readonly creatorReasoningEffortOff: string;
+  readonly creatorReasoningEffortMinimal: string;
+  readonly creatorReasoningEffortLow: string;
+  readonly creatorReasoningEffortMedium: string;
+  readonly creatorReasoningEffortHigh: string;
+  readonly creatorReasoningEffortXHigh: string;
+  readonly creatorReasoningEffortMax: string;
   readonly creatorModelTitle: string;
   readonly creatorModelDescription: string;
   readonly providerConnectionModelRequired: string;
@@ -454,6 +464,16 @@ const englishV1: SillyOsCopyV1 = {
   creatorModelSwitching: "Switching model…",
   creatorNoConnectedModels: "No checked model is currently available to Agent Creator.",
   creatorModelSettings: "Model settings",
+  creatorReasoningEffort: "Reasoning effort",
+  creatorReasoningEffortSelection: "Agent Creator reasoning effort",
+  creatorReasoningEffortSwitching: "Changing reasoning effort…",
+  creatorReasoningEffortOff: "Off",
+  creatorReasoningEffortMinimal: "Minimal",
+  creatorReasoningEffortLow: "Low",
+  creatorReasoningEffortMedium: "Medium",
+  creatorReasoningEffortHigh: "High",
+  creatorReasoningEffortXHigh: "Extra high",
+  creatorReasoningEffortMax: "Maximum",
   creatorModelTitle: "Use with Agent Creator",
   creatorModelDescription:
     "This device-local preference configures the current supervisor. The key never becomes Program or Workspace data.",
@@ -731,6 +751,16 @@ const chineseV1: SillyOsCopyV1 = {
   creatorModelSwitching: "正在切换模型……",
   creatorNoConnectedModels: "当前没有已勾选且可供 Agent Creator 使用的模型。",
   creatorModelSettings: "模型设置",
+  creatorReasoningEffort: "推理强度",
+  creatorReasoningEffortSelection: "Agent Creator 推理强度",
+  creatorReasoningEffortSwitching: "正在切换推理强度……",
+  creatorReasoningEffortOff: "关闭",
+  creatorReasoningEffortMinimal: "最低",
+  creatorReasoningEffortLow: "低",
+  creatorReasoningEffortMedium: "中",
+  creatorReasoningEffortHigh: "高",
+  creatorReasoningEffortXHigh: "极高",
+  creatorReasoningEffortMax: "最高",
   creatorModelTitle: "用于 Agent Creator",
   creatorModelDescription:
     "此设备上的模型偏好用于配置当前 supervisor；Key 永远不会成为 Program 或 Workspace 数据。",

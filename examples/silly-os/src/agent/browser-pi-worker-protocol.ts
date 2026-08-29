@@ -9,6 +9,29 @@ import type { BrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.
 
 export type BrowserPiWorkerRuntimeV1 = "deterministic_test" | "pi_provider";
 
+export type BrowserPiReasoningEffortV1 =
+  | "off"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max";
+
+const browserPiReasoningEffortsInOrderV1 = Object.freeze(
+  [
+    "off",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+  ] as const satisfies readonly BrowserPiReasoningEffortV1[],
+);
+
+export const browserPiDefaultReasoningEffortV1: BrowserPiReasoningEffortV1 = "medium";
+
 export type BrowserPiCustomModelApiV1 =
   | "openai-completions"
   | "openai-responses"
@@ -50,6 +73,8 @@ export interface BrowserPiCatalogModelWireV1 {
   readonly api: string;
   readonly baseUrl: string;
   readonly reasoning: boolean;
+  readonly supportedReasoningEfforts: readonly BrowserPiReasoningEffortV1[];
+  readonly defaultReasoningEffort: BrowserPiReasoningEffortV1;
   readonly input: readonly ("text" | "image")[];
   readonly contextWindow: number;
   readonly maxTokens: number;
@@ -82,6 +107,7 @@ export interface BrowserPiWorkerConfigureV1 {
   readonly requestId: number;
   readonly runtime: BrowserPiWorkerRuntimeV1;
   readonly selection: BrowserPiModelSelectionV1 | null;
+  readonly preferredReasoningEffort: BrowserPiReasoningEffortV1;
   readonly credential:
     | {
       readonly kind: "api_key";
@@ -107,6 +133,13 @@ export interface BrowserPiWorkerSelectModelV1 {
   readonly kind: "select_model";
   readonly requestId: number;
   readonly selection: BrowserPiModelSelectionV1;
+}
+
+export interface BrowserPiWorkerSetReasoningEffortV1 {
+  readonly revision: 1;
+  readonly kind: "set_reasoning_effort";
+  readonly requestId: number;
+  readonly preferredReasoningEffort: BrowserPiReasoningEffortV1;
 }
 
 export interface BrowserPiWorkerExecutionBindingV1 {
@@ -169,6 +202,7 @@ export type BrowserPiWorkerInboundMessageV1 =
   | BrowserPiWorkerConfigureV1
   | BrowserPiWorkerTestConnectionV1
   | BrowserPiWorkerSelectModelV1
+  | BrowserPiWorkerSetReasoningEffortV1
   | BrowserPiWorkerRpcRequestV1
   | BrowserPiWorkerWorkspaceRequestV1;
 
@@ -178,6 +212,7 @@ export interface BrowserPiWorkerConfiguredV1 {
   readonly requestId: number;
   readonly runtime: BrowserPiWorkerRuntimeV1;
   readonly selection: BrowserPiModelSelectionV1 | null;
+  readonly effectiveReasoningEffort: BrowserPiReasoningEffortV1;
   readonly distribution: BrowserPiDistributionIdentityV1;
 }
 
@@ -225,6 +260,7 @@ export interface BrowserPiWorkerModelSelectedV1 {
   readonly kind: "model_selected";
   readonly requestId: number;
   readonly selection: BrowserPiModelSelectionV1;
+  readonly effectiveReasoningEffort: BrowserPiReasoningEffortV1;
 }
 
 export type BrowserPiModelSelectionFailureCodeV1 =
@@ -238,6 +274,23 @@ export interface BrowserPiWorkerModelSelectionFailureV1 {
   readonly kind: "model_selection_failure";
   readonly requestId: number;
   readonly code: BrowserPiModelSelectionFailureCodeV1;
+}
+
+export interface BrowserPiWorkerReasoningEffortSelectedV1 {
+  readonly revision: 1;
+  readonly kind: "reasoning_effort_selected";
+  readonly requestId: number;
+  readonly preferredReasoningEffort: BrowserPiReasoningEffortV1;
+  readonly effectiveReasoningEffort: BrowserPiReasoningEffortV1;
+}
+
+export type BrowserPiReasoningEffortSelectionFailureCodeV1 = "not_configured" | "busy";
+
+export interface BrowserPiWorkerReasoningEffortSelectionFailureV1 {
+  readonly revision: 1;
+  readonly kind: "reasoning_effort_selection_failure";
+  readonly requestId: number;
+  readonly code: BrowserPiReasoningEffortSelectionFailureCodeV1;
 }
 
 export interface BrowserPiWorkerRpcResponseV1 {
@@ -365,6 +418,8 @@ export type BrowserPiWorkerOutboundMessageV1 =
   | BrowserPiWorkerConnectionTestFailureV1
   | BrowserPiWorkerModelSelectedV1
   | BrowserPiWorkerModelSelectionFailureV1
+  | BrowserPiWorkerReasoningEffortSelectedV1
+  | BrowserPiWorkerReasoningEffortSelectionFailureV1
   | BrowserPiWorkerRpcResponseV1
   | BrowserPiWorkerRpcFailureV1
   | BrowserPiWorkerRpcRecordV1
@@ -542,6 +597,13 @@ function isBrowserPiCustomModelApiV1(value: unknown): value is BrowserPiCustomMo
     value === "anthropic-messages" || value === "google-generative-ai";
 }
 
+export function isBrowserPiReasoningEffortV1(
+  value: unknown,
+): value is BrowserPiReasoningEffortV1 {
+  return typeof value === "string" &&
+    browserPiReasoningEffortsInOrderV1.includes(value as BrowserPiReasoningEffortV1);
+}
+
 function isCustomProfileIdV1(value: unknown): value is string {
   return isBoundedTextV1(value, customProfileIdMaximumUtf8BytesV1) &&
     /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/u.test(value);
@@ -649,6 +711,8 @@ function admitCatalogModelV1(value: unknown): BrowserPiCatalogModelWireV1 | null
     "api",
     "baseUrl",
     "reasoning",
+    "supportedReasoningEfforts",
+    "defaultReasoningEffort",
     "input",
     "contextWindow",
     "maxTokens",
@@ -660,7 +724,22 @@ function admitCatalogModelV1(value: unknown): BrowserPiCatalogModelWireV1 | null
     !isBoundedTextV1(model.api, catalogNameMaximumUtf8BytesV1) ||
     !isCatalogBaseUrlV1(model.baseUrl) ||
     typeof model.reasoning !== "boolean" || !isPositiveSafeIntegerV1(model.contextWindow) ||
-    !isPositiveSafeIntegerV1(model.maxTokens) || !isCatalogAvailabilityV1(model.availability)
+    !isPositiveSafeIntegerV1(model.maxTokens) || !isCatalogAvailabilityV1(model.availability) ||
+    !isBrowserPiReasoningEffortV1(model.defaultReasoningEffort)
+  ) return null;
+  const supportedReasoningEfforts = exactArrayV1(model.supportedReasoningEfforts, 7);
+  const supportedReasoningEffortIndexes = supportedReasoningEfforts?.map((effort) =>
+    browserPiReasoningEffortsInOrderV1.indexOf(effort as BrowserPiReasoningEffortV1)
+  );
+  if (
+    supportedReasoningEfforts === null || supportedReasoningEfforts.length === 0 ||
+    supportedReasoningEfforts.some((effort) => !isBrowserPiReasoningEffortV1(effort)) ||
+    new Set(supportedReasoningEfforts).size !== supportedReasoningEfforts.length ||
+    supportedReasoningEffortIndexes === undefined ||
+    supportedReasoningEffortIndexes.some((index, offset) =>
+      index < 0 || (offset > 0 && index <= supportedReasoningEffortIndexes[offset - 1]!)
+    ) ||
+    !supportedReasoningEfforts.includes(model.defaultReasoningEffort)
   ) return null;
   const input = exactArrayV1(model.input, 2);
   if (
@@ -674,6 +753,8 @@ function admitCatalogModelV1(value: unknown): BrowserPiCatalogModelWireV1 | null
     api: model.api,
     baseUrl: model.baseUrl,
     reasoning: model.reasoning,
+    supportedReasoningEfforts: supportedReasoningEfforts as readonly BrowserPiReasoningEffortV1[],
+    defaultReasoningEffort: model.defaultReasoningEffort,
     input: input as readonly ("text" | "image")[],
     contextWindow: model.contextWindow,
     maxTokens: model.maxTokens,
@@ -1000,8 +1081,15 @@ export function admitBrowserPiWorkerInboundMessageV1(
       "revision",
       "kind",
       "requestId",
+      "preferredReasoningEffort",
+    ]) ??
+    exactDataRecordV1(value, [
+      "revision",
+      "kind",
+      "requestId",
       "runtime",
       "selection",
+      "preferredReasoningEffort",
       "credential",
     ]);
   if (
@@ -1031,6 +1119,15 @@ export function admitBrowserPiWorkerInboundMessageV1(
       kind: "select_model",
       requestId: discriminator.requestId,
       selection,
+    };
+  }
+  if (discriminator.kind === "set_reasoning_effort") {
+    if (!isBrowserPiReasoningEffortV1(discriminator.preferredReasoningEffort)) return null;
+    return {
+      revision: 1,
+      kind: "set_reasoning_effort",
+      requestId: discriminator.requestId,
+      preferredReasoningEffort: discriminator.preferredReasoningEffort,
     };
   }
   if (discriminator.kind === "workspace_request") {
@@ -1085,6 +1182,7 @@ export function admitBrowserPiWorkerInboundMessageV1(
     (discriminator.runtime === "deterministic_test" && discriminator.selection !== null) ||
     (discriminator.runtime === "pi_provider" && selection === null)
   ) return null;
+  if (!isBrowserPiReasoningEffortV1(discriminator.preferredReasoningEffort)) return null;
   const directCredential = exactDataRecordV1(discriminator.credential, ["kind", "value"]);
   const handoffCredential = exactDataRecordV1(discriminator.credential, [
     "kind",
@@ -1110,6 +1208,7 @@ export function admitBrowserPiWorkerInboundMessageV1(
     requestId: discriminator.requestId,
     runtime: discriminator.runtime,
     selection,
+    preferredReasoningEffort: discriminator.preferredReasoningEffort,
     credential: ready === null
       ? { kind: "api_key", value: directCredential?.value as string }
       : { kind: "vault_handoff", handoffId: ready.handoffId, binding: ready.binding },
@@ -1128,9 +1227,31 @@ export function admitBrowserPiWorkerOutboundMessageV1(
       "requestId",
       "runtime",
       "selection",
+      "effectiveReasoningEffort",
       "distribution",
     ]) ??
-    exactDataRecordV1(value, ["revision", "kind", "requestId", "selection"]) ??
+    exactDataRecordV1(value, [
+      "revision",
+      "kind",
+      "requestId",
+      "runtime",
+      "selection",
+      "distribution",
+    ]) ??
+    exactDataRecordV1(value, [
+      "revision",
+      "kind",
+      "requestId",
+      "selection",
+      "effectiveReasoningEffort",
+    ]) ??
+    exactDataRecordV1(value, [
+      "revision",
+      "kind",
+      "requestId",
+      "preferredReasoningEffort",
+      "effectiveReasoningEffort",
+    ]) ??
     exactDataRecordV1(value, ["revision", "kind", "requestId", "ok", "catalog"]) ??
     exactDataRecordV1(value, ["revision", "kind", "requestId", "ok", "response"]) ??
     exactDataRecordV1(value, ["revision", "kind", "requestId", "ok", "code"]);
@@ -1179,14 +1300,39 @@ export function admitBrowserPiWorkerOutboundMessageV1(
       code: base.code,
     };
   }
+  if (base.kind === "reasoning_effort_selection_failure") {
+    if (base.code !== "not_configured" && base.code !== "busy") return null;
+    return {
+      revision: 1,
+      kind: "reasoning_effort_selection_failure",
+      requestId: base.requestId,
+      code: base.code,
+    };
+  }
   if (base.kind === "model_selected") {
     const selection = admitBrowserPiModelSelectionV1(base.selection);
-    if (selection === null) return null;
+    if (selection === null || !isBrowserPiReasoningEffortV1(base.effectiveReasoningEffort)) {
+      return null;
+    }
     return {
       revision: 1,
       kind: "model_selected",
       requestId: base.requestId,
       selection,
+      effectiveReasoningEffort: base.effectiveReasoningEffort,
+    };
+  }
+  if (base.kind === "reasoning_effort_selected") {
+    if (
+      !isBrowserPiReasoningEffortV1(base.preferredReasoningEffort) ||
+      !isBrowserPiReasoningEffortV1(base.effectiveReasoningEffort)
+    ) return null;
+    return {
+      revision: 1,
+      kind: "reasoning_effort_selected",
+      requestId: base.requestId,
+      preferredReasoningEffort: base.preferredReasoningEffort,
+      effectiveReasoningEffort: base.effectiveReasoningEffort,
     };
   }
   if (base.kind === "catalog_response") {
@@ -1212,7 +1358,30 @@ export function admitBrowserPiWorkerOutboundMessageV1(
     }
     return null;
   }
-  if (base.kind === "configured" || base.kind === "ready") {
+  if (base.kind === "configured") {
+    if (
+      (base.runtime !== "deterministic_test" && base.runtime !== "pi_provider") ||
+      !isBrowserPiDistributionIdentityV1(base.distribution) ||
+      !isBrowserPiReasoningEffortV1(base.effectiveReasoningEffort)
+    ) return null;
+    const selection = base.selection === null
+      ? null
+      : admitBrowserPiModelSelectionV1(base.selection);
+    if (
+      (base.runtime === "deterministic_test" && base.selection !== null) ||
+      (base.runtime === "pi_provider" && selection === null)
+    ) return null;
+    return {
+      revision: 1,
+      kind: base.kind,
+      requestId: base.requestId,
+      runtime: base.runtime,
+      selection,
+      effectiveReasoningEffort: base.effectiveReasoningEffort,
+      distribution: base.distribution,
+    };
+  }
+  if (base.kind === "ready") {
     if (
       (base.runtime !== "deterministic_test" && base.runtime !== "pi_provider") ||
       !isBrowserPiDistributionIdentityV1(base.distribution)
@@ -1226,7 +1395,7 @@ export function admitBrowserPiWorkerOutboundMessageV1(
     ) return null;
     return {
       revision: 1,
-      kind: base.kind,
+      kind: "ready",
       requestId: base.requestId,
       runtime: base.runtime,
       selection,

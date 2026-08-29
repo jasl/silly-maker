@@ -25,8 +25,12 @@ import { credentialVaultBindingForSelectionV2 } from "../credential/provider-cre
 import {
   admitBrowserPiEngineRequestV1,
   admitBrowserPiWorkerAnyOutboundMessageV1,
+  browserPiDefaultReasoningEffortV1,
   browserPiSelectionEndpointOriginV1,
+  isBrowserPiReasoningEffortV1,
   type BrowserPiModelSelectionFailureCodeV1,
+  type BrowserPiReasoningEffortSelectionFailureCodeV1,
+  type BrowserPiReasoningEffortV1,
   type BrowserPiWorkerConfigureV1,
   type BrowserPiModelSelectionV1,
   type BrowserPiWorkspaceMutationReceiptWireV1,
@@ -68,26 +72,52 @@ export interface BrowserPiWorkspaceFailureV1 {
 }
 
 export type BrowserPiWorkerSelectModelResultV1 =
-  | { readonly kind: "selected"; readonly selection: BrowserPiModelSelectionV1 }
+  | {
+    readonly kind: "selected";
+    readonly selection: BrowserPiModelSelectionV1;
+    readonly effectiveReasoningEffort: BrowserPiReasoningEffortV1;
+  }
   | {
     readonly kind: "unavailable";
     readonly reason: BrowserPiModelSelectionFailureCodeV1;
   };
 
+export type BrowserPiWorkerSetReasoningEffortResultV1 =
+  | {
+    readonly kind: "selected";
+    readonly preferredReasoningEffort: BrowserPiReasoningEffortV1;
+    readonly effectiveReasoningEffort: BrowserPiReasoningEffortV1;
+  }
+  | {
+    readonly kind: "unavailable";
+    readonly reason: BrowserPiReasoningEffortSelectionFailureCodeV1;
+  };
+
 export interface BrowserPiWorkerRawTransportV1 extends AgentRpcRawTransportInternalV1 {
   configureCredential(apiKey: string): Promise<
-    { readonly kind: "configured" } | { readonly kind: "unavailable"; readonly reason: "failed" }
+    | {
+      readonly kind: "configured";
+      readonly effectiveReasoningEffort: BrowserPiReasoningEffortV1;
+    }
+    | { readonly kind: "unavailable"; readonly reason: "failed" }
   >;
   configureCredentialHandoff(input: {
     readonly binding: CredentialVaultBindingV2;
     readonly handoff: BrowserPiCredentialHandoffV1;
   }): Promise<
-    { readonly kind: "configured" } | { readonly kind: "unavailable"; readonly reason: "failed" }
+    | {
+      readonly kind: "configured";
+      readonly effectiveReasoningEffort: BrowserPiReasoningEffortV1;
+    }
+    | { readonly kind: "unavailable"; readonly reason: "failed" }
   >;
   testConnection(selection?: BrowserPiModelSelectionV1 | null): Promise<
     { readonly kind: "ready" } | { readonly kind: "unavailable"; readonly reason: "failed" }
   >;
   selectModel(selection: BrowserPiModelSelectionV1): Promise<BrowserPiWorkerSelectModelResultV1>;
+  setReasoningEffort(
+    preferredReasoningEffort: BrowserPiReasoningEffortV1,
+  ): Promise<BrowserPiWorkerSetReasoningEffortResultV1>;
   openWorkspace(input: {
     readonly programId: string;
     readonly workspaceId: string;
@@ -155,6 +185,12 @@ interface ConnectionStateV1 {
       readonly selection: BrowserPiModelSelectionV1;
       readonly resolve: (result: BrowserPiWorkerSelectModelResultV1) => void;
     }
+    | {
+      readonly kind: "set_reasoning_effort";
+      readonly requestId: number;
+      readonly preferredReasoningEffort: BrowserPiReasoningEffortV1;
+      readonly resolve: (result: BrowserPiWorkerSetReasoningEffortResultV1) => void;
+    }
     | null;
   messageListener: BrowserPiWorkerMessageListenerV1;
   errorListener: BrowserPiWorkerErrorListenerV1;
@@ -164,6 +200,8 @@ interface ConnectionStateV1 {
   activeWorkspace: BrowserPiWorkspaceSnapshotWireV1 | null;
   workspaceReceiptSequence: number;
   activeSelection: BrowserPiModelSelectionV1 | null;
+  activePreferredReasoningEffort: BrowserPiReasoningEffortV1;
+  activeEffectiveReasoningEffort: BrowserPiReasoningEffortV1 | null;
   credentialAccepted: boolean;
   connectionIssued: boolean;
   ready: boolean;
@@ -270,6 +308,7 @@ export function createBrowserPiWorkerRawTransportV1({
   openNetworkBroker,
   runtime,
   selection: suppliedSelection = null,
+  preferredReasoningEffort: suppliedPreferredReasoningEffort = browserPiDefaultReasoningEffortV1,
   workspaceAuthority,
   workerFactory = createDefaultBrowserPiWorkerV1,
   createCredentialHandoffId = () => `credential.handoff.${crypto.randomUUID()}`,
@@ -280,11 +319,15 @@ export function createBrowserPiWorkerRawTransportV1({
     readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
     readonly workerFactory?: BrowserPiWorkerFactoryV1;
     readonly createCredentialHandoffId?: () => string;
+    readonly preferredReasoningEffort?: BrowserPiReasoningEffortV1;
   }
   & (
     | { readonly runtime: "deterministic_test"; readonly selection?: null }
     | { readonly runtime: "pi_provider"; readonly selection: BrowserPiModelSelectionV1 }
   )): BrowserPiWorkerRawTransportV1 {
+  const preferredReasoningEffort = isBrowserPiReasoningEffortV1(suppliedPreferredReasoningEffort)
+    ? suppliedPreferredReasoningEffort
+    : browserPiDefaultReasoningEffortV1;
   const selection = suppliedSelection === null ? null : copySelectionV1(suppliedSelection);
   const endpointOrigin = selection === null ? null : browserPiSelectionEndpointOriginV1(selection);
   const selectionHasValidEndpoint = selection === null || endpointOrigin !== null;
@@ -332,6 +375,8 @@ export function createBrowserPiWorkerRawTransportV1({
     state.pending.clear();
     state.bufferedEvents.length = 0;
     if (state.setup?.kind === "select_model") {
+      state.setup.resolve({ kind: "unavailable", reason: "not_configured" });
+    } else if (state.setup?.kind === "set_reasoning_effort") {
       state.setup.resolve({ kind: "unavailable", reason: "not_configured" });
     } else state.setup?.resolve(false);
     state.setup = null;
@@ -385,7 +430,9 @@ export function createBrowserPiWorkerRawTransportV1({
 
   const settleSetupV1 = (state: ConnectionStateV1, accepted: boolean): void => {
     const setup = state.setup;
-    if (setup === null || setup.kind === "select_model") return;
+    if (
+      setup === null || setup.kind === "select_model" || setup.kind === "set_reasoning_effort"
+    ) return;
     state.setup = null;
     if (state.cancelSetupTimer !== null) {
       state.cancelSetupTimer();
@@ -400,6 +447,20 @@ export function createBrowserPiWorkerRawTransportV1({
   ): void => {
     const setup = state.setup;
     if (setup === null || setup.kind !== "select_model") return;
+    state.setup = null;
+    if (state.cancelSetupTimer !== null) {
+      state.cancelSetupTimer();
+      state.cancelSetupTimer = null;
+    }
+    setup.resolve(result);
+  };
+
+  const settleReasoningEffortSelectionV1 = (
+    state: ConnectionStateV1,
+    result: BrowserPiWorkerSetReasoningEffortResultV1,
+  ): void => {
+    const setup = state.setup;
+    if (setup === null || setup.kind !== "set_reasoning_effort") return;
     state.setup = null;
     if (state.cancelSetupTimer !== null) {
       state.cancelSetupTimer();
@@ -460,6 +521,8 @@ export function createBrowserPiWorkerRawTransportV1({
       activeWorkspace: null,
       workspaceReceiptSequence: 0,
       activeSelection: selection,
+      activePreferredReasoningEffort: preferredReasoningEffort,
+      activeEffectiveReasoningEffort: null,
       credentialAccepted: false,
       connectionIssued: false,
       ready: false,
@@ -541,9 +604,43 @@ export function createBrowserPiWorkerRawTransportV1({
           return;
         }
         state.activeSelection = copySelectionV1(message.selection);
+        state.activeEffectiveReasoningEffort = message.effectiveReasoningEffort;
         settleModelSelectionV1(state, {
           kind: "selected",
           selection: copySelectionV1(message.selection),
+          effectiveReasoningEffort: message.effectiveReasoningEffort,
+        });
+        return;
+      }
+      if (
+        message.kind === "reasoning_effort_selected" ||
+        message.kind === "reasoning_effort_selection_failure"
+      ) {
+        const setup = state.setup;
+        if (
+          setup === null || setup.kind !== "set_reasoning_effort" ||
+          message.requestId !== setup.requestId
+        ) {
+          closeState(state, "reasoning_effort_response_unexpected");
+          return;
+        }
+        if (message.kind === "reasoning_effort_selection_failure") {
+          settleReasoningEffortSelectionV1(state, {
+            kind: "unavailable",
+            reason: message.code,
+          });
+          return;
+        }
+        if (message.preferredReasoningEffort !== setup.preferredReasoningEffort) {
+          closeState(state, "reasoning_effort_response_invalid");
+          return;
+        }
+        state.activePreferredReasoningEffort = message.preferredReasoningEffort;
+        state.activeEffectiveReasoningEffort = message.effectiveReasoningEffort;
+        settleReasoningEffortSelectionV1(state, {
+          kind: "selected",
+          preferredReasoningEffort: message.preferredReasoningEffort,
+          effectiveReasoningEffort: message.effectiveReasoningEffort,
         });
         return;
       }
@@ -566,6 +663,7 @@ export function createBrowserPiWorkerRawTransportV1({
           }
           state.credentialAccepted = true;
           state.ready = true;
+          state.activeEffectiveReasoningEffort = message.effectiveReasoningEffort;
           settleSetupV1(state, true);
           return;
         }
@@ -775,6 +873,7 @@ export function createBrowserPiWorkerRawTransportV1({
           requestId,
           runtime,
           selection,
+          preferredReasoningEffort: state.activePreferredReasoningEffort,
           credential: { kind: "api_key", value: credential },
         };
         worker.postMessage(configure, [networkBrokerLease.agentPort]);
@@ -784,7 +883,10 @@ export function createBrowserPiWorkerRawTransportV1({
         if (!state.closed) closeState(state, "configuration_failed", { expected: true });
         return { kind: "unavailable", reason: "failed" };
       }
-      return { kind: "configured" };
+      const effectiveReasoningEffort = state.activeEffectiveReasoningEffort;
+      return effectiveReasoningEffort === null
+        ? { kind: "unavailable", reason: "failed" }
+        : { kind: "configured", effectiveReasoningEffort };
     },
     async configureCredentialHandoff(input) {
       if (
@@ -833,6 +935,7 @@ export function createBrowserPiWorkerRawTransportV1({
           requestId,
           runtime,
           selection,
+          preferredReasoningEffort: state.activePreferredReasoningEffort,
           credential: { kind: "vault_handoff", handoffId, binding },
         };
         worker.postMessage(configure, [networkBrokerLease.agentPort, channel.port1]);
@@ -877,7 +980,10 @@ export function createBrowserPiWorkerRawTransportV1({
         if (!state.closed) closeState(state, "configuration_failed", { expected: true });
         return { kind: "unavailable", reason: "failed" };
       }
-      return { kind: "configured" };
+      const effectiveReasoningEffort = state.activeEffectiveReasoningEffort;
+      return effectiveReasoningEffort === null
+        ? { kind: "unavailable", reason: "failed" }
+        : { kind: "configured", effectiveReasoningEffort };
     },
     async testConnection(requestedSelection = activeState?.activeSelection ?? null) {
       const state = activeState;
@@ -937,6 +1043,45 @@ export function createBrowserPiWorkerRawTransportV1({
         state.worker.postMessage(request);
       } catch {
         closeState(state, "select_model_post_failed");
+      }
+      return result;
+    },
+    setReasoningEffort(requestedPreferredReasoningEffort) {
+      const state = activeState;
+      if (state === null || state.closed || !state.credentialAccepted) {
+        return Promise.resolve({ kind: "unavailable", reason: "not_configured" });
+      }
+      if (state.setup !== null) {
+        return Promise.resolve({ kind: "unavailable", reason: "busy" });
+      }
+      const requestId = state.nextCallId++;
+      let resolveReasoningEffort!: (result: BrowserPiWorkerSetReasoningEffortResultV1) => void;
+      const result = new Promise<BrowserPiWorkerSetReasoningEffortResultV1>((resolve) => {
+        resolveReasoningEffort = resolve;
+      });
+      state.setup = {
+        kind: "set_reasoning_effort",
+        requestId,
+        preferredReasoningEffort: requestedPreferredReasoningEffort,
+        resolve: resolveReasoningEffort,
+      };
+      const timer = setTimeout(
+        () => closeState(state, "set_reasoning_effort_timeout"),
+        readyTimeoutMillisecondsV1,
+      );
+      state.cancelSetupTimer = () => clearTimeout(timer);
+      try {
+        const request = Object.freeze({
+          revision: 1,
+          kind: "set_reasoning_effort",
+          requestId,
+          preferredReasoningEffort: requestedPreferredReasoningEffort,
+        });
+        // Worker.postMessage has no targetOrigin parameter.
+        // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
+        state.worker.postMessage(request);
+      } catch {
+        closeState(state, "set_reasoning_effort_post_failed");
       }
       return result;
     },

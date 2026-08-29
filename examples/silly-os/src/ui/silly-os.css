@@ -710,8 +710,20 @@ body,
 
 .creator-composer__model-picker {
   position: relative;
+  display: flex;
+  align-items: center;
   min-inline-size: 0;
-  max-inline-size: min(250px, 36vw);
+  max-inline-size: min(350px, 48vw);
+  gap: 4px;
+}
+
+.creator-composer__model-control {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.creator-composer__reasoning-control {
+  flex: 0 0 auto;
 }
 
 .creator-composer__model-selector {
@@ -804,6 +816,55 @@ body,
   transform: rotate(180deg);
 }
 
+.creator-composer__reasoning-selector {
+  display: flex;
+  align-items: center;
+  block-size: 36px;
+  min-inline-size: 92px;
+  padding-inline: 9px 7px;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: var(--sos-ink-soft);
+  background: var(--sos-surface-raised);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.creator-composer__reasoning-selector:hover:not(:disabled),
+.creator-composer__reasoning-selector[aria-expanded="true"] {
+  border-color: var(--sos-line);
+  color: var(--sos-ink);
+  background: var(--sos-surface-muted);
+}
+
+.creator-composer__reasoning-selector:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.creator-composer__reasoning-selector:disabled {
+  color: var(--sos-ink-muted);
+  opacity: 0.64;
+}
+
+.creator-composer__reasoning-selector > svg:first-child {
+  color: var(--sos-accent-dark);
+}
+
+.creator-composer__reasoning-selector > svg:last-child {
+  color: var(--sos-ink-muted);
+}
+
+.creator-composer__reasoning-selector[aria-expanded="true"] > svg:last-child {
+  transform: rotate(180deg);
+}
+
 .creator-composer__model-popover {
   position: absolute;
   z-index: 40;
@@ -821,6 +882,61 @@ body,
     0 3px 10px rgb(39 42 38 / 8%),
     inset 0 1px rgb(255 255 255 / 90%);
   animation: creator-model-popover-in 140ms ease-out;
+}
+
+.creator-composer__reasoning-popover {
+  position: absolute;
+  z-index: 41;
+  inset-inline-end: 0;
+  inset-block-end: calc(100% + 8px);
+  inline-size: 156px;
+  padding: 5px;
+  overflow: hidden;
+  border: 1px solid rgb(29 29 27 / 10%);
+  border-radius: 14px;
+  background: var(--sos-surface);
+  box-shadow:
+    0 18px 48px rgb(39 42 38 / 14%),
+    0 3px 10px rgb(39 42 38 / 8%),
+    inset 0 1px rgb(255 255 255 / 90%);
+  animation: creator-model-popover-in 140ms ease-out;
+}
+
+.creator-composer__reasoning-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: 34px;
+  padding: 5px 8px;
+  gap: 8px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--sos-ink-soft);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 650;
+  text-align: start;
+}
+
+.creator-composer__reasoning-option:hover,
+.creator-composer__reasoning-option[data-active="true"] {
+  color: var(--sos-ink);
+  background: var(--sos-surface-muted);
+}
+
+.creator-composer__reasoning-option[aria-selected="true"] {
+  color: var(--sos-ink);
+  background: var(--sos-accent-soft);
+}
+
+.creator-composer__reasoning-option > svg {
+  color: var(--sos-accent-dark);
+  opacity: 0;
+}
+
+.creator-composer__reasoning-option[aria-selected="true"] > svg {
+  opacity: 1;
 }
 
 .creator-composer__model-popover > [role="listbox"] {
@@ -3409,7 +3525,7 @@ body,
 
 .chat-composer__primary-actions > .creator-composer__model-picker {
   flex: 1 1 auto;
-  max-inline-size: min(220px, 42vw);
+  max-inline-size: min(320px, 54vw);
 }
 
 .chat-composer .creator-composer__model-picker {
@@ -4732,11 +4848,24 @@ body,
 
   .creator-composer__model-picker {
     flex: 1 1 auto;
-    max-inline-size: min(180px, 35vw);
+    max-inline-size: min(260px, 48vw);
   }
 
-  .creator-composer__model-selector {
+  .creator-composer__model-selector,
+  .creator-composer__reasoning-selector {
     block-size: 42px;
+  }
+
+  .creator-composer__reasoning-selector {
+    min-inline-size: 42px;
+    inline-size: 42px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .creator-composer__reasoning-selector > span,
+  .creator-composer__reasoning-selector > svg:last-child {
+    display: none;
   }
 
   .creator-composer__model-copy small {
@@ -4866,7 +4995,7 @@ body,
   }
 
   .chat-composer__primary-actions > .creator-composer__model-picker {
-    max-inline-size: min(180px, 46vw);
+    max-inline-size: min(260px, 56vw);
   }
 
   .workpiece-pane {

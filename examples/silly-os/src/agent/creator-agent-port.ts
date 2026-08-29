@@ -48,6 +48,7 @@ import {
 import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
 import type {
   BrowserPiModelSelectionV1,
+  BrowserPiReasoningEffortV1,
   BrowserPiWorkspaceMutationReceiptWireV1,
   BrowserPiWorkspaceSnapshotWireV1,
 } from "./browser-pi-worker-protocol.ts";
@@ -118,7 +119,10 @@ export interface CreatorAgentSnapshotV1 {
 }
 
 export type CreatorAgentConfigureCredentialResultV1 =
-  | { readonly kind: "configured" }
+  | {
+    readonly kind: "configured";
+    readonly effectiveReasoningEffort: BrowserPiReasoningEffortV1;
+  }
   | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
 
 export type CreatorAgentTestConnectionResultV1 =
@@ -126,7 +130,19 @@ export type CreatorAgentTestConnectionResultV1 =
   | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
 
 export type CreatorAgentSelectModelResultV1 =
-  | { readonly kind: "selected"; readonly selection: BrowserPiModelSelectionV1 }
+  | {
+    readonly kind: "selected";
+    readonly selection: BrowserPiModelSelectionV1;
+    readonly effectiveReasoningEffort: BrowserPiReasoningEffortV1;
+  }
+  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
+
+export type CreatorAgentSelectReasoningEffortResultV1 =
+  | {
+    readonly kind: "selected";
+    readonly preferredReasoningEffort: BrowserPiReasoningEffortV1;
+    readonly effectiveReasoningEffort: BrowserPiReasoningEffortV1;
+  }
   | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
 
 export type CreatorAgentPortSubmitResultV1 =
@@ -176,6 +192,9 @@ export interface CreatorAgentPortV1 {
     selection?: BrowserPiModelSelectionV1 | null,
   ): Promise<CreatorAgentTestConnectionResultV1>;
   selectModel(selection: BrowserPiModelSelectionV1): Promise<CreatorAgentSelectModelResultV1>;
+  selectReasoningEffort(
+    preferredReasoningEffort: BrowserPiReasoningEffortV1,
+  ): Promise<CreatorAgentSelectReasoningEffortResultV1>;
   openWorkspace(input: {
     readonly programId: string;
     readonly workspaceId: string;
@@ -437,6 +456,7 @@ export function createBrowserCreatorAgentPortV1(
       readonly createCredentialHandoffId?: () => string;
       readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
       readonly openNetworkBroker: BrowserPiOpenNetworkBrokerV1;
+      readonly preferredReasoningEffort?: BrowserPiReasoningEffortV1;
     }
     & (
       | { readonly runtime: "deterministic_test"; readonly selection?: null }
@@ -446,6 +466,7 @@ export function createBrowserCreatorAgentPortV1(
   const { workspaceAuthority } = input;
   const notifyConnectionLost = input.onConnectionLost;
   let providerCredentialConfigured = false;
+  let configuredEffectiveReasoningEffort: BrowserPiReasoningEffortV1 | null = null;
   let credentialRevoked = false;
   const transport = createBrowserPiWorkerRawTransportV1({
     ...input,
@@ -453,6 +474,7 @@ export function createBrowserCreatorAgentPortV1(
     onConnectionLost: () => {
       if (!providerCredentialConfigured) return;
       providerCredentialConfigured = false;
+      configuredEffectiveReasoningEffort = null;
       if (!terminal) {
         connectionFailureDiagnostic = diagnosticV1("connection_failed", "/connection");
         failFacadeV1(connectionFailureDiagnostic);
@@ -947,7 +969,12 @@ export function createBrowserCreatorAgentPortV1(
     if (terminal || finishPromise !== null) {
       return Promise.resolve({ kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") });
     }
-    if (providerCredentialConfigured) return Promise.resolve({ kind: "configured" });
+    if (providerCredentialConfigured && configuredEffectiveReasoningEffort !== null) {
+      return Promise.resolve({
+        kind: "configured",
+        effectiveReasoningEffort: configuredEffectiveReasoningEffort,
+      });
+    }
     if (configurePromise !== null) return configurePromise;
     const expectedEpoch = lifecycleEpoch;
     phase = "configuring";
@@ -964,6 +991,7 @@ export function createBrowserCreatorAgentPortV1(
         return { kind: "unavailable", diagnostic: mapped };
       }
       providerCredentialConfigured = true;
+      configuredEffectiveReasoningEffort = configured.effectiveReasoningEffort;
       const connected = await client.connect();
       if (terminal || lifecycleEpoch !== expectedEpoch) {
         return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
@@ -989,7 +1017,10 @@ export function createBrowserCreatorAgentPortV1(
       phase = "ready";
       diagnostic = null;
       publish();
-      return { kind: "configured" };
+      return {
+        kind: "configured",
+        effectiveReasoningEffort: configured.effectiveReasoningEffort,
+      };
     })();
     configurePromise = attempt;
     void attempt.finally(() => {
@@ -1099,7 +1130,12 @@ export function createBrowserCreatorAgentPortV1(
       };
     }
     if (result.kind === "selected") {
-      return { kind: "selected", selection: result.selection };
+      configuredEffectiveReasoningEffort = result.effectiveReasoningEffort;
+      return {
+        kind: "selected",
+        selection: result.selection,
+        effectiveReasoningEffort: result.effectiveReasoningEffort,
+      };
     }
     const code = result.reason === "not_configured"
       ? "unconfigured"
@@ -1109,6 +1145,50 @@ export function createBrowserCreatorAgentPortV1(
     return {
       kind: "unavailable",
       diagnostic: diagnosticV1(code, "/selection"),
+    };
+  };
+
+  const selectReasoningEffort = async (
+    preferredReasoningEffort: BrowserPiReasoningEffortV1,
+  ): Promise<CreatorAgentSelectReasoningEffortResultV1> => {
+    if (terminal || finishPromise !== null) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("disposed", "/reasoningEffort"),
+      };
+    }
+    if (!providerCredentialConfigured) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("unconfigured", "/reasoningEffort"),
+      };
+    }
+    const expectedEpoch = lifecycleEpoch;
+    let result: Awaited<ReturnType<BrowserPiWorkerRawTransportV1["setReasoningEffort"]>>;
+    try {
+      result = await transport.setReasoningEffort(preferredReasoningEffort);
+    } catch {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("request_failed", "/reasoningEffort"),
+      };
+    }
+    if (terminal || lifecycleEpoch !== expectedEpoch) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("disposed", "/reasoningEffort"),
+      };
+    }
+    if (result.kind === "selected") {
+      configuredEffectiveReasoningEffort = result.effectiveReasoningEffort;
+      return result;
+    }
+    return {
+      kind: "unavailable",
+      diagnostic: diagnosticV1(
+        result.reason === "not_configured" ? "unconfigured" : "request_failed",
+        "/reasoningEffort",
+      ),
     };
   };
 
@@ -1411,6 +1491,7 @@ export function createBrowserCreatorAgentPortV1(
     if (finishPromise !== null) return finishPromise;
     lifecycleEpoch += 1;
     providerCredentialConfigured = false;
+    configuredEffectiveReasoningEffort = null;
     workspacePhase = workspaceDescriptor === null ? "closed" : "closing";
     workspaceDiagnostic = null;
     publish();
@@ -1465,6 +1546,7 @@ export function createBrowserCreatorAgentPortV1(
     configureCredentialHandoff,
     testConnection,
     selectModel,
+    selectReasoningEffort,
     openWorkspace,
     closeWorkspace,
     acknowledgeWorkspaceReceipts,
@@ -1474,6 +1556,7 @@ export function createBrowserCreatorAgentPortV1(
       credentialRevoked = true;
       lifecycleEpoch += 1;
       providerCredentialConfigured = false;
+      configuredEffectiveReasoningEffort = null;
       workspaceExportAbort?.abort();
       workspaceExportAbort = null;
       transport.revokeCredential();
