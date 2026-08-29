@@ -126,6 +126,7 @@ describe("SillyOS independent Workspace Sandbox response boundary", () => {
     expect(config).toContain('"name": "silly-os-sandbox"');
     expect(config).toContain('"main": "./src/deployment/cloudflare-workspace-sandbox-worker.ts"');
     expect(config).toContain('"directory": "./dist-workspace-sandbox"');
+    expect(config).toContain('"html_handling": "none"');
     expect(config).toContain('"run_worker_first": ["/*"]');
   });
 

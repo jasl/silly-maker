@@ -84,6 +84,7 @@ describe("SillyOS independent Network Broker response boundary", () => {
     expect(headers).not.toContain("X-Frame-Options");
     expect(config).toContain('"name": "silly-os-network"');
     expect(config).toContain('"directory": "./dist-network-broker"');
+    expect(config).toContain('"html_handling": "none"');
   });
 
   it("returns the closed policy when the static binding fails", async () => {

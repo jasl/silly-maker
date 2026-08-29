@@ -8,6 +8,7 @@
   "assets": {
     "directory": "./dist-workspace-sandbox",
     "binding": "ASSETS",
+    "html_handling": "none",
     "run_worker_first": ["/*"],
   },
 }
