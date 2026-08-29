@@ -869,7 +869,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
       ((providerWarningBox?.y ?? 0) + (providerWarningBox?.height ?? 0)),
   ).toBeGreaterThanOrEqual(13);
   const composerControlRadii = await page.locator(
-    ".creator-composer textarea, .creator-composer__actions .sos-button",
+    ".creator-composer .sos-textarea, .creator-composer__actions .sos-button",
   ).evaluateAll((elements) => elements.map((element) => getComputedStyle(element).borderRadius));
   expect(new Set(composerControlRadii)).toEqual(new Set(["12px"]));
   await providerWarning.click();
@@ -1184,6 +1184,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   );
 
   const creatorIntent = page.getByRole("textbox", { name: "What would you like to make?" });
+  await expect(creatorIntent).toHaveClass(/\bsos-textarea\b/u);
   const createProgramButton = page.getByRole("button", { name: "Create program" });
   await expect(createProgramButton).toBeDisabled();
   await creatorIntent.fill(translationIntentV1);
@@ -1228,6 +1229,8 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
 
   const chatFeed = page.locator(".chat-pane__feed");
   const chatComposer = page.locator(".chat-composer");
+  await expect(chatComposer.getByRole("textbox", { name: "Ask for a change…" }))
+    .toHaveClass(/\bsos-textarea\b/u);
   const proposalCard = page.locator(".program-proposal");
   const workspaceReviewCard = page.locator(".program-workspace-review");
   const workpieceLink = page.locator(".workpiece-link");
@@ -1314,6 +1317,21 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
 
   await page.setViewportSize({ width: 1024, height: 844 });
   await expect(workspace).toHaveAttribute("data-workspace-layout", "dual-pane");
+  const projectProgress = page.getByRole("progressbar", { name: "Project progress" });
+  await expect(projectProgress).toBeVisible();
+  await expect(projectProgress).toHaveClass(/\bsilly-progress-meter\b/u);
+  await expect(projectProgress).toHaveClass(/\bsos-progress\b/u);
+  await expect(projectProgress).toHaveAttribute("aria-valuetext", "68%");
+  const projectProgressGeometry = await projectProgress.evaluate((element) => ({
+    blockSize: getComputedStyle(element).blockSize,
+    height: element.getBoundingClientRect().height,
+    minBlockSize: getComputedStyle(element).minBlockSize,
+  }));
+  expect(projectProgressGeometry).toEqual({
+    blockSize: "4px",
+    height: 4,
+    minBlockSize: "0px",
+  });
   const desktopChatShell = page.locator(".program-workspace__chat-shell");
   const desktopSeparator = page.getByRole("separator", {
     name: "Resize conversation and workpiece panes",

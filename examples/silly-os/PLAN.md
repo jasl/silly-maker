@@ -195,7 +195,7 @@ S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2/N3, the original S3, S3-R1,
 D1, P1-B1d reasoning effort, and E0 engine-baseline absorption are closed. The current
 local source is rebased onto engine baseline
 `31461f362129e6192f70553a261ada225c2abf8b`. DS1 is the current active product
-phase: DS1a and the bounded DS1b-1 checkpoint are delivered, while the rest of
+phase: DS1a and the bounded DS1b-1/DS1b-2 checkpoints are delivered, while the rest of
 DS1b plus DS1c–DS1e remain active-plan work. No Mod phase is active. The current build-matched
 three-origin artifact and fixed Vault Worker are deployed from commit
 `a17c3490c9940bb43fc8718df485322c2dee1052` (Sandbox
@@ -266,7 +266,7 @@ or deployed release. Its acceptance is the rebased product/unit/build/security
 gate plus a real computed-style Browser check for product-scope colors, normal
 and compact control geometry, focus tokens, and reduced motion.
 
-### DS1 — SillyOS component and pattern system (active; DS1a and DS1b-1 delivered 2026-08-30)
+### DS1 — SillyOS component and pattern system (active; DS1a and DS1b-1/DS1b-2 delivered 2026-08-30)
 
 The owner has activated DS1 as a product lane. It inventories the real Creator,
 Settings, Workspace, Chat, review, progress, empty/error, and overlay states,
@@ -318,10 +318,15 @@ The active sequence is:
    layer. The retired `controls.tsx` wrapper and superseded control selectors
    are removed. Surface layout rules load after component recipes and retain
    authority over responsive geometry, including the established mobile touch
-   targets. Textarea, Progress, and any remaining stable primitive convergence
-   stay in the rest of DS1b; navigation rows, Provider rows, and workflow
-   composition stay explicit for DS1c rather than becoming a generic Settings
-   framework.
+   targets. The bounded **DS1b-2** checkpoint is also delivered: one
+   product-local native Textarea owns shared multiline-input state and one
+   product Progress recipe wraps the public SillyMaker `ProgressMeter` contract.
+   Creator Home and Workspace Chat retain their own composer geometry and IME/
+   Enter behavior; ZIP export and the visible Program meter now share native
+   progress semantics without copying the engine's range/accessibility checks.
+   Checkbox and any remaining stable primitive convergence stay in the rest of
+   DS1b; navigation rows, Provider rows, and workflow composition stay explicit
+   for DS1c rather than becoming a generic Settings framework.
 3. **DS1c — product patterns.** Converge the Creator composer, model/reasoning
    pickers, settings rows, Provider connection controls, proposal/review cards,
    navigation, workpiece, and empty/error/loading states. Product vocabulary
@@ -365,8 +370,8 @@ WebKit (10/10), including live `matchMedia` and cross-tab `storage` changes. A
 separate in-app Browser pass checked the dark Creator, General,
 unified menu, native modal backdrop/focus, and desktop layout. DS1 remains
 active: the remainder of DS1b plus DS1c–DS1e still own complete primitive,
-pattern, surface, dead-style, and visual-fixture convergence, so neither DS1a
-nor DS1b-1 claims that all product components have already migrated.
+pattern, surface, dead-style, and visual-fixture convergence, so the delivered
+DS1 checkpoints do not claim that all product components have already migrated.
 
 DS1b-1 delivered on 2026-08-30 without changing Settings information
 architecture, Provider/credential behavior, product flows, or an engine API.
@@ -378,6 +383,18 @@ typecheck, all three Browser artifact boundary builds, the focused theme/menu/
 Settings suite in Chromium and WebKit, and a real in-app Browser pass over
 General, Providers, Credential Vault, dark theme, and the narrow Provider
 master/detail flow. Layout and product-flow redesign remain later surface work.
+
+DS1b-2 delivered on 2026-08-30 without changing composer behavior, Workspace
+export semantics, product layout, or an engine API. `TextareaV1` replaces the
+two parallel raw composer textareas while surface CSS retains their responsive
+geometry. `ProgressV1` composes the public `@sillymaker/ui` `ProgressMeter` for
+the bounded ZIP export and the visible 68% Program meter, preserving exact
+accessible names and value text. The combined product unit gate is now 70 files
+/ 586 tests; focused Chromium and WebKit rendered checks pass for both
+composers, the Program meter, and the complete cancel-then-download ZIP flow
+(4/4). All three Browser artifact boundary builds also pass for the committed
+clean identity. Checkbox, loading/empty patterns, navigation, and Provider rows
+remain later bounded work.
 
 SillyMaker remains the home only for neutral primitives and interaction
 mechanics that can be reproduced without SillyOS vocabulary. A DS1 discovery

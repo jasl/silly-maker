@@ -302,9 +302,8 @@
   text-align: start;
 }
 
-.creator-composer textarea {
+.creator-composer .sos-textarea {
   display: block;
-  inline-size: 100%;
   min-block-size: 116px;
   max-block-size: 260px;
   padding: 14px 15px 10px;
@@ -312,18 +311,10 @@
   border-radius: 12px;
   background: transparent;
   resize: none;
-  color: var(--sos-ink);
-  font-size: 16px;
   line-height: 1.55;
 }
 
-.creator-composer textarea::placeholder,
-.chat-composer textarea::placeholder {
-  color: var(--sos-ink-muted);
-  opacity: 1;
-}
-
-.creator-composer textarea:focus-visible {
+.creator-composer .sos-textarea:focus-visible {
   outline: 0;
 }
 
@@ -2882,9 +2873,8 @@
   box-shadow: 0 10px 30px var(--sos-shadow-color);
 }
 
-.chat-composer textarea {
+.chat-composer .sos-textarea {
   display: block;
-  inline-size: 100%;
   min-block-size: 64px;
   max-block-size: 160px;
   padding: 7px 8px;
@@ -2892,11 +2882,10 @@
   border-radius: 7px;
   background: transparent;
   resize: none;
-  font-size: 16px;
   line-height: 1.5;
 }
 
-.chat-composer textarea:focus-visible {
+.chat-composer .sos-textarea:focus-visible {
   outline: 0;
 }
 
@@ -3089,28 +3078,6 @@
   line-height: 1.4;
   opacity: 0.82;
   overflow-wrap: anywhere;
-}
-
-.workpiece-workspace-export progress {
-  inline-size: 100%;
-  block-size: 5px;
-  border: 0;
-  border-radius: 999px;
-  overflow: hidden;
-  accent-color: var(--sos-accent);
-  background: var(--sos-accent-line);
-}
-
-.workpiece-workspace-export progress::-webkit-progress-bar {
-  background: var(--sos-accent-line);
-}
-
-.workpiece-workspace-export progress::-webkit-progress-value {
-  background: var(--sos-accent);
-}
-
-.workpiece-workspace-export progress::-moz-progress-bar {
-  background: var(--sos-accent);
 }
 
 .workpiece-workspace-export__actions {
@@ -3309,20 +3276,13 @@
 }
 
 .translation-workpiece__meter {
-  display: block;
   grid-column: 1 / -1;
   block-size: 4px;
-  overflow: hidden;
-  border-radius: 999px;
   background: var(--sos-line);
 }
 
-.translation-workpiece__meter span {
-  display: block;
-  inline-size: 68%;
-  block-size: 100%;
-  border-radius: inherit;
-  background: var(--sos-accent);
+.translation-workpiece__meter::-webkit-progress-bar {
+  background: var(--sos-line);
 }
 
 .translation-workpiece__editor {
@@ -4224,7 +4184,7 @@
     min-block-size: 42px;
   }
 
-  .creator-composer textarea {
+  .creator-composer .sos-textarea {
     min-block-size: 116px;
     padding: 12px;
   }
@@ -4450,7 +4410,7 @@
     gap: 8px;
   }
 
-  .workpiece-workspace-export progress {
+  .workpiece-workspace-export .sos-progress {
     grid-column: 1 / -1;
     grid-row: 2;
   }
@@ -4469,7 +4429,7 @@
     margin-block: 10px 18px;
   }
 
-  .creator-composer textarea {
+  .creator-composer .sos-textarea {
     min-block-size: 78px;
   }
 

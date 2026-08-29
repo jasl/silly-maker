@@ -25,6 +25,7 @@ import type {
   ProgramProposalV1,
 } from "../product/contracts.ts";
 import { ButtonV1 as Button, IconButtonV1 } from "./design-system/button.tsx";
+import { ProgressV1 as Progress } from "./design-system/progress.tsx";
 import { TabsV1 as Tabs } from "./design-system/tabs.tsx";
 import { formatStorageBytesV1 } from "./storage-format.ts";
 
@@ -404,12 +405,12 @@ function WorkspaceExportStatusV1({
         </span>
       </div>
       {working && progress !== null && progress.bytesTotal > 0 && (
-        <progress
-          max={progress.bytesTotal}
-          value={Math.min(progress.bytesWritten, progress.bytesTotal)}
-          aria-label={copy.locale === "zh-CN"
+        <Progress
+          accessibleName={copy.locale === "zh-CN"
             ? "工作区 ZIP 导出进度"
             : "Workspace ZIP export progress"}
+          max={progress.bytesTotal}
+          value={Math.min(progress.bytesWritten, progress.bytesTotal)}
         />
       )}
       <div className="workpiece-workspace-export__actions">
@@ -529,9 +530,13 @@ function TranslationWorkpieceV1({ copy }: { readonly copy: SillyOsCopyV1 }): Rea
         <div className="translation-workpiece__progress">
           <span>{copy.locale === "zh-CN" ? "工程进度" : "Project progress"}</span>
           <strong>68%</strong>
-          <span className="translation-workpiece__meter">
-            <span />
-          </span>
+          <Progress
+            className="translation-workpiece__meter"
+            accessibleName={copy.locale === "zh-CN" ? "工程进度" : "Project progress"}
+            value={68}
+            max={100}
+            valueText="68%"
+          />
         </div>
       </aside>
       <section className="translation-workpiece__editor" aria-label="Translation review queue">

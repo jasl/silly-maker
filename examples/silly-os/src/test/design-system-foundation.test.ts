@@ -78,6 +78,25 @@ describe("SillyOS design-system foundation", () => {
     expect(textButtonRule).not.toMatch(/(^|\s)block-size:/u);
   });
 
+  it("routes multiline and progress consumers through the shared physical layer", async () => {
+    const [creator, chat, workpiece, componentCss, productCss] = await Promise.all([
+      readFile(resolve(productRootV1, "ui/creator-home.tsx"), "utf8"),
+      readFile(resolve(productRootV1, "ui/chat-pane.tsx"), "utf8"),
+      readFile(resolve(productRootV1, "ui/workpiece-pane.tsx"), "utf8"),
+      readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+    ]);
+
+    expect(`${creator}\n${chat}`).not.toContain("<textarea");
+    expect(`${creator}\n${chat}`).toContain("<TextareaV1");
+    expect(workpiece).not.toContain("<progress");
+    expect(workpiece.match(/<Progress\b/gu)).toHaveLength(2);
+    expect(componentCss).toContain(".sos-textarea");
+    expect(componentCss).toContain(".sos-progress");
+    expect(componentCss).toContain(".silly-progress-meter.sos-progress");
+    expect(productCss).not.toContain(".workpiece-workspace-export progress");
+  });
+
   it("scans every emitted CSS asset for forbidden Tailwind globals", async () => {
     const checker = await readFile(
       resolve(productRootV1, "../tools/check-browser-control-plane-build.mts"),

@@ -23,6 +23,7 @@ import type {
 import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
 import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
 import { ButtonV1 as Button, IconButtonV1 } from "./design-system/button.tsx";
+import { TextareaV1 } from "./design-system/textarea.tsx";
 
 const pendingReviewStatusDescriptionIdV1 = "workspace-review-pending-status";
 
@@ -448,7 +449,7 @@ export function ChatPaneV1({
         <label className="silly-os-visually-hidden" htmlFor="workspace-follow-up">
           {copy.sendPlaceholder}
         </label>
-        <textarea
+        <TextareaV1
           id="workspace-follow-up"
           value={draft}
           rows={3}

@@ -17,6 +17,7 @@ import type { PreviewProgramKindV1, ProgramProposalStatusV1 } from "../product/c
 import type { SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
 import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
 import { ButtonV1 as Button } from "./design-system/button.tsx";
+import { TextareaV1 } from "./design-system/textarea.tsx";
 import { SillyOsBrandV1 } from "./product-chrome.tsx";
 import { ProductMenuV1 } from "./product-menu.tsx";
 
@@ -220,7 +221,7 @@ export function CreatorHomeV1({
             <label className="silly-os-visually-hidden" htmlFor="creator-intent">
               {copy.creatorTitle}
             </label>
-            <textarea
+            <TextareaV1
               id="creator-intent"
               value={intent}
               rows={4}

@@ -144,10 +144,10 @@
 }
 
 .sos-input,
+.sos-textarea,
 .sos-native-select {
   inline-size: 100%;
   min-inline-size: 0;
-  block-size: 40px;
   padding-inline: 10px;
   border: 1px solid var(--sos-line-strong);
   border-radius: var(--silly-radius-control);
@@ -157,13 +157,59 @@
   font-size: 12px;
 }
 
+.sos-input,
+.sos-native-select {
+  block-size: 40px;
+}
+
+.sos-textarea {
+  min-block-size: 96px;
+  padding-block: 9px;
+  font-size: 16px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.sos-textarea::placeholder {
+  color: var(--sos-ink-muted);
+  opacity: 1;
+}
+
 .sos-input[data-size="sm"],
 .sos-native-select[data-size="sm"] {
   block-size: var(--silly-control-min-size);
 }
 
-.sos-input[aria-invalid="true"] {
+.sos-input[aria-invalid="true"],
+.sos-textarea[aria-invalid="true"] {
   border-color: var(--sos-danger);
+}
+
+.sos-progress {
+  display: block;
+  inline-size: 100%;
+  block-size: 5px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  accent-color: var(--sos-accent);
+  background: var(--sos-accent-line);
+}
+
+.silly-progress-meter.sos-progress {
+  min-block-size: 0;
+}
+
+.sos-progress::-webkit-progress-bar {
+  background: var(--sos-accent-line);
+}
+
+.sos-progress::-webkit-progress-value {
+  background: var(--sos-accent);
+}
+
+.sos-progress::-moz-progress-bar {
+  background: var(--sos-accent);
 }
 
 .sos-input-group {

@@ -10,8 +10,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ButtonV1, IconButtonV1 } from "../ui/design-system/button.tsx";
 import { FieldDescriptionV1, FieldLabelV1, FieldV1 } from "../ui/design-system/field.tsx";
 import { InputV1 } from "../ui/design-system/input.tsx";
+import { ProgressV1 } from "../ui/design-system/progress.tsx";
 import { StatusContentV1, StatusTitleV1, StatusV1 } from "../ui/design-system/status.tsx";
 import { TabsV1 } from "../ui/design-system/tabs.tsx";
+import { TextareaV1 } from "../ui/design-system/textarea.tsx";
 
 afterEach(cleanup);
 
@@ -65,6 +67,45 @@ describe("SillyOS design-system controls", () => {
 
     expect(screen.getByLabelText("API key")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByText("Stored in the Vault.")).toHaveAttribute("id", "test-help");
+  });
+
+  it("keeps textarea behavior native while forwarding product state and refs", () => {
+    const ref = createRef<HTMLTextAreaElement>();
+    render(
+      <TextareaV1
+        ref={ref}
+        aria-invalid="true"
+        defaultValue="Draft"
+        maxLength={4_000}
+      />,
+    );
+
+    const textarea = screen.getByRole("textbox");
+    expect(textarea).toHaveClass("sos-textarea");
+    expect(textarea).toHaveAttribute("data-slot", "textarea");
+    expect(textarea).toHaveAttribute("aria-invalid", "true");
+    expect(textarea).toHaveAttribute("maxlength", "4000");
+    expect(ref.current).toBe(textarea);
+  });
+
+  it("composes the engine progress meter without duplicating its contract", () => {
+    const ref = createRef<HTMLProgressElement>();
+    render(
+      <ProgressV1
+        ref={ref}
+        accessibleName="Workspace export"
+        value={32}
+        max={64}
+        valueText="32 of 64 bytes"
+      />,
+    );
+
+    const progress = screen.getByRole("progressbar", { name: "Workspace export" });
+    expect(progress).toHaveClass("silly-progress-meter", "sos-progress");
+    expect(progress).toHaveAttribute("data-slot", "progress");
+    expect(progress).toHaveAttribute("aria-valuenow", "32");
+    expect(progress).toHaveAttribute("aria-valuetext", "32 of 64 bytes");
+    expect(ref.current).toBe(progress);
   });
 
   it("keeps status tone separate from live-region semantics", () => {

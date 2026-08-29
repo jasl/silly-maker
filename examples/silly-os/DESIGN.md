@@ -1773,10 +1773,13 @@ composition. DS1a has since delivered the theme/chrome foundation described
 below. DS1b-1 then delivered the first bounded shared-control checkpoint:
 Button/IconButton, Input/InputGroup, Field, NativeSelect, Card, Badge, Status,
 and Tabs now have product-owned recipes over the neutral physical layer;
-Settings is their first complete stable consumer. The large product stylesheet
-remains a migration source rather than proof that the component/pattern system
-is complete. DS1 remains active and is not complete until the remainder of
-DS1b plus DS1c–DS1e and their evidence close. Product
+Settings is their first complete stable consumer. DS1b-2 then adds the shared
+native Textarea used by both composers and a product Progress recipe over the
+public SillyMaker `ProgressMeter`, used by ZIP export and the visible Program
+meter. The large product stylesheet remains a migration source rather than
+proof that the component/pattern system is complete. DS1 remains active and is
+not complete until the remainder of DS1b plus DS1c–DS1e and their evidence
+close. Product
 appearance and workflow stay in SillyOS; only use-case-neutral primitives or
 interaction mechanics with an independent second real consumer (or a proved
 engine-wide baseline need) may be proposed upstream.
@@ -1858,6 +1861,17 @@ framework. The slice also migrates every current product Button/IconButton
 consumer to one physical composition, deletes the retired parallel wrapper,
 and adds no engine dependency, API, theme authority, or public component ABI.
 
+The delivered DS1b-2 slice converges only the two remaining plan-named physical
+roles with multiple real consumers. `TextareaV1` retains native textarea
+semantics, attributes, and refs while Creator Home and Workspace Chat continue
+to own their different size, padding, resize, IME, and Enter/Shift+Enter
+behavior. `ProgressV1` directly composes the public SillyMaker native progress
+contract, so accessible-name, range, value, and value-text validation are not
+copied into the product. Workspace export and the visible Program meter retain
+their surface placement and thickness. Checkbox, navigation/list rows,
+Provider/model patterns, Spinner/loading, and empty/error composition are not
+generalized by this checkpoint.
+
 DS1a is backed by focused preference/schema/cross-tab, navigation-only locale,
 pre-mount theme, menu/dialog/focus, Tailwind built-output, and token-containment
 tests; the existing product/build/security gates; and Chromium/WebKit rendered
@@ -1865,8 +1879,12 @@ checks covering both themes, keyboard use, responsive layout, and English/
 Chinese switching. DS1b-1 adds behavior checks for shared controls, Field and
 Status semantics, Tabs roving focus, Credential Vault action identity, CSS
 cascade order, all three Browser artifact boundaries, and rendered desktop/
-narrow Settings checks. Later component and surface stages add their own long-
-content and visual fixtures before DS1 can be called complete.
+narrow Settings checks. DS1b-2 adds native/ref/state contracts for Textarea,
+public-engine composition and value semantics for Progress, structural guards
+against parallel raw composer/progress consumers, and Chromium/WebKit rendered
+checks over both composers, the visible Program meter, and ZIP export. Later
+component and surface stages add their own long-content and visual fixtures
+before DS1 can be called complete.
 
 ## Responsive layout contract
 
