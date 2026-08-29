@@ -43,10 +43,7 @@ function recoveryLayersV1(system: ReactNode): GameStageLayersV1 {
 
 export function GameShell(props: GameShellPropsV1): ReactElement {
   const bareStage = <GameStageV1 accessibleName={props.accessibleName} layers={props.layers} />;
-  const stage = props.viewport === undefined
-    ? bareStage
-    : <GameViewportV1 {...props.viewport}>{bareStage}</GameViewportV1>;
-  const protectedStage = props.errorBoundary === undefined ? stage : (
+  const protectedStage = props.errorBoundary === undefined ? bareStage : (
     <RootErrorBoundaryV1
       {...props.errorBoundary}
       inputRouter={props.inputRouter}
@@ -54,9 +51,12 @@ export function GameShell(props: GameShellPropsV1): ReactElement {
         <GameStageV1 accessibleName={props.accessibleName} layers={recoveryLayersV1(dialog)} />
       )}
     >
-      {stage}
+      {bareStage}
     </RootErrorBoundaryV1>
   );
+  const stage = props.viewport === undefined
+    ? protectedStage
+    : <GameViewportV1 {...props.viewport}>{protectedStage}</GameViewportV1>;
 
   return (
     <div className={styles["game-shell"]}>
@@ -72,7 +72,7 @@ export function GameShell(props: GameShellPropsV1): ReactElement {
         <AuxiliarySurfacePortalCoordinatorV1
           baseTargetClassName={styles["game-shell__auxiliary-surface-target"]!}
         >
-          {protectedStage}
+          {stage}
           {props.auxiliarySurface ?? null}
         </AuxiliarySurfacePortalCoordinatorV1>
       </InputContextProviderV1>

@@ -36,7 +36,7 @@
   inset-block-end: 0;
   block-size: var(--silly-vn-player-dialogue-height, clamp(9.25rem, 20%, 11rem));
   padding: clamp(0.75rem, 1.6%, 1rem) clamp(2rem, 20%, 20rem)
-    calc(2.5rem + env(safe-area-inset-bottom));
+    calc(2.5rem + var(--silly-safe-area-block-end));
   overflow: visible;
   border: 0;
   border-block-start: 1px solid var(--silly-vn-player-border, rgb(255 255 255 / 24%));
@@ -82,7 +82,7 @@
   position: absolute;
   z-index: 2;
   inset-inline: 0;
-  inset-block-end: env(safe-area-inset-bottom);
+  inset-block-end: var(--silly-safe-area-block-end);
   display: flex;
   gap: 0.15rem;
   align-items: center;
@@ -96,7 +96,7 @@
   position: absolute;
   z-index: 3;
   inset-inline-end: clamp(1rem, 5%, 4rem);
-  inset-block-end: calc(2.5rem + env(safe-area-inset-bottom));
+  inset-block-end: calc(2.5rem + var(--silly-safe-area-block-end));
   max-inline-size: min(24rem, 70%);
   margin: 0;
   padding: 0.45rem 0.75rem;
@@ -158,7 +158,7 @@
   position: absolute;
   z-index: 1;
   inset-inline-end: clamp(2rem, 18%, 18rem);
-  inset-block-end: calc(2.35rem + env(safe-area-inset-bottom));
+  inset-block-end: calc(2.35rem + var(--silly-safe-area-block-end));
   color: var(--silly-vn-player-accent, #f5d17e);
   font-size: 1.2rem;
   opacity: 0;
@@ -367,7 +367,7 @@
   .dialogue-window {
     block-size: var(--silly-vn-player-dialogue-height-narrow, clamp(10.5rem, 29%, 13.5rem));
     max-block-size: 36%;
-    padding: 0.9rem 1.1rem calc(3.15rem + env(safe-area-inset-bottom));
+    padding: 0.9rem 1.1rem calc(3.15rem + var(--silly-safe-area-block-end));
   }
 
   .speaker-name {
@@ -409,7 +409,7 @@
   .dialogue-window {
     block-size: var(--silly-vn-player-dialogue-height-narrow, clamp(13.5rem, 34%, 16rem));
     max-block-size: 42%;
-    padding-block-end: calc(6.2rem + env(safe-area-inset-bottom));
+    padding-block-end: calc(6.2rem + var(--silly-safe-area-block-end));
   }
 
   .playback-bar {
@@ -425,47 +425,45 @@
 
   .system-operation-toast {
     inset-inline: 0.75rem;
-    inset-block-end: calc(6.4rem + env(safe-area-inset-bottom));
+    inset-block-end: calc(6.4rem + var(--silly-safe-area-block-end));
     max-inline-size: none;
     text-align: center;
   }
 }
 
-@media (height <= 32rem) {
-  @container game-stage (max-width: 52rem) {
-    .dialogue-window {
-      block-size: clamp(8.75rem, 39%, 9.25rem);
-      max-block-size: none;
-    }
+@container game-stage (max-height: 32rem) and (max-width: 52rem) {
+  .dialogue-window {
+    block-size: clamp(8.75rem, 39%, 9.25rem);
+    max-block-size: none;
+  }
 
-    .dialogue-text {
-      font-size: clamp(0.875rem, 2.2cqi, 0.95rem);
-      line-height: 1.45;
-    }
+  .dialogue-text {
+    font-size: clamp(0.875rem, 2.2cqi, 0.95rem);
+    line-height: 1.45;
+  }
 
-    .choice-root,
-    .system-menu-root {
-      padding: var(--silly-space-2);
-    }
+  .choice-root,
+  .system-menu-root {
+    padding: var(--silly-space-2);
+  }
 
-    .choice-panel {
-      max-block-size: calc(100% - 2 * var(--silly-space-2));
-    }
+  .choice-panel {
+    max-block-size: calc(100% - 2 * var(--silly-space-2));
+  }
 
-    .system-menu-panel {
-      gap: 0.4rem;
-      inline-size: min(32rem, 100%);
-      padding: var(--silly-space-3);
-    }
+  .system-menu-panel {
+    gap: 0.4rem;
+    inline-size: min(32rem, 100%);
+    padding: var(--silly-space-3);
+  }
 
-    .system-menu-actions {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.4rem;
-    }
+  .system-menu-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
 
-    .system-menu-actions button {
-      padding-block: 0.35rem;
-    }
+  .system-menu-actions button {
+    padding-block: 0.35rem;
   }
 }
 
@@ -477,15 +475,15 @@
 
   @container game-stage (min-width: 52.001rem) {
     .dialogue-window {
-      padding-block-end: calc(3.25rem + env(safe-area-inset-bottom));
+      padding-block-end: calc(3.25rem + var(--silly-safe-area-block-end));
     }
 
     .system-operation-toast {
-      inset-block-end: calc(3.35rem + env(safe-area-inset-bottom));
+      inset-block-end: calc(3.35rem + var(--silly-safe-area-block-end));
     }
 
     .continue-indicator {
-      inset-block-end: calc(3.1rem + env(safe-area-inset-bottom));
+      inset-block-end: calc(3.1rem + var(--silly-safe-area-block-end));
     }
   }
 }

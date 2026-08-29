@@ -153,7 +153,9 @@
     overflow: auto;
     place-items: stretch;
   }
+}
 
+@container game-stage (aspect-ratio < 4 / 3) {
   .game-shell__top-card {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:

@@ -6,7 +6,8 @@
 letterbox、两空间查询与 maxScale 居中，Semantic Stage placement 按 authored 坐标渲染，VN/shell
 surface 在 live canvas 内布局，首个 PoC 退役后 player/debug 边界由默认 GameRoot 与浏览器验收持续保护。
 后来增加的 `fluid` mode 以及 2026-08-25 的 `expand-height` / `expand-width`、显式 layout variant 均已
-交付。
+交付。2026-08-29 又增加了显式 `landscape-only` 内容方向策略；它在物理竖屏容器内旋转同一个
+managed canvas，在物理横屏后自动取消补偿，不引入 OS orientation 或第二套坐标权威。
 
 ## 1. Original problem statement
 
@@ -58,7 +59,22 @@ generation。
 
 引擎负责换算、letterbox 与 resize/DPR 的一致行为。显式 variant 和扩展 mode 不应通过对
 16:10 画布强行拉伸或组件私自测量窗口来模拟。DPR 只影响 raster density；逻辑几何继续使用 CSS
-pixels。平台原生凹口/圆角继续使用 CSS `env(safe-area-inset-*)`，不建立第二个 Host geometry API。
+pixels。平台原生凹口/圆角由 foundation 读取一次四个 physical CSS safe-area inset，再映射为
+Stage 使用的 logical block/inline token；应用和组件不得绕开 token 直接读取某一物理边。
+
+没有 portrait 布局的 fixed-canvas 产品可以显式声明 `contentOrientation: "landscape-only"`。当 measured
+container 高于宽时，GameViewport 先把 effective available 从 `W×H` 交换为 `H×W`，layout variant、
+scale、live canvas 和 authored rect 继续只由这份 geometry 计算，再把同一个 canvas 顺时针旋转 90°。
+当设备自动旋转或窗口调整为宽不小于高时，ResizeObserver 令补偿回到 0°；应用/Session 不重建，
+State、Save、replay、BuildIdentity 与 presentation epoch 均不改变。DOM control 与 Stage hit region 仍由
+浏览器在同一 transform 下命中，不增加 pointer 坐标转换层。旋转态 logical safe area 按
+`block-start ← physical right`、`inline-end ← bottom`、`block-end ← left`、`inline-start ← top` 映射，
+Stage 内响应式 UI 只查询 named GameStage size container，不能读取未旋转的 viewport width/height。
+
+该策略旋转产品内容，不旋转浏览器地址栏、IME、原生 picker 等平台 chrome，也不承诺真正的设备方向锁。
+Web 的 `ScreenOrientation.lock()` 仍存在 fullscreen/实现支持限制，因此不参与默认路径、readiness 或几何
+权威；以后若有真实消费者，只能作为用户手势后的 Host best-effort enhancement，失败后继续使用上述
+CSS presentation fallback。Deno Desktop 仅按可调整窗口处理，不需要该平台 API。
 
 ### 3.3 Two spaces: stage space and shell space
 
@@ -109,7 +125,8 @@ partition schema 或冲突诊断器，不应把
 
 - fixed-canvas game 默认 `fit`、不拉伸 authored art，且未声明 `maxScale` 时可以填满 4K/5K 的同宽高比容器；
   portrait 可用 `expand-height`，只有产品拥有可延展背景/侧翼构图时才选择 `expand-width`。超宽 live canvas
-  可把新增空间交给 HUD/辅助栏，但不能用拉伸 16:9 素材伪装“支持带鱼屏”；
+  可把新增空间交给 HUD/辅助栏，但不能用拉伸 16:9 素材伪装“支持带鱼屏”。产品若没有 portrait
+  topology，可以显式使用 `landscape-only` 内容策略；已提供 portrait variant 的产品保持 `responsive`；
 - document/desktop/GUI shell 默认选 `fluid`，工作区占满 Host；文字正文可以限制 readable measure，工作区本身
   不设置 page-level max-width；
 - Inspector/作者工具默认使用 container-driven 三栏/两栏/Stage-first 单栏，侧栏有合理上限，新增宽度优先给
@@ -196,7 +213,9 @@ preset 的所有权。
 - **C3（UI/Web Composer，已交付）**：default GameRoot 建立 GameViewport（声明画布、fit letterbox、两 space 换算、DPR/resize 行为一致）；默认 surface 满足 §4.3 基线；player/debug 边界按 §5 断言；
 - **D2（Stage projection，已交付）**：StageRenderTarget 的 placement 以逻辑坐标表达并经 viewport 换算渲染；
 - **E2（VN player systems，已交付）**：对话框、history、choice 界面按 shell space 锚定并消费 token；
-- **F1（vertical slice，已交付）**：验收路线在 1600×1000、1024×768、平板横屏与 DPR=2 下核心画面可用、letterbox 正确、文本清晰；
+- **F1（vertical slice，已交付）**：验收路线在 1600×1000、1024×768、平板横屏，以及
+  1920×1080/DPR 2、2560×1440/DPR 1.5 两种物理 4K 映射下核心画面可用、letterbox
+  正确、文本清晰，缩放后的真实 polygon 指针/触摸命中仍准确；
 - **F3（PoC migration，已关闭）**：首个 PoC 与其 V1 scene glue 已退役，不再保留待迁移的玩家 UI；当前应用持续遵守 §5。
 - **统一 UI authority**：Game/GUI、独立 Inspector 与 Embedded Authoring 使用同一 stylesheet、token 与
   override 机制；Inspector/Embedded Authoring 使用共享 compact 档，Player 常驻 HUD 使用受约束的正常档，

@@ -17,14 +17,21 @@ async function expectSampleIncreaseV1(probe: Locator, previous: number): Promise
   return sampleCountV1(probe);
 }
 
-/** 16:10 design canvas, 4:3 letterbox, portrait tablet, ultrawide, small. */
+/** 16:10 design canvas, desktop upscale, 4:3 letterbox, portrait, ultrawide, small. */
 const declaredViewportsV1 = [
   { width: 1600, height: 1000 },
+  { width: 1920, height: 1080 },
+  { width: 2560, height: 1440 },
   { width: 1024, height: 768 },
   { width: 768, height: 1024 },
   { width: 2560, height: 1080 },
   { width: 800, height: 500 },
 ] as const satisfies readonly ViewportSizeV1[];
+
+const highDensityDesktopProfilesV1 = [
+  { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 2 },
+  { viewport: { width: 2560, height: 1440 }, deviceScaleFactor: 1.5 },
+] as const;
 
 async function expectCanvasGeometryV1(canvas: Locator, viewport: ViewportSizeV1): Promise<void> {
   const portrait = viewport.width / viewport.height <= 0.8;
@@ -116,6 +123,58 @@ test.describe("engine GameViewport", () => {
     }
   });
 
+  for (const profile of highDensityDesktopProfilesV1) {
+    test(
+      `@responsive keeps a transformed polygon hit exact at ${String(profile.viewport.width)}x${
+        String(profile.viewport.height)
+      } DPR ${String(profile.deviceScaleFactor)}`,
+      async ({ browser }, testInfo) => {
+        const touch = testInfo.project.name === "chromium-touch";
+        const context = await browser.newContext({
+          viewport: profile.viewport,
+          deviceScaleFactor: profile.deviceScaleFactor,
+          hasTouch: touch,
+        });
+        try {
+          const page = await context.newPage();
+          await gotoLabV1(page);
+          expect(await page.evaluate(() => window.devicePixelRatio)).toBe(
+            profile.deviceScaleFactor,
+          );
+
+          const canvas = page.locator("[data-game-viewport-canvas='true']");
+          await expectCanvasGeometryV1(canvas, profile.viewport);
+          const scaleAttribute = await canvas.getAttribute("data-viewport-scale");
+          expect(Number.parseFloat(scaleAttribute ?? "0")).toBeGreaterThan(1);
+
+          const sampleProbe = page.locator("[data-lab-samples]");
+          const collectAction = page.getByRole("button", { name: "采集样本" });
+          const initialSamples = await sampleCountV1(sampleProbe);
+          if (touch) await collectAction.tap();
+          else await collectAction.click();
+          const samplesAfterHudAction = await expectSampleIncreaseV1(sampleProbe, initialSamples);
+
+          const collectZone = page.getByRole("button", { name: "样本箱采集口" });
+          await expect(collectZone).toBeVisible();
+          await expect(collectZone).toHaveAttribute("data-stage-hit-region-shape", "polygon");
+          const hitBounds = await collectZone.boundingBox();
+          expect(hitBounds, "the transformed polygon hit region must have bounds").not.toBeNull();
+          if (hitBounds === null) return;
+
+          const hitPoint = {
+            x: hitBounds.x + hitBounds.width / 2,
+            y: hitBounds.y + hitBounds.height / 2,
+          };
+          if (touch) await page.touchscreen.tap(hitPoint.x, hitPoint.y);
+          else await page.mouse.click(hitPoint.x, hitPoint.y);
+          await expectSampleIncreaseV1(sampleProbe, samplesAfterHudAction);
+        } finally {
+          await context.close();
+        }
+      },
+    );
+  }
+
   test(
     "@responsive switches portrait expansion without reload and preserves epoch and state",
     async ({
@@ -157,6 +216,86 @@ test.describe("engine GameViewport", () => {
       else await collectZone.click();
       await expectSampleIncreaseV1(sampleProbe, samplesAfterPortraitHit);
 
+      await expect(application).toHaveAttribute("data-presentation-epoch", initialEpoch ?? "0");
+      expect(loadCount).toBe(1);
+    },
+  );
+
+  test(
+    "@responsive presents landscape-only content in portrait and removes compensation after rotation",
+    async ({ page }, testInfo) => {
+      let loadCount = 0;
+      page.on("load", () => loadCount += 1);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await gotoLabV1(page, "?content_orientation=landscape-only");
+
+      const application = page.locator("[data-application-id='e2e']");
+      const initialEpoch = await application.getAttribute("data-presentation-epoch");
+      const canvas = page.locator("[data-game-viewport-canvas='true']");
+      await expect(canvas).toHaveAttribute("data-viewport-content-orientation", "landscape-only");
+      await expect(canvas).toHaveAttribute("data-viewport-rotation", "90");
+      await expect(canvas).toHaveAttribute("data-viewport-mode", "fit");
+      await expect(canvas).not.toHaveAttribute("data-viewport-layout-variant");
+
+      const portraitBounds = await canvas.boundingBox();
+      expect(portraitBounds).not.toBeNull();
+      if (portraitBounds === null) return;
+      expect({
+        width: Math.round(portraitBounds.width),
+        height: Math.round(portraitBounds.height),
+        x: Math.round(portraitBounds.x),
+        y: Math.round(portraitBounds.y),
+      }).toEqual({ width: 390, height: 624, x: 0, y: 110 });
+
+      await page.evaluate(() => {
+        const root = document.documentElement;
+        root.style.setProperty("--silly-safe-area-physical-top", "11px");
+        root.style.setProperty("--silly-safe-area-physical-right", "22px");
+        root.style.setProperty("--silly-safe-area-physical-bottom", "33px");
+        root.style.setProperty("--silly-safe-area-physical-left", "44px");
+      });
+      const narrativeLayer = page.locator("[data-stage-layer='narrative']");
+      await expect.poll(() =>
+        narrativeLayer.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft];
+        })
+      ).toEqual(["22px", "33px", "44px", "11px"]);
+
+      const sampleProbe = page.locator("[data-lab-samples]");
+      const collectAction = page.getByRole("button", { name: "采集样本" });
+      const initialSamples = await sampleCountV1(sampleProbe);
+      if (testInfo.project.name === "chromium-touch") await collectAction.tap();
+      else await collectAction.click();
+      const afterHudAction = await expectSampleIncreaseV1(sampleProbe, initialSamples);
+
+      const collectZone = page.getByRole("button", { name: "样本箱采集口" });
+      await expect(collectZone).toHaveAttribute("data-stage-hit-region-shape", "polygon");
+      const hitBounds = await collectZone.boundingBox();
+      expect(hitBounds).not.toBeNull();
+      if (hitBounds === null) return;
+      const hitPoint = {
+        x: hitBounds.x + hitBounds.width / 2,
+        y: hitBounds.y + hitBounds.height / 2,
+      };
+      if (testInfo.project.name === "chromium-touch") {
+        await page.touchscreen.tap(hitPoint.x, hitPoint.y);
+      } else await page.mouse.click(hitPoint.x, hitPoint.y);
+      const afterPortraitHit = await expectSampleIncreaseV1(sampleProbe, afterHudAction);
+
+      await page.setViewportSize({ width: 844, height: 390 });
+      await expect(canvas).toHaveAttribute("data-viewport-rotation", "0");
+      const landscapeBounds = await canvas.boundingBox();
+      expect(landscapeBounds).not.toBeNull();
+      if (landscapeBounds === null) return;
+      expect(landscapeBounds.width).toBeCloseTo(624, 0);
+      expect(landscapeBounds.height).toBeCloseTo(390, 0);
+      expect(landscapeBounds.x).toBeCloseTo(110, 0);
+      expect(landscapeBounds.y).toBeCloseTo(0, 0);
+
+      if (testInfo.project.name === "chromium-touch") await collectZone.tap();
+      else await collectZone.click();
+      await expectSampleIncreaseV1(sampleProbe, afterPortraitHit);
       await expect(application).toHaveAttribute("data-presentation-epoch", initialEpoch ?? "0");
       expect(loadCount).toBe(1);
     },

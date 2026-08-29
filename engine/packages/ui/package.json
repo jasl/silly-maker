@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./assets": "./src/assets/index.ts",
+    "./chrome": "./src/chrome/index.ts",
     "./code-surface": "./src/code-surface/index.ts",
     "./code-surface/internal": "./src/code-surface/internal.ts",
     "./debug": "./src/debug/index.ts",
@@ -24,6 +25,7 @@
     "./native-behavior": "./src/shell/native-behavior-reset.ts",
     "./narrative-player/core": "./src/narrative-player/core.ts",
     "./narrative-player/history": "./src/narrative-player/history.ts",
+    "./presentation-run": "./src/presentation-run/index.ts",
     "./reference": "./src/reference/index.ts",
     "./reference/dev-dock": "./src/reference/dev-dock-entry.ts",
     "./reference/settings": "./src/reference/settings-entry.ts",

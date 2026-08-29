@@ -35,7 +35,7 @@
 
 /* Short landscape canvases include literal browser-zoom reflow. Keep the
    front door compact without shrinking any gameplay touch target. */
-@media (height <= 32rem) {
+@container game-stage (max-height: 32rem) {
   .root {
     gap: var(--silly-space-2);
     padding: var(--silly-space-3);

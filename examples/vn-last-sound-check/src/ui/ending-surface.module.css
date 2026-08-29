@@ -136,7 +136,7 @@
 
   .panel {
     inline-size: auto;
-    margin-block-end: calc(1rem + env(safe-area-inset-bottom));
+    margin-block-end: calc(1rem + var(--silly-safe-area-block-end));
     padding: 1.35rem 1.25rem 1.25rem;
   }
 

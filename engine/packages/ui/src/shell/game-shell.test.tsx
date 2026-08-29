@@ -4,7 +4,8 @@ import "@testing-library/jest-dom/vitest";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ReactElement } from "react";
 import { createInputRouterV1 } from "../input/input-router.ts";
 import { useInputRouterV1 } from "../input/input-context.tsx";
 import { GameShell } from "./game-shell.tsx";
@@ -29,6 +30,10 @@ let witnessedRouterV1: ReturnType<typeof createInputRouterV1> | null = null;
 function InputRouterWitnessV1() {
   witnessedRouterV1 = useInputRouterV1();
   return <span>输入路由已连接</span>;
+}
+
+function ThrowingStageChildV1(): ReactElement {
+  throw new Error("synthetic presentation failure");
 }
 
 describe("GameShell", () => {
@@ -90,6 +95,48 @@ describe("GameShell", () => {
     expect(stage).not.toContainElement(auxiliary);
     expect(document.querySelector("[data-auxiliary-surface-portal-target='base']"))
       .not.toBeNull();
+  });
+
+  it("keeps a presentation-failure recovery Stage inside the managed viewport", () => {
+    const inputRouter = createInputRouterV1();
+    const reportFailure = vi.fn();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      render(
+        <GameShell
+          accessibleName="测试游戏舞台"
+          layers={{ ...completeLayersV1(), background: <ThrowingStageChildV1 /> }}
+          inputRouter={inputRouter}
+          viewport={{
+            canvas: { width: 1600, height: 900 },
+            fallbackSize: { width: 390, height: 844 },
+            contentOrientation: "landscape-only",
+          }}
+          errorBoundary={{
+            reportFailure,
+            failureDialog: {
+              title: "演出已暂停",
+              description: "可以重新加载。",
+              retryLabel: "重试",
+              reloadApplicationLabel: "重新加载",
+              requestExitLabel: "退出",
+              diagnosticExport: null,
+            },
+            recoveryActions: { reloadApplication: () => undefined, requestExit: null },
+          }}
+        />,
+      );
+
+      const canvas = document.querySelector<HTMLElement>("[data-game-viewport-canvas='true']");
+      const recoveryStage = screen.getByRole("main", { name: "测试游戏舞台" });
+      expect(canvas).not.toBeNull();
+      expect(canvas).toHaveAttribute("data-viewport-rotation", "90");
+      expect(canvas).toContainElement(recoveryStage);
+      expect(screen.getByRole("heading", { name: "演出已暂停" })).toBeVisible();
+      expect(reportFailure).toHaveBeenCalledTimes(1);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("keeps ultrawide fill pointer-transparent and removes motion when requested", async () => {

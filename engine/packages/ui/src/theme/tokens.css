@@ -86,10 +86,14 @@
   --silly-color-danger: #e5484d;
   --silly-focus-ring-inner: #fff;
   --silly-focus-ring-outer: #1769e0;
-  --silly-safe-area-block-start: env(safe-area-inset-top, 0px);
-  --silly-safe-area-block-end: env(safe-area-inset-bottom, 0px);
-  --silly-safe-area-inline-start: env(safe-area-inset-left, 0px);
-  --silly-safe-area-inline-end: env(safe-area-inset-right, 0px);
+  --silly-safe-area-physical-top: env(safe-area-inset-top, 0px);
+  --silly-safe-area-physical-right: env(safe-area-inset-right, 0px);
+  --silly-safe-area-physical-bottom: env(safe-area-inset-bottom, 0px);
+  --silly-safe-area-physical-left: env(safe-area-inset-left, 0px);
+  --silly-safe-area-block-start: var(--silly-safe-area-physical-top);
+  --silly-safe-area-block-end: var(--silly-safe-area-physical-bottom);
+  --silly-safe-area-inline-start: var(--silly-safe-area-physical-left);
+  --silly-safe-area-inline-end: var(--silly-safe-area-physical-right);
   --silly-stage-z-background: 0;
   --silly-stage-z-character: 10;
   --silly-stage-z-scene-interaction: 20;

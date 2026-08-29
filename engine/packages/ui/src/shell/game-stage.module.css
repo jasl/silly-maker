@@ -13,7 +13,7 @@
   overscroll-behavior: none;
   /* stylelint-disable-next-line property-no-vendor-prefix -- no standard property exists */
   -webkit-touch-callout: none;
-  container: game-stage / inline-size;
+  container: game-stage / size;
   box-sizing: border-box;
   inline-size: min(100%, var(--silly-stage-max-width), calc(100dvh * 8 / 5));
   max-inline-size: var(--silly-stage-max-width);

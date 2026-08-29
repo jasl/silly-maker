@@ -73,7 +73,9 @@ catalog。placement/appearance 等权威语义完全不变。
 **不属于本原语的**：粒子系统与随机时点的非周期表现（随机闪电、阵风、飘落轨迹各
 异的雪花）。周期循环表达不了随机性；这类天气/氛围仍是 Story renderer 自有的表现
 实现（渲染组件今天就能做，reduced-motion 走 `useReducedMotionV1`），或将来证据
-驱动的另案原语。不要用超长周期 motion 文档硬撑非周期行为。
+驱动的另案原语。不要用超长周期 motion 文档硬撑非周期行为。2026-08-29
+补充：其中「可重复的随机 draw」已由 [Presentation RNG](presentation-rng.md)
+覆盖；renderer 仍拥有像素与时间推进，随机值改由零权威可续接流提供。
 
 ## 验收草案
 

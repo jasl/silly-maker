@@ -15,6 +15,13 @@ import { dataFailure } from "./presentation-data.ts";
  * `boxes` are placed rectangles (position + size), `anchors` are
  * position-only points for self-sizing elements, and `offsets` are named
  * integer scalars (font-metric compensation and similar).
+ *
+ * An optional `widgets` section binds named boxes to zero-authority chrome
+ * semantics. An `intent` widget reports only its declared intent id; the
+ * application still owns availability, routing, and the eventual semantic
+ * command. A `hold_progress` widget is a read-only place for committed hold
+ * progress. This keeps author-tuned geometry in data without turning the
+ * layout document into a gameplay language.
  */
 
 export type ChromeLayoutAuthoringStatusV1 = "generated" | "human_tuned";
@@ -47,6 +54,26 @@ export interface ChromeLayoutAnchorV1 {
   readonly y: number;
 }
 
+export interface ChromeLayoutIntentWidgetV1 {
+  readonly kind: "intent";
+  /** Name of an own entry in `boxes`. */
+  readonly box: string;
+  readonly intentId: string;
+  readonly labelTextId: string;
+  readonly assetId?: string;
+}
+
+export interface ChromeLayoutHoldProgressWidgetV1 {
+  readonly kind: "hold_progress";
+  /** Name of an own entry in `boxes`. */
+  readonly box: string;
+  readonly labelTextId: string;
+}
+
+export type ChromeLayoutWidgetV1 =
+  | ChromeLayoutIntentWidgetV1
+  | ChromeLayoutHoldProgressWidgetV1;
+
 export interface ChromeLayoutDocumentV1 {
   readonly format: "sillymaker.chrome-layout";
   readonly version: 1;
@@ -58,6 +85,7 @@ export interface ChromeLayoutDocumentV1 {
   readonly boxes: Readonly<Record<string, ChromeLayoutBoxV1>>;
   readonly anchors: Readonly<Record<string, ChromeLayoutAnchorV1>>;
   readonly offsets: Readonly<Record<string, number>>;
+  readonly widgets?: Readonly<Record<string, ChromeLayoutWidgetV1>>;
   readonly authoring?: ChromeLayoutAuthoringV1;
 }
 
@@ -196,6 +224,75 @@ function parseChromeLayoutSectionV1<TEntry>(
   );
 }
 
+function requireChromeLayoutWidgetStringV1(value: unknown, path: string): string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > chromeLayoutMaxEntryNameLengthV1 ||
+    value.trim().length === 0
+  ) {
+    return dataFailure(path, "chrome_layout_widget_string_invalid");
+  }
+  return value;
+}
+
+function parseChromeLayoutWidgetV1(
+  value: unknown,
+  path: string,
+  boxes: Readonly<Record<string, ChromeLayoutBoxV1>>,
+): ChromeLayoutWidgetV1 {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return dataFailure(path, "chrome_layout_widget_invalid");
+  }
+  const kind = (value as Record<string, unknown>).kind;
+  if (kind === "intent") {
+    const hasAssetId = Object.hasOwn(value, "assetId");
+    const record = readChromeLayoutExactRecordV1(
+      value,
+      hasAssetId
+        ? ["kind", "box", "intentId", "labelTextId", "assetId"]
+        : ["kind", "box", "intentId", "labelTextId"],
+      path,
+    );
+    const box = requireChromeLayoutWidgetStringV1(record.box, `${path}/box`);
+    if (!Object.hasOwn(boxes, box)) {
+      return dataFailure(`${path}/box`, "chrome_layout_widget_box_unknown");
+    }
+    return {
+      kind,
+      box,
+      intentId: requireChromeLayoutWidgetStringV1(record.intentId, `${path}/intentId`),
+      labelTextId: requireChromeLayoutWidgetStringV1(
+        record.labelTextId,
+        `${path}/labelTextId`,
+      ),
+      ...(hasAssetId
+        ? { assetId: requireChromeLayoutWidgetStringV1(record.assetId, `${path}/assetId`) }
+        : {}),
+    };
+  }
+  if (kind === "hold_progress") {
+    const record = readChromeLayoutExactRecordV1(
+      value,
+      ["kind", "box", "labelTextId"],
+      path,
+    );
+    const box = requireChromeLayoutWidgetStringV1(record.box, `${path}/box`);
+    if (!Object.hasOwn(boxes, box)) {
+      return dataFailure(`${path}/box`, "chrome_layout_widget_box_unknown");
+    }
+    return {
+      kind,
+      box,
+      labelTextId: requireChromeLayoutWidgetStringV1(
+        record.labelTextId,
+        `${path}/labelTextId`,
+      ),
+    };
+  }
+  return dataFailure(`${path}/kind`, "chrome_layout_widget_kind_invalid");
+}
+
 function parseChromeLayoutAuthoringV1(value: unknown, path: string): ChromeLayoutAuthoringV1 {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "chrome_layout_authoring_invalid");
@@ -234,8 +331,9 @@ function parseChromeLayoutAuthoringV1(value: unknown, path: string): ChromeLayou
  * Parses a `sillymaker.chrome-layout` Document (for example the value of a
  * `*.chrome-layout.json` import). Admission is strict: exact keys,
  * safe-integer canvas-space coordinates (positions may be negative,
- * sizes are >= 1), bounded entry names, a total entry cap, and a
- * structured path on every failure.
+ * sizes are >= 1), bounded entry names, and a structured path on every
+ * failure. Source-resource budgets belong to the owning application rather
+ * than an arbitrary per-document entry count.
  */
 export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLayoutDocumentV1 {
   const baseKeys = [
@@ -249,10 +347,16 @@ export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLa
     "offsets",
   ];
   const hasAuthoring = value !== null && typeof value === "object" && !Array.isArray(value) &&
-    Object.keys(value).includes("authoring");
+    Object.hasOwn(value, "authoring");
+  const hasWidgets = value !== null && typeof value === "object" && !Array.isArray(value) &&
+    Object.hasOwn(value, "widgets");
   const record = readChromeLayoutExactRecordV1(
     value,
-    hasAuthoring ? [...baseKeys, "authoring"] : baseKeys,
+    [
+      ...baseKeys,
+      ...(hasWidgets ? ["widgets"] : []),
+      ...(hasAuthoring ? ["authoring"] : []),
+    ],
     path,
   );
   if (record.format !== chromeLayoutDocumentFormatV1) {
@@ -314,6 +418,13 @@ export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLa
         "chrome_layout_offset_invalid",
       ),
   );
+  const widgets = hasWidgets
+    ? parseChromeLayoutSectionV1(
+      record.widgets,
+      `${path}/widgets`,
+      (entry, entryPath) => parseChromeLayoutWidgetV1(entry, entryPath, boxes),
+    )
+    : undefined;
   const authoring = hasAuthoring
     ? parseChromeLayoutAuthoringV1(record.authoring, `${path}/authoring`)
     : undefined;
@@ -326,6 +437,7 @@ export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLa
     boxes,
     anchors,
     offsets,
+    ...(widgets === undefined ? {} : { widgets }),
     ...(authoring === undefined ? {} : { authoring }),
   };
 }

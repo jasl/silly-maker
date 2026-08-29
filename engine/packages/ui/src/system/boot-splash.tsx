@@ -55,7 +55,9 @@ export function BootSplashV1(props: {
           key={line}
           style={{
             margin: 0,
-            fontSize: index === 0 ? "clamp(1.125rem, 3vw, 1.75rem)" : "clamp(0.75rem, 1.8vw, 1rem)",
+            fontSize: index === 0
+              ? "clamp(1.125rem, 3cqi, 1.75rem)"
+              : "clamp(0.75rem, 1.8cqi, 1rem)",
             opacity: index === 0 ? 1 : 0.72,
           }}
         >

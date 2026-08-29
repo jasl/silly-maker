@@ -147,8 +147,9 @@ Read only the documents relevant to the change:
   pacing), authorable frame sets, shaped hit regions, hold `when`, and
   mid-hold input. Their contracts and closure records live in the corresponding
   proposals and plans dated 2026-08-19 through 2026-08-22. The separate
-  authorable-chrome-layout lane also delivered M0–M2 and both consumers on
-  2026-08-22; its detailed closure record appears below. After absorbing those
+  authorable-chrome-layout lane delivered M0–M2 and both consumers on
+  2026-08-22, then closed its evidence-gated intent/committed-progress M3 on
+  2026-08-29; its detailed closure record appears below. After absorbing those
   delivered capabilities, the most recently completed default/core lane is
   `docs/engine/plans/2026-08-18-application-runtime-embedded-authoring.md`:
   Browser/Deno Desktop startup evidence, build-known progressive activation, an
@@ -374,7 +375,13 @@ Read only the documents relevant to the change:
   Viewport choice remains presentation data and never enters State, Save,
   replay, BuildIdentity, or application generation. It does not activate
   continuous Input, a renderer/asset/device framework, Desktop HMR, or a final
-  editor/Blueprint format. The owner then selected and completed
+  editor/Blueprint format. A later 2026-08-29 correction added an opt-in
+  `landscape-only` content policy inside the same GameViewport authority:
+  portrait containers use swapped effective geometry plus one 90° canvas
+  compensation, physical landscape removes it without rebuilding the
+  application, logical safe-area tokens rotate with the content, and Stage UI
+  reflows from its size container. This is presentation fallback rather than an
+  OS orientation-lock promise. The owner then selected and completed
   `docs/engine/plans/2026-08-25-cards-reference-application.md` on 2026-08-25.
   Cards delivers the complete PocketJS Cards 0.6.0 denominator, Browser/Deno
   target uplift, the first neutral GUI-only startup consumer, public GUI
@@ -483,9 +490,16 @@ Read only the documents relevant to the change:
   consumers (the template HUD status strip reads its placement from
   `src/chrome/hud.chrome-layout.json` at runtime with browser acceptance;
   the external experiment repo HUD migrated off its M0 story-local parser
-  onto the engine family). The M3 intent-binding widget layer stays behind
-  its own evidence gate. Layout documents stay zero-authority
-  presentation data; behavior booleans and legality stay in Story code.
+  onto the engine family). On 2026-08-29 M3 added the optional `intent` and
+  `hold_progress` widget data plus focused `@sillymaker/ui/chrome` host after
+  high-fidelity product pressure was reproduced in Engine Lab. The Host keeps
+  accessible button/progress semantics and logical-canvas placement, while
+  Story code still owns availability and maps the reported intent id onto an
+  existing semantic path. Layout documents stay zero-authority presentation
+  data; behavior booleans and legality stay in Story code. The same follow-up
+  accepted the existing domain-event → Stage `appearance` → content-resolution
+  composition for conditional overlays and delivered a zero-authority
+  Presentation RNG; neither creates another gameplay authority.
   The shared-stage-input lane (accepted and delivered 2026-08-26,
   owner-ruled q1 full value set on `say`/`choice`/`hold`/`custom`,
   q2/q3 per recommendation) completed M0–M3 the same day:

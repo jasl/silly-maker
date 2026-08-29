@@ -85,6 +85,9 @@ export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.e2e.lab.monitors.gauge", text: "蓄力" },
         { textId: "text.e2e.lab.monitors.ambient", text: "环境自燃" },
         { textId: "text.e2e.lab.monitors.collector", text: "收集器" },
+        { textId: "text.e2e.lab.chrome.progress", text: "警戒窗进度" },
+        { textId: "text.e2e.lab.chrome.engage", text: "啮合收集器" },
+        { textId: "text.e2e.lab.chrome.engaged", text: "收集器已啮合" },
         { textId: "text.e2e.lab.player.controls", text: "播放控制" },
         { textId: "text.e2e.lab.player.rollback", text: "回退一步" },
         { textId: "text.e2e.lab.player.auto", text: "自动" },
@@ -250,7 +253,9 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
           rendererId: "renderer.e2e.lab.stage-prop",
           assetIds: [],
           accessibleName: "样本箱",
-          props: {},
+          props: {
+            latch: appearance.latch === "engaged" ? "engaged" : "sealed",
+          },
           geometry: labSmallPropGeometryV1,
           hitRegions: labCrateZonesRegionsV1.regions,
         });

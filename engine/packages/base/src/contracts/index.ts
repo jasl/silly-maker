@@ -722,4 +722,7 @@ export type {
   ChromeLayoutBoxV1,
   ChromeLayoutCanvasV1,
   ChromeLayoutDocumentV1,
+  ChromeLayoutHoldProgressWidgetV1,
+  ChromeLayoutIntentWidgetV1,
+  ChromeLayoutWidgetV1,
 } from "./chrome-layout.ts";

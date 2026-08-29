@@ -56,9 +56,17 @@ function stageHasTagV1(stage: SemanticStageStateV1, layerId: string, tag: string
   return layer !== undefined && layer.entries.some((entry) => entry.tag === tag);
 }
 
+/** The crate's authoritative art key mirrors the collector switch. */
+export function labCollectorLatchAppearanceV1(
+  engaged: boolean,
+): Readonly<{ latch: "engaged" | "sealed" }> {
+  return { latch: engaged ? "engaged" : "sealed" };
+}
+
 /** Collecting a sample reveals the crate prop once; later collects add nothing. */
 export function labStageMutationsForCollectV1(
   stage: SemanticStageStateV1,
+  collectorEngaged: boolean,
 ): readonly StageMutationV1[] {
   if (stageHasTagV1(stage, "layer.e2e.props", labStageTagsV1.crate)) return [];
   return stageMutationsV1([
@@ -69,6 +77,26 @@ export function labStageMutationsForCollectV1(
       contentId: labStageContentIdsV1.propCrate,
       zOrder: 5,
       placement: { x: 1240, y: 760, scalePermille: 800, opacityPermille: 1000, mirrored: false },
+      appearance: labCollectorLatchAppearanceV1(collectorEngaged),
+    },
+  ]);
+}
+
+/**
+ * Stage-owner fold for the collector event. All writers of that event move
+ * the same art key; the renderer never reads monitor State directly.
+ */
+export function labStageMutationsForCollectorLatchV1(
+  stage: SemanticStageStateV1,
+  engaged: boolean,
+): readonly StageMutationV1[] {
+  if (!stageHasTagV1(stage, "layer.e2e.props", labStageTagsV1.crate)) return [];
+  return stageMutationsV1([
+    {
+      kind: "setAppearance",
+      layerId: "layer.e2e.props",
+      tag: labStageTagsV1.crate,
+      appearance: labCollectorLatchAppearanceV1(engaged),
     },
   ]);
 }

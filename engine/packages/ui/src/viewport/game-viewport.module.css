@@ -1,4 +1,5 @@
 .game-viewport {
+  position: relative;
   display: grid;
   place-items: center;
   inline-size: 100%;
@@ -12,9 +13,13 @@
 }
 
 .game-viewport__canvas {
-  position: relative;
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
   overflow: hidden;
   isolation: isolate;
+  translate: -50% -50%;
+  transform-origin: center;
 }
 
 /* Neutralize the legacy responsive stage sizing inside a managed viewport:

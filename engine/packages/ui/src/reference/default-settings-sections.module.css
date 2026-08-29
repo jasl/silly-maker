@@ -54,7 +54,7 @@
   }
 }
 
-@media (width <= 36rem) {
+@container game-stage (max-width: 36rem) {
   .row {
     grid-template-columns: 1fr auto;
     gap: var(--silly-space-2);

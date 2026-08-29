@@ -83,6 +83,7 @@ import {
   labStageMutationsForBannerV1,
   labStageMutationsForBeginV1,
   labStageMutationsForCollectV1,
+  labStageMutationsForCollectorLatchV1,
   labStageMutationsForDrillV1,
   labStageMutationsForProgressV1,
 } from "./stage.ts";
@@ -570,6 +571,8 @@ function advanceProcedureV1(state: LabProcedureStateV1): LabProcedureStateV1 {
 
 const stageModuleV1 = kit.defineStatefulModule({
   id: "lab.stage",
+  // The conditional-overlay fixture uses the existing appearance shape;
+  // neither the Stage state schema nor its persisted contract changed.
   contractRevision: 2,
   state: {
     slot: "simulation.stage",
@@ -585,6 +588,15 @@ const stageModuleV1 = kit.defineStatefulModule({
       const outcome = reduceAdmittedStageMutationsV1(state, event.mutations);
       if (outcome.kind !== "applied") {
         throw new TypeError("admitted lab stage mutations must apply");
+      }
+      return outcome.state;
+    },
+    "lab.collector_toggled": (state, event) => {
+      const mutations = labStageMutationsForCollectorLatchV1(state, event.engaged);
+      if (mutations.length === 0) return state;
+      const outcome = reduceAdmittedStageMutationsV1(state, mutations);
+      if (outcome.kind !== "applied") {
+        throw new TypeError("collector latch appearance must apply");
       }
       return outcome.state;
     },
@@ -763,7 +775,10 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             yield: sampleYield,
             total: state.samples.collected + sampleYield,
           });
-          const stageRejection = emitStage(transaction, labStageMutationsForCollectV1(state.stage));
+          const stageRejection = emitStage(
+            transaction,
+            labStageMutationsForCollectV1(state.stage, state.monitors.collectorEngaged),
+          );
           if (stageRejection !== null) return transaction.reject({ code: stageRejection });
           return transaction.complete();
         });

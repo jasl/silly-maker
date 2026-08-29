@@ -4,7 +4,8 @@
 > 合计 256 entries 的任意数量上限。Source 资源预算、每个 member 的结构/值校验以及本历史
 > 提案的 presentation-only 语义仍有效。
 
-状态：**已交付（M0–M2 + 双消费者，2026-08-22 当日闭合）**（同日所有
+状态：**已交付（M0–M2 + 双消费者，2026-08-22 当日闭合；M3 意图/
+提交态进度 widget 于 2026-08-29 过证据门并交付）**（同日所有
 者裁决接受：Open questions 按建议定；「不确定这个方案是否能完全解决
 问题，但可以先这么做，下一轮引擎迭代再统筹更系统的方案（如果存
 在）」——本 lane 是务实分层落地，不是场景/物体/交互统一抽象的终局裁
@@ -13,8 +14,9 @@
 CAS 端口）与 M2（Studio 界面布局工作区 + `StudioBindingV1.chrome`
 fixture + template HUD 仓内消费者，浏览器验收 = template.spec.ts 拖
 框→保存→落盘毕业）当日合入；外部实验仓 HUD 同日迁移到引擎家族并删
-除本地解析器（第二消费者）。M3（意图绑定 widget）按计划另立证据门，
-未开。执行顺序与验收见
+除本地解析器（第二消费者）。后续高保真移植暴露了「逻辑画布上的按钮
+只报告意图」与「读取已提交 hold 进度」两个重复形状；M3 因此在
+Engine Lab 中性复现后交付，没有把原产品实现搬入引擎。执行顺序与验收见
 [Authorable chrome layout 计划](../plans/2026-08-22-authorable-chrome-layout.md)。
 
 创作者需求：「道具栏/状态板的页签热区偏了，我只能报 bug——位置明明是
@@ -77,7 +79,7 @@ chrome 只缺几何这一半进文档。
 
 ### 2. Story 消费：admission 一次，组件读类型化数据
 
-组件从解析后的冻结查表读几何（缺名即抛，模块加载即失败），行为不变：
+组件从解析后的类型化数据读几何（缺名即抛，模块加载即失败），行为不变：
 互斥/占用门/toggle 语义仍是代码。文档值变化不触碰
 Save/digest/replay——与 geometry/regions 同一纪律，表现数据零权威。
 
@@ -88,15 +90,18 @@ Studio 新增 Chrome workspace：挂 fixture publication 渲染**真实 HUD
 局文档走现成 dev-server CAS 端口（原子改名 + 409 冲突 + 重读恢复）。
 尖尖偏了 = 拖一下、保存、完——不再报 bug。
 
-### 4. 意图绑定 widget（可选，证据门另立）
+### 4. 意图与提交态进度 widget（2026-08-29 交付）
 
 图标按钮类 chrome（通知/保存/读取/相册/数据）本质是「画布坐标 + 资产
 
-- 意图 id」三元组，可升为声明 widget 由通用 chrome host 渲染。可用性
-  /置灰理由继续走发布投影（今天选项 gate 的形状）；widget 永远只报
-  「intent id 激活」，路由权与合法性留在 Story 规则——与 mid-hold-input
-  钉死的「regions never gain routing power」同一条边界。复杂板体（道具
-  格、状态数值）不 widget 化，留 renderer。
+- 意图 id」三元组；进度槽则是「画布坐标 + 已提交进度投影」。V1 在可选
+  `widgets` 节提供 `intent` 与 `hold_progress` 两类，由 focused
+  `@sillymaker/ui/chrome` host 承载原生按钮/进度语义。可用性、置灰理由与
+  进度值都由 Story 的已发布投影提供；产品可换像素，但 host 保留可访问名、
+  disabled gate、单次激活与 progressbar 语义。widget 永远只报告
+  `intentId`，路由权与合法性留在 Story 规则——与 mid-hold-input 钉死的
+  「regions never gain routing power」同一条边界。复杂板体（道具格、状态
+  数值）继续留在 renderer，不扩张成通用 UI DSL。
 
 ## 边界与限额
 
@@ -104,7 +109,8 @@ Studio 新增 Chrome workspace：挂 fixture publication 渲染**真实 HUD
 - 派生几何不进文档（命令插图 Y 从 say 盒反推这类），派生留代码；
 - 坐标空间 V1 只有逻辑画布空间；舞台条目锚点空间已归 regions 文档，
   不在此重复；
-- 每文档条目数设上限（建议 256）；名字用点分层级便于 lint 与检索。
+- 文档由 Source 资源预算约束，不再设置无依据的 entry 数量上限；每个
+  member 的名字、结构与坐标仍严格校验。名字用点分层级便于 lint 与检索。
 
 ## 分刀计划
 
@@ -113,20 +119,24 @@ Studio 新增 Chrome workspace：挂 fixture publication 渲染**真实 HUD
   ——先证明「几何进文档」的消费形状。
 - **M1（引擎）**：`sillymaker.chrome-layout` 家族进 base（parse +
   admission 诊断码），dev-server 布局端口（列举/读/CAS 写），story
-  check lint（名字唯一、画布匹配、条目上限）。
+  check lint（名字唯一、画布匹配、Source 资源预算）。
 - **M2（Studio）**：Chrome workspace（真实组件渲染 + 拖拽写回 +
   saved/draft 会话），双消费者：仓内一例（template 或 Engine Lab 极小
   chrome 盒）+ 外部实验仓 HUD 全量迁移。
-- **M3（可选）**：意图绑定 widget。证据门：出现第二个真实消费者需要
-  声明式图标按钮时再裁决，不预造。
+- **M3（2026-08-29 已交付）**：可选 `widgets` admission、focused
+  `ChromeWidgetSurfaceV1`、Story-owned intent/committed-progress ports，
+  以及 Engine Lab 的真实 Browser 指针路径。布局数据不获得路由权。
 
 ## 验收草案
 
 - M0：文档值与原常量逐项相等，既有 HUD 测试不改语义全绿；
-- M1：非法文档（非整数/零尺寸/重名/超限）按稳定诊断码拒绝；合法文档
+- M1：非法文档（非整数/零尺寸/重名/超出 Source 资源预算）按稳定诊断码拒绝；合法文档
   变更不改任何 Save/digest/replay 字节；
 - M2：Studio 拖尖尖 → 保存 → 运行中的游戏热区实时更新（HMR 回路）；
   CAS 409 恢复与 motion 端口同构；
+- M3：禁用/隐藏 intent 不派发，启用 intent 只回报一个 id；提交态 hold
+  进度不读墙钟；Stage polygon 与 chrome 按钮都能落到同一 occurrence-
+  fenced 写路径，切出 hold 后两类 widget 一起撤出；
 - AI 回路：agent 改 JSON → `app check` 校验 → 按诊断码修，全程不碰
   TSX。
 

@@ -300,8 +300,10 @@ export {
   createManualPresentationClockV1,
   createPresentationFreezePortV1,
   createPresentationRatePortV1,
+  createPresentationRngStreamV1,
   createPresentationRunV1,
   createSessionTimeReporterV1,
+  derivePresentationSeedV1,
   easeInOutV1,
 } from "./presentation-run/index.ts";
 export type {
@@ -312,6 +314,8 @@ export type {
   PresentationFreezeStateV1,
   PresentationRatePortV1,
   PresentationRateStateV1,
+  PresentationRngStateV1,
+  PresentationRngStreamV1,
   PresentationRunOutcomeV1,
   PresentationRunStatusV1,
   PresentationRunV1,
@@ -360,6 +364,7 @@ export type {
 export { GameViewportV1, useGameViewportV1, useOptionalGameViewportV1 } from "./viewport/index.ts";
 export type {
   GameViewportCanvasV1,
+  GameViewportContentOrientationV1,
   GameViewportGeometryV1,
   GameViewportLayoutQueryV1,
   GameViewportLayoutVariantV1,

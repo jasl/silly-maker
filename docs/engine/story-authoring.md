@@ -238,11 +238,28 @@ viewport: {
 }
 ```
 
+For a fixed-canvas product that deliberately has no portrait topology, declare the orthogonal policy without a
+portrait variant:
+
+```ts
+viewport: {
+  canvas: { width: 1600, height: 900 },
+  contentOrientation: "landscape-only",
+}
+```
+
+`contentOrientation: "landscape-only"` is a content presentation policy, not an OS orientation promise. In a
+portrait container the engine selects variants and computes geometry against the swapped landscape dimensions, then
+rotates that same managed canvas clockwise. When the device/window becomes landscape it removes the compensation
+without rebuilding the application or changing gameplay state. Keep the default `responsive` when the product owns a
+real portrait variant. Stage/HUD CSS must query the named `game-stage` size container and use the logical
+`--silly-safe-area-*` tokens; do not read physical viewport width/height or `env(safe-area-inset-*)` inside product UI.
+
 Bounds are inclusive and the first match wins; a non-match uses the top-level canvas/mode and reports
 `layoutVariantId: null`. `fit` letterboxes the complete authored canvas, `fluid` makes the live container the 1:1
 logical canvas, and the two `expand-*` modes preserve the complete authored canvas while exposing symmetric extra
 logical space on one axis. `useGameViewportV1()` returns the live `canvas`, centered `authoredRect`, selected
-`mode` / `layoutVariantId`, scale/letterbox facts, `toCssPx` for distances, and `toCanvasCssPoint` for authored Stage
+`mode` / `layoutVariantId`, `contentOrientation` / `clockwiseRotationDegrees`, scale/letterbox facts, `toCssPx` for distances, and `toCanvasCssPoint` for authored Stage
 points. CSS can select the same authority through `data-viewport-layout-variant` on the canvas. Stage code continues
 to author camera/layer/entry/hit coordinates relative to `authoredRect`; shell React/CSS uses the full live canvas and
 does not inherit Stage scaling. Resize and variant selection are presentation-only and never enter State, Save,
@@ -264,6 +281,15 @@ Discrete frame swaps (blinks, breathing sheets, burst frame runs) are the same M
 Clickable body/prop zones are authored as Regions documents: a `sillymaker.regions` JSON file (`*.regions.json`, strictly admitted) declaring named regions — bounding box plus accessible name, optionally refined by a `polygonPoints` shape (pointer hits then follow the polygon via CSS clip-path; keyboard activation keeps the box) and a `hoverAssetId` silhouette highlight the host reveals on hover/focus when the Story passes an `assets` registry. Story code imports the document, runs `parseRegionsDocumentV1` once, and hands `document.regions` to the content catalog's `resolveContent` (`hitRegions`); activations arrive through the stage's `onHitRegionActivate` and become ordinary semantic invocations — regions never carry gameplay authority, and hover state never enters State, Saves, or replay. `app check` lints every regions file (admission, unique ids, filename↔id agreement), and `app regions trace <image.png>` bootstraps a document from a bitmap alpha silhouette. The current Inspector shows an Authoring Scene object's projected regions and real polygon/rectangle overlay read-only; edit the standalone Regions JSON/code path directly until a future focused editor is justified.
 
 Chrome placement (HUD icons, docked boards, tab hot zones, sheet return anchors — the DOM chrome outside the semantic stage) is authored as Chrome-layout documents: a `sillymaker.chrome-layout` JSON file (`*.chrome-layout.json`, strictly admitted) carrying one surface's hand-tuned geometry in logical canvas space — `boxes` (position + size; negative positions are legal for parked/peeking elements), `anchors` (position-only points for self-sizing elements), and `offsets` (named integer scalars such as font-metric nudges). Story code imports the document, runs `parseChromeLayoutDocument` once, and reads named entries as ordinary typed data (fail fast on unknown names); behavior — board exclusivity, occupancy gates, intent legality — stays in Story code, and layout documents never enter State, Saves, digests, or replay. `app check` lints every layout file and the dev server retains the CAS ports. M5 removed the Studio Chrome workspace/fixture binding; the current Inspector does not edit standalone chrome layouts, so use the checked data/code path until a real consumer justifies another focused tool.
+
+An optional `widgets` section can bind a named box to an `intent` control or a
+read-only `hold_progress` slot. Render it through `@sillymaker/ui/chrome` and
+provide availability, committed progress, and the `intentId` callback from the
+Story projection. The host owns accessible button/progress semantics and logical-
+canvas placement; the Story still maps the reported id to an ordinary semantic
+invocation or occurrence-fenced write. Do not put command names, rule predicates,
+or routing authority in the layout document. Product render hooks may replace the
+pixels without replacing those semantics.
 
 Visual scene composition now has two explicit source authorities. Prefer an Authoring Scene (`sillymaker.authoring-scene` V1, `*.authoring-scene.json`) for new hierarchical work: it declares ordered layers, ordered root/child object trees, local transforms, at most one Visual per object, named cues, and closed references to hit regions, motions, timelines, GUI controls, and semantic intents. A stable `objectId` is also the runtime Stage tag; a group may carry transform and children without becoming a Stage entry. The byte source is Strict-JSON/schema admitted once into normalized typed IR, then a pure compiler flattens each layer by depth-first preorder, composes transforms with deterministic integer/permille rounding, and emits dense z-order.
 

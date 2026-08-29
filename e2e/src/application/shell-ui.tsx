@@ -7,6 +7,7 @@ import type { ReactElement } from "react";
 import type { DeepReadonly } from "@sillymaker/base";
 import type { DefaultGameRootSlotsV1 } from "@sillymaker/ui";
 import { Button, SemanticStageV1, useNarrativeAsideV1 } from "@sillymaker/ui";
+import { ChromeWidgetSurfaceV1 } from "@sillymaker/ui/chrome";
 
 import { labStageInspectControllerV1 } from "./stage-inspect.ts";
 import { labStageAssetsV1, labStageRenderersV1 } from "./stage-rendering.tsx";
@@ -18,6 +19,7 @@ import type { LabApplicationInstanceV1 } from "./core-definition.ts";
 import type { LabRuntimeInspectorOwnerV1 } from "./runtime-inspection.ts";
 import type { LabUiOverlayIdV1, LabUiPublicationV1 } from "./composition.tsx";
 import { labUiTextV1 } from "./ui-text.ts";
+import { labDrillChromeLayoutV1, labDrillEngageIntentIdV1 } from "../chrome/index.ts";
 import { labDrillTripwireChoiceIdV1 } from "../gameplay/narrative-runtime.ts";
 import {
   labBeaconPulseCueIdV1,
@@ -96,6 +98,10 @@ export function LabHudV1(props: {
   readonly semantic: LabSemanticPortV1;
 }): ReactElement {
   const monitors = props.publication.semantic.game.monitors;
+  const pending = props.publication.semantic.narrative.pending;
+  const sharedHold = pending !== null && pending.kind === "hold" && pending.stageInput === "shared"
+    ? pending
+    : null;
   return (
     <div data-lab-hud="true">
       <p data-lab-samples={String(props.publication.view.samplesCollected)}>
@@ -131,6 +137,31 @@ export function LabHudV1(props: {
           </Button>
         ))}
       </div>
+      <ChromeWidgetSurfaceV1
+        layout={labDrillChromeLayoutV1}
+        intents={{
+          stateOf: (intentId) => {
+            if (intentId !== labDrillEngageIntentIdV1 || sharedHold === null) {
+              return { status: "hidden" };
+            }
+            return monitors.collectorEngaged
+              ? { status: "disabled", reasonTextIds: ["text.e2e.lab.chrome.engaged"] }
+              : { status: "enabled" };
+          },
+          onActivate: (intentId) => {
+            if (intentId !== labDrillEngageIntentIdV1 || sharedHold === null) return;
+            void props.semantic.dispatch({
+              kind: "hold_write",
+              actionId: "lab.engage_collector",
+              expectedHoldOccurrenceId: sharedHold.occurrenceId,
+            });
+          },
+        }}
+        holdProgress={sharedHold === null
+          ? null
+          : { remainingMs: sharedHold.remainingMs, totalMs: sharedHold.totalMs }}
+        resolveText={labUiTextV1}
+      />
     </div>
   );
 }

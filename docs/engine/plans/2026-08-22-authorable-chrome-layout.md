@@ -1,6 +1,7 @@
 # Authorable chrome layout V1（铬布局文档与 Chrome workspace）实施计划
 
-状态：**2026-08-22 开启并当日闭合（M0–M2 + 双消费者交付）**（所有者
+状态：**2026-08-22 开启并当日闭合（M0–M2 + 双消费者交付）；M3 于
+2026-08-29 经新消费者证据交付**（所有者
 当日接受提案，open questions q1–q3 全按建议采纳；明确定性为务实
 V1——「下一轮引擎迭代再统筹更系统的方案（如果存在）」，本车道不是场
 景/物体/交互统一抽象的终局裁决）。合同：
@@ -11,7 +12,8 @@ workspace 加 `StudioBindingV1.chrome` fixture 加 template HUD 仓内消
 费者，浏览器验收为 template.spec.ts 的 chrome M2 用例：拖框 → 保存 →
 落盘毕业 `human_tuned`）同日合入；外部实验仓 HUD 同日迁移到引擎家族
 （`main-hud.chrome-layout.json` + 引擎 parser，本地解析器删除，全量
-vitest 绿）。M3 按证据门保持未开。本文只拥有切片顺序、admission 落地
+vitest 绿）。M3 没有复制旧产品 UI，而是在 Engine Lab 复现 intent 按钮
+与 committed hold progress 的共同合同后交付。本文只拥有切片顺序、admission 落地
 与验收；
 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 仍是唯一跨计划排序入口。
@@ -26,9 +28,10 @@ vitest 绿）。M3 按证据门保持未开。本文只拥有切片顺序、admi
 - **三节都进 V1（q2）。** `boxes`（带尺寸的摆放/命中框）、`anchors`
   （只定位不定尺寸的点）、`offsets`（命名整数标量）；坐标是逻辑画布
   空间安全整数（±1_000_000，尺寸 ≥1），负位合法（停靠露头就是负
-  位）；三节条目总数 ≤256。条目名 1..96，无强制前缀（点分层级是惯
-  例不是 admission）。名字唯一性按节内 JSON 对象天然保证，节间不共
-  享命名空间。
+  位）；Capacity Contract Reset 后不设任意总数上限，Source 资源预算与
+  每个 member 的结构/值校验继续负责边界。条目名 1..96，无强制前缀
+  （点分层级是惯例不是 admission）。名字唯一性按节内 JSON 对象天然
+  保证，节间不共享命名空间。
 - **端口路由走 motion/scene 风格。** `/__sillymaker/dev-sources/
   chrome-layout`（GET ?path= / POST）+ `/chrome-layouts`（GET 列
   表）；regions 的 `-document` 后缀是因为「regions」本身已是复数，
@@ -65,12 +68,17 @@ vitest 绿）。M3 按证据门保持未开。本文只拥有切片顺序、admi
   template HUD 盒（几何进 `*.chrome-layout.json`，运行时与 Studio
   同一文档）；外部实验仓 HUD 从本地解析器迁移到引擎家族（第二消费
   者）。
-- **M3 意图绑定 widget**：不在本车道，证据门另立（提案 §4）。
+- **M3 意图/进度 widget（2026-08-29 交付）**：`widgets` 节严格 admission
+  `intent` / `hold_progress` 两类及其 box 引用；focused
+  `@sillymaker/ui/chrome` host 只接 Story 的 availability、intent callback
+  与 committed progress view，产品 render hook 只替换像素；Engine Lab
+  以真实 Browser 指针连接声明按钮、既有 occurrence-fenced 写与条件化
+  Stage appearance。没有新增 resolution、路由表或 retained-mode UI。
 
 ## 验收
 
 - 非法文档按稳定诊断码拒绝（格式/版本/id/label/画布/条目名/尺寸/
-  上限/未知键各至少一条测试）；合法文档变更零 Save/digest/replay
+  Source 资源预算/未知键各至少一条测试）；合法文档变更零 Save/digest/replay
   接触；
 - story check：重名 layoutId 与文件名失配各报 lint；index / lint /
   端口同一走树纪律（node_modules 与点目录跳过）；
@@ -83,8 +91,9 @@ vitest 绿）。M3 按证据门保持未开。本文只拥有切片顺序、admi
 
 ## Defer
 
-- M3 widget 层（证据门：第二个需要声明式图标按钮的真实消费者）；
-- 跨文档引用 lint（chrome 文档引用资产/文本 id 的存在性检查）；
+- 跨文档引用 lint（widget 的文本/资产/intent id 与应用目录的存在性）；
+- Inspector 对 standalone chrome-layout 的可视编辑；当前仍走受检查的
+  数据/代码路径，不能复活已删除的多 workspace Studio；
 - 每 workspace 聚合视图与多文档批量操作。
 
 ## Stop conditions

@@ -526,6 +526,7 @@ test("large desktops keep restrained VN chrome and honest letterboxing", async (
   const largeViewports = [
     { width: 1_920, height: 1_080, blockLetterboxed: false, inlineLetterboxed: false },
     { width: 1_920, height: 1_200, blockLetterboxed: true, inlineLetterboxed: false },
+    { width: 2_560, height: 1_440, blockLetterboxed: false, inlineLetterboxed: false },
     { width: 2_560, height: 1_080, blockLetterboxed: false, inlineLetterboxed: true },
   ] as const;
 

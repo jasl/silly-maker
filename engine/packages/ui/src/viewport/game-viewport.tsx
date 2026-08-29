@@ -12,6 +12,13 @@ export interface GameViewportCanvasV1 {
 
 export type GameViewportModeV1 = "fit" | "fluid" | "expand-height" | "expand-width";
 
+/**
+ * Presentation policy for products whose authored canvas has no portrait layout.
+ * `landscape-only` rotates only the managed content frame; it does not claim an
+ * operating-system orientation lock.
+ */
+export type GameViewportContentOrientationV1 = "responsive" | "landscape-only";
+
 export interface GameViewportRectV1 extends GameViewportCanvasV1 {
   readonly x: number;
   readonly y: number;
@@ -52,6 +59,9 @@ export interface GameViewportGeometryV1 {
   /** The authored coordinate area within `canvas`. */
   readonly authoredRect: GameViewportRectV1;
   readonly mode: GameViewportModeV1;
+  readonly contentOrientation: GameViewportContentOrientationV1;
+  /** Clockwise presentation compensation applied by the managed canvas. */
+  readonly clockwiseRotationDegrees: 0 | 90;
   readonly layoutVariantId: string | null;
   /** Continuous scale factor from logical units to CSS pixels. */
   readonly scale: number;
@@ -81,6 +91,13 @@ export interface GameViewportPropsV1 {
    * the declared canvas then only serves as the measurement fallback.
    */
   readonly mode?: GameViewportModeV1;
+  /**
+   * `responsive` (default) follows the measured container. `landscape-only`
+   * presents the same logical canvas in a clockwise landscape frame while the
+   * physical container is portrait, then removes that compensation when the
+   * device or window becomes landscape.
+   */
+  readonly contentOrientation?: GameViewportContentOrientationV1;
   /** Finite ordered variants selected only from the measured container size. */
   readonly layoutVariants?: readonly GameViewportLayoutVariantV1[];
   /**
@@ -112,6 +129,8 @@ function computeGeometryV1(
   available: GameViewportSizeV1,
   maxScale: number,
   mode: GameViewportModeV1,
+  contentOrientation: GameViewportContentOrientationV1,
+  clockwiseRotationDegrees: 0 | 90,
   layoutVariantId: string | null,
 ): GameViewportGeometryV1 {
   if (mode === "fluid") {
@@ -120,6 +139,8 @@ function computeGeometryV1(
       canvas: fluidCanvas,
       authoredRect: { x: 0, y: 0, ...fluidCanvas },
       mode,
+      contentOrientation,
+      clockwiseRotationDegrees,
       layoutVariantId,
       scale: 1,
       cssWidth: available.width,
@@ -149,6 +170,8 @@ function computeGeometryV1(
     canvas: liveCanvas,
     authoredRect,
     mode,
+    contentOrientation,
+    clockwiseRotationDegrees,
     layoutVariantId,
     scale,
     cssWidth,
@@ -238,6 +261,7 @@ export function GameViewportV1(props: GameViewportPropsV1): ReactElement {
     throw new TypeError("ui.game_viewport_invalid_max_scale");
   }
   const mode = props.mode ?? "fit";
+  const contentOrientation = props.contentOrientation ?? "responsive";
   const [outerElement, setOuterElement] = useState<HTMLElement | null>(null);
   const [measured, setMeasured] = useState<GameViewportSizeV1 | null>(null);
 
@@ -265,7 +289,13 @@ export function GameViewportV1(props: GameViewportPropsV1): ReactElement {
   );
   const geometry = useMemo(
     () => {
-      const available = { width: availableWidth, height: availableHeight };
+      const clockwiseRotationDegrees = contentOrientation === "landscape-only" &&
+          availableWidth < availableHeight
+        ? 90
+        : 0;
+      const available = clockwiseRotationDegrees === 90
+        ? { width: availableHeight, height: availableWidth }
+        : { width: availableWidth, height: availableHeight };
       const variant = layoutVariants.find((candidate) =>
         matchesLayoutVariantV1(candidate.when, available)
       );
@@ -275,18 +305,41 @@ export function GameViewportV1(props: GameViewportPropsV1): ReactElement {
         available,
         maxScale,
         variant?.mode ?? mode,
+        contentOrientation,
+        clockwiseRotationDegrees,
         variant?.id ?? null,
       );
     },
-    [availableHeight, availableWidth, layoutVariants, maxScale, mode, props.canvas],
+    [
+      availableHeight,
+      availableWidth,
+      contentOrientation,
+      layoutVariants,
+      maxScale,
+      mode,
+      props.canvas,
+    ],
   );
 
   const canvasStyle = {
-    inlineSize: geometry.mode === "fluid" ? "100%" : `${String(geometry.cssWidth)}px`,
-    blockSize: geometry.mode === "fluid" ? "100%" : `${String(geometry.cssHeight)}px`,
+    inlineSize: geometry.mode === "fluid" && geometry.clockwiseRotationDegrees === 0
+      ? "100%"
+      : `${String(geometry.cssWidth)}px`,
+    blockSize: geometry.mode === "fluid" && geometry.clockwiseRotationDegrees === 0
+      ? "100%"
+      : `${String(geometry.cssHeight)}px`,
     "--gv-scale": String(geometry.scale),
     "--gv-canvas-width": String(geometry.canvas.width),
     "--gv-canvas-height": String(geometry.canvas.height),
+    ...(geometry.clockwiseRotationDegrees === 90
+      ? {
+        rotate: "90deg",
+        "--silly-safe-area-block-start": "var(--silly-safe-area-physical-right)",
+        "--silly-safe-area-inline-end": "var(--silly-safe-area-physical-bottom)",
+        "--silly-safe-area-block-end": "var(--silly-safe-area-physical-left)",
+        "--silly-safe-area-inline-start": "var(--silly-safe-area-physical-top)",
+      }
+      : {}),
     ...(geometry.mode === "fluid" ? {} : {
       "--silly-stage-aspect-ratio": `${String(geometry.canvas.width)} / ${
         String(geometry.canvas.height)
@@ -301,6 +354,8 @@ export function GameViewportV1(props: GameViewportPropsV1): ReactElement {
         data-game-viewport-canvas="true"
         data-viewport-scale={geometry.scale.toFixed(4)}
         data-viewport-mode={geometry.mode}
+        data-viewport-content-orientation={geometry.contentOrientation}
+        data-viewport-rotation={String(geometry.clockwiseRotationDegrees)}
         data-viewport-layout-variant={geometry.layoutVariantId ?? undefined}
         style={canvasStyle}
       >

@@ -404,7 +404,7 @@ SQLite operational contract；除非出现 concrete blocker，不再把 journal/
 - [Mid-hold input](plans/2026-08-22-mid-hold-input.md)（2026-08-22 接受，同日
   完成）
 - [Authorable chrome layout](plans/2026-08-22-authorable-chrome-layout.md)
-  （2026-08-22 接受，同日完成）
+  （2026-08-22 接受并完成 M0–M2；2026-08-29 完成证据门后的 M3）
 - [Shared stage input](plans/2026-08-26-shared-stage-input.md)（2026-08-26 接
   受，同日完成）
 - [Narrative aside](plans/2026-08-27-narrative-aside.md)（2026-08-27 开启，同日

@@ -8,7 +8,11 @@ import type { ReactElement } from "react";
 
 import type { GameViewportGeometryV1 } from "./game-viewport.tsx";
 import { GameViewportV1, useGameViewportV1 } from "./game-viewport.tsx";
-import type { GameViewportLayoutVariantV1, GameViewportModeV1 } from "./game-viewport.tsx";
+import type {
+  GameViewportContentOrientationV1,
+  GameViewportLayoutVariantV1,
+  GameViewportModeV1,
+} from "./game-viewport.tsx";
 
 afterEach(cleanup);
 
@@ -24,6 +28,7 @@ function renderViewportV1(input: {
   readonly fallbackSize: { width: number; height: number };
   readonly maxScale?: number;
   readonly mode?: GameViewportModeV1;
+  readonly contentOrientation?: GameViewportContentOrientationV1;
   readonly layoutVariants?: readonly GameViewportLayoutVariantV1[];
   readonly children?: ReactElement;
 }) {
@@ -34,6 +39,9 @@ function renderViewportV1(input: {
       fallbackSize={input.fallbackSize}
       {...(input.maxScale === undefined ? {} : { maxScale: input.maxScale })}
       {...(input.mode === undefined ? {} : { mode: input.mode })}
+      {...(input.contentOrientation === undefined
+        ? {}
+        : { contentOrientation: input.contentOrientation })}
       {...(input.layoutVariants === undefined ? {} : { layoutVariants: input.layoutVariants })}
     >
       <GeometryProbeV1
@@ -131,6 +139,83 @@ describe("GameViewportV1", () => {
       cssHeight: 844,
       letterboxInline: 0,
       letterboxBlock: 0,
+    });
+  });
+
+  it("presents a landscape-only canvas clockwise in a portrait container", () => {
+    const geometry = renderViewportV1({
+      canvas: { width: 1600, height: 900 },
+      fallbackSize: { width: 390, height: 844 },
+      contentOrientation: "landscape-only",
+      layoutVariants: [
+        { id: "portrait", when: { maxAspectRatio: 0.8 }, mode: "expand-height" },
+        { id: "landscape", when: { minAspectRatio: 2 } },
+      ],
+    });
+
+    expect(geometry).toMatchObject({
+      contentOrientation: "landscape-only",
+      clockwiseRotationDegrees: 90,
+      layoutVariantId: "landscape",
+      mode: "fit",
+    });
+    expect(geometry.scale).toBeCloseTo(390 / 900);
+    expect(geometry.cssWidth).toBeCloseTo(1600 * 390 / 900);
+    expect(geometry.cssHeight).toBeCloseTo(390);
+
+    const canvasBox = screen.getByTestId("game-viewport").firstElementChild;
+    expect(canvasBox).toHaveAttribute("data-viewport-content-orientation", "landscape-only");
+    expect(canvasBox).toHaveAttribute("data-viewport-rotation", "90");
+    expect(canvasBox).toHaveStyle({
+      rotate: "90deg",
+      "--silly-safe-area-block-start": "var(--silly-safe-area-physical-right)",
+      "--silly-safe-area-inline-end": "var(--silly-safe-area-physical-bottom)",
+      "--silly-safe-area-block-end": "var(--silly-safe-area-physical-left)",
+      "--silly-safe-area-inline-start": "var(--silly-safe-area-physical-top)",
+    });
+  });
+
+  it("uses the same landscape geometry without compensation after physical rotation", () => {
+    const geometry = renderViewportV1({
+      canvas: { width: 1600, height: 900 },
+      fallbackSize: { width: 844, height: 390 },
+      contentOrientation: "landscape-only",
+    });
+
+    expect(geometry.clockwiseRotationDegrees).toBe(0);
+    expect(geometry.scale).toBeCloseTo(390 / 900);
+    expect(geometry.cssWidth).toBeCloseTo(1600 * 390 / 900);
+    expect(geometry.cssHeight).toBeCloseTo(390);
+    expect(screen.getByTestId("game-viewport").firstElementChild).toHaveAttribute(
+      "data-viewport-rotation",
+      "0",
+    );
+  });
+
+  it("keeps square containers unrotated and gives rotated fluid canvases explicit virtual size", () => {
+    const square = renderViewportV1({
+      canvas: { width: 1200, height: 900 },
+      fallbackSize: { width: 600, height: 600 },
+      contentOrientation: "landscape-only",
+    });
+    expect(square.clockwiseRotationDegrees).toBe(0);
+
+    cleanup();
+    const fluid = renderViewportV1({
+      canvas: { width: 1280, height: 720 },
+      fallbackSize: { width: 390, height: 844 },
+      mode: "fluid",
+      contentOrientation: "landscape-only",
+    });
+    expect(fluid).toMatchObject({
+      canvas: { width: 844, height: 390 },
+      clockwiseRotationDegrees: 90,
+      cssWidth: 844,
+      cssHeight: 390,
+    });
+    expect(screen.getByTestId("game-viewport").firstElementChild).toHaveStyle({
+      inlineSize: "844px",
+      blockSize: "390px",
     });
   });
 

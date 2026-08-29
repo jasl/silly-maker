@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { InteractionResolutionV1, PendingInteractionV1 } from "@sillymaker/base";
+import type {
+  InteractionResolutionV1,
+  PendingInteractionV1,
+  SemanticStageStateV1,
+} from "@sillymaker/base";
+import { projectStageRenderTargetV1 } from "@sillymaker/base";
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
 import type { LabInvocationV1 } from "../index.ts";
 import { labHeadlessExecutionContextV1, labSemanticAdapterV1, labStoryEntryV1 } from "../index.ts";
 import { labDrillTripwireChoiceIdV1, labDrillTripwireDurationMsV1 } from "../gameplay/narrative.ts";
+import { labStageContentCatalogV1 } from "../presentation.ts";
+import { labStageTagsV1 } from "../stage-ids.ts";
 
 /**
  * Mid-hold input writes: the input-axis granularity of hold `when`.
@@ -71,6 +78,28 @@ async function committed(harness: LabHarnessV1, invocation: LabInvocationV1): Pr
   expect(result).toMatchObject({ kind: "committed" });
 }
 
+function crateLatchV1(
+  harness: LabHarnessV1,
+): { readonly appearance: string; readonly projected: string } | null {
+  const state = harness.admin.inspectForTest().snapshot.state as {
+    simulation: { stage: SemanticStageStateV1 };
+  };
+  const entry = state.simulation.stage.layers
+    .find((layer) => layer.layerId === "layer.e2e.props")
+    ?.entries.find((candidate) => candidate.tag === labStageTagsV1.crate);
+  if (entry === undefined) return null;
+  const projected = projectStageRenderTargetV1(
+    state.simulation.stage,
+    labStageContentCatalogV1,
+  ).target.layers
+    .find((layer) => layer.layerId === "layer.e2e.props")
+    ?.entries.find((candidate) => candidate.tag === labStageTagsV1.crate);
+  return {
+    appearance: entry.appearance.latch ?? "missing",
+    projected: typeof projected?.props.latch === "string" ? projected.props.latch : "missing",
+  };
+}
+
 /** Begins the drill and enters the tripwire hold. */
 async function enterTripwireV1(harness: LabHarnessV1): Promise<PendingInteractionV1> {
   await committed(harness, invoke("lab.begin_drill"));
@@ -95,6 +124,8 @@ async function enterTripwireV1(harness: LabHarnessV1): Promise<PendingInteractio
 describe("Engine Lab mid-hold input writes", () => {
   it("writes without touching the hold, then cuts at the next settlement's t=0", async () => {
     const harness = await createLabHarnessV1();
+    await committed(harness, invoke("lab.collect_sample"));
+    expect(crateLatchV1(harness)).toEqual({ appearance: "sealed", projected: "sealed" });
     const hold = await enterTripwireV1(harness);
 
     // A partial settlement first, so the write demonstrably lands against
@@ -104,6 +135,7 @@ describe("Engine Lab mid-hold input writes", () => {
       kind: "hold",
       remainingMs: labDrillTripwireDurationMsV1 - 400,
     });
+    expect(crateLatchV1(harness)).toEqual({ appearance: "sealed", projected: "sealed" });
 
     // The fenced write commits, and the hold is untouched: the same
     // occurrence stays pending with the same authoritative remainder —
@@ -115,6 +147,7 @@ describe("Engine Lab mid-hold input writes", () => {
       occurrenceId: hold.occurrenceId,
       remainingMs: labDrillTripwireDurationMsV1 - 400,
     });
+    expect(crateLatchV1(harness)).toEqual({ appearance: "engaged", projected: "engaged" });
 
     // The write entered the journal as an ordinary command — no new
     // resolution kind exists for the input axis.
@@ -132,6 +165,22 @@ describe("Engine Lab mid-hold input writes", () => {
       definitionId: "interaction.e2e.drill-catch",
     });
 
+    await harness.dispose();
+  });
+
+  it("seeds a late stage entry from current state and shares one event fold", async () => {
+    const harness = await createLabHarnessV1();
+    expect(crateLatchV1(harness)).toBeNull();
+
+    await committed(harness, invoke("lab.toggle_collector"));
+    expect(harness.observe().game.monitors.collectorEngaged).toBe(true);
+    expect(crateLatchV1(harness)).toBeNull();
+
+    await committed(harness, invoke("lab.collect_sample"));
+    expect(crateLatchV1(harness)).toEqual({ appearance: "engaged", projected: "engaged" });
+
+    await committed(harness, invoke("lab.toggle_collector"));
+    expect(crateLatchV1(harness)).toEqual({ appearance: "sealed", projected: "sealed" });
     await harness.dispose();
   });
 

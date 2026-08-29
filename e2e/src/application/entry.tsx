@@ -8,6 +8,15 @@ import { installLabGameApplicationHmrV1, labGameApplicationV1 } from "./composit
 // the Web composer. In Vite development the composition module owns a literal
 // self-accept boundary and hands admitted R2 successors back to that composer.
 if (typeof document !== "undefined") {
-  const started = await startWebGameApplicationV1(labGameApplicationV1);
-  if (import.meta.hot !== undefined) installLabGameApplicationHmrV1(started);
+  const application = new URLSearchParams(globalThis.location.search).get("content_orientation") ===
+      "landscape-only"
+    ? {
+      ...labGameApplicationV1,
+      viewport: { ...labGameApplicationV1.viewport, contentOrientation: "landscape-only" as const },
+    }
+    : labGameApplicationV1;
+  const started = await startWebGameApplicationV1(application);
+  if (import.meta.hot !== undefined) {
+    installLabGameApplicationHmrV1(started, { currentApplication: application });
+  }
 }

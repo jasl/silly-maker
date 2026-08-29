@@ -119,14 +119,12 @@
   }
 }
 
-@media (height <= 32rem) {
-  @container game-stage (max-width: 52rem) {
-    .history-root {
-      padding: var(--silly-space-2);
-    }
+@container game-stage (max-height: 32rem) and (max-width: 52rem) {
+  .history-root {
+    padding: var(--silly-space-2);
+  }
 
-    .history-panel {
-      max-block-size: calc(100% - 2 * var(--silly-space-2));
-    }
+  .history-panel {
+    max-block-size: calc(100% - 2 * var(--silly-space-2));
   }
 }

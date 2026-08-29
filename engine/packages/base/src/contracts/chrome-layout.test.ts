@@ -44,6 +44,100 @@ describe("parseChromeLayoutDocumentV1", () => {
     expect(parsed.boxes).toEqual({});
     expect(parsed.anchors).toEqual({});
     expect(parsed.offsets).toEqual({});
+    expect(parsed.widgets).toBeUndefined();
+  });
+
+  it("admits intent and committed hold-progress widgets against own boxes", () => {
+    const parsed = parseChromeLayoutDocumentV1({
+      ...validDocumentV1(),
+      widgets: {
+        save: {
+          kind: "intent",
+          box: "board.item.tab.peek",
+          intentId: "player.save",
+          labelTextId: "text.save",
+          assetId: "asset.save",
+        },
+        wait: {
+          kind: "hold_progress",
+          box: "board.parked",
+          labelTextId: "text.wait",
+        },
+      },
+    });
+
+    expect(parsed.widgets).toEqual({
+      save: {
+        kind: "intent",
+        box: "board.item.tab.peek",
+        intentId: "player.save",
+        labelTextId: "text.save",
+        assetId: "asset.save",
+      },
+      wait: {
+        kind: "hold_progress",
+        box: "board.parked",
+        labelTextId: "text.wait",
+      },
+    });
+  });
+
+  it("rejects unknown widget kinds, extra behavior, and inherited box names", () => {
+    expect(() =>
+      parseChromeLayoutDocumentV1({
+        ...validDocumentV1(),
+        widgets: {
+          unknown: { kind: "command", box: "board.parked", labelTextId: "text.unknown" },
+        },
+      })
+    ).toThrowError(/chrome_layout_widget_kind_invalid at \/widgets\/unknown\/kind/u);
+
+    expect(() =>
+      parseChromeLayoutDocumentV1({
+        ...validDocumentV1(),
+        widgets: {
+          routed: {
+            kind: "intent",
+            box: "board.parked",
+            intentId: "player.save",
+            labelTextId: "text.save",
+            command: "save-now",
+          },
+        },
+      })
+    ).toThrowError(/object_keys at \/widgets\/routed/u);
+
+    expect(() =>
+      parseChromeLayoutDocumentV1({
+        ...validDocumentV1(),
+        widgets: {
+          inherited: {
+            kind: "hold_progress",
+            box: "constructor",
+            labelTextId: "text.wait",
+          },
+        },
+      })
+    ).toThrowError(/chrome_layout_widget_box_unknown at \/widgets\/inherited\/box/u);
+  });
+
+  it("admits widget collections without an arbitrary semantic count cap", () => {
+    const source = validDocumentV1();
+    const boxes: Record<string, unknown> = {};
+    const widgets: Record<string, unknown> = {};
+    for (let index = 0; index < 300; index += 1) {
+      const name = `action.${String(index)}`;
+      boxes[name] = { x: index, y: index, width: 10, height: 10 };
+      widgets[name] = {
+        kind: "intent",
+        box: name,
+        intentId: `intent.${String(index)}`,
+        labelTextId: `text.${String(index)}`,
+      };
+    }
+    source.boxes = boxes;
+    source.widgets = widgets;
+    expect(Object.keys(parseChromeLayoutDocumentV1(source).widgets ?? {})).toHaveLength(300);
   });
 
   it("keeps authoring metadata and validates its members", () => {

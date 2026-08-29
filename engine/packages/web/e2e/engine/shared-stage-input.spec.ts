@@ -10,7 +10,9 @@ import { expect, gotoLabV1, test } from "./fixtures.ts";
  * arm cuts at the next fenced settlement's t=0). Isolated pendings keep
  * the stage inert; Chromium enforces the attribute natively. Attribute
  * and routing arithmetic are pinned headless — this suite proves the
- * pointer path end to end.
+ * pointer path end to end. The second write uses the authorable chrome
+ * widget host so its public intent-only boundary is exercised by a real
+ * consumer rather than only a component test.
  */
 test.describe("engine shared stage input", () => {
   test("a real pointer resolves the shared menu and lands the mid-hold fenced write", async ({ page }) => {
@@ -39,13 +41,22 @@ test.describe("engine shared stage input", () => {
     await expect(backgroundLayer).not.toHaveAttribute("inert");
     await zone.click();
     await expect(page.locator("[data-lab-interaction='hold']")).toBeVisible();
+    const progress = page.getByRole("progressbar", { name: "警戒窗进度" });
+    const engage = page.getByRole("button", { name: "啮合收集器" });
+    await expect(progress).toBeVisible();
+    await expect(progress).toHaveAttribute("aria-valuemax", "6000");
+    await expect(engage).toBeVisible();
 
-    // The shared tripwire hold keeps the stage reachable: a second real
-    // click lands the fenced collector write, and the hold's own arm cuts
-    // to the catch line at the next fenced settlement's t=0.
+    // The shared tripwire hold keeps the stage reachable. The authorable
+    // chrome button only reports its intent id; the Lab maps it to the same
+    // occurrence-fenced collector write as the shaped region. The hold's
+    // own arm cuts to the catch line at the next fenced settlement's t=0.
     await expect(backgroundLayer).not.toHaveAttribute("inert");
-    await zone.click();
+    await engage.click();
+    await expect(page.locator("[data-lab-prop][data-lab-latch='engaged']")).toBeVisible();
     await expect(page.getByText("有动静——正好抓个正着。")).toBeVisible({ timeout: 15_000 });
+    await expect(progress).not.toBeAttached();
+    await expect(engage).not.toBeAttached();
 
     // The catch say is isolated again — declaration is per pending, not
     // per scene.
