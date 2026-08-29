@@ -143,6 +143,14 @@ enabled/disabled(+理由文本 id)/hidden` 投影端口与 `onActivate` 回
   jsdom 用例：围栏写路由、部分围栏 tick 推进度、禁用零派发、切臂即
   撤）；Studio 编辑面对 widget 保持只读透传，但盒改名/删除会同步/收
   割其 widget 引用，草稿永不因几何编辑卡死在 admission 外。
+- **M3 补刀（同日，golden baseline 迁移实证）**：Story 像素接管钩子
+  `renderIntent` / `renderHoldProgress`（宿主保留全部语义——按钮元素
+  /可达名/禁用门/单次激活、progressbar role/已提交数值/box 定位；
+  Story 只画内部像素，hold 钩子回 null 即隐藏该 widget），及
+  `holdProgress` 接受按 widget 名解析视图的函数形态（多槽位 HUD：只
+  点亮当前 hold 占用的槽）。证据：外部实验仓的 挿入2 深色面板与
+  ■□ 描边文字格条都必须 Story 自有像素，且约 30 个计时窗规格共享
+  8 个 popup 槽位。缺省路径字节不变。
 
 ## 验收草案
 

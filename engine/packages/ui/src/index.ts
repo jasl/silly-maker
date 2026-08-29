@@ -32,7 +32,10 @@ export type {
 } from "./primitives/index.ts";
 export { ChromeWidgetSurfaceV1 } from "./chrome/chrome-widget-surface.tsx";
 export type {
+  ChromeHoldProgressRenderContextV1,
+  ChromeHoldProgressResolverV1,
   ChromeHoldProgressViewV1,
+  ChromeIntentWidgetRenderContextV1,
   ChromeIntentWidgetStateV1,
   ChromeIntentWidgetStatusV1,
   ChromeWidgetIntentPortV1,

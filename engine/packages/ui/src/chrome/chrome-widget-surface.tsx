@@ -7,7 +7,15 @@
 // surfaces never gain routing power, and no second resolution path exists).
 // The `hold_progress` kind renders a read-only meter from the committed
 // pending-hold view; wall clocks and interpolation stay out.
-import type { CSSProperties, ReactElement } from "react";
+//
+// Story pixel ownership (evidence-gated by the golden-baseline migration,
+// same day): the optional `renderIntent`/`renderHoldProgress` hooks let a
+// Story replace the stock visuals while the host keeps every semantic —
+// the button element with its accessibility and single-activation wiring,
+// the progressbar role with committed values, box placement, and the
+// availability projection. Multi-slot HUDs may resolve the committed view
+// per widget by passing a function as `holdProgress`.
+import type { CSSProperties, ReactElement, ReactNode } from "react";
 
 import type { ChromeLayoutBoxV1, ChromeLayoutDocumentV1 } from "@sillymaker/base";
 
@@ -41,14 +49,57 @@ export interface ChromeHoldProgressViewV1 {
   readonly totalMs: number;
 }
 
+/**
+ * Per-widget committed-view resolver for multi-slot progress HUDs: the
+ * Story returns the view only for the widget the current hold occupies
+ * (null hides that widget). Values still come from committed facts only.
+ */
+export type ChromeHoldProgressResolverV1 = (
+  widgetName: string,
+) => ChromeHoldProgressViewV1 | null;
+
+/** Story pixel hook input for an `intent` widget (semantics stay hosted). */
+export interface ChromeIntentWidgetRenderContextV1 {
+  readonly widgetName: string;
+  readonly intentId: string;
+  readonly box: ChromeLayoutBoxV1;
+  readonly label: string;
+  readonly status: Exclude<ChromeIntentWidgetStatusV1, "hidden">;
+  /** Resolved disabled reasons (empty when enabled). */
+  readonly reasonTexts: readonly string[];
+}
+
+/** Story pixel hook input for a `hold_progress` widget. */
+export interface ChromeHoldProgressRenderContextV1 {
+  readonly widgetName: string;
+  readonly box: ChromeLayoutBoxV1;
+  readonly label: string;
+  readonly remainingMs: number;
+  readonly totalMs: number;
+}
+
 export interface ChromeWidgetSurfacePropsV1 {
   readonly layout: ChromeLayoutDocumentV1;
   readonly intents: ChromeWidgetIntentPortV1;
-  /** Null/undefined hides every `hold_progress` widget. */
-  readonly holdProgress?: ChromeHoldProgressViewV1 | null;
+  /**
+   * Null/undefined hides every `hold_progress` widget; a function resolves
+   * the committed view per widget (multi-slot HUDs).
+   */
+  readonly holdProgress?: ChromeHoldProgressViewV1 | ChromeHoldProgressResolverV1 | null;
   readonly resolveText: (textId: string) => string;
   /** Optional icon delivery; without it (or the asset) the label renders. */
   readonly assets?: AssetUrlRegistryV1 | null;
+  /**
+   * Optional Story-owned pixels inside the hosted button (the host keeps
+   * the element, accessibility, disabled gating, and single activation).
+   */
+  readonly renderIntent?: (context: ChromeIntentWidgetRenderContextV1) => ReactNode;
+  /**
+   * Optional Story-owned pixels inside the hosted progressbar (the host
+   * keeps the role, committed values, and box placement). Returning null
+   * hides that widget.
+   */
+  readonly renderHoldProgress?: (context: ChromeHoldProgressRenderContextV1) => ReactNode | null;
 }
 
 function chromeWidgetBoxStyleV1(box: ChromeLayoutBoxV1): CSSProperties {
@@ -71,12 +122,22 @@ function ChromeIntentWidgetButtonV1(props: {
   readonly intents: ChromeWidgetIntentPortV1;
   readonly resolveText: (textId: string) => string;
   readonly assets: AssetUrlRegistryV1 | null;
+  readonly renderIntent: ((context: ChromeIntentWidgetRenderContextV1) => ReactNode) | undefined;
 }): ReactElement | null {
   const iconUrl = useAssetUrlV1(props.assets, props.assetId, "chrome_widget_icon");
   const state = props.intents.stateOf(props.intentId);
   if (state.status === "hidden") return null;
   const label = props.resolveText(props.labelTextId);
-  const reasons = (state.reasonTextIds ?? []).map(props.resolveText).join(" · ");
+  const reasonTexts = (state.reasonTextIds ?? []).map(props.resolveText);
+  const reasons = reasonTexts.join(" · ");
+  const stockChildren = iconUrl === null ? label : (
+    <img
+      src={iconUrl}
+      alt=""
+      draggable={false}
+      style={{ inlineSize: "100%", blockSize: "100%", objectFit: "contain" }}
+    />
+  );
   return (
     <IconButton
       accessibleName={label}
@@ -90,15 +151,64 @@ function ChromeIntentWidgetButtonV1(props: {
         props.intents.onActivate(props.intentId);
       }}
     >
-      {iconUrl === null ? label : (
-        <img
-          src={iconUrl}
-          alt=""
-          draggable={false}
-          style={{ inlineSize: "100%", blockSize: "100%", objectFit: "contain" }}
-        />
-      )}
+      {props.renderIntent === undefined ? stockChildren : props.renderIntent({
+        widgetName: props.widgetName,
+        intentId: props.intentId,
+        box: props.box,
+        label,
+        status: state.status,
+        reasonTexts,
+      })}
     </IconButton>
+  );
+}
+
+function ChromeHoldProgressWidgetV1(props: {
+  readonly widgetName: string;
+  readonly box: ChromeLayoutBoxV1;
+  readonly label: string;
+  readonly view: ChromeHoldProgressViewV1;
+  readonly renderHoldProgress:
+    | ((context: ChromeHoldProgressRenderContextV1) => ReactNode | null)
+    | undefined;
+}): ReactElement | null {
+  const total = props.view.totalMs;
+  const elapsed = Math.min(total, Math.max(0, total - props.view.remainingMs));
+  if (props.renderHoldProgress === undefined) {
+    return (
+      <ProgressMeter
+        accessibleName={props.label}
+        value={elapsed}
+        max={total}
+        data-chrome-widget={props.widgetName}
+        data-chrome-widget-kind="hold_progress"
+        style={chromeWidgetBoxStyleV1(props.box)}
+      />
+    );
+  }
+  const pixels = props.renderHoldProgress({
+    widgetName: props.widgetName,
+    box: props.box,
+    label: props.label,
+    remainingMs: props.view.remainingMs,
+    totalMs: total,
+  });
+  if (pixels === null) return null;
+  // Story owns the pixels; the host keeps the progressbar semantics and
+  // the committed values (the visual content is presentational only).
+  return (
+    <div
+      role="progressbar"
+      aria-label={props.label}
+      aria-valuemin={0}
+      aria-valuenow={elapsed}
+      aria-valuemax={total}
+      data-chrome-widget={props.widgetName}
+      data-chrome-widget-kind="hold_progress"
+      style={chromeWidgetBoxStyleV1(props.box)}
+    >
+      <span aria-hidden="true">{pixels}</span>
+    </div>
   );
 }
 
@@ -131,24 +241,22 @@ export function ChromeWidgetSurfaceV1(props: ChromeWidgetSurfacePropsV1): ReactE
                 intents={props.intents}
                 resolveText={props.resolveText}
                 assets={props.assets ?? null}
+                renderIntent={props.renderIntent}
               />
             );
           case "hold_progress": {
-            if (holdProgress === null || holdProgress.totalMs <= 0) return null;
-            const total = holdProgress.totalMs;
-            const elapsed = Math.min(
-              total,
-              Math.max(0, total - holdProgress.remainingMs),
-            );
+            const view = typeof holdProgress === "function"
+              ? holdProgress(widgetName)
+              : holdProgress;
+            if (view === null || view.totalMs <= 0) return null;
             return (
-              <ProgressMeter
+              <ChromeHoldProgressWidgetV1
                 key={widgetName}
-                accessibleName={props.resolveText(widget.labelTextId)}
-                value={elapsed}
-                max={total}
-                data-chrome-widget={widgetName}
-                data-chrome-widget-kind="hold_progress"
-                style={chromeWidgetBoxStyleV1(box)}
+                widgetName={widgetName}
+                box={box}
+                label={props.resolveText(widget.labelTextId)}
+                view={view}
+                renderHoldProgress={props.renderHoldProgress}
               />
             );
           }

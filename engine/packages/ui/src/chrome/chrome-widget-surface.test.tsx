@@ -199,4 +199,103 @@ describe("ChromeWidgetSurfaceV1", () => {
     );
     expect(container.childElementCount).toBe(0);
   });
+
+  it("keeps hosted semantics under Story-owned intent pixels", async () => {
+    const activations: string[] = [];
+    render(
+      <ChromeWidgetSurfaceV1
+        layout={layoutV1}
+        intents={intentPortV1(
+          {
+            "app.route.inside": { status: "enabled" },
+            "app.route.outside": {
+              status: "disabled",
+              reasonTextIds: ["text.reason.locked"],
+            },
+          },
+          (intentId) => activations.push(intentId),
+        )}
+        resolveText={resolveTextV1}
+        renderIntent={(context) => (
+          <span data-story-pixels={context.widgetName}>
+            {context.status === "disabled"
+              ? `×${context.label}（${context.reasonTexts.join("/")}）`
+              : `▶${context.label}`}
+          </span>
+        )}
+      />,
+    );
+    // The host still owns the button element, its accessible name, and the
+    // disabled gate; the Story only painted the interior.
+    const inside = screen.getByRole("button", { name: "中に出す" });
+    expect(inside.querySelector("[data-story-pixels='route.inside']")?.textContent).toBe(
+      "▶中に出す",
+    );
+    expect(inside.style.insetInlineStart).toBe("120px");
+    const outside = screen.getByRole("button", { name: "外に出す" });
+    expect((outside as HTMLButtonElement).disabled).toBe(true);
+    expect(outside.querySelector("[data-story-pixels='route.outside']")?.textContent).toBe(
+      "×外に出す（锁定中）",
+    );
+    await userEvent.setup().click(inside);
+    await userEvent.setup().click(outside);
+    expect(activations).toEqual(["app.route.inside"]);
+  });
+
+  it("resolves hold views per widget and hosts Story progress pixels", () => {
+    const multiSlotLayout = parseChromeLayoutDocumentV1({
+      format: "sillymaker.chrome-layout",
+      version: 1,
+      layoutId: "layout.test.multi-slot",
+      label: "多槽位进度",
+      canvas: { width: 1024, height: 576 },
+      boxes: {
+        "slot.left": { x: 20, y: 220, width: 220, height: 20 },
+        "slot.right": { x: 790, y: 230, width: 220, height: 20 },
+      },
+      anchors: {},
+      offsets: {},
+      widgets: {
+        "slot.left": { kind: "hold_progress", box: "slot.left", labelTextId: "text.window.bar" },
+        "slot.right": { kind: "hold_progress", box: "slot.right", labelTextId: "text.window.bar" },
+      },
+    });
+    render(
+      <ChromeWidgetSurfaceV1
+        layout={multiSlotLayout}
+        intents={intentPortV1({}, () => {})}
+        holdProgress={(widgetName) =>
+          widgetName === "slot.right" ? { remainingMs: 2_500, totalMs: 5_000 } : null}
+        resolveText={resolveTextV1}
+        renderHoldProgress={(context) => {
+          const cells = 5;
+          const filled = Math.floor((context.totalMs - context.remainingMs) / 1_000);
+          return `${"■".repeat(filled)}${"□".repeat(cells - filled)}`;
+        }}
+      />,
+    );
+    // Only the resolved slot renders; the host keeps the progressbar role
+    // with committed values while the Story paints the cell text.
+    const bars = screen.getAllByRole("progressbar");
+    expect(bars).toHaveLength(1);
+    const bar = bars[0] as HTMLElement;
+    expect(bar.dataset.chromeWidget).toBe("slot.right");
+    expect(bar.getAttribute("aria-valuenow")).toBe("2500");
+    expect(bar.getAttribute("aria-valuemax")).toBe("5000");
+    expect(bar.style.insetInlineStart).toBe("790px");
+    expect(bar.textContent).toBe("■■□□□");
+  });
+
+  it("hides a hold widget whose Story pixels return null", () => {
+    render(
+      <ChromeWidgetSurfaceV1
+        layout={layoutV1}
+        intents={intentPortV1({}, () => {})}
+        holdProgress={{ remainingMs: 1_000, totalMs: 4_000 }}
+        resolveText={resolveTextV1}
+        renderHoldProgress={() => null}
+      />,
+    );
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
 });
