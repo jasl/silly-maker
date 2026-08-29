@@ -610,6 +610,12 @@ describe("Inspector editing behavior", () => {
       objectId: "tag.test.object-0000",
       ambient: { motionId: "motion.test.object-idle", phaseMs: 1050 },
     });
+
+    execute.mockClear();
+    fireEvent.change(phase, { target: { value: "" } });
+    fireEvent.blur(phase);
+    expect(phase).toHaveValue(0);
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it("keeps the direct Host current through StrictMode effect replay", async () => {

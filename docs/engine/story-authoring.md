@@ -639,7 +639,8 @@ finalizer that could target the successor.
 The startup receipt and DOM signals are Host evidence only. They never enter
 State, Save, digest, replay, RNG, or CommandLog. An application that deliberately
 uses `installWebGameApplicationHmrV1` must install and own that separate opt-in
-boundary; the maintained Story entries do not.
+boundary. Ordinary product entries such as Template and One Last Sound Check do
+not; Engine Lab is the maintained conformance exception.
 
 The composer is the composition root. Base, UI, and Web must not import a concrete Story to make this happen.
 

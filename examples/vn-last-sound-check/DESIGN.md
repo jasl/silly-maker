@@ -286,7 +286,7 @@ Save/recovery 与设置，M4 关闭作者任务与接受的产品证据，M5 完
 
 本产品不引入 Ren'Py DSL/Save compatibility、自定义解释器、公共 VN framework、Blueprint、最终编辑器、custom
 pending、presentation barrier、hold-when、mid-hold/shared input、monitor、hit region、Timeline、产品自定义
-WholeCanvas、Content Database、production gameplay Mod、Agent/RPC、production DevDock/Runtime Inspector 或
+WholeCanvas、Content Database、authoritative gameplay Mod、Agent/RPC、production DevDock/Runtime Inspector 或
 产品自有 Desktop HMR。
 
 package-owned Splash/Title、默认 Save/Settings/System hosts，以及 development-only 可拖动、四角吸附的 DevDock/Inspector
@@ -294,9 +294,11 @@ package-owned Splash/Title、默认 Save/Settings/System hosts，以及 developm
 常驻部分只保留共享轻量 launcher；完整 DevDock 菜单/window host、具体调试工具 body 与内嵌制作分别在各自
 首次明确交互时加载，不重复产品 Settings，并从 production build 结构性排除。选择工具后菜单收起，launcher
 与工具窗口不得重叠；制作入口不应顺带加载 DevDock。
-本产品不为证明 private Mod successor 而伪造可选运行状态工具；中立 controller 合同保留给后续真实产品模块，
-不增加公共 resolver/ABI/SDK。若剧情自然需要新增能力，先修改本 denominator 并说明用户价值；“引擎已经有”
-不是选择理由。
+History presentation 是本产品真实使用的可选 public Mod successor：development 可显式加载、卸载和重新加载，
+ordinary production build 静态选择完整 preset 并结构排除 controller。独立 Mod-enabled production build 只接受
+产品限定的声明式 text/image override；它不提供 discovery/installer/marketplace、通用 facet SDK/distribution、
+任意 executable code 或 authoritative gameplay adapter。若剧情自然需要新增能力，先修改本 denominator 并说明
+用户价值；“引擎已经有”不是选择理由。
 
 M0–M5 已交付 package/identity、负能力删除、完整 author data/headless routes、VN Player/媒体与产品矩阵、
 入口、Save/recovery/settings、作者任务、接受的产品证据与旗舰切换。Bookshop 已在完成后的独立评审中退役，

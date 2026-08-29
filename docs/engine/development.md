@@ -47,11 +47,12 @@ Dependency reference rule: engine and Story sources (everything Vite builds or v
 ```text
 engine/packages/base     framework-neutral authoring, contracts, and runtime
 engine/packages/agent    experimental workspace-private Agent/RPC/UiArtifact seam
-engine/packages/composition maintained internal cold-path plugin façade
+engine/packages/composition internal cold-path kernel and focused public trusted Mod façade
 engine/packages/state    experimental neutral State Runtime facade over Base
 engine/packages/tooling  non-browser CLI, Vite/identity, JSONL, and Desktop preview tools
 engine/packages/studio   dev-only Inspector, Authoring Host, and private Agent companion seam
 engine/packages/ui       generic React presentation, Narrative/WholeCanvas surfaces, and input
+engine/packages/vn       official first-party VN interaction, UI, optional History, and preset composition
 engine/packages/web      browser Host and application adapters
 e2e/                     neutral Engine Conformance Story (MIT test consumer)
 template    minimal starter Story (new-project skeleton)

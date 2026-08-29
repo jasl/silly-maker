@@ -764,12 +764,18 @@ function NarrativeSurfaceEntryShellInternalV1(
         if (mountGeneration.current === generation) mountGeneration.current += 1;
       };
     }
-    const prepared = prepareNarrativeStableHostReadyCommitInternalV1({
-      hostRuntime: runtime,
-      renderEntry: entry,
-      portalShell: shell,
-      initialFocusTarget: shell,
-    });
+    let prepared: ReturnType<typeof prepareNarrativeStableHostReadyCommitInternalV1>;
+    try {
+      prepared = prepareNarrativeStableHostReadyCommitInternalV1({
+        hostRuntime: runtime,
+        renderEntry: entry,
+        portalShell: shell,
+        initialFocusTarget: shell,
+      });
+    } catch (error) {
+      stopExposureObservation();
+      throw error;
+    }
     if (prepared.kind === "reattached") {
       stopExposureObservation();
       gate.status = "accepted";

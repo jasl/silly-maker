@@ -1,6 +1,6 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受，最近审查修订 2026-08-29。已 promotion 的稳定能力以
+状态：2026-07-19 接受，最近审查修订 2026-08-30。已 promotion 的稳定能力以
 [features](features.md) 为准；已交付但仍 provisional/package-private 的实验 seam 以对应 active
 plan closure 与 [architecture](architecture.md) 为准；历史交付见
 [roadmap archive](roadmap-archive.md)。当前执行入口只有
@@ -95,6 +95,11 @@ successor 与 async resource cleanup；仓外 tarball consumer 通过 Deno/Vite/
 单独 Mod-enabled build 则验证产品特定的 post-release declarative text/image overrides。它没有激活 runtime npm
 resolution、marketplace、任意 post-release code、通用 authoritative gameplay R2 adapter 或不可信 sandbox。
 Template 保持无需修改的 structural negative control。当前没有自动激活的后继 lane。
+
+[2026-08-30 stage close](plans/2026-08-30-stage-close.md) 在主分支吸收后复核了当前代码、文档、公共
+边界和 React UI：修正 VN identity/History publication/Narrative cleanup/Inspector input 的具体问题，保留
+单一 authority 与冷路径 Mod 设计，完成全仓检查、公共 package smoke、VN 两种构建和真实 Browser matrix。
+它没有激活新的功能 lane，SillyOS 仍在独立 worktree 孵化。
 
 此前完成的 [VN Genre Mod、History Mod 与作者工作流](plans/2026-08-29-vn-genre-mod-authoring.md) 让 Template
 和 One Last Sound Check 共同消费 first-party VN interaction/compiler/runtime，共以 History 验证可选 R1
@@ -530,8 +535,8 @@ composition-owned Managed Surface authority，没有平行 writable lifecycle。
 authority；Engine Lab、Template 与 One Last Sound Check 是当前消费者，已退役的 Bookshop/Cat Cafe
 只保留历史迁移证据，SillyOS 显式省略。
 WholeCanvas 通过公开 definition 或 narrow application source 进入同一 kernel；
-Splash/Title 属于 package front door，Cat Cafe ending 与 Engine Lab opt-in route 是两名
-消费者，SillyOS 继续省略。S4b.1c、PF5/M3、Complexity Reset 与 PF7 stabilization 均已
+Splash/Title 属于 package front door，Engine Lab opt-in route 是当前消费者；已退役的 Cat Cafe
+ending 只保留首个产品消费者的历史证据，SillyOS 继续省略。S4b.1c、PF5/M3、Complexity Reset 与 PF7 stabilization 均已
 完成；PF6/S5 broad harness 经真实作者纵切复审后没有激活。当前顺序只由
 [production-floor sequence](plans/2026-07-30-production-floor-sequence.md) 拥有。
 
@@ -648,8 +653,9 @@ Deck zones、grid topology、LOS/fog、ATB clock 分属 adapter，不进入共�
 - companion；
 - Agent workspace。
 
-`examples/*` 是独立、内聚、可发布的完整产品，也是架构验收 workload，不是 API gallery。
-它可以是原创产品，也可以是具名原型的高保真完整重实现；primary baseline 必须是整个具名
+一个 example 完成 product/reference lane 时，必须成为独立、内聚、可发布的完整产品和架构验收 workload，
+而不是 API gallery。目录中的 WIP/experimental entry 必须明确标记未完成，且不得借用已关闭产品的完成度声明。
+完成目标可以是原创产品，也可以是具名原型的高保真完整重实现；primary baseline 必须是整个具名
 application/version 或覆盖其完整可观察产品的 commercial clean-room specification，不能选取章节、
 地图、路线、模式或功能子集作为完成分母。其用户可观察行为、内容广度/规模和产品深度就是最低
 完成合同。SillyMaker 版本可以增加功能、内容和打磨，但不能用新增炫技抵扣基线缺项，也不能用一个

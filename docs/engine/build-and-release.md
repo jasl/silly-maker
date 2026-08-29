@@ -54,8 +54,8 @@ commands run the selected application's own Vite config from its directory.
 
 `deno task test:e2e:engine` runs the engine browser suite against the Engine Lab
 (declared projects cover desktop pointer, WebKit, touch, and a 16:10 tablet,
-with a pageerror/console diagnostic policy). `deno task test:e2e` runs both that
-engine suite and the example browser suite.
+with a pageerror/console diagnostic policy). `deno task test:e2e` aggregates all
+four browser suites: engine, neutral GUI application, examples, and website.
 
 ## Development server
 

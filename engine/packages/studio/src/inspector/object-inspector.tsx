@@ -45,7 +45,7 @@ function NumberFieldV1(props: {
         {...(props.min === undefined ? {} : { min: props.min })}
         {...(props.max === undefined ? {} : { max: props.max })}
         onBlur={(event) => {
-          const value = Number(event.currentTarget.value);
+          const value = event.currentTarget.valueAsNumber;
           if (Number.isSafeInteger(value) && value !== props.value) props.commit(value);
           else event.currentTarget.value = String(props.value);
         }}

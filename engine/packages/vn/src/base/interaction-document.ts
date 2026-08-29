@@ -233,6 +233,15 @@ export function compileVnInteractionDocumentV1<
   const blockNames = new Set<string>();
   const declaredBlockNames = new Set<string>();
   const holdOpsBlocks = new Set<string>();
+  const definitionIds = new Set<string>();
+  const definitionIdFor = (blockName: string, explicit: string | undefined): string => {
+    const definitionId = explicit ?? `interaction.${doc.prefix}.${blockName}`;
+    if (definitionIds.has(definitionId)) {
+      fail(blockName, `duplicate_definition_id:${definitionId}`);
+    }
+    definitionIds.add(definitionId);
+    return definitionId;
+  };
   for (const block of doc.blocks) {
     if (blockNames.has(block.name)) fail(block.name, "duplicate_block_name");
     blockNames.add(block.name);
@@ -325,7 +334,7 @@ export function compileVnInteractionDocumentV1<
         nodes.push({
           kind: "say",
           nodeId: id,
-          definitionId: block.definitionId ?? `interaction.${doc.prefix}.${block.name}`,
+          definitionId: definitionIdFor(block.name, block.definitionId),
           seenRevision: block.seenRevision ?? 1,
           speakerTextId: speakerTextId(block.name, block.speaker),
           textId: resolveTextId(
@@ -351,7 +360,7 @@ export function compileVnInteractionDocumentV1<
         nodes.push({
           kind: "choice",
           nodeId: id,
-          definitionId: block.definitionId ?? `interaction.${doc.prefix}.${block.name}`,
+          definitionId: definitionIdFor(block.name, block.definitionId),
           seenRevision: block.seenRevision ?? 1,
           promptTextId: resolveTextId(
             `${block.name}/prompt`,
@@ -438,7 +447,7 @@ export function compileVnInteractionDocumentV1<
         nodes.push({
           kind: "hold",
           nodeId: id,
-          definitionId: block.definitionId ?? `interaction.${doc.prefix}.${block.name}`,
+          definitionId: definitionIdFor(block.name, block.definitionId),
           seenRevision: block.seenRevision ?? 1,
           durationMs: block.durationMs,
           ...(block.tickQuantumMs === undefined ? {} : { tickQuantumMs: block.tickQuantumMs }),

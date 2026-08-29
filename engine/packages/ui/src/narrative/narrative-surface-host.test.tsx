@@ -3677,6 +3677,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       throw mintError;
     });
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const disconnectObserver = vi.spyOn(MutationObserver.prototype, "disconnect");
     const portalContainer = document.createElement("div");
     document.body.append(portalContainer);
 
@@ -3695,6 +3696,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       .toMatchObject({ kind: "gap", reason: "readiness_failed" });
     expect(harness.stateNotificationCount()).toBe(notificationsBeforeHost + 1);
     expect(portalContainer.querySelector('[data-testid="mint-fault-dialogue"]')).toBeNull();
+    expect(disconnectObserver).toHaveBeenCalled();
     expect(consoleError).toHaveBeenCalled();
 
     view.unmount();

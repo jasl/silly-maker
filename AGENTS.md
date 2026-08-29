@@ -59,7 +59,12 @@ Read only the documents relevant to the change:
   explicitly include the supported extension surface in
   production, but that closure did not activate a public resolver/ABI/SDK,
   distribution system, post-release arbitrary-code install path, or Ren'Py
-  DSL/runtime clone. No successor lane is automatically active. The preceding
+  DSL/runtime clone. The completed
+  `docs/engine/plans/2026-08-30-stage-close.md` then reconciled current docs,
+  fixed the verified VN/History/Inspector/Narrative cleanup findings, ran a
+  pinned React Doctor review plus full repository/VN validation, and found no
+  remaining blocker or Template feedback. It activated no new capability or
+  successor lane. The preceding
   completed historical product lane is
   `docs/engine/plans/2026-08-27-vn-reference-tour.md`: the original compact VN
   **One Last Sound Check**, which starts from the tracked
@@ -875,7 +880,7 @@ documented migration path.
   false positive. A concrete regression may justify the smallest correction;
   completeness alone does not.
 - Treat the source-level BuildIdentity import-closure collector as a
-  scope-frozen transitional owner for the Engine Lab and Cat Cafe only. Do not
+  scope-frozen transitional owner for Engine Lab only. Do not
   add resolver heuristics or attach it to products that do not consume an
   admitted R2 boundary. Replacing it requires one actual Host-graph owner plus
   an explicit identity/Save transition; ordinary applications use explicit
@@ -923,8 +928,8 @@ documented migration path.
 ## Licensing and third-party-code boundaries
 
 - Copyright holder: `Jun Jiang (jasl)`.
-- The whole repository — engine packages, Story packages (e2e, template,
-  examples including the cat-cafe), scripts, configuration, and documentation —
+- The whole repository — engine packages, active Story packages (e2e, template,
+  and examples), scripts, configuration, and documentation —
   is MIT. Project-owned media assets (`examples/*/assets/**`,
   `art-source/**`) are dedicated to the public domain under CC0 1.0 (commercial
   use, derivatives, and redistribution unrestricted). `LICENSE.md` controls.

@@ -143,7 +143,9 @@ export function createVnHistoryPresentationBridgeV1(
   ): ReactElement | null {
     const publication = usePublicationConsumerInternalV1();
     const closeRef = useRef(props.onCloseHistory);
-    closeRef.current = props.onCloseHistory;
+    useLayoutEffect(() => {
+      closeRef.current = props.onCloseHistory;
+    }, [props.onCloseHistory]);
     useLayoutEffect(() => {
       attachHistory(publication.consumer, () => closeRef.current());
       return () => detachHistory(publication.consumer);
@@ -185,7 +187,13 @@ export function createVnHistoryPresentationBridgeV1(
     const token = snapshot.token + 1;
     const committed = waitForPublicationCommit(token);
     snapshot = { token, presentation: candidate };
-    for (const listener of listeners) listener();
+    for (const listener of listeners) {
+      try {
+        listener();
+      } catch {
+        // Observers cannot roll back an already-current presentation owner.
+      }
+    }
     await committed;
   };
   const enqueue = (operation: () => Promise<void>): Promise<void> => {

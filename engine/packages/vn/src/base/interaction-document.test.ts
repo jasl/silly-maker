@@ -119,6 +119,37 @@ describe("VN interaction document", () => {
     expect(result.narrative.pending).toMatchObject({ kind: "say" });
   });
 
+  it("rejects duplicate interaction definition identities during compilation", () => {
+    expect(() =>
+      compileVnInteractionDocumentV1<never, never>({
+        doc: {
+          prefix: "duplicate",
+          docId: "doc.duplicate",
+          entry: "first",
+          blocks: [
+            {
+              kind: "choice",
+              name: "first",
+              definitionId: "interaction.duplicate.shared",
+              prompt: "First",
+              options: [{ name: "next", text: "Next", next: "second" }],
+            },
+            {
+              kind: "choice",
+              name: "second",
+              definitionId: "interaction.duplicate.shared",
+              prompt: "Second",
+              options: [{ name: "end", text: "End", next: "end" }],
+            },
+            { kind: "end", name: "end" },
+          ],
+        },
+      })
+    ).toThrowError(
+      "vn.interaction_doc_invalid:doc.duplicate/second:duplicate_definition_id:interaction.duplicate.shared",
+    );
+  });
+
   it("rejects a real pure-node cycle", () => {
     const compiled = compileVnInteractionDocumentV1<never, never>({
       doc: {

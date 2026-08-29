@@ -150,6 +150,39 @@ describe("VN History presentation bridge", () => {
     expect(screen.getByText("First history")).toBeInTheDocument();
   });
 
+  it("uses the close callback from the latest committed render", async () => {
+    const first = presentationV1("First");
+    const second = presentationV1("Second");
+    const bridge = createVnHistoryPresentationBridgeV1(first);
+    const predecessorClose = vi.fn();
+    const currentClose = vi.fn();
+    const view = render(<BridgeHostV1 bridge={bridge} onClose={predecessorClose} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "First open" }));
+    view.rerender(<BridgeHostV1 bridge={bridge} onClose={currentClose} />);
+    await bridge.publish(second);
+
+    expect(predecessorClose).not.toHaveBeenCalled();
+    expect(currentClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("First history")).toBeNull();
+  });
+
+  it("isolates a throwing observer from publication authority", async () => {
+    const first = presentationV1("First");
+    const bridge = createVnHistoryPresentationBridgeV1();
+    const unsubscribe = bridge.subscribe(() => {
+      throw new Error("observer exploded");
+    });
+    render(<BridgeHostV1 bridge={bridge} />);
+
+    await expect(bridge.publish(first)).resolves.toBeUndefined();
+    expect(bridge.getCurrent()).toBe(first);
+    expect(screen.getByRole("button", { name: "First open" })).toBeInTheDocument();
+
+    unsubscribe();
+    await bridge.dispose();
+  });
+
   it("rejects publication as soon as terminal disposal is requested", async () => {
     const first = presentationV1("First");
     const bridge = createVnHistoryPresentationBridgeV1(first);

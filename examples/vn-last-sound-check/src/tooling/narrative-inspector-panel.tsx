@@ -25,6 +25,14 @@ function compactCueLabelV1(cueId: string): string {
   return separator === -1 ? cueId : cueId.slice(separator + 1);
 }
 
+async function reportSourceOpenV1(props: {
+  readonly path: string;
+  report(result: string): void;
+}): Promise<void> {
+  const opened = await openStorySourceInDevServerV1(props.path);
+  props.report(opened ? `已在编辑器打开 ${props.path}` : `无法打开 ${props.path}`);
+}
+
 function SourceOpenButtonV1(props: {
   readonly label: string;
   readonly ariaLabel: string;
@@ -37,9 +45,7 @@ function SourceOpenButtonV1(props: {
       title={props.path}
       aria-label={props.ariaLabel}
       onClick={() => {
-        void openStorySourceInDevServerV1(props.path).then((opened) => {
-          props.report(opened ? `已在编辑器打开 ${props.path}` : `无法打开 ${props.path}`);
-        });
+        void reportSourceOpenV1(props);
       }}
     >
       {props.label}

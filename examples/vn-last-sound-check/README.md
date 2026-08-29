@@ -61,7 +61,7 @@ Forward 后缀，hold tick 不会成为额外的玩家停靠点。
 
 开发服务器初始只装载 VN core。打开“调试”→“History Mod”后可加载、卸载并再次加载 History presentation；
 卸载已经打开的 History 会先关闭窗口，但 Story/Save 持有的 backlog 不会被删除。release build 显式选择静态
-完整 preset，并结构排除 DevDock、私有 Mod controller 和 development loader。
+完整 preset，并结构排除 DevDock、公共 Mod selection controller 和 development loader。
 
 这些命令的 green run 只证明当前 author data、两条 deterministic headless routes 与 Player 接线；M3 的
 Save/recovery、M4 产品证据与 M5 发布接线另由各自的 focused/Browser/build 证据关闭，不能从这一组命令单独推导。
@@ -103,8 +103,9 @@ reference-only outer UI 与临时 Story identity，不保留 compatibility alias
 剧情、两个场景与兼容 placeholder presentation 替换 temporary author scaffold；M2 已关闭 focused default VN
 Player、最终 Stage/ending 媒体、音频和产品矩阵；M3 已关闭产品入口、Save/recovery 与 settings。
 
-本产品不建立 Ren'Py DSL/Save compatibility、自定义解释器、Blueprint、最终编辑器、public Mod
-resolver/ABI/SDK/distribution、post-release arbitrary-code install、Agent/RPC、特殊 pending 或产品自有 Desktop HMR。
+本产品消费 focused public `@sillymaker/composition/mod`，但不建立 Ren'Py DSL/Save compatibility、自定义解释器、
+Blueprint、最终编辑器、Mod discovery/installer/marketplace、通用 facet SDK/distribution、post-release
+arbitrary-code install、Agent/RPC、特殊 pending 或产品自有 Desktop HMR。
 `NarrativeAside` 不是 denominator；只有完整剧本自然需要时才可选择最多一处。
 
 ## Authoring 与验证
@@ -122,7 +123,7 @@ Vite development 会自动显示一个可拖动、四角吸附的半透明开发
 Debug chunk 加载失败只显示局部提示，游戏继续运行并可显式重新加载恢复。制作动作沿独立入口在首次点击时加载并挂载同一
 Authoring Host。这个 development-only composition 不重复产品 Settings，并与 Inspector/source writer 一起从
 production build 排除；若制作与调试都不可用，整个面板不渲染。History presentation 是第一个真实可选 VN
-Mod：开发组合通过 private build-known Mod successor 和 literal loader 反复选择/卸载，生产组合静态选择同一
+Mod：开发组合通过应用显式选择的公共 Mod successor 和 literal loader 反复选择/卸载，生产组合静态选择同一
 官方实现；两者共享一个 Narrative/History authority，不为演示复制 backlog、Session 或 renderer。
 
 M1 named simulations 固定并实现为：
