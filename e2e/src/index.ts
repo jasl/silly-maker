@@ -63,8 +63,10 @@ export {
 export type { LabStageProgressInputV1 } from "./gameplay/stage.ts";
 export {
   createInitialLabStageStateV1,
+  labCollectorLatchAppearanceV1,
   labStageMutationsForBeginV1,
   labStageMutationsForCollectV1,
+  labStageMutationsForCollectorLatchV1,
   labStageMutationsForProgressV1,
 } from "./gameplay/stage.ts";
 export {

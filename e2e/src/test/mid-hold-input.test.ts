@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { InteractionResolutionV1, PendingInteractionV1 } from "@sillymaker/base";
+import type {
+  InteractionResolutionV1,
+  PendingInteractionV1,
+  SemanticStageStateV1,
+} from "@sillymaker/base";
+import { projectStageRenderTargetV1 } from "@sillymaker/base";
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
 import type { LabInvocationV1 } from "../index.ts";
 import { labSemanticAdapterV1, labStoryEntryV1 } from "../index.ts";
 import { labDrillTripwireChoiceIdV1, labDrillTripwireDurationMsV1 } from "../gameplay/narrative.ts";
+import { labStageContentCatalogV1 } from "../presentation.ts";
+import { labStageTagsV1 } from "../stage-ids.ts";
 
 /**
  * Mid-hold input writes: the input-axis granularity of hold `when`.
@@ -70,6 +77,28 @@ async function committed(harness: LabHarnessV1, invocation: LabInvocationV1): Pr
   expect(result).toMatchObject({ kind: "committed" });
 }
 
+/** The committed crate latch: the authoritative appearance key plus the
+ * variant `resolveContent` maps it to in the render-target projection. */
+function crateLatchV1(harness: LabHarnessV1): { appearance: string; resolved: string } | null {
+  const state = harness.admin.inspectForTest().snapshot.state as {
+    simulation: { stage: SemanticStageStateV1 };
+  };
+  const stage = state.simulation.stage;
+  const entry = stage.layers
+    .find((layer) => layer.layerId === "layer.e2e.props")
+    ?.entries.find((candidate) => candidate.tag === labStageTagsV1.crate);
+  if (entry === undefined) return null;
+  const projected = projectStageRenderTargetV1(stage, labStageContentCatalogV1)
+    .target.layers
+    .find((layer) => layer.layerId === "layer.e2e.props")
+    ?.entries.find((candidate) => candidate.tag === labStageTagsV1.crate);
+  const resolved = projected?.props.latch;
+  return Object.freeze({
+    appearance: entry.appearance.latch ?? "(absent)",
+    resolved: typeof resolved === "string" ? resolved : "(absent)",
+  });
+}
+
 /** Begins the drill and enters the tripwire hold. */
 async function enterTripwireV1(harness: LabHarnessV1): Promise<PendingInteractionV1> {
   await committed(harness, invoke("lab.begin_drill"));
@@ -94,6 +123,10 @@ async function enterTripwireV1(harness: LabHarnessV1): Promise<PendingInteractio
 describe("Engine Lab mid-hold input writes", () => {
   it("writes without touching the hold, then cuts at the next settlement's t=0", async () => {
     const harness = await createLabHarnessV1();
+    // The crate enters sealed during free navigation — the conditional-
+    // overlay fixture for the mid-hold flip below.
+    await committed(harness, invoke("lab.collect_sample"));
+    expect(crateLatchV1(harness)).toEqual({ appearance: "sealed", resolved: "sealed" });
     const hold = await enterTripwireV1(harness);
 
     // A partial settlement first, so the write demonstrably lands against
@@ -114,6 +147,13 @@ describe("Engine Lab mid-hold input writes", () => {
       occurrenceId: hold.occurrenceId,
       remainingMs: labDrillTripwireDurationMsV1 - 400,
     });
+
+    // The conditional overlay flipped in the same commit: the stage
+    // module folded the collector's domain event into the crate's
+    // authoritative appearance, and `resolveContent` maps the key to the
+    // variant — mid-hold, batch-invariant, no compositor reading raw
+    // state, and the hold trajectory untouched (asserted above).
+    expect(crateLatchV1(harness)).toEqual({ appearance: "engaged", resolved: "engaged" });
 
     // The write entered the journal as an ordinary command — no new
     // resolution kind exists for the input axis.
@@ -259,6 +299,28 @@ describe("Engine Lab mid-hold input writes", () => {
       kind: "say",
       definitionId: "interaction.e2e.drill-catch",
     });
+
+    await harness.dispose();
+  });
+
+  it("mirrors the collector switch onto the crate's declared appearance", async () => {
+    const harness = await createLabHarnessV1();
+
+    // Before the crate exists the fold is a no-op — toggling leaves no
+    // orphaned mirror to drift.
+    await committed(harness, invoke("lab.toggle_collector"));
+    expect(crateLatchV1(harness)).toBeNull();
+
+    // A late crate entry seeds the mirror from command-start state: the
+    // switch was already on, so the crate enters engaged.
+    await committed(harness, invoke("lab.collect_sample"));
+    expect(crateLatchV1(harness)).toEqual({ appearance: "engaged", resolved: "engaged" });
+
+    // The ordinary pending-independent toggle rides the same domain event
+    // as the fenced mid-hold write, so the mirror follows both writers —
+    // one reducer, no per-writer duplication.
+    await committed(harness, invoke("lab.toggle_collector"));
+    expect(crateLatchV1(harness)).toEqual({ appearance: "sealed", resolved: "sealed" });
 
     await harness.dispose();
   });

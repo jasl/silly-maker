@@ -122,6 +122,7 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
     "renderer.e2e.lab.stage-prop": ({ entry, frameIndex }) => (
       <div
         data-lab-prop={entry.contentId}
+        data-lab-latch={typeof entry.props.latch === "string" ? entry.props.latch : undefined}
         data-lab-frame-asset={frameIndex === null
           ? undefined
           : (entry.frameAssetIds[frameIndex] as string)}
@@ -137,7 +138,8 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
             width: "100%",
             height: "100%",
             boxSizing: "border-box",
-            border: "3px solid #9c8a63",
+            // The engaged latch is the visible conditional-overlay variant.
+            border: entry.props.latch === "engaged" ? "3px solid #4d8a5a" : "3px solid #9c8a63",
             // frame 1 is the beacon's lit frame from the ambient loop drill.
             background: frameIndex === 1 ? "#b8a15a" : "#6f6146",
           }}

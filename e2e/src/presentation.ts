@@ -249,11 +249,16 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
           geometry: labCharacterGeometryV1,
         });
       case labStageContentIdsV1.propCrate:
+        // The conditional-overlay variant table: the authoritative `latch`
+        // appearance key selects the crate's art. State writes the key;
+        // this projection owns the mapping — no compositor reads raw state.
         return Object.freeze({
           rendererId: "renderer.e2e.lab.stage-prop",
           assetIds: Object.freeze([]),
           accessibleName: "样本箱",
-          props: Object.freeze({}),
+          props: Object.freeze({
+            latch: typeof appearance.latch === "string" ? appearance.latch : "sealed",
+          }),
           geometry: labSmallPropGeometryV1,
           hitRegions: labCrateZonesRegionsV1.regions,
         });

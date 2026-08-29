@@ -52,9 +52,21 @@ function stageHasTagV1(stage: SemanticStageStateV1, layerId: string, tag: string
   return layer !== undefined && layer.entries.some((entry) => entry.tag === tag);
 }
 
+/**
+ * The crate's latch lamp mirrors the collector switch — the conditional-
+ * overlay conformance (C4 shape): authoritative appearance is the
+ * state-conditional art binding, and `resolveContent` maps it to the
+ * variant. Entry seeds from command-start state; later flips fold from
+ * the same domain event the monitors module reduces.
+ */
+export function labCollectorLatchAppearanceV1(engaged: boolean): Readonly<{ latch: string }> {
+  return Object.freeze({ latch: engaged ? "engaged" : "sealed" });
+}
+
 /** Collecting a sample reveals the crate prop once; later collects add nothing. */
 export function labStageMutationsForCollectV1(
   stage: SemanticStageStateV1,
+  collectorEngaged: boolean,
 ): readonly StageMutationV1[] {
   if (stageHasTagV1(stage, "layer.e2e.props", labStageTagsV1.crate)) return Object.freeze([]);
   return stageMutationsV1([
@@ -65,6 +77,29 @@ export function labStageMutationsForCollectV1(
       contentId: labStageContentIdsV1.propCrate,
       zOrder: 5,
       placement: { x: 1240, y: 760, scalePermille: 800, opacityPermille: 1000, mirrored: false },
+      // A late entry seeds the mirror from command-start state, so the
+      // lamp is correct even when the switch flipped before the crate
+      // existed.
+      appearance: labCollectorLatchAppearanceV1(collectorEngaged),
+    },
+  ]);
+}
+
+/**
+ * The latch fold: applied by the stage module's reducer for the
+ * collector's own domain event. Absent crate means nothing to mirror.
+ */
+export function labStageMutationsForCollectorLatchV1(
+  stage: SemanticStageStateV1,
+  engaged: boolean,
+): readonly StageMutationV1[] {
+  if (!stageHasTagV1(stage, "layer.e2e.props", labStageTagsV1.crate)) return Object.freeze([]);
+  return stageMutationsV1([
+    {
+      kind: "setAppearance",
+      layerId: "layer.e2e.props",
+      tag: labStageTagsV1.crate,
+      appearance: labCollectorLatchAppearanceV1(engaged),
     },
   ]);
 }

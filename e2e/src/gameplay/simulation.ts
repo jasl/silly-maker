@@ -79,6 +79,7 @@ import {
   labStageMutationsForBannerV1,
   labStageMutationsForBeginV1,
   labStageMutationsForCollectV1,
+  labStageMutationsForCollectorLatchV1,
   labStageMutationsForProgressV1,
 } from "./stage.ts";
 
@@ -559,6 +560,21 @@ const stageModuleV1 = kit.defineStatefulModule({
       }
       return outcome.state;
     },
+    // The conditional-overlay conformance (C4 shape): the stage module
+    // folds the collector's own domain event, so the crate's latch lamp
+    // mirrors the switch in the same commit that flips it — mid-hold
+    // fenced writes included — with no per-writer mirror duplication and
+    // no presentation compositor reading raw state. Absent crate, the
+    // fold is a no-op.
+    "lab.collector_toggled": (state, event) => {
+      const mutations = labStageMutationsForCollectorLatchV1(state, event.engaged);
+      if (mutations.length === 0) return state;
+      const outcome = reduceStageMutationsV1(state, mutations);
+      if (outcome.kind !== "applied") {
+        throw new TypeError("collector latch fold must apply");
+      }
+      return outcome.state;
+    },
   },
 });
 
@@ -728,7 +744,10 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             yield: sampleYield,
             total: state.samples.collected + sampleYield,
           });
-          const stageRejection = emitStage(transaction, labStageMutationsForCollectV1(state.stage));
+          const stageRejection = emitStage(
+            transaction,
+            labStageMutationsForCollectV1(state.stage, state.monitors.collectorEngaged),
+          );
           if (stageRejection !== null) return transaction.reject({ code: stageRejection });
           return transaction.complete();
         });
