@@ -69,6 +69,13 @@
   gap: var(--silly-space-1);
 }
 
+/* Closed, the ::details-content box still exists at zero height; the
+   column gap would pad the chip row by one phantom gap, centering the
+   chip 2px off its companion. The gap belongs to the open panel only. */
+.story-debug-dock:not([open]) {
+  gap: 0;
+}
+
 /* Browsers wrap non-summary <details> children in the ::details-content
    box; left alone it refuses to shrink, so the panel would escape the
    height-bounded host instead of scrolling. */

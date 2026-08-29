@@ -527,6 +527,12 @@ describe("StoryDebugDockV1", () => {
     expect(css).toMatch(
       /\.story-debug-dock::details-content\s*\{[^}]*min-block-size:\s*0;/su,
     );
+    // Closed, the zero-height ::details-content must not draw a phantom
+    // column gap under the chip (it would center the chip off its
+    // companion in center-aligned corners).
+    expect(css).toMatch(
+      /\.story-debug-dock:not\(\[open\]\)\s*\{[^}]*gap:\s*0;/su,
+    );
     expect(css).toMatch(
       /\.story-debug-dock__panel\s*\{[^}]*min-block-size:\s*0;[^}]*overflow:\s*auto;/su,
     );
