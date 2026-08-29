@@ -7,6 +7,8 @@ import {
   type ProgramNetworkGrantV1,
 } from "../product/program-network-grants.ts";
 import { normalizeBrowserNetworkUrlV1 } from "../network/browser-network-url.ts";
+import { admitCredentialVaultHandoffReadyV1 } from "../credential/credential-vault-protocol.ts";
+import type { CredentialVaultBindingV1 } from "../credential/credential-vault-contracts.ts";
 import { isBrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 import type { BrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 
@@ -85,10 +87,16 @@ export interface BrowserPiWorkerConfigureV1 {
   readonly requestId: number;
   readonly runtime: BrowserPiWorkerRuntimeV1;
   readonly selection: BrowserPiModelSelectionV1 | null;
-  readonly credential: {
-    readonly kind: "api_key";
-    readonly value: string;
-  };
+  readonly credential:
+    | {
+      readonly kind: "api_key";
+      readonly value: string;
+    }
+    | {
+      readonly kind: "vault_handoff";
+      readonly handoffId: string;
+      readonly binding: CredentialVaultBindingV1;
+    };
 }
 
 export type BrowserPiNetworkApprovalDecisionV1 = "allow_once" | "deny";
@@ -216,7 +224,7 @@ export interface BrowserPiWorkerConfigurationFailureV1 {
   readonly revision: 1;
   readonly kind: "configuration_failure";
   readonly requestId: number;
-  readonly code: "selection_unavailable";
+  readonly code: "selection_unavailable" | "credential_handoff_failed";
 }
 
 export interface BrowserPiWorkerConnectionTestFailureV1 {
@@ -1182,11 +1190,24 @@ export function admitBrowserPiWorkerInboundMessageV1(
     (discriminator.runtime === "deterministic_test" && discriminator.selection !== null) ||
     (discriminator.runtime === "pi_provider" && selection === null)
   ) return null;
-  const credential = exactDataRecordV1(discriminator.credential, ["kind", "value"]);
+  const directCredential = exactDataRecordV1(discriminator.credential, ["kind", "value"]);
+  const handoffCredential = exactDataRecordV1(discriminator.credential, [
+    "kind",
+    "handoffId",
+    "binding",
+  ]);
+  const ready = handoffCredential?.kind === "vault_handoff"
+    ? admitCredentialVaultHandoffReadyV1({
+      revision: 1,
+      kind: "credential_vault_handoff_ready",
+      handoffId: handoffCredential.handoffId,
+      binding: handoffCredential.binding,
+    })
+    : null;
   if (
-    credential === null || credential.kind !== "api_key" ||
-    typeof credential.value !== "string" || credential.value.length === 0 ||
-    credential.value.length > credentialMaximumCharactersV1
+    (directCredential === null || directCredential.kind !== "api_key" ||
+      typeof directCredential.value !== "string" || directCredential.value.length === 0 ||
+      directCredential.value.length > credentialMaximumCharactersV1) && ready === null
   ) return null;
   return {
     revision: 1,
@@ -1194,7 +1215,9 @@ export function admitBrowserPiWorkerInboundMessageV1(
     requestId: discriminator.requestId,
     runtime: discriminator.runtime,
     selection,
-    credential: { kind: "api_key", value: credential.value },
+    credential: ready === null
+      ? { kind: "api_key", value: directCredential?.value as string }
+      : { kind: "vault_handoff", handoffId: ready.handoffId, binding: ready.binding },
   };
 }
 
@@ -1269,7 +1292,9 @@ export function admitBrowserPiWorkerOutboundMessageV1(
     };
   }
   if (base.kind === "configuration_failure") {
-    if (base.code !== "selection_unavailable") return null;
+    if (base.code !== "selection_unavailable" && base.code !== "credential_handoff_failed") {
+      return null;
+    }
     return {
       revision: 1,
       kind: "configuration_failure",

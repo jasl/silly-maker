@@ -11,12 +11,21 @@ import {
   browserTrustedTypesReportOnlyPolicyV1,
   createBrowserControlPlaneContentSecurityPolicyV1,
 } from "./src/deployment/browser-control-plane-security.ts";
+import {
+  applyBrowserCredentialVaultWorkerSecurityHeadersV1,
+  browserCredentialVaultWorkerContentSecurityPolicyV1,
+  browserCredentialVaultWorkerDevelopmentPathV1,
+  isBrowserCredentialVaultWorkerAssetPathV1,
+  isExactBrowserCredentialVaultDevelopmentRequestV1,
+} from "./src/deployment/browser-credential-vault-security.ts";
 import { parseCanonicalEndpointOriginV1 } from "./src/deployment/cloudflare-selected-origin-worker.ts";
 import { browserWorkspaceSandboxDevelopmentOriginV1 } from "./src/workspace/browser-workspace-sandbox-origins.ts";
 import { collectNetworkBrokerBuildIdentityV1 } from "./tools/network-broker-build-identity.mts";
 import { collectWorkspaceSandboxBuildIdentityV1 } from "./tools/workspace-sandbox-build-identity.mts";
 
 const browserPiDevelopmentWorkerPathV1 = "/src/agent/browser-pi.worker.ts";
+const sillyOsAppRootV1 = import.meta.dirname;
+if (sillyOsAppRootV1 === undefined) throw new TypeError("sillyos.vite.app_root_unavailable");
 
 function createSelectedOriginAgentWorkerDevelopmentPluginV1(): Plugin {
   return {
@@ -67,17 +76,86 @@ function createSelectedOriginAgentWorkerDevelopmentPluginV1(): Plugin {
   };
 }
 
+function createCredentialVaultWorkerSecurityPluginV1(): Plugin {
+  const applyResponsePolicyV1 = (response: {
+    setHeader(name: string, value: string): void;
+    removeHeader(name: string): void;
+    writeHead: (...args: never[]) => unknown;
+  }): void => {
+    const writeHead = response.writeHead.bind(response);
+    response.writeHead = ((...args: never[]) => {
+      response.setHeader(
+        "Content-Security-Policy",
+        browserCredentialVaultWorkerContentSecurityPolicyV1,
+      );
+      response.removeHeader("Content-Security-Policy-Report-Only");
+      response.setHeader("Permissions-Policy", browserPermissionsPolicyV1);
+      response.setHeader("Referrer-Policy", "no-referrer");
+      response.setHeader("X-Content-Type-Options", "nosniff");
+      response.setHeader("X-Frame-Options", "DENY");
+      return writeHead(...args);
+    }) as typeof response.writeHead;
+  };
+  const rejectV1 = (response: {
+    statusCode: number;
+    setHeader(name: string, value: string): void;
+    end(body?: string): void;
+  }): void => {
+    response.statusCode = 400;
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Content-Type", "text/plain; charset=utf-8");
+    const headers = new Headers();
+    applyBrowserCredentialVaultWorkerSecurityHeadersV1(headers);
+    for (const [name, value] of headers) response.setHeader(name, value);
+    response.end("Invalid Credential Vault Worker request.");
+  };
+  return {
+    name: "sillyos-credential-vault-worker-security-policy",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+        if (requestUrl.pathname !== browserCredentialVaultWorkerDevelopmentPathV1) {
+          next();
+          return;
+        }
+        if (!isExactBrowserCredentialVaultDevelopmentRequestV1(requestUrl)) {
+          rejectV1(response);
+          return;
+        }
+        applyResponsePolicyV1(response);
+        next();
+      });
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+        if (!isBrowserCredentialVaultWorkerAssetPathV1(requestUrl.pathname)) {
+          next();
+          return;
+        }
+        if (requestUrl.search.length !== 0 || requestUrl.hash.length !== 0) {
+          rejectV1(response);
+          return;
+        }
+        applyResponsePolicyV1(response);
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig(async ({ command, isPreview }) => {
   const config = await createSillymakerAppViteConfigV1({
-    appRoot: import.meta.dirname,
+    appRoot: sillyOsAppRootV1,
     config: sillymakerAppConfigV1,
   });
   const workspaceSandboxBuildIdentity = collectWorkspaceSandboxBuildIdentityV1({
-    appRoot: import.meta.dirname,
+    appRoot: sillyOsAppRootV1,
     command,
   });
   const networkBrokerBuildIdentity = collectNetworkBrokerBuildIdentityV1({
-    appRoot: import.meta.dirname,
+    appRoot: sillyOsAppRootV1,
     command,
   });
   const localBaseContentSecurityPolicy = createBrowserControlPlaneContentSecurityPolicyV1(
@@ -110,6 +188,7 @@ export default defineConfig(async ({ command, isPreview }) => {
     plugins: [
       ...(config.plugins ?? []),
       createSelectedOriginAgentWorkerDevelopmentPluginV1(),
+      createCredentialVaultWorkerSecurityPluginV1(),
     ],
     publicDir: "public",
     define: {

@@ -38,17 +38,23 @@ Forget 只属于 Settings，不作为
 和对应的 `-YYYYMMDD` 快照，选择页只展示 stable alias。不存在这个精确 alias 时，日期版本仍会
 如实保留。连接模型会优先使用该 Provider 已启用的 preferred model，而不是目录中的任意首项。
 
-可用 built-in 的详情把初始连接模型的 preset endpoint 只读展示在 Connection 区域。API key
-从 uncontrolled password input 通过 **Save key** 直接交给 Agent Worker；保存本身不请求
-Provider。Worker 接受 key 并完成本地 Agent session 初始化后，同一 Provider/Endpoint 作用域
-内所有 enabled models 立即可用，Home 的 API-key warning 同时消失；不需要先请求或测试
-Provider。用户在
+可用 built-in 的详情把初始连接模型的 preset endpoint 只读展示在 Connection 区域。API Key
+从 uncontrolled password input 通过 **Save key** 进入凭据流程；保存本身不请求 Provider。
+**Remember on this device** 默认不勾选，因此普通 Save 仍只把 Key 交给当前 Agent Worker
+会话。只有用户先用密码创建并解锁 Credential Vault、再显式勾选该项时，产品才会把 Key
+加密后写入 Vault，并通过一次性 typed handoff 配置新的 Agent Worker。Worker 接受 Key 并完成
+本地 Agent session 初始化后，同一 Provider/Endpoint 作用域内所有 enabled models 立即可用，
+Home 的 API-key warning 同时消失；不需要先请求或测试 Provider。用户在
 下拉中切换时，Worker 先原子选择新模型；只有成功后 UI 才同时更新 active 与 preferred，失败则
 保留旧模型。独立的 **Test connection** 只是可选、可重复的时间点诊断，会对当前模型发送一次
 很小但可能计费的真实请求。成功或失败都不改变已保存 key、Agent session 或作用域内模型的
 可用性，也不认证其他模型；错误的 key、模型名、Endpoint 或网络条件会在测试或后续真实 Agent
-调用中如实失败。输入框会立即清空，key 和测试结果都只属于当前 Worker/浏览器会话；作用域内
-切换无需重新输入 Key，跨 Provider/Endpoint、Forget、关闭页面或刷新页面后需要重新保存。
+调用中如实失败。输入框会立即清空，测试结果始终只属于当前 Worker/浏览器会话。session-only
+Key 在跨 Provider/Endpoint、Forget、关闭页面或刷新后需要重新保存；记住的 Key 在刷新后仍保持
+加密锁定，用户解锁 Vault 后可明确点击 **Use remembered key**，不需要读取或回显完整 Key。
+**Lock** 会清除解锁能力并终止当前持 Key 的 Agent Worker；**Forget session key** 只结束当前
+会话；**Forget remembered key** 删除精确持久绑定，若它正被使用也会结束当前 Agent Worker。
+在同一精确绑定上再次勾选 Remember 并 Save 新 Key 即为 Replace。
 保存成功后可以体验：
 
 Bedrock 这类 ambient、OAuth、keyless 或多字段凭据 profile 仍可查看，但不会被压成一个假的
@@ -90,11 +96,15 @@ B1c 另外把 **Built-in Providers** 和 **Custom Endpoints** 分区。自定义
 HTTPS base URL、model id、显式 context/output 上限，以及 Pi 已提供的四种 API family：
 `openai-completions`、`openai-responses`、`anthropic-messages`、
 `google-generative-ai`；协议永远不从 URL 猜测。这个有界非秘密 profile 可以保存在产品自有
-Browser Settings repository 中，API key 与最近一次测试状态都不会持久化。它也不会
-因为一次会话测试成功就升级成 SillyOS 的 built-in 双浏览器资格结论。
+Browser Settings repository 中。API Key 默认不持久化；只有显式启用 Remember 且 Vault 已
+解锁时，才会按该 profile 身份与完整 normalized HTTPS endpoint 的精确绑定加密保存。修改
+endpoint 不会隐式重绑旧 Key；需要新建/确认新绑定。最近一次测试状态不会持久化，一次会话
+测试成功也不会升级成 SillyOS 的 built-in 双浏览器资格结论。
 
 当前产品已经有由 Dedicated Worker 持有的 Browser IndexedDB Program repository；它只
-保存有界的产品 Program 投影，不保存 API key、Pi session、附件内容或 workspace 文件。
+保存有界的产品 Program 投影与 Program 网络授权，不保存 API Key、Pi session、附件内容或
+workspace 文件。Credential Vault 使用独立 Worker 与独立 IndexedDB database 保存 Vault header、
+非秘密绑定 metadata 和密文；这属于存储所有权分离，不是同一 origin 内的物理权限隔离。
 初始 proposal 仍由本地 deterministic preview 产生；接受 proposal 会把精确复核过的
 workspace head 发布为本地不可变 Program snapshot，但不会因此生成、部署或托管一个真实
 应用。这个边界会在界面中如实显示，不使用假网络层来伪装后端。
@@ -105,6 +115,8 @@ workspace head 发布为本地不可变 Program snapshot，但不会因此生成
 
 ```text
 SillyOS UI / Product Core
+  +-> Credential Vault Worker
+  |     -> 独立 IndexedDB database 中的加密 Provider 凭据
   -> typed Agent RPC
 产品固定版本的 Pi Agent / Credential plane
   +-> typed WorkspaceExecutionPort
@@ -120,20 +132,32 @@ SillyOS 控制面只执行产品随附、由 lockfile/build identity 固定的�
 origin 中执行；生成 HTML 也不得注入控制面 DOM。Pi 仍是唯一 Agent、Provider、模型和
 Agent loop 来源。当前 deterministic 与 live Pi 路线都通过独立 origin Sandbox 获得 Pi
 原生 `read`/`write`/`edit`/`bash`；SillyOS 另外以 Pi `AgentTool` 注册一个固定、只读、
-结构化的 `grep` capability，以及一个固定 `{ url }` 的 `fetch_url` capability。前者使用显式
-typed Workspace RPC；后者只能在 session-only 精确批准后进入无 key 的第三 origin Broker。
-两者都复用 Pi 的工具/Agent loop，不是第二套 tool dispatcher。Workspace Sandbox、QJS 和
-just-bash 仍保持无网络，未注册 `curl`。
+结构化的 `grep` capability，以及固定的 `fetch_url` / `download` capability。`grep` 使用显式
+typed Workspace RPC；网络工具只能在一次性或当前 Program 持久化的精确授权后进入无 Key 的
+第三 origin Broker。它们都复用 Pi 的工具/Agent loop，不是第二套 tool dispatcher。Workspace
+Sandbox、QJS 和 just-bash 仍保持无网络，未注册 `curl`。
 
-产品数据、凭据与 workspace bytes 分属 Product Repository、未来的 Credential Vault 和
-Workspace Volume Repository。S1a-1 已在 source 中把普通 Program 的唯一 Authority 切到独立
-Sandbox origin：控制面创建精确 origin frame transport，Sandbox 内固定 Host Worker 独占 OPFS、
+产品数据、凭据与 workspace bytes 分属 Product Repository、Credential Vault 和 Workspace
+Volume Repository。Product Repository 与 Credential Vault 使用不同 Worker 和 IndexedDB
+database，因此普通 Program 生命周期与导出不会拥有或混入凭据；但两者仍处于 control origin，
+不同 database 名称只提供所有权分离，不构成对同源恶意代码的物理权限隔离。S1a-1 已在 source
+中把普通 Program 的唯一 Authority 切到独立 Sandbox origin：控制面创建精确 origin frame
+transport，Sandbox 内固定 Host Worker 独占 OPFS、
 snapshot/export 与 volume 生命周期，旧控制-origin Host Worker 和 fallback 已删除。物理 Product
-Repository V5 会直接清空并重建精确 preview V4 stores，不读取或迁移旧记录；旧控制-origin OPFS
-bytes 可能仍由浏览器保留，但产品不再可达，也不会把它们作为迁移输入。当前唯一实现的
-credential 模式仍是 session-only；“记住在此设备”、加密 Vault、
-WebAuthn PRF/密码解锁、Lock、Forget、Replace、endpoint 重绑定与重定向拒绝都属于后续独立
-阶段，不能从现在的 Save key 推断出来。
+Repository V6 在既有 stores 上增加 Program network grants；旧控制-origin OPFS bytes 可能仍由
+浏览器保留，但产品不再可达，也不会把它们作为迁移输入。
+
+Credential Vault 是可选能力，session-only 仍是默认。用户用密码创建/解锁后，Worker 通过
+WebCrypto 以 PBKDF2-SHA-256 派生不可导出 AES-GCM key，按完整 normalized HTTPS endpoint 与
+Provider/profile 身份作为精确绑定/AAD 加密 API Key。Vault 支持 Lock、Forget、Replace，以及
+只在解锁且绑定精确匹配时通过 transferred port 完成的一次 remembered handoff；完整 Key 不在
+UI 中回读。Vault Worker 的发布响应固定 `connect-src 'none'`。Agent Worker 的 Provider fetch
+另外固定 `credentials: "omit"`、`redirect: "error"`、`no-referrer`，并拒绝跨出选定 endpoint
+origin 的请求或响应；不会把 Authorization 能力跟随到另一 origin。
+
+这些边界只保护锁定状态下的本地密文，并把 Agent/项目生成代码与 SillyOS/API Key 隔离；它们
+不声称抵抗控制面 XSS、恶意浏览器扩展、设备恶意软件、供应链攻击，或控制面在 Vault 已解锁时
+滥用其能力。WebAuthn PRF/设备验证也尚未实现。
 
 P3c-B0 的三个历史检查点已经为 OPFS Workspace Host 闭合恢复、争用、规模和可携下载证据；
 S1a-1 再把 ordinary byte authority 移到独立 origin。
@@ -255,9 +279,8 @@ Terms-of-Service 403 而仍是 candidate；这不是 CSP 或 CORS 成功/失败�
 Provider 技术兼容与持久化模型偏好取代产品中的模型质量准入，并保留真实连接测试、
 Home warning、有界 custom HTTPS profile，以及只给选定 Agent Worker 精确 endpoint origin 的
 Cloudflare CSP 响应层；同时先补齐控制面 CSP/渲染约束、存储分权合同，并从 live Provider
-撤下同源 workspace tools。B1c-S0 已从提交 `a4cc8754` 部署为 Cloudflare 版本
-`e1808054-af9f-446f-a913-22a39bf98e37`；本地与公开域名的严格 CSP 响应、Home、Settings
-目录均在 Chromium/WebKit 通过。WebKit 产生了预期的 Trusted Types
+撤下同源 workspace tools。B1c-S0 保留历史公开域名的严格 CSP、Home 与 Settings
+Chromium/WebKit 回执；当前组合 source 仍待本轮重部署。WebKit 当时产生了预期的 Trusted Types
 Report-Only 诊断，因此 enforcement 没有被提升；没有页面错误、失败请求或其他意外 console
 错误。S1a-0 已在 Chromium 与持久 WebKit 中通过：独立 origin frame + 固定 Host Worker、
 typed control/environment port、20 MiB OPFS generation-82 冷重开与同 hash 复核、81 文件
@@ -405,28 +428,25 @@ credential-bound 模型。**Test connection** 是可选、可重复的时间点�
 发出一次很小但可能计费的模型请求，成功或失败都不会改变当前模型的可用性。失败后 key 仍在
 Worker 内存中，可继续实际调用、重新测试或输入新 key 替换；实际调用若遇到无效 key、模型、
 Endpoint 或网络错误，会通过正常 Agent 失败路径报告。Key 输入会立即清空，Forget 会终止持有
-key 的 Worker。网页不会读取开发机 `.env`。勾选与 preferred model 在刷新后保留；Key 与测试
-结果不保留。
+key 的 Worker。网页不会读取开发机 `.env`。勾选与 preferred model 在刷新后保留；测试结果
+不保留，Key 默认也不保留。若需要持久化，先在同页创建/解锁 Credential Vault，再显式勾选
+**Remember on this device** 后 Save；刷新后重新解锁并点击 **Use remembered key** 即可配置新的
+Agent Worker。Save 与 Test connection 始终是两个独立按钮。
 
 需要兼容 endpoint 时，在 **Custom Endpoints** 中新增 HTTPS profile，显式选择四种 Pi API
 family 之一并填写 model/limits，再用同一个 Connection 流程保存 key；测试仍然可选。刷新后
-只会恢复这个非秘密 profile；API key 和测试状态都不会恢复。一次测试成功只描述当前
+会恢复这个非秘密 profile；API Key 只有在显式 Remember 且 Vault 解锁时才以该 profile 与完整
+normalized endpoint 的精确绑定恢复为加密记录，测试状态不会恢复。一次测试成功只描述当前
 endpoint/key/model/API family 组合在本次浏览器会话中的那一次请求，不是使用前提。
 
-当前 Cloudflare 三 origin release 是
-[silly-os.jasl9187.workers.dev](https://silly-os.jasl9187.workers.dev/)。
-精确提交 `329f8cc70a9b4a57d57c9653772dca519e3f9221` 已于 2026-08-29 发布为 control
-版本 `1dc1a247-ed98-4063-931f-2dd4fa681bee`、Workspace Sandbox 版本
-`7e1310ba-86c4-421e-b284-9015f1a3323b` 和 Network Broker 版本
-`b005f590-bea4-4a55-8c15-db1a6a22292b`。Control `/`、Broker
-`/network-broker.html`、Sandbox `/workspace-sandbox.html` 都直接返回 HTTP 200，三者嵌入同一
-source revision，control 组合校验也匹配两个 role-specific child identity，且保持精确 CSP
-分权。公开 Creator/Settings 与一次性 `?agent=pi-test` bootstrap
-smoke 无 console warning/error，并观察到两个独立 frame。它仍是静态客户端产品：Provider key
-和模型请求从 Agent Worker 直接发送给所选 Provider，不经过 SillyOS 或 Cloudflare relay；
-`fetch_url` 也只从无 key 的 Browser Broker 发出。B1a/B1b/B1c 的独立部署历史保留在
-[PLAN.md](./PLAN.md) 与 [DESIGN.md](./DESIGN.md)。这份回执不证明 public-origin 真实模型工具
-调用、任意站点 CORS、持久网络授权、download 或 search。
+Cloudflare 入口仍是
+[silly-os.jasl9187.workers.dev](https://silly-os.jasl9187.workers.dev/)，但当前线上 artifacts 是
+上一轮已验证基线；N1、N2 与本节 Credential Vault 改动待本轮重部署。历史部署回执保留在
+[PLAN.md](./PLAN.md) 与 [DESIGN.md](./DESIGN.md)，不能用来声称当前 source 已在线。产品仍是
+静态客户端：Provider Key 和模型请求从 Agent Worker 直接发送给所选 Provider，不经过 SillyOS
+或 Cloudflare relay；`fetch_url` / `download` 的远程响应则只从无 Key 的 Browser Broker 发出。
+本地 N1/N2 Chromium/WebKit evidence 与 Vault focused tests 不自动证明 public-origin 真实模型
+工具调用、任意站点 CORS、线上 ingress 或 search。
 
 开发资格检查会按精确 profile 从本目录的 `.env` 读取对应 Provider key，依次启动普通
 Chromium context 与运行后删除的一次性持久 WebKit profile，
@@ -472,9 +492,10 @@ Provider 资格或 CSP。
 
 Browser 目标可作为 Cloudflare Workers Static Assets 发布的本地优先产品。部署方只
 提供静态应用；模型请求从浏览器 Agent Worker 直接到用户选择的 Provider，不经过
-SillyOS 官方代理。生产 UI key 仍须保持只在 Worker 内存中，不能写入 React state、URL、
-日志、Program 数据、IndexedDB、OPFS 或导出文件；custom profile 的 API key 也不会进入
-保存非秘密 profile 的 `localStorage`。
+SillyOS 官方代理。生产 UI 不得把明文 Key 写入 React state、URL、日志、Program 数据、Workspace
+OPFS、导出文件或保存非秘密 profile 的 `localStorage`。session-only Key 只进入 Agent Worker
+内存；显式 Remember 的 Key 只能进入专属 Vault Worker，由它加密后写入独立 Credential Vault
+IndexedDB。独立 database 是所有权分离，不是同源权限隔离。
 
 B1c-S0 为文档、静态资源和 selected Agent Worker 定义完整的无 wildcard CSP：显式设置
 `default-src`、`script-src`、`style-src`、`style-src-elem`、`style-src-attr`、
@@ -609,19 +630,27 @@ deno run -A npm:@playwright/test test \
   --project=webkit --workers=1
 ```
 
-产品模型、Browser Pi Worker 和固定 Desktop 启动合同的 focused tests：
+产品模型、Credential Vault、Browser Pi Worker 和固定 Desktop 启动合同的 focused tests：
 
 ```sh
 deno run -A npm:vitest run \
-	  src/test/creator-session.test.ts \
-	  src/test/creator-agent-admission.test.ts \
-	  src/test/browser-control-plane-security.test.ts \
-	  src/test/browser-pi-browser-compatibility.test.ts \
+  src/test/creator-session.test.ts \
+  src/test/creator-agent-admission.test.ts \
+  src/test/browser-control-plane-security.test.ts \
+  src/test/browser-credential-vault-port.test.ts \
+  src/test/browser-credential-vault-security.test.ts \
+  src/test/browser-pi-browser-compatibility.test.ts \
   src/test/browser-pi-catalog-port.test.ts \
+  src/test/browser-pi-provider-fetch-guard.test.ts \
   src/test/browser-pi-provider-runtime-bridge.test.ts \
   src/test/browser-pi-worker.test.ts \
   src/test/browser-provider-settings-repository.test.ts \
   src/test/cloudflare-selected-origin-worker.test.ts \
+  src/test/credential-vault-crypto.test.ts \
+  src/test/credential-vault-protocol.test.ts \
+  src/test/credential-vault-runtime.test.ts \
+  src/test/indexeddb-credential-vault.test.ts \
+  src/test/provider-credential-binding.test.ts \
   src/test/provider-settings-ui.test.tsx \
   src/test/pi-rpc-startup.test.ts
 ```
@@ -642,6 +671,8 @@ deno run -A npm:vitest run \
 | `src/agent/creator-agent-port.ts`                               | React 可见的 product facade；不暴露 raw Pi records                             |
 | `src/agent/browser-pi-*`                                        | 懒加载 Worker、固定 Pi identity、catalog、Provider 与 admitted workspace tools |
 | `src/agent/pi-workspace-tool-binder.ts`                         | Pi 原生四工具绑定与固定 structured `grep` AgentTool                            |
+| `src/credential/`                                               | 独立 Vault Worker、WebCrypto、exact binding、IndexedDB、handoff 与 client      |
+| `src/deployment/browser-credential-vault-security.ts`           | Vault Worker 的 network-off CSP 与专属 response headers                        |
 | `src/workspace/browser-workspace-just-bash-runtime.ts`          | bounded just-bash facade、fixed-`rg` grep 与 lazy fixed-`qjs` registry         |
 | `src/workspace/browser-workspace-quickjs-{protocol,command}.ts` | Q1 exact DTO、limits、explicit text staging、diff preflight 与 child broker    |
 | `src/workspace-sandbox/browser-workspace-quickjs.worker.ts`     | fixed QuickJS 0.32.0 fresh child runtime；无 ambient storage/network           |
@@ -651,7 +682,7 @@ deno run -A npm:vitest run \
 | `src/workspace/browser-workspace-sandbox-build-identity.ts`     | control/bootstrap/Host 共用的 product-derived build identity admission         |
 | `src/workspace/browser-workspace-sandbox-download-protocol.ts`  | Sandbox Host 到 bootstrap frame 的私有 download request/receipt                |
 | `src/workspace-sandbox/`                                        | Sandbox 文档 bootstrap 与同 origin 固定 Host Worker                            |
-| `src/product/indexeddb-program-repository.ts`                   | physical Product Repository V5 与 exact preview-V4 clean reset                 |
+| `src/product/indexeddb-program-repository.ts`                   | physical Product Repository V6、Program 状态与独立的网络授权 store             |
 | `src/companion/pi-rpc-startup.ts`                               | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要                     |
 | `src/application/`                                              | Browser/Deno 共用的 React 产品入口与工作区表现                                 |
 | `src/test/browser-pi-worker.test.ts`                            | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown                    |
@@ -661,7 +692,8 @@ deno run -A npm:vitest run \
 
 后续 Agent loop、模型/provider、会话、tool dispatch 与 Agent 扩展统一由 Pi 负责。
 Browser Agent Worker 或 Desktop companion 只做目标适配、Program 数据所有权和 typed
-transport 投影；React 不接触 raw Pi RPC/provider records，也不持久化 provider key。
+transport 投影；React 不接触 raw Pi RPC/provider records，也不读取或持久化完整 Provider Key。
+可选持久化只由专属 Credential Vault Worker 在 exact endpoint binding 下完成。
 Agent 侧独特能力只实现一次 schema/prompt/handler 核心，Browser 薄适配为 Pi
 `AgentTool`，Desktop 薄适配为 Pi Extension tool。未来 OpenUI 数据映射到 SillyMaker
 的闭集 UI 组件与交互 intent；SillyMaker 不另建 Agent runtime，这些数据也不进入其

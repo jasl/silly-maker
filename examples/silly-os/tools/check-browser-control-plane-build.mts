@@ -29,6 +29,59 @@ async function collectBuildFilesV1(directory: URL, relativeDirectory = ""): Prom
 }
 
 const filesV1 = await collectBuildFilesV1(buildDirectoryV1);
+const credentialVaultSourceRootV1 = new URL("../src/credential/", import.meta.url);
+const credentialVaultWorkerSourceEntryV1 = new URL(
+  "browser-credential-vault.worker.ts",
+  credentialVaultSourceRootV1,
+);
+
+async function collectCredentialVaultWorkerSourceGraphV1(
+  entry: URL,
+  collected = new Map<string, string>(),
+): Promise<ReadonlyMap<string, string>> {
+  if (collected.has(entry.href)) return collected;
+  if (!entry.href.startsWith(credentialVaultSourceRootV1.href)) {
+    failV1(`Vault Worker source graph escapes credential ownership: ${entry.href}`);
+  }
+  const source = await Deno.readTextFile(entry);
+  collected.set(entry.href, source);
+  if (/\bimport\s*\(/u.test(source)) {
+    failV1(`Vault Worker source graph contains a dynamic import: ${entry.pathname}`);
+  }
+  const specifiers = [
+    ...source.matchAll(/\bfrom\s+["']([^"']+)["']/gu),
+    ...source.matchAll(/\bimport\s+["']([^"']+)["']/gu),
+  ].map((match) => match[1] ?? "");
+  for (const specifier of specifiers) {
+    if (!specifier.startsWith("./") || specifier.includes("?") || specifier.includes("#")) {
+      failV1(
+        `Vault Worker source graph imports non-credential authority ${specifier} from ${entry.pathname}`,
+      );
+    }
+    await collectCredentialVaultWorkerSourceGraphV1(new URL(specifier, entry), collected);
+  }
+  return collected;
+}
+
+const credentialVaultWorkerSourceGraphV1 = await collectCredentialVaultWorkerSourceGraphV1(
+  credentialVaultWorkerSourceEntryV1,
+);
+for (const [path, source] of credentialVaultWorkerSourceGraphV1) {
+  for (
+    const [label, pattern] of [
+      ["fetch", /\bfetch\s*\(/u],
+      ["XMLHttpRequest", /\bXMLHttpRequest\b/u],
+      ["WebSocket", /\bWebSocket\b/u],
+      ["EventSource", /\bEventSource\b/u],
+      ["document", /\bdocument\b/u],
+      ["window", /\bwindow\b/u],
+      ["Product Repository", /program-repository|ProductRepository/u],
+      ["Workspace", /browser-workspace|WorkspaceExecution|WorkspaceHost/u],
+    ] as const
+  ) {
+    if (pattern.test(source)) failV1(`Vault Worker source graph contains ${label}: ${path}`);
+  }
+}
 const retiredSameOriginHostWorkerPatternV1 =
   /(?:^|\/)browser-workspace-host\.worker-[A-Za-z0-9_-]+\.js$/u;
 if (filesV1.some((file) => retiredSameOriginHostWorkerPatternV1.test(file))) {
@@ -37,6 +90,20 @@ if (filesV1.some((file) => retiredSameOriginHostWorkerPatternV1.test(file))) {
 const networkBrokerWorkerPatternV1 = /(?:^|\/)browser-network-broker\.worker-[A-Za-z0-9_-]+\.js$/u;
 if (filesV1.some((file) => networkBrokerWorkerPatternV1.test(file))) {
   failV1("artifact contains the independent-origin Network Broker Worker");
+}
+const credentialVaultWorkerPatternV1 =
+  /(?:^|\/)browser-credential-vault\.worker-[A-Za-z0-9_-]{8,64}\.js$/u;
+const credentialVaultWorkerFilesV1 = filesV1.filter((file) =>
+  credentialVaultWorkerPatternV1.test(file)
+);
+if (credentialVaultWorkerFilesV1.length !== 1) {
+  failV1(
+    `artifact must contain exactly one fixed Credential Vault Worker, found ${credentialVaultWorkerFilesV1.length}`,
+  );
+}
+const credentialVaultWorkerFileV1 = credentialVaultWorkerFilesV1[0];
+if (credentialVaultWorkerFileV1 === undefined) {
+  failV1("Credential Vault Worker artifact is unavailable");
 }
 const sandboxExecutionAssetPatternsV1 = [
   /(?:^|\/)[^/]*quickjs[^/]*\.js$/iu,
@@ -78,6 +145,52 @@ for (const file of filesV1.filter((candidate) => candidate.endsWith(".js"))) {
   }
   if (sandboxExecutionMarkerPatternV1.test(source)) {
     failV1(`${file} contains Workspace Sandbox QuickJS/Wasm execution code`);
+  }
+  if (file === credentialVaultWorkerFileV1) {
+    for (
+      const required of [
+        "sillymaker.example-silly-os.credentials",
+        "PBKDF2",
+        "SHA-256",
+        "AES-GCM",
+        "credential_vault_handoff_ready",
+        "credential_vault_handoff_delivery",
+      ]
+    ) {
+      if (!source.includes(required)) {
+        failV1(`Credential Vault Worker omits fixed marker ${required}`);
+      }
+    }
+    for (
+      const forbidden of [
+        "endpoint-origin",
+        "Authorization",
+        "XMLHttpRequest",
+        "WebSocket",
+        "EventSource",
+        "localStorage",
+        "sessionStorage",
+        "document.cookie",
+        "browser-workspace",
+        "program-repository",
+      ]
+    ) {
+      if (source.includes(forbidden)) {
+        failV1(`Credential Vault Worker contains forbidden authority ${forbidden}`);
+      }
+    }
+  } else {
+    for (
+      const coreMarker of [
+        "sillymaker.example-silly-os.credentials",
+        "PBKDF2-HMAC-SHA256",
+        "sillyos.credential-vault.verifier",
+      ]
+    ) {
+      if (source.includes(coreMarker)) {
+        failV1(`${file} contains Credential Vault core ${coreMarker}`);
+      }
+    }
   }
 }
 if (identityBearingFilesV1.length === 0 || buildIdentitiesV1.size !== 1) {
@@ -149,5 +262,5 @@ if (headersV1.replaceAll("\r\n", "\n").trimEnd() !== expectedHeadersV1) {
 console.log(
   `SillyOS Browser control-plane build boundary passed (${[...buildIdentitiesV1][0]}, ${
     [...networkBuildIdentitiesV1][0]
-  }).`,
+  }; ${credentialVaultWorkerFileV1}).`,
 );

@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-import { createBrowserPiWorkerRuntimeV1 } from "./browser-pi-worker-runtime.ts";
+import {
+  installBrowserPiProviderFetchGuardV1,
+  readBrowserPiWorkerEndpointOriginV1,
+} from "./browser-pi-provider-fetch-guard.ts";
 
 interface BrowserPiWorkerScopeV1 {
+  fetch: typeof globalThis.fetch;
+  readonly location: { readonly href: string };
   addEventListener(
     type: "message",
     listener: (event: { readonly data: unknown; readonly ports: readonly MessagePort[] }) => void,
@@ -11,14 +16,28 @@ interface BrowserPiWorkerScopeV1 {
 }
 
 const scopeV1 = self as unknown as BrowserPiWorkerScopeV1;
-const runtimeV1 = createBrowserPiWorkerRuntimeV1({
-  // DedicatedWorkerGlobalScope.postMessage has no targetOrigin parameter.
-  // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
-  postMessage: (message) => scopeV1.postMessage(message),
+const expectedEndpointOriginV1 = readBrowserPiWorkerEndpointOriginV1(scopeV1.location.href);
+const providerFetchV1 = installBrowserPiProviderFetchGuardV1({
+  scope: scopeV1,
+  endpointOrigin: expectedEndpointOriginV1,
 });
+// Install the guard before importing Pi or any Provider adapter so even a
+// pinned module that captures global fetch at evaluation time sees the guard.
+const runtimeV1 = import("./browser-pi-worker-runtime.ts").then((module) =>
+  module.createBrowserPiWorkerRuntimeV1({
+    // DedicatedWorkerGlobalScope.postMessage has no targetOrigin parameter.
+    // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
+    postMessage: (message) => scopeV1.postMessage(message),
+    expectedEndpointOrigin: expectedEndpointOriginV1,
+    providerFetch: providerFetchV1,
+  })
+);
 
-scopeV1.addEventListener("message", (event) =>
-  runtimeV1.receive(
-    event.data,
-    event.ports,
-  ));
+scopeV1.addEventListener("message", (event) => {
+  void runtimeV1.then(
+    (runtime) => runtime.receive(event.data, event.ports),
+    () => {
+      for (const port of event.ports) port.close();
+    },
+  );
+});

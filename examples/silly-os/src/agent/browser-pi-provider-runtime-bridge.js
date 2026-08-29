@@ -162,6 +162,7 @@ export function isBrowserPiSelectionAvailableV1(selection) {
 }
 
 export async function probeBrowserPiProviderSelectionV1(input) {
+  if (typeof input.fetch !== "function") return false;
   const resolved = resolveSelectionV1(input.selection);
   if (
     resolved === null || (!resolved.custom &&
@@ -181,6 +182,7 @@ export async function probeBrowserPiProviderSelectionV1(input) {
         timeoutMs: 30_000,
         transport: "sse",
         cacheRetention: "none",
+        fetch: input.fetch,
       },
     );
     const message = await stream.result();
@@ -191,6 +193,9 @@ export async function probeBrowserPiProviderSelectionV1(input) {
 }
 
 export function createBrowserPiProviderAgentV1(input) {
+  if (typeof input.fetch !== "function") {
+    throw new Error("A guarded Provider fetch is required in SillyOS Browser");
+  }
   const resolved = resolveSelectionV1(input.selection);
   if (
     resolved === null ||
@@ -221,6 +226,7 @@ export function createBrowserPiProviderAgentV1(input) {
         timeoutMs: 30_000,
         toolChoice: browserPiCreatorToolChoiceV1(proposed),
         transport: "sse",
+        fetch: input.fetch,
       });
     },
     getApiKey: (providerId) => providerId === resolved.provider.id ? apiKey : undefined,

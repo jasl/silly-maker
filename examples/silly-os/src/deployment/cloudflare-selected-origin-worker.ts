@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 import { applyBrowserControlPlaneSecurityHeadersV1 } from "./browser-control-plane-security.ts";
+import {
+  applyBrowserCredentialVaultWorkerSecurityHeadersV1,
+  isBrowserCredentialVaultWorkerAssetPathV1,
+} from "./browser-credential-vault-security.ts";
 
 const browserPiEndpointOriginQueryParameterV1 = "endpoint-origin";
 
@@ -34,6 +38,30 @@ function unavailableAgentWorkerAssetV1(endpointOrigin: string | null): Response 
   });
   applyBrowserControlPlaneSecurityHeadersV1(headers, endpointOrigin);
   return new Response("Agent Worker asset unavailable.", {
+    status: 502,
+    headers,
+  });
+}
+
+function rejectedCredentialVaultWorkerRequestV1(): Response {
+  const headers = new Headers({
+    "Cache-Control": noStoreV1,
+    "Content-Type": "text/plain; charset=utf-8",
+  });
+  applyBrowserCredentialVaultWorkerSecurityHeadersV1(headers);
+  return new Response("Invalid Credential Vault Worker request.", {
+    status: 400,
+    headers,
+  });
+}
+
+function unavailableCredentialVaultWorkerAssetV1(): Response {
+  const headers = new Headers({
+    "Cache-Control": noStoreV1,
+    "Content-Type": "text/plain; charset=utf-8",
+  });
+  applyBrowserCredentialVaultWorkerSecurityHeadersV1(headers);
+  return new Response("Credential Vault Worker asset unavailable.", {
     status: 502,
     headers,
   });
@@ -84,11 +112,33 @@ function responseWithAgentWorkerPolicyV1(
   });
 }
 
+function responseWithCredentialVaultWorkerPolicyV1(response: Response): Response {
+  const headers = new Headers(response.headers);
+  applyBrowserCredentialVaultWorkerSecurityHeadersV1(headers);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 async function handleSillyOsCloudflareRequestV1(
   request: Request,
   environment: SillyOsCloudflareEnvironmentV1,
 ): Promise<Response> {
   const requestUrl = new URL(request.url);
+  if (isBrowserCredentialVaultWorkerAssetPathV1(requestUrl.pathname)) {
+    if (requestUrl.search.length !== 0 || requestUrl.hash.length !== 0) {
+      return rejectedCredentialVaultWorkerRequestV1();
+    }
+    try {
+      return responseWithCredentialVaultWorkerPolicyV1(
+        await environment.ASSETS.fetch(request),
+      );
+    } catch {
+      return unavailableCredentialVaultWorkerAssetV1();
+    }
+  }
   if (!browserPiWorkerAssetPathV1.test(requestUrl.pathname)) {
     return await environment.ASSETS.fetch(request);
   }

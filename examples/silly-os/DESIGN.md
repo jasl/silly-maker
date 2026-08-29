@@ -86,8 +86,12 @@ matches both expected child identities, and the control CSP admits only the two
 named child origins. A public Creator/Settings smoke and a disposable
 `?agent=pi-test` initialization observed one active Broker frame and one active
 Sandbox frame without console warnings or errors. This is artifact and
-bootstrap evidence, not a public-origin real-model tool qualification. No
-persistent Credential Vault or real custom-profile qualification is claimed.
+bootstrap evidence, not a public-origin real-model tool qualification. That
+tuple is the pre-S3 public baseline. Current source now contains the bounded S3
+Credential Vault described below, but it has not yet been redeployed in this
+round; the canonical origin must therefore be treated as not having the Vault
+until a new exact build/deployment receipt replaces this paragraph. No
+public-origin persistent-Vault or real custom-profile qualification is claimed.
 S2-N0 is delivered, deployed, and closed on
 2026-08-29: one product-fixed `fetch_url` Pi `AgentTool` crosses a
 build-identified, keyless third-origin Network Broker only after an exact
@@ -314,41 +318,45 @@ this presentation rule is intersected out rather than silently migrated. The
 Connection model initializes from the enabled preferred model for that Provider
 when no live credential session already owns another exact target.
 
-For an admitted single-key profile, the selected API key moves from an
-uncontrolled password input directly to a fresh Agent Worker, is cleared from
-the input immediately, and remains only in that Worker's memory. **Save key**
-performs that transfer without a Provider request. Once the Worker accepts the
-credential and completes local Agent RPC/session initialization, every enabled
-built-in model in the same Provider/base-URL scope is immediately usable; a
-custom profile remains exact. Selecting another in-scope model calls the
-Worker-owned model-selection operation. Only a successful result updates the
-UI's active selection and persisted preferred reference; failure retains both
-old values and the still-usable credential session. The separate **Test
-connection** action is an optional, repeatable point-in-time diagnostic that
-performs one small, potentially billable Pi-owned stream against the currently
-selected model. Each success or failure describes only that request; neither
-result grants, revokes, or otherwise changes Agent Creator availability, and it
-never certifies sibling models. An invalid key, model, endpoint, account
-permission, CORS path, or network condition is allowed to surface from the
-diagnostic or the subsequent real Agent request through the ordinary bounded
-failure path. The current Browser slice owns one live credential Worker at a
-time. An in-scope model switch retains that Worker-held key; crossing Provider
-or base URL, replacing the key, or Forget requires a fresh transfer and never
-returns the retained key to React. Built-in endpoint text is the initial Pi
-model's read-only base URL. Unavailable ambient, OAuth,
-keyless, and multi-field credential shapes are never collapsed into a fake API
-key field.
+For an admitted single-key profile, session-only remains the default. The API
+key moves from an uncontrolled password input to a fresh Agent Worker, is
+cleared from the input immediately, and remains only in that Worker's memory.
+If the user has explicitly created and unlocked the passphrase Vault, a separate
+**Remember on this device** checkbox instead sends the key through the narrow
+Vault client for encryption and then uses the exact one-time Vault-to-Agent
+handoff described below. **Save key** performs either selected path without a
+Provider request. Once the Worker accepts the credential and completes local
+Agent RPC/session initialization, every enabled built-in model in the same
+Provider/base-URL scope is immediately usable; a custom profile remains exact.
+Selecting another in-scope model calls the Worker-owned model-selection
+operation. Only a successful result updates the UI's active selection and
+persisted preferred reference; failure retains both old values and the usable
+credential session. The separate **Test connection** action is an
+optional, repeatable point-in-time diagnostic that performs one small,
+potentially billable Pi-owned stream against the currently selected model. Each
+success or failure describes only that request; neither result grants, revokes,
+or otherwise changes Agent Creator availability, and it never certifies sibling
+models. An invalid key, model, endpoint, account permission, CORS path, or
+network condition is allowed to surface from the diagnostic or the subsequent
+real Agent request through the ordinary bounded failure path. The current
+Browser slice owns one live credential Worker at a time. An in-scope model
+switch retains that Worker-held key; crossing Provider or base URL, replacing
+the key, Lock, or Forget requires a fresh transfer and never reads the retained
+key back through React. Built-in endpoint text is the initial Pi model's
+read-only base URL. Unavailable ambient, OAuth, keyless, and multi-field credential
+shapes are never collapsed into a fake API key field.
 
 The Settings navigation separates the unchanged Pi built-in catalog from
 product-owned custom HTTPS profiles. A custom profile explicitly declares one
 of Pi's `openai-completions`, `openai-responses`, `anthropic-messages`, or
 `google-generative-ai` API families, its canonical base URL, model id, and
-bounded model ceilings; URL shape never selects a protocol. Its non-secret
-record may persist in the Browser Settings repository, but the key remains
-Worker-memory-only. A successful custom probe describes only the most recent
-request in the current Browser session and is never a prerequisite for using
-that configured profile. Neither kind of profile or key is
-Program/Workspace content, OPFS data, a URL secret, a log, or an export.
+bounds; URL shape never selects a protocol. Its non-secret record may persist
+in the Browser Settings repository. Its key remains only in Worker memory by
+default and may enter only the separate encrypted Vault after
+the explicit Remember choice. A successful custom probe describes only the
+most recent request in the current Browser session and is never a prerequisite
+for using that configured profile. Neither kind of profile or key is Program/
+Workspace content, OPFS data, a URL secret, a log, or an export.
 
 For a custom profile, the Agent Worker URL carries only the canonical
 non-secret endpoint origin. The Cloudflare response layer validates that value
@@ -399,25 +407,30 @@ data boundaries; executable authority does not.
 
 ```text
 SillyOS UI / Product Core
-    -> typed Agent RPC
-fixed Pi Agent / Credential plane
-    +-> typed WorkspaceExecutionPort
-    |     -> independent-origin Workspace Execution Sandbox
-    |          -> current Program's exclusive VFS volume
-    +-> typed NetworkCapabilityPort
-          -> independent-origin Network Broker
-               +-> bounded Browser fetch
-               -> completed download stream -> Workspace Host staging/publication
+    +-> typed Agent RPC
+    |     -> fixed Pi Agent / Provider plane
+    |          +-> typed WorkspaceExecutionPort
+    |          |     -> independent-origin Workspace Execution Sandbox
+    |          |          -> current Program's exclusive VFS volume
+    |          +-> typed NetworkCapabilityPort
+    |                -> independent-origin Network Broker
+    |                     +-> bounded Browser fetch
+    |                     -> completed download stream -> Workspace Host staging/publication
+    +-> exact Vault RPC
+          -> fixed network-off Credential Vault Worker
+               -> dedicated encrypted Credential IndexedDB
+               -> one-time exact-binding MessagePort -> Pi Agent Worker
 ```
 
 ### Browser security planes
 
-| Plane                             | Owns                                                                                                                                                                                                                                                  | Must not own or expose                                                                                                                                                                                                                                  |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SillyOS control plane             | Creator UI, Program manifest and lifecycle, ordinary preferences, product repository, persistent Agent-state projection, network-grant decisions, review/currentness, closed `UiArtifact`/OpenUI-to-SillyMaker mapping, and truthful capability state | `eval`, `new Function`, user-controlled dynamic import, generated HTML injection, generated JavaScript/Python/shell execution, or a generic bridge to credentials, product storage, DOM, cookies, or browser APIs                                       |
-| Fixed Pi Agent / Credential plane | The product-pinned `pi-agent-core`/`pi-ai`, Provider/model catalog, Agent loop, Pi session behavior, Provider requests, session credentials, and Pi-native tool schemas/calls                                                                         | Direct tool-script execution, arbitrary user/project Pi plugins while holding a key, a second SillyOS Agent loop/tool framework, or a generic credential-bearing `fetch(url, headers)` RPC                                                              |
-| Workspace Execution Sandbox       | One Program-bound VFS, `/workspace`, `/tmp`, artifacts, `AGENTS.md`, skills and project files, `read/write/edit/bash`, the current bounded synchronous QuickJS command, and later qualified one-shot runtimes                                         | SillyOS Product Repository, Credential Vault, cookies, DOM, SillyOS OPFS, same-origin IndexedDB, API keys, ambient host JavaScript, or ambient network capability                                                                                       |
-| Independent Network Broker        | Product-shipped build-identified code, admitted bounded HTTPS `GET`, exact operation/URL/currentness inputs already authorized by the control plane, and a backpressured byte stream to Workspace Host staging                                        | Provider/Credential-plane access or product-injected authentication, Product Repository, Credential Vault, general VFS authority, guest/user code, DOM/cookies, arbitrary headers or request bodies, a generic fetch proxy, or durable response storage |
+| Plane                           | Owns                                                                                                                                                                                                                                                  | Must not own or expose                                                                                                                                                                                                                                  |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SillyOS control plane           | Creator UI, Program manifest and lifecycle, ordinary preferences, product repository, persistent Agent-state projection, network-grant decisions, review/currentness, closed `UiArtifact`/OpenUI-to-SillyMaker mapping, and truthful capability state | `eval`, `new Function`, user-controlled dynamic import, generated HTML injection, generated JavaScript/Python/shell execution, full-key readback, or a generic bridge to credentials, product storage, DOM, cookies, or browser APIs                    |
+| Fixed Pi Agent / Provider plane | The product-pinned `pi-agent-core`/`pi-ai`, Provider/model catalog, Agent loop, Pi session behavior, exact-origin Provider requests, the in-use session credential, and Pi-native tool schemas/calls                                                  | Direct tool-script execution, persistent credential storage, arbitrary user/project Pi plugins while holding a key, a second SillyOS Agent loop/tool framework, or a generic credential-bearing `fetch(url, headers)` RPC                               |
+| Credential Vault Worker         | One fixed network-off module Worker, its own exact IndexedDB schema, passphrase-derived unlock key, encrypted verifier and API-key records, non-secret binding metadata, and exact one-time handoff to the matching Agent Worker                      | Provider/network requests, Product Repository, Workspace/VFS, Program state, DOM/cookies, a generic secret reader, endpoint rebinding, or delivery to a caller that does not prove the exact handoff ID and binding                                     |
+| Workspace Execution Sandbox     | One Program-bound VFS, `/workspace`, `/tmp`, artifacts, `AGENTS.md`, skills and project files, `read/write/edit/bash`, the current bounded synchronous QuickJS command, and later qualified one-shot runtimes                                         | SillyOS Product Repository, Credential Vault, cookies, DOM, SillyOS OPFS, same-origin IndexedDB, API keys, ambient host JavaScript, or ambient network capability                                                                                       |
+| Independent Network Broker      | Product-shipped build-identified code, admitted bounded HTTPS `GET`, exact operation/URL/currentness inputs already authorized by the control plane, and a backpressured byte stream to Workspace Host staging                                        | Provider/Credential-plane access or product-injected authentication, Product Repository, Credential Vault, general VFS authority, guest/user code, DOM/cookies, arbitrary headers or request bodies, a generic fetch proxy, or durable response storage |
 
 The Sandbox uses a separate origin and an admitted cross-origin capability
 channel. A normal same-origin Dedicated Worker is useful for scheduling and
@@ -523,60 +536,113 @@ The Browser product has three non-interchangeable repositories:
 
 1. **SillyOS Product Repository** stores Program manifests, ordinary preferences,
    product state, human decisions, and bounded Agent-state projections.
-2. **Credential Vault** may later store an encrypted Provider credential under
-   an explicit user-mediated unlock boundary. It is absent today.
+2. **Credential Vault** stores only the explicitly remembered encrypted Provider
+   credentials, encrypted verifier, Vault header, and non-secret exact binding
+   metadata in its own IndexedDB database owned by the fixed Vault Worker.
 3. **Workspace Volume Repository** stores each Program's VFS bytes, Sandbox
    state, snapshots, import/export payloads, and restoration state.
 
 Different IndexedDB database names under one origin do not establish permission
-isolation. The untrusted Sandbox must not share origin storage authority with
-the SillyOS control plane. Product records and Workspace bytes remain separate
-facts even when a manifest points to one exact volume; keys never enter either.
+isolation. The Vault's dedicated Worker, exact protocol, database ownership, and
+network-off response policy reduce accidental authority mixing, but they do not
+make that same-origin Worker an XSS boundary. The untrusted Sandbox must not
+share origin storage authority with the SillyOS control plane. Product records
+and Workspace bytes remain separate facts even when a manifest points to one
+exact volume; keys never enter either repository.
 
 ### Credential persistence and Provider egress
 
-Session-only remains the default and the only implemented Browser credential
-mode. A later **Remember on this device** option is a separate, user-selected
-capability, not an extension of the ordinary Settings repository. Its gate is:
+Session-only remains the default. Current source also implements the explicit
+**Remember on this device** path as a separate capability, not an extension of
+the ordinary Settings repository. The user must first create or unlock the
+Vault with a passphrase and must then opt in for the current credential. Test
+connection remains a separate optional operation and never gates either Save or
+Agent use.
 
-- ciphertext at rest and plaintext only transiently inside the unlocked
-  Credential/Agent boundary;
-- explicit Save, Test connection, Lock, Forget, and Replace actions, with no
-  full-key readback;
-- WebAuthn PRF/device-verification unlock investigated first, a user passphrase
-  fallback where necessary, and session-only when neither route is sound;
-- binding to one immutable normalized endpoint; built-in commercial endpoints
-  remain read-only, and changing a custom endpoint invalidates or explicitly
-  rebinds the credential;
-- no generic fetch proxy, and Provider HTTP transport must reject redirects
-  rather than risk forwarding an authorization credential to another origin.
+Vault V1 uses Web Crypto PBKDF2-HMAC-SHA-256 with a fixed `600,000` iterations
+and a random `32`-byte Vault salt to derive a non-extractable AES-256-GCM key. It
+stores an encrypted verifier and gives every credential record an independent
+random `96`-bit IV. AES-GCM additional authenticated data binds the Vault
+revision, immutable `bindingId`, credential kind, and complete canonical HTTPS
+base URL, including a non-root path. The exact schema is bounded to `32`
+bindings. Replacing a key is an upsert only for that exact binding; trying to
+reuse one binding identity with a different endpoint fails until the old record
+is explicitly forgotten. Built-in commercial endpoints remain read-only, and a
+custom profile endpoint change makes the old binding ineligible and requires an
+explicit Forget plus new save rather than silently reusing ciphertext.
 
-The truthful claim for that future Vault is limited: it may protect locked local
-ciphertext and keep generated/workspace code away from SillyOS and the key. It
-cannot promise resistance to every control-plane XSS, malicious browser
-extension, compromised device, supply-chain compromise, or misuse after unlock.
+The Vault client exposes create, unlock, lock, list-binding-metadata, upsert,
+forget, and handoff. It exposes no full-key read API. A remembered reuse creates
+a unique bounded handoff ID and transfers one MessagePort; the Agent Worker must
+first return the exact admitted `{ handoffId, binding }` ready record. Only then
+does the Vault decrypt and deliver one exact `{ handoffId, binding, credential }`
+record directly over that port. Duplicate IDs, mismatched bindings, extra ports,
+deadline, Lock, stale orchestration, or malformed wire data fail closed and do
+not project plaintext into React. The initial Remember save necessarily passes
+the key from the uncontrolled input through the narrow control-side client call
+before the Vault encrypts it; the input and local variables are cleared on the
+best-effort JavaScript boundary. That is not claimed to be impossible for
+compromised same-origin code to observe.
+
+Lock and both Forget variants revoke the credential-owning Agent Worker
+synchronously before starting best-effort Workspace cleanup. The revocation path
+does not wait for a stuck Workspace close, export/network-approval settlement,
+or environment detach, and none of those cleanup promises can gate a later
+remembered handoff. Ordinary navigation and application drain keep the graceful
+close path because they are not credential-revocation actions.
+
+Provider transport is separately constrained inside the selected Agent Worker.
+Before Pi's Provider adapter runs, the product installs a guard that reconstructs
+each request with `credentials: "omit"`, `referrerPolicy: "no-referrer"`,
+`cache: "no-store"`, and `redirect: "error"`; it admits only HTTPS requests to
+the exact selected endpoint origin. It also rejects a redirect response,
+redirect status, malformed response URL, or response whose URL crosses that
+origin. This is a best-effort credential-following redirect boundary, not a
+claim that the Browser, DNS, Provider, or extensions cannot be compromised.
+
+The truthful Vault claim is limited to encrypted local records while locked,
+closed APIs, direct exact-binding handoff, and keeping generated/workspace code
+away from SillyOS storage and the key. An unlocked Agent can use the key for its
+selected Provider, and a compromised control origin may abuse or observe that
+capability. The design cannot promise resistance to every control-plane XSS,
+malicious browser extension, compromised device, supply-chain compromise,
+keylogger, passphrase loss, or misuse after unlock. WebAuthn PRF and device
+verification unlock and recovery are deferred; passphrase unlock and
+session-only are the only implemented choices.
 
 ### Browser defense in depth
 
-Before persistent credentials may activate, the shipped response policy must
-enforce `default-src`, `script-src`, `style-src`, self-only `style-src-elem`,
-`style-src-attr 'none'`, `worker-src`, `connect-src`,
-`object-src`, `base-uri`, `frame-src`, `frame-ancestors`, and `form-action`; use no third-party
-runtime script; remove or externally materialize executable inline script/style;
-and keep the ordinary document/catalog on `connect-src 'self'`. An exact selected
-Provider origin belongs only to the chosen Agent Worker. The control document's
-`frame-src` is limited to the exact Sandbox origin plus `blob:`, and the Sandbox
-uses `frame-src blob:` only for its private WebKit download navigation; the Blob
-URL never crosses the control RPC. Trusted Types starts in Report-Only for
-preview/production and may move to enforcement only after Chromium and WebKit evidence.
-Local Vite dev omits that observational header because Vite's own client and
-optimizer do not satisfy it. Each control dev-server process also generates one
-fresh random nonce and lets Vite attach it to styles that Vite injects. That
-nonce exists only in that server's development HTML/CSP; preview and production
-retain self-hosted external styles and do not adopt a nonce production policy.
-Generated HTML, application previews, and code execution belong only at the
-separate Sandbox origin; the control plane renders admitted text and closed
-component data.
+Persistent credentials do not relax the existing control response policy. It
+enforces `default-src`, `script-src`, `style-src`, self-only `style-src-elem`,
+`style-src-attr 'none'`, `worker-src`, `connect-src`, `object-src`, `base-uri`,
+`frame-src`, `frame-ancestors`, and `form-action`; loads no third-party runtime
+script; externally materializes executable styles/scripts; and keeps the
+ordinary document/catalog on `connect-src 'self'`. An exact selected Provider
+origin belongs only to the chosen Agent Worker. The control document's
+`frame-src` is limited to the exact Sandbox and Network Broker origins plus
+`blob:`, and the Sandbox uses `frame-src blob:` only for its private WebKit
+download navigation; the Blob URL never crosses the control RPC. Trusted Types
+starts in Report-Only for preview/production and may move to enforcement only
+after Chromium and WebKit evidence. Local Vite dev omits that observational
+header because Vite's own client and optimizer do not satisfy it. Each control
+dev-server process also generates one fresh random nonce and lets Vite attach it
+to styles that Vite injects. That nonce exists only in that server's development
+HTML/CSP; preview and production retain self-hosted external styles and do not
+adopt a nonce production policy. Generated HTML, application previews, and code
+execution belong only at the separate Sandbox origin; the control plane renders
+admitted text and closed component data.
+
+The product-fixed Vault is another lazy module Worker, never a host/PATH or
+same-thread fallback. Its development, preview, and Cloudflare asset responses
+use a separate network-off CSP: `default-src 'none'`, self-only `script-src`,
+and `connect-src`, `worker-src`, `frame-src`, `object-src`, `base-uri`,
+`frame-ancestors`, and `form-action` all `none`. It does not receive the selected
+Provider origin. The production checker requires exactly one hashed Vault
+Worker, rejects Vault crypto/database core markers in ordinary UI chunks, and
+rejects network, DOM, Product Repository, or Workspace imports in the Vault
+source graph. The Cloudflare route for that policy and selective hashed-asset
+dispatch exists in current source; the previous public deployment does not
+prove it and awaits this round's rebuild/redeployment.
 
 The current selected-origin response has the same canonical rule in production
 and local development. The Agent Worker URL carries only one normalized HTTPS
@@ -614,9 +680,9 @@ generation. Passing those gates proves only the named boundary.
 | Surface                       | Current Browser source                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Remaining gap / claim limit                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Control-plane rendering       | React text children and `<code>{source}</code>` keep Program/model strings inert; a source gate rejects executable-text sinks and non-literal dynamic imports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | No OpenUI/generated-app renderer exists; future closed mapping still needs data admission and browser tests                                                                                                                                                                                                                                                                                                                       |
-| Document response             | Production `_headers` carries the complete no-wildcard control CSP; control `frame-src` admits only the exact Sandbox and Network Broker origins plus `blob:`, while Sandbox `frame-src` admits only its private `blob:` download navigation. Each local control Vite server start generates a fresh style nonce for Vite-injected styles, omits Vite-incompatible TT reporting, and disables HMR. A selected live Agent Worker receives only its canonical HTTPS endpoint origin under `connect-src` in both production and local dev; malformed dev Worker queries fail 400/no-store before Vite transforms the asset                                                                                                                                                                                                                       | The nonce is a dev-server accommodation, not the preview/production policy; shipped styles remain self/external and preview/production Trusted Types remains Report-Only. Exact endpoint admission does not prove Provider CORS or a real Provider request on the deployed origin                                                                                                                                                 |
-| Build identity                | Product-derived identities are embedded in the control artifact, Sandbox bootstrap/Host Worker, and Network Broker bootstrap/Worker; production rejects `development`, a missing identity, unexpected files, and bootstrap/Worker mismatch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | This proves artifact admission, not code signing, supply-chain integrity, or a deployed mixed-version recovery protocol                                                                                                                                                                                                                                                                                                           |
-| Pi Agent and key              | Product-pinned Pi runs in the Agent Worker; API keys remain session-only and the ordinary Settings schema rejects secret fields                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | This is logical isolation, not a persistent Vault or an XSS boundary; Provider credential-following redirect rejection is not yet proved                                                                                                                                                                                                                                                                                          |
+| Document response             | Production `_headers` carries the complete no-wildcard control CSP; control `frame-src` admits only the exact Sandbox and Network Broker origins plus `blob:`, while Sandbox `frame-src` admits only its private `blob:` download navigation. Each local control Vite server start generates a fresh style nonce for Vite-injected styles, omits Vite-incompatible TT reporting, and disables HMR. A selected live Agent Worker receives only its canonical HTTPS endpoint origin under `connect-src`; the Vault Worker instead receives the fixed network-off policy in dev, preview, and Cloudflare source. Malformed privileged-Worker queries fail 400/no-store before asset execution                                                                                                                                                    | The nonce is a dev-server accommodation, not the preview/production policy; shipped styles remain self/external and preview/production Trusted Types remains Report-Only. Exact endpoint and Vault-policy source evidence does not prove Provider CORS, a real Provider request, or the not-yet-redeployed Vault response on the public origin                                                                                    |
+| Build identity                | Product-derived identities are embedded in the control artifact, Sandbox bootstrap/Host Worker, and Network Broker bootstrap/Worker; production rejects `development`, a missing identity, unexpected files, and bootstrap/Worker mismatch. The control build checker additionally requires exactly one hashed fixed Vault Worker, keeps its crypto/database core out of ordinary UI chunks, and rejects forbidden authority imports in its source graph                                                                                                                                                                                                                                                                                                                                                                                      | This proves artifact admission, not code signing, supply-chain integrity, a deployed mixed-version recovery protocol, or that the previous public build contains S3                                                                                                                                                                                                                                                               |
+| Pi Agent and key              | Product-pinned Pi runs in the Agent Worker. Session-only remains default; an explicitly remembered key is recovered only through the exact one-time Vault handoff. The ordinary Settings repository rejects secret fields. Provider fetch reconstructs requests with credentials omitted, no referrer/cache, redirect error, exact HTTPS origin, and post-response redirect/origin checks                                                                                                                                                                                                                                                                                                                                                                                                                                                     | These are closed product boundaries, not total XSS, malicious-extension, DNS, device, or supply-chain resistance. Public-origin Provider redirect behavior and the S3 redeployment remain unproved                                                                                                                                                                                                                                |
 | Program network tools         | Closed N0 registers one fixed `{ url }` `fetch_url` Pi `AgentTool`; closed N1 adds explicit per-Program `(origin, operation)` grants in Product Repository V6; closed N2 adds one fixed `download({ url, destination, overwrite? })` Pi tool. **Allow once** stays exact-URL and consumable, while the unchecked opt-in may persist only the normalized origin tuple. Download bytes move directly from the keyless Broker to Workspace Host private OPFS staging over a one-chunk/ACK channel; complete current 2xx responses alone publish through the existing `replaceFile` journal and emit a `download` receipt. Persistent Chromium and WebKit prove the exact `32 MiB` ceiling, SHA-256 content, one generation, durable operation grant, and cold reopen without exposing bytes to React/Agent or key/Program identity to the Broker | Only CORS-readable HTTPS GET is active. Playwright fulfillment proves the product stream but bypasses Browser CORS/redirect enforcement; public-origin ingress, arbitrary-site behavior, real-device quota exhaustion/memory telemetry, background transfer, archive extraction, search, authenticated requests, redirects, arbitrary headers/body, guest network, and public real-model network-tool qualification remain absent |
 | Live Provider workspace tools | The current `pi_provider` runtime receives Pi's native `read`/`write`/`edit`/`bash` plus the fixed structured `grep` capability over the same Program-bound independent-origin Authority. Real Chromium Anthropic journeys prove a native `write` mutation and one bounded `write`/`write`/`bash-qjs` loop, resulting Sandbox bytes, generation, cancel/currentness, no key in the inspected control-origin durable projection, and Forget. The build-matched artifact is deployed                                                                                                                                                                                                                                                                                                                                                            | Real-model `read`, `edit`, `grep`, and `fetch_url` use are not proved on the public origin; deployment does not promote general tool capability                                                                                                                                                                                                                                                                                   |
 | Deterministic Pi tools        | Product-fixed `?agent=pi-test` retains native `write`/`read`; explicit S1b probes additionally drive Pi native `edit` or `bash` through the same independent-origin Authority                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | The deterministic probes remain narrower reproducible evidence and do not replace the live Anthropic qualification limits                                                                                                                                                                                                                                                                                                         |
@@ -624,7 +690,7 @@ generation. Passing those gates proves only the named boundary.
 | Product/Workspace storage     | Product metadata and preferences remain on the control origin; physical Product Repository V6 retains the V5 Program/continuation pair while adding a separate non-secret Program grant store. The earlier exact preview V4 still clean-resets without reading or migrating it, while Workspace bytes remain Sandbox-origin OPFS                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Old control-origin OPFS bytes may remain browser-managed but are unreachable and are not migrated; no import/restore or fixed cross-device durability claim exists                                                                                                                                                                                                                                                                |
 | Workspace download            | The Host first emits sealed `ready`; the Authority rechecks Workspace snapshot plus Product continuation before exposing readiness and again before explicit `start_download`. Only then may the Sandbox-private broker click and return `download_started`; after a 1,000 ms handoff the control sends `release` for Host cleanup                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Before authorization, cancel/abort/consumer failure/timeout/drift causes zero broker/download; after authorization, Close/Forget drains through release. The control plane sees no URL, Blob, or bytes                                                                                                                                                                                                                            |
 | Workspace storage UI          | The control-origin `navigator.storage` estimate/persistence UI is removed because it describes the wrong origin after cutover                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | A future display requires a typed Sandbox-owned quota/persistence projection; no current UI makes a Sandbox quota or persistence promise                                                                                                                                                                                                                                                                                          |
-| Credential persistence        | Absent                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | No encrypted Vault, unlock, Lock/recovery, endpoint rebind, or at-rest claim exists                                                                                                                                                                                                                                                                                                                                               |
+| Credential persistence        | Current source implements an optional passphrase Vault in its own IndexedDB/database Worker: PBKDF2-HMAC-SHA-256 at 600,000 iterations, non-extractable AES-256-GCM, random Vault salt and per-record IV, encrypted verifier, immutable complete-endpoint AAD, create/unlock/Lock/list/upsert/Forget, and exact one-time MessagePort handoff without a full-key read API                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Session-only remains default. WebAuthn PRF/device verification, passphrase recovery, cross-device sync, public-origin deployment/evidence, and resistance to compromised unlocked control code remain absent                                                                                                                                                                                                                      |
 | Bounded shell artifact        | Pi native `bash` reaches the network-off just-bash 3.4.2 facade. Its built-in Python and JavaScript switches remain disabled; one product-shipped lazy `qjs` custom command is the only admitted script runtime. The QJS-containing Sandbox artifact is deployed with the matching control identity                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Deployment alone is not a public-origin QJS behavioral, real-model, total-memory, dependency-absence, Linux, container, or general-sandbox result; the shell bundle still contains unregistered curl code                                                                                                                                                                                                                         |
 | Workspace namespace/files     | The fixed just-bash facade exposes `mkdir`/`rm`/`cp`/`mv` plus a narrow product `touch`; `find -delete` reaches the same Program-bound namespace mutations. Each changed file or directory entry publishes its own durable generation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Commands are best-effort and non-transactional; cancellation, quota, or the 128-attempt/64-path ceilings may retain an already-completed prefix. Empty directories survive cold reopen but remain absent from portable ZIP and immutable snapshot V1                                                                                                                                                                              |
 | Structured grep               | One product-shipped Pi `AgentTool` uses an explicit read-only `grep_workspace` RPC and fixed `rg` argument array; traversal is rejected, results/cancellation are bounded, generation stays unchanged, and no mutation receipt is emitted                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Focused tool/RPC/Host evidence exists; no real-model grep invocation, larger-volume performance claim, or generic command dispatcher exists                                                                                                                                                                                                                                                                                       |
@@ -856,10 +922,12 @@ change a real product behavior.
 - The mutable workspace volume owns working-tree bytes. The SillyOS product
   database owns Program catalog metadata, exact accepted revision/snapshot
   references, decisions, and product-visible receipts; it does not duplicate
-  those bytes. The target Credential Vault/Pi session store is a third physical
-  authority. Today no Vault exists: credentials are session-only inside a
-  same-origin Agent Worker, so the current split is logical rather than an XSS
-  or storage-permission boundary.
+  those bytes. The Credential Vault is a third physical repository with its own
+  exact IndexedDB schema and product-fixed Worker. It stores only encrypted
+  remembered credentials and binding metadata; session-only credentials and Pi
+  session state remain in the Agent Worker. Because the Vault Worker is still
+  same-origin with the control plane, this physical ownership split is not an
+  XSS or storage-permission boundary.
 - The first preview uses no Game/Story simulation and no Save path.
 - Program presentation may use ordinary React and mature web packages. A
   third-party component remains responsible for ordinary same-realm browser
@@ -884,11 +952,15 @@ change a real product behavior.
   profile with an explicit Pi API family, base URL, model, and ceilings; one
   successful optional probe describes only that current-session request and
   never gates use. The key necessarily enters the password input, then transfers
-  immediately to the Agent Worker and remains memory-only by default. It never
-  enters React state, URLs, logs, telemetry, Program data, IndexedDB, OPFS,
-  Cache API, exports, or downloads. Terminating the Worker is the forget
-  operation. This ownership split is not a defense against same-origin script
-  compromise or privileged browser extensions.
+  through the selected narrow session-only or Vault client path. It remains only
+  in Agent Worker memory by default. Only an explicit Remember choice after
+  Vault unlock may put its ciphertext and exact non-secret binding into the
+  Vault database. It never enters React state, URLs, logs, telemetry, Program
+  data, Workspace OPFS, Cache API, exports, or downloads. Terminating the Agent
+  Worker forgets the live session credential; Lock also terminates it, while
+  deleting a remembered record is a separate Vault Forget. This ownership split
+  is not a defense against same-origin script compromise or privileged browser
+  extensions.
 - The independent Network Broker never owns or receives the Provider key. The
   Agent Worker receives no arbitrary HTTPS transport in exchange: product-fixed
   `fetch_url`/`download` tool code may submit only admitted schema fields through
@@ -900,12 +972,14 @@ change a real product behavior.
   only opaque Pi session/credential references crossing that boundary. Neither
   is deterministic game Save. P2 durably stores the bounded Program catalog,
   product-session projection, and terminal product receipt keyed by a
-  product-owned `agentRunId`; Pi session/run identities, credentials, provider
-  data remain non-durable in the delivered baseline. P3c-B0 adds only an
-  OPFS-backed mutable Program checkpoint, its small product continuation
-  manifest, recovery/scale evidence, and a portable ZIP of that checkpoint's
-  manifest plus VFS files; it still does not persist or export Pi private
-  sessions, credentials, Provider data, mutation receipts, or Creator Chat.
+  product-owned `agentRunId`; Pi session/run identities and Provider session
+  data remain non-durable. A remembered credential may persist only as Vault
+  ciphertext and non-secret binding metadata, outside that product projection.
+  P3c-B0 adds only an OPFS-backed mutable Program checkpoint, its small product
+  continuation manifest, recovery/scale evidence, and a portable ZIP of that
+  checkpoint's manifest plus VFS files; that Program checkpoint and ZIP contain
+  or export no Pi private sessions, credentials, Provider data, mutation
+  receipts, or Creator Chat.
 - Browser ultimately binds Pi's shipped `read`, `write`, `edit`, and `bash` tool factories
   to one stable Program-scoped Pi `ExecutionEnv` whose effects cross the typed
   `WorkspaceExecutionPort` into the independent-origin Sandbox. The

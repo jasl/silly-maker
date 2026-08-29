@@ -13,6 +13,7 @@ import {
   type ProviderSettingsProfileV1,
   type ProviderSettingsPropsV1,
   type ProviderSettingsProviderV1,
+  type ProviderSettingsVaultV1,
   ProviderSettingsV1,
 } from "../ui/provider-settings.tsx";
 import { CreatorHomeV1 } from "../ui/creator-home.tsx";
@@ -138,6 +139,13 @@ const openAiNanoSelectionV1 = {
 
 const defaultEnabledModelsV1 = [{ providerId: "openai", modelId: "gpt-4.1-nano" }] as const;
 
+const absentVaultV1: ProviderSettingsVaultV1 = { phase: "absent", bindings: [] };
+const openAiBindingV1 = {
+  bindingId: "builtin:openai",
+  credentialKind: "api_key",
+  baseUrl: "https://api.openai.com/v1",
+} as const;
+
 describe("SillyOS Provider credential scope", () => {
   const openAiNanoV1 = openAiNanoSelectionV1;
   const openAiLatestV1 = { ...openAiNanoV1, modelId: "gpt-latest" } as const;
@@ -178,8 +186,14 @@ function renderSettingsV1(input?: {
   readonly enabledBuiltinModels?: ProviderSettingsPropsV1["enabledBuiltinModels"];
   readonly preferredBuiltinModel?: ProviderSettingsPropsV1["preferredBuiltinModel"];
   readonly profile?: ProviderSettingsProfileV1;
+  readonly vault?: ProviderSettingsVaultV1;
   readonly onSaveCredential?: ProviderSettingsPropsV1["onSaveCredential"];
   readonly onTestConnection?: ProviderSettingsPropsV1["onTestConnection"];
+  readonly onCreateVault?: ProviderSettingsPropsV1["onCreateVault"];
+  readonly onUnlockVault?: ProviderSettingsPropsV1["onUnlockVault"];
+  readonly onLockVault?: ProviderSettingsPropsV1["onLockVault"];
+  readonly onUseRemembered?: ProviderSettingsPropsV1["onUseRemembered"];
+  readonly onForgetRemembered?: ProviderSettingsPropsV1["onForgetRemembered"];
   readonly onSetBuiltinModelEnabled?: ProviderSettingsPropsV1["onSetBuiltinModelEnabled"];
   readonly onCreateCustomProfile?: ProviderSettingsPropsV1["onCreateCustomProfile"];
   readonly onRemoveCustomProfile?: ProviderSettingsPropsV1["onRemoveCustomProfile"];
@@ -188,6 +202,11 @@ function renderSettingsV1(input?: {
 }) {
   const onSaveCredential = input?.onSaveCredential ?? vi.fn();
   const onTestConnection = input?.onTestConnection ?? vi.fn();
+  const onCreateVault = input?.onCreateVault ?? vi.fn();
+  const onUnlockVault = input?.onUnlockVault ?? vi.fn();
+  const onLockVault = input?.onLockVault ?? vi.fn();
+  const onUseRemembered = input?.onUseRemembered ?? vi.fn();
+  const onForgetRemembered = input?.onForgetRemembered ?? vi.fn();
   const onSetBuiltinModelEnabled = input?.onSetBuiltinModelEnabled ?? vi.fn();
   const onCreateCustomProfile = input?.onCreateCustomProfile ?? vi.fn(() => null);
   const onRemoveCustomProfile = input?.onRemoveCustomProfile ?? vi.fn();
@@ -206,11 +225,17 @@ function renderSettingsV1(input?: {
         enabledBuiltinModels={enabledBuiltinModels}
         preferredBuiltinModel={input?.preferredBuiltinModel ?? null}
         profile={input?.profile ?? disconnectedProfileV1}
+        vault={input?.vault ?? absentVaultV1}
         onBack={vi.fn()}
         onLocaleChange={vi.fn()}
         onRetryCatalog={onRetryCatalog}
         onSaveCredential={onSaveCredential}
         onTestConnection={onTestConnection}
+        onCreateVault={onCreateVault}
+        onUnlockVault={onUnlockVault}
+        onLockVault={onLockVault}
+        onUseRemembered={onUseRemembered}
+        onForgetRemembered={onForgetRemembered}
         onSetBuiltinModelEnabled={(model, enabled) => {
           onSetBuiltinModelEnabled(model, enabled);
           setEnabledBuiltinModels((current) =>
@@ -239,11 +264,17 @@ function disconnectedSettingsPropsV1(): ProviderSettingsPropsV1 {
     enabledBuiltinModels: defaultEnabledModelsV1,
     preferredBuiltinModel: null,
     profile: disconnectedProfileV1,
+    vault: absentVaultV1,
     onBack: vi.fn(),
     onLocaleChange: vi.fn(),
     onRetryCatalog: vi.fn(),
     onSaveCredential: vi.fn(),
     onTestConnection: vi.fn(),
+    onCreateVault: vi.fn(),
+    onUnlockVault: vi.fn(),
+    onLockVault: vi.fn(),
+    onUseRemembered: vi.fn(),
+    onForgetRemembered: vi.fn(),
     onSetBuiltinModelEnabled: vi.fn(),
     onCreateCustomProfile: vi.fn(() => null),
     onRemoveCustomProfile: vi.fn(),
@@ -312,7 +343,7 @@ describe("SillyOS Provider settings", () => {
     expect(screen.getByRole("checkbox", { name: /Bedrock model/u })).toBeDisabled();
     expect(screen.getAllByText(/credential flow is not available/u).length).toBeGreaterThan(0);
     expect(screen.getByRole("combobox", { name: /Connection model/u })).toBeDisabled();
-    expect(screen.queryByLabelText("API key (memory only)")).toBeNull();
+    expect(screen.queryByLabelText("API key")).toBeNull();
   });
 
   it("uses independent checkboxes for model visibility and a separate connection target", () => {
@@ -376,20 +407,20 @@ describe("SillyOS Provider settings", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Choose at least one available model below",
     );
-    expect(screen.queryByLabelText("API key (memory only)")).toBeNull();
+    expect(screen.queryByLabelText("API key")).toBeNull();
   });
 
   it("saves the exact selected model without testing and clears the uncontrolled key", () => {
     let inputValueDuringCallback = "not-called";
     const onSaveCredential = vi.fn(() => {
       inputValueDuringCallback = (screen.getByLabelText(
-        "API key (memory only)",
+        "API key",
       ) as HTMLInputElement).value;
     });
     const onTestConnection = vi.fn();
     renderSettingsV1({ onSaveCredential, onTestConnection });
 
-    const keyInput = screen.getByLabelText("API key (memory only)") as HTMLInputElement;
+    const keyInput = screen.getByLabelText("API key") as HTMLInputElement;
     expect(keyInput).not.toHaveAttribute("value");
     expect(keyInput).toHaveAttribute("type", "password");
     fireEvent.click(screen.getByRole("button", { name: "Show API key" }));
@@ -400,12 +431,132 @@ describe("SillyOS Provider settings", () => {
     expect(screen.getByRole("button", { name: "Test connection" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Save key" }));
 
-    expect(onSaveCredential).toHaveBeenCalledWith(openAiNanoSelectionV1, "sk-test-secret");
+    expect(onSaveCredential).toHaveBeenCalledWith(
+      openAiNanoSelectionV1,
+      "sk-test-secret",
+      "session_only",
+    );
     expect(onTestConnection).not.toHaveBeenCalled();
     expect(inputValueDuringCallback).toBe("");
     expect(keyInput).toHaveValue("");
     expect(keyInput).not.toHaveAttribute("value");
     expect(document.body.textContent).not.toContain("sk-test-secret");
+  });
+
+  it("keeps persistence session-only by default and enables opt-in only while unlocked", () => {
+    const onSaveCredential = vi.fn();
+    const locked = renderSettingsV1({
+      vault: { phase: "locked", bindings: [openAiBindingV1] },
+      onSaveCredential,
+    });
+
+    const lockedRemember = screen.getByRole("checkbox", { name: /Remember on this device/u });
+    expect(lockedRemember).not.toBeChecked();
+    expect(lockedRemember).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Use remembered key" })).toBeNull();
+    fireEvent.change(screen.getByLabelText("API key"), { target: { value: "session-key" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+    expect(onSaveCredential).toHaveBeenLastCalledWith(
+      openAiNanoSelectionV1,
+      "session-key",
+      "session_only",
+    );
+
+    locked.unmount();
+    renderSettingsV1({
+      vault: { phase: "unlocked", bindings: [openAiBindingV1] },
+      onSaveCredential,
+    });
+    const remember = screen.getByRole("checkbox", { name: /Remember on this device/u });
+    expect(remember).toBeEnabled();
+    expect(remember).not.toBeChecked();
+    fireEvent.click(remember);
+    fireEvent.change(screen.getByLabelText("API key"), { target: { value: "remember-key" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+    expect(onSaveCredential).toHaveBeenLastCalledWith(
+      openAiNanoSelectionV1,
+      "remember-key",
+      "remember_on_device",
+    );
+  });
+
+  it("rejects mismatched Vault passphrases locally and clears matching input before create", () => {
+    const onCreateVault = vi.fn();
+    renderSettingsV1({ onCreateVault });
+
+    const passphrase = screen.getByLabelText("Vault passphrase") as HTMLInputElement;
+    const confirmation = screen.getByLabelText("Confirm passphrase") as HTMLInputElement;
+    fireEvent.change(passphrase, { target: { value: "correct horse" } });
+    fireEvent.change(confirmation, { target: { value: "wrong battery" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create Vault" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Passphrases do not match");
+    expect(onCreateVault).not.toHaveBeenCalled();
+
+    fireEvent.change(confirmation, { target: { value: "correct horse" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create Vault" }));
+    expect(onCreateVault).toHaveBeenCalledWith("correct horse");
+    expect(passphrase).toHaveValue("");
+    expect(confirmation).toHaveValue("");
+    expect(document.body).not.toHaveTextContent("correct horse");
+  });
+
+  it("keeps Vault unlock, lock, and orphan-binding cleanup independently actionable", () => {
+    const onUnlockVault = vi.fn();
+    const onLockVault = vi.fn();
+    const onForgetRemembered = vi.fn();
+    const orphanBinding = {
+      bindingId: "custom:removed-profile",
+      credentialKind: "api_key",
+      baseUrl: "https://removed.example.com/v1",
+    } as const;
+    const locked = renderSettingsV1({
+      vault: { phase: "locked", bindings: [orphanBinding] },
+      onUnlockVault,
+      onForgetRemembered,
+    });
+
+    const passphrase = screen.getByLabelText("Vault passphrase") as HTMLInputElement;
+    fireEvent.change(passphrase, { target: { value: "vault-passphrase" } });
+    fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
+    expect(onUnlockVault).toHaveBeenCalledWith("vault-passphrase");
+    expect(passphrase).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "Forget custom:removed-profile" }));
+    expect(onForgetRemembered).toHaveBeenCalledWith(orphanBinding);
+
+    locked.unmount();
+    renderSettingsV1({
+      vault: { phase: "unlocked", bindings: [] },
+      onLockVault,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lock" }));
+    expect(onLockVault).toHaveBeenCalledOnce();
+  });
+
+  it("keeps active-session and remembered-key actions independent", () => {
+    const onForget = vi.fn();
+    const onUseRemembered = vi.fn();
+    const onForgetRemembered = vi.fn();
+    renderSettingsV1({
+      profile: { phase: "credential_saved", active: openAiNanoSelectionV1 },
+      vault: { phase: "unlocked", bindings: [openAiBindingV1] },
+      onForget,
+      onUseRemembered,
+      onForgetRemembered,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Use remembered key" }));
+    expect(onUseRemembered).toHaveBeenCalledWith(openAiNanoSelectionV1);
+    expect(onForget).not.toHaveBeenCalled();
+    expect(onForgetRemembered).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Forget remembered key" }));
+    expect(onForgetRemembered).toHaveBeenCalledWith(openAiBindingV1);
+    expect(onForget).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Forget session key" }));
+    expect(onForget).toHaveBeenCalledOnce();
+    expect(onUseRemembered).toHaveBeenCalledOnce();
+    expect(onForgetRemembered).toHaveBeenCalledOnce();
   });
 
   it("makes a saved key usable before any connection test and keeps testing optional", () => {
@@ -432,7 +583,7 @@ describe("SillyOS Provider settings", () => {
       .toBeVisible();
     expect(screen.getByText(/never controls availability/u)).toBeVisible();
     expect(screen.queryByText(/connection test required/u)).toBeNull();
-    expect(screen.getByLabelText("API key (memory only)")).toHaveAttribute(
+    expect(screen.getByLabelText("API key")).toHaveAttribute(
       "placeholder",
       "Paste a new key to replace the saved key",
     );
@@ -440,7 +591,7 @@ describe("SillyOS Provider settings", () => {
     expect(testConnection).toBeEnabled();
     fireEvent.click(testConnection);
     expect(onTestConnection).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "Forget key" }));
+    fireEvent.click(screen.getByRole("button", { name: "Forget session key" }));
     expect(onForget).toHaveBeenCalledOnce();
   });
 
@@ -468,7 +619,7 @@ describe("SillyOS Provider settings", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(screen.getByRole("heading", { name: "Add a custom endpoint" })).toBeVisible();
-    expect(screen.getByText(/API key is never stored/u)).toBeVisible();
+    expect(screen.getByText(/API key stays session-only/u)).toBeVisible();
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: customProfileV1.displayName },
     });
@@ -503,7 +654,7 @@ describe("SillyOS Provider settings", () => {
     let inputValueDuringCallback = "not-called";
     const onSaveCredential = vi.fn(() => {
       inputValueDuringCallback = (screen.getByLabelText(
-        "API key (memory only)",
+        "API key",
       ) as HTMLInputElement).value;
     });
     const onRemoveCustomProfile = vi.fn();
@@ -519,12 +670,13 @@ describe("SillyOS Provider settings", () => {
     expect(endpoint).toHaveAttribute("readonly");
     expect(endpoint).toHaveAttribute("data-endpoint-editable", "custom-profile");
 
-    const keyInput = screen.getByLabelText("API key (memory only)") as HTMLInputElement;
+    const keyInput = screen.getByLabelText("API key") as HTMLInputElement;
     fireEvent.change(keyInput, { target: { value: "custom-test-secret" } });
     fireEvent.click(screen.getByRole("button", { name: "Save key" }));
     expect(onSaveCredential).toHaveBeenCalledWith(
       { kind: "custom", profile: customProfileV1 },
       "custom-test-secret",
+      "session_only",
     );
     expect(inputValueDuringCallback).toBe("");
     expect(keyInput).toHaveValue("");

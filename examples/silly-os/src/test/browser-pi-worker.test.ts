@@ -22,6 +22,7 @@ import type {
   BrowserPiWorkerExecutionBindingV1,
   BrowserPiWorkspaceSnapshotWireV1,
 } from "../agent/browser-pi-worker-protocol.ts";
+import { browserPiSelectionEndpointOriginV1 } from "../agent/browser-pi-worker-protocol.ts";
 import {
   createBrowserCreatorAgentPortV1 as createBrowserCreatorAgentPortCoreV1,
   type CreatorAgentPortV1,
@@ -55,6 +56,11 @@ import type {
   BrowserProgramWorkspaceFatalV1,
 } from "../product/browser-program-workspace-authority.ts";
 import { serializeCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
+import {
+  admitCredentialVaultHandoffReadyV1,
+  createCredentialVaultHandoffDeliveryV1,
+} from "../credential/credential-vault-protocol.ts";
+import type { CredentialVaultBindingV1 } from "../credential/credential-vault-contracts.ts";
 import type { CreatorAgentRunRequestV1, CreatorAgentSubmitV1 } from "../product/contracts.ts";
 import {
   applyProgramNetworkGrantMutationV1,
@@ -285,15 +291,45 @@ const openTestNetworkBrokerV1 = (): Promise<BrowserNetworkBrokerLeaseV1> =>
   Promise.resolve(createTestNetworkBrokerLeaseV1());
 
 function createBrowserPiWorkerRuntimeV1(
-  input: Parameters<typeof createBrowserPiWorkerRuntimeCoreV1>[0],
+  input:
+    & Omit<
+      Parameters<typeof createBrowserPiWorkerRuntimeCoreV1>[0],
+      "expectedEndpointOrigin" | "providerFetch"
+    >
+    & Partial<
+      Pick<
+        Parameters<typeof createBrowserPiWorkerRuntimeCoreV1>[0],
+        "expectedEndpointOrigin" | "providerFetch"
+      >
+    >,
 ): ReturnType<typeof createBrowserPiWorkerRuntimeCoreV1> {
-  const core = createBrowserPiWorkerRuntimeCoreV1(input);
+  let inferredEndpointOrigin = input.expectedEndpointOrigin ?? null;
+  const runtimeInput = {
+    ...input,
+    get expectedEndpointOrigin(): string | null {
+      return input.expectedEndpointOrigin ?? inferredEndpointOrigin;
+    },
+    providerFetch: input.providerFetch ?? fetch,
+  };
+  const core = createBrowserPiWorkerRuntimeCoreV1(runtimeInput);
   let implicitLease: BrowserNetworkBrokerLeaseV1 | null = null;
   return {
     receive(message, ports = []) {
       const kind = message !== null && typeof message === "object"
         ? Object.getOwnPropertyDescriptor(message, "kind")?.value
         : null;
+      if (
+        kind === "configure" && input.expectedEndpointOrigin === undefined && message !== null &&
+        typeof message === "object"
+      ) {
+        const selection = Object.getOwnPropertyDescriptor(message, "selection")?.value as
+          | BrowserPiModelSelectionV1
+          | null
+          | undefined;
+        inferredEndpointOrigin = selection === null || selection === undefined
+          ? null
+          : browserPiSelectionEndpointOriginV1(selection);
+      }
       if (kind === "configure" && ports.length === 0) {
         implicitLease?.terminate();
         implicitLease = createTestNetworkBrokerLeaseV1();
@@ -788,6 +824,7 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   closeWorkspaceCalls = 0;
   agentSubmitAdmissionCalls = 0;
   readonly detachWorkspaceEnvironmentCalls: string[] = [];
+  holdDetachWorkspaceEnvironment = false;
   disposeCalls = 0;
   exportCalls = 0;
   exportAborted = false;
@@ -972,6 +1009,7 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
 
   async detachWorkspaceEnvironment(workspaceSessionId: string): Promise<void> {
     this.detachWorkspaceEnvironmentCalls.push(workspaceSessionId);
+    if (this.holdDetachWorkspaceEnvironment) await new Promise<never>(() => undefined);
   }
 
   exportWorkspace(
@@ -1247,6 +1285,7 @@ class RuntimeMismatchBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
 /** Minimal controllable Worker used only to drive product-terminal edge cases. */
 class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   terminated = false;
+  dropCloseWorkspaceResponses = false;
   dropSubmitResponses = false;
   failConfiguration = false;
   failConnectionTest = false;
@@ -1394,6 +1433,7 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
         });
         return;
       } else if (record.method === "close_workspace") {
+        if (this.dropCloseWorkspaceResponses) return;
         this.workspace = { ...this.workspace, phase: "closed" };
       } else if (record.method === "acknowledge_workspace_receipts") {
         if (this.failReceiptAcknowledgement) {
@@ -1732,6 +1772,154 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       { revision: 1, kind: "protocol_failure", code: "invalid_message" },
     ]);
     runtime.dispose();
+  });
+
+  it("accepts one exact Vault handoff without projecting recovered plaintext", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const broker = createTestNetworkBrokerLeaseV1();
+    const delivery = new MessageChannel();
+    const binding: CredentialVaultBindingV1 = {
+      bindingId: "builtin:openai",
+      credentialKind: "api_key",
+      baseUrl: "https://api.openai.com/v1",
+    };
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+      credentialHandoffDeadlineMilliseconds: 100,
+    });
+    const ready = new Promise<unknown>((resolve) => {
+      delivery.port2.addEventListener("message", (event) => resolve(event.data), { once: true });
+      delivery.port2.start();
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "pi_provider",
+      selection: availableSelectionV1,
+      credential: {
+        kind: "vault_handoff",
+        handoffId: "credential.handoff.1",
+        binding,
+      },
+    }, [broker.agentPort, delivery.port1]);
+
+    expect(await ready).toEqual({
+      revision: 1,
+      kind: "credential_vault_handoff_ready",
+      handoffId: "credential.handoff.1",
+      binding,
+    });
+    expect(messages).toEqual([]);
+    delivery.port2.postMessage(
+      createCredentialVaultHandoffDeliveryV1(
+        "credential.handoff.1",
+        binding,
+        "recovered-provider-secret",
+      ),
+    );
+    await waitUntilV1(() => messages.some(({ kind }) => kind === "configured"));
+    expect(messages.at(-1)).toMatchObject({
+      revision: 1,
+      kind: "configured",
+      requestId: 1,
+      selection: availableSelectionV1,
+    });
+    expect(JSON.stringify(messages)).not.toContain("recovered-provider-secret");
+    expect(JSON.stringify(messages)).not.toContain("credential_vault_handoff_delivery");
+
+    runtime.dispose();
+    broker.terminate();
+    delivery.port2.close();
+  });
+
+  it("fails closed on mismatched, extra-port, and expired Vault handoffs", async () => {
+    const binding: CredentialVaultBindingV1 = {
+      bindingId: "builtin:openai",
+      credentialKind: "api_key",
+      baseUrl: "https://api.openai.com/v1",
+    };
+    const configure = {
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "pi_provider",
+      selection: availableSelectionV1,
+      credential: {
+        kind: "vault_handoff",
+        handoffId: "credential.handoff.1",
+        binding,
+      },
+    } as const;
+
+    const mismatchMessages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const mismatchBroker = createTestNetworkBrokerLeaseV1();
+    const mismatchDelivery = new MessageChannel();
+    const mismatchRuntime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => mismatchMessages.push(structuredClone(message)),
+      credentialHandoffDeadlineMilliseconds: 100,
+    });
+    const ready = new Promise<unknown>((resolve) => {
+      mismatchDelivery.port2.addEventListener("message", (event) => resolve(event.data), {
+        once: true,
+      });
+      mismatchDelivery.port2.start();
+    });
+    mismatchRuntime.receive(configure, [mismatchBroker.agentPort, mismatchDelivery.port1]);
+    expect(admitCredentialVaultHandoffReadyV1(await ready)).not.toBeNull();
+    mismatchDelivery.port2.postMessage(createCredentialVaultHandoffDeliveryV1(
+      "credential.handoff.other",
+      binding,
+      "must-not-be-accepted",
+    ));
+    await waitUntilV1(() => mismatchMessages.length !== 0);
+    expect(mismatchMessages).toEqual([{
+      revision: 1,
+      kind: "configuration_failure",
+      requestId: 1,
+      code: "credential_handoff_failed",
+    }]);
+
+    const extraMessages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const extraBroker = createTestNetworkBrokerLeaseV1();
+    const extraDelivery = new MessageChannel();
+    const extra = new MessageChannel();
+    const extraRuntime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => extraMessages.push(structuredClone(message)),
+    });
+    extraRuntime.receive(configure, [extraBroker.agentPort, extraDelivery.port1, extra.port1]);
+    expect(extraMessages).toEqual([{
+      revision: 1,
+      kind: "protocol_failure",
+      code: "invalid_message",
+    }]);
+
+    const expiredMessages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const expiredBroker = createTestNetworkBrokerLeaseV1();
+    const expiredDelivery = new MessageChannel();
+    const expiredRuntime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => expiredMessages.push(structuredClone(message)),
+      credentialHandoffDeadlineMilliseconds: 10,
+    });
+    expiredRuntime.receive(configure, [expiredBroker.agentPort, expiredDelivery.port1]);
+    await waitUntilV1(() => expiredMessages.length !== 0);
+    expect(expiredMessages).toEqual([{
+      revision: 1,
+      kind: "configuration_failure",
+      requestId: 1,
+      code: "credential_handoff_failed",
+    }]);
+
+    mismatchRuntime.dispose();
+    extraRuntime.dispose();
+    expiredRuntime.dispose();
+    mismatchBroker.terminate();
+    extraBroker.terminate();
+    expiredBroker.terminate();
+    mismatchDelivery.port2.close();
+    extraDelivery.port2.close();
+    extra.port2.close();
+    expiredDelivery.port2.close();
   });
 
   it("configures without Provider I/O, then tests representative available routes", async () => {
@@ -3235,6 +3423,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeCoreV1({
+      expectedEndpointOrigin: null,
+      providerFetch: fetch,
       postMessage: (message) => messages.push(structuredClone(message)),
     });
     runtime.receive({
@@ -3390,6 +3580,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeCoreV1({
+      expectedEndpointOrigin: null,
+      providerFetch: fetch,
       postMessage: (message) => messages.push(structuredClone(message)),
     });
     runtime.receive({
@@ -3542,6 +3734,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeCoreV1({
+      expectedEndpointOrigin: null,
+      providerFetch: fetch,
       postMessage: (message) => messages.push(structuredClone(message)),
       downloadOuterDeadlineMilliseconds: 20,
     });
@@ -3644,6 +3838,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeCoreV1({
+      expectedEndpointOrigin: null,
+      providerFetch: fetch,
       postMessage: (message) => {
         const cloned = structuredClone(message);
         messages.push(cloned);
@@ -4440,6 +4636,107 @@ describe("SillyOS Browser Pi transport and product port", () => {
         endpointOrigin: "https://llm.example.test/v1",
       })
     ).toThrow("sillyos.browser_pi_transport.endpoint_origin_invalid");
+  });
+
+  it("hands one recovered key directly from Vault to the endpoint-specific Worker", async () => {
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const workers: InMemoryBrowserPiWorkerV1[] = [];
+    const transport = createBrowserPiWorkerRawTransportV1({
+      runtime: "pi_provider",
+      selection: availableSelectionV1,
+      workspaceAuthority,
+      openNetworkBroker: openTestNetworkBrokerV1,
+      createCredentialHandoffId: () => "credential.handoff.transport.1",
+      workerFactory: () => {
+        const worker = new InMemoryBrowserPiWorkerV1();
+        workers.push(worker);
+        return worker;
+      },
+    });
+    const binding: CredentialVaultBindingV1 = {
+      bindingId: "builtin:openai",
+      credentialKind: "api_key",
+      baseUrl: "https://api.openai.com/v1",
+    };
+    const calls: unknown[] = [];
+    await expect(transport.configureCredentialHandoff({
+      binding,
+      async handoff(receivedBinding, handoffId, deliveryPort) {
+        calls.push({ binding: structuredClone(receivedBinding), handoffId });
+        const ready = await new Promise<unknown>((resolve) => {
+          deliveryPort.addEventListener("message", (event) => resolve(event.data), { once: true });
+          deliveryPort.start();
+        });
+        expect(ready).toEqual({
+          revision: 1,
+          kind: "credential_vault_handoff_ready",
+          handoffId,
+          binding,
+        });
+        const recovered = createCredentialVaultHandoffDeliveryV1(
+          handoffId,
+          receivedBinding,
+          "vault-recovered-secret",
+        );
+        // MessagePort.postMessage has no targetOrigin parameter.
+        // oxlint-disable-next-line unicorn/require-post-message-target-origin -- MessagePort has no targetOrigin
+        deliveryPort.postMessage(recovered);
+      },
+    })).resolves.toEqual({ kind: "configured" });
+    expect(calls).toEqual([{
+      binding,
+      handoffId: "credential.handoff.transport.1",
+    }]);
+    expect(workers).toHaveLength(1);
+    expect(JSON.stringify(workers[0]?.posted))
+      .not.toContain("vault-recovered-secret");
+    expect(JSON.stringify(workers[0]?.posted))
+      .not.toContain("credential_vault_handoff_delivery");
+
+    await expect(transport.configureCredentialHandoff({
+      binding: { ...binding, baseUrl: "https://api.openai.com/v2" },
+      handoff: async () => undefined,
+    })).resolves.toEqual({ kind: "unavailable", reason: "failed" });
+    await transport.forget();
+    await workspaceAuthority.dispose();
+  });
+
+  it("terminates a pending Vault handoff without waiting for the Vault callback", async () => {
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const workers: InMemoryBrowserPiWorkerV1[] = [];
+    let callbackStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      callbackStarted = resolve;
+    });
+    const transport = createBrowserPiWorkerRawTransportV1({
+      runtime: "pi_provider",
+      selection: availableSelectionV1,
+      workspaceAuthority,
+      openNetworkBroker: openTestNetworkBrokerV1,
+      createCredentialHandoffId: () => "credential.handoff.transport.pending",
+      workerFactory: () => {
+        const worker = new InMemoryBrowserPiWorkerV1();
+        workers.push(worker);
+        return worker;
+      },
+    });
+    const configuring = transport.configureCredentialHandoff({
+      binding: {
+        bindingId: "builtin:openai",
+        credentialKind: "api_key",
+        baseUrl: "https://api.openai.com/v1",
+      },
+      handoff: async () => {
+        callbackStarted();
+        await new Promise<never>(() => undefined);
+      },
+    });
+    await started;
+    await transport.forget();
+    await expect(configuring).resolves.toEqual({ kind: "unavailable", reason: "failed" });
+    expect(workers).toHaveLength(1);
+    expect(workers[0]?.terminated).toBe(true);
+    await workspaceAuthority.dispose();
   });
 
   it("configures once, starts before an optional test, settles submit first, and terminates", async () => {
@@ -5320,6 +5617,29 @@ describe("SillyOS Browser Pi transport and product port", () => {
       networkApproval: null,
       terminalRuns: [],
       workspace: { phase: "forgotten", descriptor: null, receipts: [] },
+    });
+  });
+
+  it("revokes the credential owner before a stuck Workspace close can block cleanup", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority,
+      workerFactory: () => worker,
+    });
+    await openProductWorkspaceV1(port);
+    worker.dropCloseWorkspaceResponses = true;
+    workspaceAuthority.holdDetachWorkspaceEnvironment = true;
+
+    port.revokeCredential();
+
+    expect(worker.terminated).toBe(true);
+    await expect(port.forget()).resolves.toBeUndefined();
+    expect(workspaceAuthority.detachWorkspaceEnvironmentCalls).toEqual([workspaceSessionIdV1]);
+    expect(port.getSnapshot()).toMatchObject({
+      phase: "forgotten",
+      workspace: { phase: "forgotten", descriptor: null },
     });
   });
 

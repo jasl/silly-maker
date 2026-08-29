@@ -159,6 +159,27 @@ describe("Browser Pi Worker protocol", () => {
       credential: { kind: "api_key", value: "sentinel" },
     } as const;
     expect(admitBrowserPiWorkerInboundMessageV1(live)).toEqual(live);
+    const handoff = {
+      ...live,
+      credential: {
+        kind: "vault_handoff",
+        handoffId: "credential.handoff.1",
+        binding: {
+          bindingId: "builtin.openai",
+          credentialKind: "api_key",
+          baseUrl: "https://api.openai.com/v1",
+        },
+      },
+    } as const;
+    expect(admitBrowserPiWorkerInboundMessageV1(handoff)).toEqual(handoff);
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      ...handoff,
+      credential: { ...handoff.credential, recoveredKey: "must-not-cross-control-rpc" },
+    })).toBeNull();
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      ...handoff,
+      credential: { ...handoff.credential, handoffId: "invalid handoff" },
+    })).toBeNull();
     expect(admitBrowserPiWorkerInboundMessageV1({ ...live, selection: null })).toBeNull();
     expect(admitBrowserPiWorkerInboundMessageV1({
       ...live,

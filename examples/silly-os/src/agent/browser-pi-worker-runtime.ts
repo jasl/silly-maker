@@ -35,6 +35,7 @@ import { createDeterministicPiAgentV1 } from "./browser-pi-runtime-bridge.js";
 import {
   admitBrowserPiEngineRequestV1,
   admitBrowserPiWorkerInboundMessageV1,
+  browserPiSelectionEndpointOriginV1,
   type BrowserPiWorkerAnyOutboundMessageV1,
   type BrowserPiWorkerExecutionBindingV1,
   type BrowserPiNetworkApprovalRequestV1,
@@ -44,6 +45,13 @@ import {
   type BrowserPiWorkspaceMutationReceiptWireV1,
   type BrowserPiWorkspaceSnapshotWireV1,
 } from "./browser-pi-worker-protocol.ts";
+import {
+  admitCredentialVaultHandoffDeliveryV1,
+  createCredentialVaultHandoffReadyV1,
+} from "../credential/credential-vault-protocol.ts";
+import { credentialVaultBindingsEqualV1 } from "../credential/credential-vault-contracts.ts";
+import { credentialVaultBindingForSelectionV1 } from "../credential/provider-credential-binding.ts";
+import type { BrowserPiProviderFetchV1 } from "./browser-pi-provider-fetch-guard.ts";
 import {
   bindPiWorkspaceBashToolV1,
   bindPiWorkspaceEditToolV1,
@@ -106,6 +114,7 @@ interface PiAgentPortV1 {
 
 const providerProbeTimeoutMillisecondsV1 = 30_000;
 export const browserPiDownloadOuterDeadlineMillisecondsV1 = 60_000;
+export const browserPiCredentialHandoffDeadlineMillisecondsV1 = 10_000;
 
 export interface BrowserPiWorkerRuntimePortV1 {
   receive(message: unknown, ports?: readonly MessagePort[]): void;
@@ -159,26 +168,38 @@ export function createBrowserPiWorkspaceToolsV1<T>(
 
 export function createBrowserPiWorkerRuntimeV1(input: {
   readonly postMessage: (message: BrowserPiWorkerAnyOutboundMessageV1) => void;
+  readonly expectedEndpointOrigin: string | null;
+  readonly providerFetch: BrowserPiProviderFetchV1;
   readonly probeProviderSelection?: typeof probeBrowserPiProviderSelectionV1;
   readonly createProviderAgent?: typeof createBrowserPiProviderAgentV1;
   readonly downloadOuterDeadlineMilliseconds?: number;
+  readonly credentialHandoffDeadlineMilliseconds?: number;
 }): BrowserPiWorkerRuntimePortV1 {
   const probeProviderSelection = input.probeProviderSelection ??
     probeBrowserPiProviderSelectionV1;
   const createProviderAgent = input.createProviderAgent ?? createBrowserPiProviderAgentV1;
   const downloadOuterDeadlineMilliseconds = input.downloadOuterDeadlineMilliseconds ??
     browserPiDownloadOuterDeadlineMillisecondsV1;
+  const credentialHandoffDeadlineMilliseconds = input.credentialHandoffDeadlineMilliseconds ??
+    browserPiCredentialHandoffDeadlineMillisecondsV1;
   if (
     !Number.isSafeInteger(downloadOuterDeadlineMilliseconds) ||
     downloadOuterDeadlineMilliseconds <= 0 ||
     downloadOuterDeadlineMilliseconds > browserPiDownloadOuterDeadlineMillisecondsV1
   ) throw new TypeError("sillyos.network_broker.download_deadline_invalid");
+  if (
+    !Number.isSafeInteger(credentialHandoffDeadlineMilliseconds) ||
+    credentialHandoffDeadlineMilliseconds <= 0 ||
+    credentialHandoffDeadlineMilliseconds > browserPiCredentialHandoffDeadlineMillisecondsV1
+  ) throw new TypeError("sillyos.credential_vault.handoff_deadline_invalid");
   let credentialKey: string | null = null;
   let configuredRuntime: BrowserPiWorkerRuntimeV1 | null = null;
   let configuredSelection: BrowserPiModelSelectionV1 | null = null;
   let connectionTestInProgress = false;
   let connectionTestAbort: AbortController | null = null;
   let connectionReady = false;
+  let configurationInProgress = false;
+  let cancelCredentialHandoff: (() => void) | null = null;
   let disposed = false;
   let nextSessionId = 1;
   let nextRunId = 1;
@@ -631,6 +652,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
           ...agentInput,
           apiKey,
           selection: selection as BrowserPiModelSelectionV1,
+          fetch: input.providerFetch,
         })) as PiAgentPortV1;
     } catch {
       workspaceRun.finish();
@@ -898,6 +920,150 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     }));
   };
 
+  const selectionMatchesWorkerEndpointV1 = (
+    runtime: BrowserPiWorkerRuntimeV1,
+    selection: BrowserPiModelSelectionV1 | null,
+  ): boolean => {
+    if (runtime === "deterministic_test") {
+      return selection === null && input.expectedEndpointOrigin === null;
+    }
+    return selection !== null && input.expectedEndpointOrigin !== null &&
+      browserPiSelectionEndpointOriginV1(selection) === input.expectedEndpointOrigin;
+  };
+
+  const finishConfigurationV1 = (
+    message: Extract<
+      NonNullable<ReturnType<typeof admitBrowserPiWorkerInboundMessageV1>>,
+      { readonly kind: "configure" }
+    >,
+    brokerClient: BrowserNetworkBrokerClientV1,
+    credential: string,
+  ): void => {
+    if (disposed) {
+      brokerClient.close();
+      return;
+    }
+    networkClient = brokerClient;
+    credentialKey = credential;
+    configuredRuntime = message.runtime;
+    configuredSelection = message.selection;
+    configurationInProgress = false;
+    cancelCredentialHandoff = null;
+    connectionReady = true;
+    post(Object.freeze({
+      revision: 1,
+      kind: "configured",
+      requestId: message.requestId,
+      runtime: message.runtime,
+      selection: message.selection,
+      distribution: browserPiDistributionIdentityV1,
+    }));
+  };
+
+  const beginCredentialHandoffV1 = (
+    message:
+      & Extract<
+        NonNullable<ReturnType<typeof admitBrowserPiWorkerInboundMessageV1>>,
+        { readonly kind: "configure" }
+      >
+      & { readonly credential: { readonly kind: "vault_handoff" } },
+    brokerClient: BrowserNetworkBrokerClientV1,
+    deliveryPort: MessagePort,
+  ): void => {
+    const selection = message.selection;
+    if (
+      message.runtime !== "pi_provider" || selection === null ||
+      !credentialVaultBindingsEqualV1(
+        message.credential.binding,
+        credentialVaultBindingForSelectionV1(selection),
+      )
+    ) {
+      brokerClient.close();
+      deliveryPort.close();
+      post(Object.freeze({
+        revision: 1,
+        kind: "configuration_failure",
+        requestId: message.requestId,
+        code: "credential_handoff_failed",
+      }));
+      return;
+    }
+
+    configurationInProgress = true;
+    let settled = false;
+    let deadline: ReturnType<typeof setTimeout> | null = null;
+    const settleFailureV1 = (notify: boolean): void => {
+      if (settled) return;
+      settled = true;
+      if (deadline !== null) clearTimeout(deadline);
+      deliveryPort.removeEventListener("message", onDeliveryV1 as EventListener);
+      deliveryPort.removeEventListener("messageerror", onDeliveryErrorV1 as EventListener);
+      deliveryPort.close();
+      brokerClient.close();
+      configurationInProgress = false;
+      if (cancelCredentialHandoff === cancelV1) cancelCredentialHandoff = null;
+      if (notify && !disposed) {
+        post(Object.freeze({
+          revision: 1,
+          kind: "configuration_failure",
+          requestId: message.requestId,
+          code: "credential_handoff_failed",
+        }));
+      }
+    };
+    const cancelV1 = (): void => settleFailureV1(false);
+    function onDeliveryErrorV1(): void {
+      settleFailureV1(true);
+    }
+    function onDeliveryV1(event: MessageEvent<unknown>): void {
+      if (settled) return;
+      if (event.ports.length !== 0) {
+        for (const transferred of event.ports) transferred.close();
+        settleFailureV1(true);
+        return;
+      }
+      const delivery = admitCredentialVaultHandoffDeliveryV1(event.data);
+      if (
+        delivery === null || delivery.handoffId !== message.credential.handoffId ||
+        !credentialVaultBindingsEqualV1(delivery.binding, message.credential.binding)
+      ) {
+        settleFailureV1(true);
+        return;
+      }
+      settled = true;
+      if (deadline !== null) clearTimeout(deadline);
+      deliveryPort.removeEventListener("message", onDeliveryV1 as EventListener);
+      deliveryPort.removeEventListener("messageerror", onDeliveryErrorV1 as EventListener);
+      deliveryPort.close();
+      if (cancelCredentialHandoff === cancelV1) cancelCredentialHandoff = null;
+      let credential = delivery.credential.value;
+      try {
+        finishConfigurationV1(message, brokerClient, credential);
+      } finally {
+        credential = "";
+      }
+    }
+    cancelCredentialHandoff = cancelV1;
+    deliveryPort.addEventListener("message", onDeliveryV1 as EventListener);
+    deliveryPort.addEventListener("messageerror", onDeliveryErrorV1 as EventListener);
+    deliveryPort.start();
+    deadline = setTimeout(
+      () => settleFailureV1(true),
+      credentialHandoffDeadlineMilliseconds,
+    );
+    try {
+      const ready = createCredentialVaultHandoffReadyV1(
+        message.credential.handoffId,
+        message.credential.binding,
+      );
+      // MessagePort.postMessage has no targetOrigin parameter.
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin -- MessagePort has no targetOrigin
+      deliveryPort.postMessage(ready);
+    } catch {
+      settleFailureV1(true);
+    }
+  };
+
   const receive = (
     raw: unknown,
     ports: readonly MessagePort[] = [],
@@ -914,7 +1080,8 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     }
     if (message.kind === "catalog_request") {
       if (
-        ports.length !== 0 || connectionTestInProgress || configuredRuntime !== null ||
+        ports.length !== 0 || connectionTestInProgress || configurationInProgress ||
+        configuredRuntime !== null ||
         credentialKey !== null
       ) {
         for (const port of ports) port.close();
@@ -942,13 +1109,18 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     }
     if (message.kind === "configure") {
       const brokerPort = ports[0];
-      if (ports.length !== 1 || brokerPort === undefined) {
+      const deliveryPort = ports[1];
+      const expectedPortCount = message.credential.kind === "vault_handoff" ? 2 : 1;
+      if (
+        ports.length !== expectedPortCount || brokerPort === undefined ||
+        (message.credential.kind === "vault_handoff" && deliveryPort === undefined)
+      ) {
         for (const port of ports) port.close();
         postProtocolFailure("invalid_message");
         return;
       }
       if (
-        connectionTestInProgress || configuredRuntime !== null ||
+        connectionTestInProgress || configurationInProgress || configuredRuntime !== null ||
         credentialKey !== null
       ) {
         for (const port of ports) port.close();
@@ -956,10 +1128,11 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         return;
       }
       if (
-        message.runtime === "pi_provider" &&
-        (message.selection === null || !isBrowserPiSelectionAvailableV1(message.selection))
+        !selectionMatchesWorkerEndpointV1(message.runtime, message.selection) ||
+        (message.runtime === "pi_provider" &&
+          (message.selection === null || !isBrowserPiSelectionAvailableV1(message.selection)))
       ) {
-        ports[0]?.close();
+        for (const port of ports) port.close();
         post(Object.freeze({
           revision: 1,
           kind: "configuration_failure",
@@ -972,24 +1145,19 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       try {
         brokerClient = createBrowserNetworkBrokerClientV1(brokerPort);
       } catch {
-        ports[0]?.close();
+        for (const port of ports) port.close();
         postProtocolFailure("invalid_message");
         return;
       }
-      const selection = message.selection;
-      networkClient = brokerClient;
-      credentialKey = message.credential.value;
-      configuredRuntime = message.runtime;
-      configuredSelection = selection;
-      connectionReady = true;
-      post(Object.freeze({
-        revision: 1,
-        kind: "configured",
-        requestId: message.requestId,
-        runtime: message.runtime,
-        selection,
-        distribution: browserPiDistributionIdentityV1,
-      }));
+      if (message.credential.kind === "vault_handoff") {
+        beginCredentialHandoffV1(
+          message as typeof message & { readonly credential: { readonly kind: "vault_handoff" } },
+          brokerClient,
+          deliveryPort as MessagePort,
+        );
+        return;
+      }
+      finishConfigurationV1(message, brokerClient, message.credential.value);
       return;
     }
     if (message.kind === "resolve_network_approval") {
@@ -1031,6 +1199,10 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     if (message.kind === "test_connection") {
       if (ports.length !== 0) {
         postProtocolFailure("invalid_message");
+        return;
+      }
+      if (configurationInProgress) {
+        postProtocolFailure("already_configured");
         return;
       }
       const runtime = configuredRuntime;
@@ -1089,6 +1261,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
               apiKey: credential,
               selection,
               signal: abort.signal,
+              fetch: input.providerFetch,
             }),
             timedOut,
           ]);
@@ -1150,7 +1323,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         respondUnavailable("not_configured");
         return;
       }
-      if (connectionTestInProgress) {
+      if (configurationInProgress || connectionTestInProgress) {
         respondUnavailable("busy");
         return;
       }
@@ -1171,7 +1344,10 @@ export function createBrowserPiWorkerRuntimeV1(input: {
           respondUnavailable("credential_scope_mismatch");
           return;
         }
-        if (!isBrowserPiSelectionAvailableV1(message.selection)) {
+        if (
+          !isBrowserPiSelectionAvailableV1(message.selection) ||
+          browserPiSelectionEndpointOriginV1(message.selection) !== input.expectedEndpointOrigin
+        ) {
           respondUnavailable("selection_unavailable");
           return;
         }
@@ -1257,6 +1433,9 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       connectionTestAbort?.abort();
       connectionTestAbort = null;
       connectionTestInProgress = false;
+      cancelCredentialHandoff?.();
+      cancelCredentialHandoff = null;
+      configurationInProgress = false;
       credentialKey = null;
       configuredRuntime = null;
       configuredSelection = null;

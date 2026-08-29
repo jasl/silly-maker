@@ -13,7 +13,7 @@
     "build:web": "deno run -A npm:vite build",
     "build:network-broker": "deno run -A npm:vite build --config vite.network-broker.config.ts",
     "build:workspace-sandbox": "deno run -A npm:vite build --config vite.workspace-sandbox.config.ts",
-    "check:browser-security-build": "deno run --allow-read=dist-web ./tools/check-browser-control-plane-build.mts",
+    "check:browser-security-build": "deno run --allow-read=dist-web,src/credential ./tools/check-browser-control-plane-build.mts",
     "check:network-broker-build": "deno run --allow-read=dist-network-broker ./tools/check-browser-network-broker-build.mts",
     "check:workspace-sandbox-build": "deno run --allow-read=dist-workspace-sandbox ./tools/check-browser-workspace-sandbox-build.mts",
     "build:desktop": "deno run -A ./tools/app.mts desktop .",

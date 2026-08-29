@@ -17,6 +17,12 @@ import type { ProgramNetworkGrantV1 } from "../product/program-network-grants.ts
 import type { BrowserWorkspaceHostSnapshotWireV1 } from "../workspace/browser-workspace-host-protocol.ts";
 import type { BrowserNetworkBrokerLeaseV1 } from "../network/browser-network-broker-frame-transport.ts";
 import {
+  credentialVaultBindingsEqualV1,
+  normalizeCredentialVaultBindingV1,
+  type CredentialVaultBindingV1,
+} from "../credential/credential-vault-contracts.ts";
+import { credentialVaultBindingForSelectionV1 } from "../credential/provider-credential-binding.ts";
+import {
   admitBrowserPiEngineRequestV1,
   admitBrowserPiWorkerAnyOutboundMessageV1,
   browserPiSelectionEndpointOriginV1,
@@ -48,6 +54,12 @@ export type BrowserPiWorkerFactoryV1 = (input: {
 
 export type BrowserPiOpenNetworkBrokerV1 = () => Promise<BrowserNetworkBrokerLeaseV1>;
 
+export type BrowserPiCredentialHandoffV1 = (
+  binding: CredentialVaultBindingV1,
+  handoffId: string,
+  deliveryPort: MessagePort,
+) => Promise<void>;
+
 export interface BrowserPiWorkspaceFailureV1 {
   readonly revision: 1;
   readonly code: BrowserProgramWorkspaceFatalV1["code"];
@@ -66,6 +78,12 @@ export type BrowserPiWorkerSelectModelResultV1 =
 
 export interface BrowserPiWorkerRawTransportV1 extends AgentRpcRawTransportInternalV1 {
   configureCredential(apiKey: string): Promise<
+    { readonly kind: "configured" } | { readonly kind: "unavailable"; readonly reason: "failed" }
+  >;
+  configureCredentialHandoff(input: {
+    readonly binding: CredentialVaultBindingV1;
+    readonly handoff: BrowserPiCredentialHandoffV1;
+  }): Promise<
     { readonly kind: "configured" } | { readonly kind: "unavailable"; readonly reason: "failed" }
   >;
   testConnection(): Promise<
@@ -106,6 +124,8 @@ export interface BrowserPiWorkerRawTransportV1 extends AgentRpcRawTransportInter
       readonly reason: "not_pending" | "connection_closed";
     }
   >;
+  /** Immediately terminates the Worker that owns the in-memory credential. */
+  revokeCredential(): void;
   /** Terminates the configured or connected Worker and clears its in-memory credential. */
   forget(): Promise<void>;
 }
@@ -268,12 +288,14 @@ export function createBrowserPiWorkerRawTransportV1({
   selection: suppliedSelection = null,
   workspaceAuthority,
   workerFactory = createDefaultBrowserPiWorkerV1,
+  createCredentialHandoffId = () => `credential.handoff.${crypto.randomUUID()}`,
 }:
   & {
     readonly onConnectionLost?: () => void;
     readonly openNetworkBroker: BrowserPiOpenNetworkBrokerV1;
     readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
     readonly workerFactory?: BrowserPiWorkerFactoryV1;
+    readonly createCredentialHandoffId?: () => string;
   }
   & (
     | { readonly runtime: "deterministic_test"; readonly selection?: null }
@@ -282,7 +304,11 @@ export function createBrowserPiWorkerRawTransportV1({
   const selection = suppliedSelection === null ? null : copySelectionV1(suppliedSelection);
   const endpointOrigin = selection === null ? null : browserPiSelectionEndpointOriginV1(selection);
   const selectionHasValidEndpoint = selection === null || endpointOrigin !== null;
+  const expectedCredentialBinding = selection === null
+    ? null
+    : credentialVaultBindingForSelectionV1(selection);
   let activeState: ConnectionStateV1 | null = null;
+  let credentialRevoked = false;
   let workspaceEnvironmentDetachSettlement = Promise.resolve();
   const workspaceReceiptListeners = new Set<
     (receipt: BrowserPiWorkspaceMutationReceiptWireV1) => void
@@ -831,6 +857,99 @@ export function createBrowserPiWorkerRawTransportV1({
       }
       return { kind: "configured" };
     },
+    async configureCredentialHandoff(input) {
+      if (
+        activeState !== null || runtime !== "pi_provider" || selection === null ||
+        expectedCredentialBinding === null || !selectionHasValidEndpoint ||
+        typeof input.handoff !== "function"
+      ) return { kind: "unavailable", reason: "failed" };
+      let binding: CredentialVaultBindingV1;
+      try {
+        binding = normalizeCredentialVaultBindingV1(input.binding);
+      } catch {
+        return { kind: "unavailable", reason: "failed" };
+      }
+      if (!credentialVaultBindingsEqualV1(binding, expectedCredentialBinding)) {
+        return { kind: "unavailable", reason: "failed" };
+      }
+      let handoffId: string;
+      try {
+        handoffId = createCredentialHandoffId();
+        if (!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,255}$/u.test(handoffId)) {
+          return { kind: "unavailable", reason: "failed" };
+        }
+      } catch {
+        return { kind: "unavailable", reason: "failed" };
+      }
+      let networkBrokerLease: BrowserNetworkBrokerLeaseV1;
+      try {
+        networkBrokerLease = await openNetworkBroker();
+      } catch {
+        return { kind: "unavailable", reason: "failed" };
+      }
+      let worker: BrowserPiWorkerLikeV1;
+      try {
+        worker = workerFactory({ endpointOrigin });
+      } catch {
+        networkBrokerLease.terminate();
+        return { kind: "unavailable", reason: "failed" };
+      }
+      const state = createStateV1(worker, networkBrokerLease);
+      activeState = state;
+      const channel = new MessageChannel();
+      const accepted = beginSetupV1(state, "configure", (requestId) => {
+        const configure: BrowserPiWorkerConfigureV1 = {
+          revision: 1,
+          kind: "configure",
+          requestId,
+          runtime,
+          selection,
+          credential: { kind: "vault_handoff", handoffId, binding },
+        };
+        worker.postMessage(configure, [networkBrokerLease.agentPort, channel.port1]);
+      });
+      if (state.closed) {
+        channel.port2.close();
+        return { kind: "unavailable", reason: "failed" };
+      }
+      const handoffSettlement = Promise.resolve().then(() =>
+        input.handoff(binding, handoffId, channel.port2)
+      ).then(
+        () => ({ kind: "handed_off" as const }),
+        () => ({ kind: "handoff_failed" as const }),
+      );
+      const firstSettlement = await Promise.race([
+        handoffSettlement,
+        accepted.then((value) => ({ kind: "setup_settled" as const, value })),
+      ]);
+      if (firstSettlement.kind === "setup_settled" && !firstSettlement.value) {
+        try {
+          channel.port2.close();
+        } catch {
+          // The callback may already have transferred the one-time delivery port.
+        }
+        return { kind: "unavailable", reason: "failed" };
+      }
+      const handoffResult = firstSettlement.kind === "handed_off"
+        ? firstSettlement
+        : firstSettlement.kind === "handoff_failed"
+        ? firstSettlement
+        : await handoffSettlement;
+      if (handoffResult.kind === "handoff_failed") {
+        try {
+          channel.port2.close();
+        } catch {
+          // The callback may already have transferred the one-time delivery port.
+        }
+        if (!state.closed) closeState(state, "credential_handoff_failed", { expected: true });
+        return { kind: "unavailable", reason: "failed" };
+      }
+      if (!await accepted || state.closed || !state.credentialAccepted) {
+        if (!state.closed) closeState(state, "configuration_failed", { expected: true });
+        return { kind: "unavailable", reason: "failed" };
+      }
+      return { kind: "configured" };
+    },
     async testConnection() {
       const state = activeState;
       if (
@@ -1034,6 +1153,13 @@ export function createBrowserPiWorkerRawTransportV1({
         }
       });
     },
+    revokeCredential(): void {
+      credentialRevoked = true;
+      const state = activeState;
+      if (state !== null) {
+        closeState(state, "credential_revoked", { expected: true });
+      }
+    },
     async forget(): Promise<void> {
       unsubscribeWorkspaceAuthorityFatal();
       workspaceFailureListeners.clear();
@@ -1055,7 +1181,7 @@ export function createBrowserPiWorkerRawTransportV1({
         }
         closeState(state, "forgotten", { detachEnvironment: false, expected: true });
       }
-      await workspaceEnvironmentDetachSettlement;
+      if (!credentialRevoked) await workspaceEnvironmentDetachSettlement;
     },
   };
 

@@ -287,12 +287,13 @@ describe("SillyOS Cloudflare selected-origin Agent Worker", () => {
     expect(await response.text()).toBe("Agent Worker asset unavailable.");
   });
 
-  it("keeps Wrangler routing selective to the hashed Agent Worker asset", async () => {
+  it("keeps Wrangler routing selective to the two hashed privileged Worker assets", async () => {
     const config = await readFile(new URL("../../wrangler.jsonc", import.meta.url), "utf8");
 
     expect(config).toContain('"main": "./src/deployment/cloudflare-selected-origin-worker.ts"');
     expect(config).toContain('"binding": "ASSETS"');
-    expect(config).toContain('"run_worker_first": ["/assets/browser-pi.worker-*.js"]');
+    expect(config).toContain('"/assets/browser-pi.worker-*.js"');
+    expect(config).toContain('"/assets/browser-credential-vault.worker-*.js"');
     expect(config).not.toContain('"run_worker_first": true');
   });
 

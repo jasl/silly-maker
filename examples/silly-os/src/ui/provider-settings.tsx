@@ -9,14 +9,21 @@ import {
   Globe2,
   KeyRound,
   LoaderCircle,
+  LockKeyhole,
   Plus,
   Search,
+  ShieldCheck,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
+import {
+  credentialVaultBindingsEqualV1,
+  type CredentialVaultBindingV1,
+} from "../credential/credential-vault-contracts.ts";
+import { credentialVaultBindingForSelectionV1 } from "../credential/provider-credential-binding.ts";
 import { SillyButtonV1 as Button } from "./controls.tsx";
 import { LocaleSwitchV1, SillyOsBrandV1 } from "./product-chrome.tsx";
 
@@ -117,6 +124,37 @@ export type ProviderSettingsProfileV1 =
     readonly diagnosticCode: string;
   };
 
+export type ProviderSettingsCredentialPersistenceV1 =
+  | "session_only"
+  | "remember_on_device";
+
+interface ProviderSettingsVaultBindingsV1 {
+  readonly bindings: readonly CredentialVaultBindingV1[];
+}
+
+export type ProviderSettingsVaultOperationV1 = "create" | "unlock" | "lock";
+
+export type ProviderSettingsVaultV1 =
+  | ({ readonly phase: "absent" } & ProviderSettingsVaultBindingsV1)
+  | ({ readonly phase: "locked" } & ProviderSettingsVaultBindingsV1)
+  | ({ readonly phase: "unlocked" } & ProviderSettingsVaultBindingsV1)
+  | (
+    & { readonly phase: "unavailable"; readonly diagnosticCode?: string }
+    & ProviderSettingsVaultBindingsV1
+  )
+  | (
+    & { readonly phase: "busy"; readonly operation: ProviderSettingsVaultOperationV1 }
+    & ProviderSettingsVaultBindingsV1
+  )
+  | (
+    & {
+      readonly phase: "failed";
+      readonly operation: ProviderSettingsVaultOperationV1;
+      readonly diagnosticCode: string;
+    }
+    & ProviderSettingsVaultBindingsV1
+  );
+
 export interface ProviderSettingsPropsV1 {
   readonly copy: SillyOsCopyV1;
   readonly catalog: ProviderSettingsCatalogV1;
@@ -124,14 +162,21 @@ export interface ProviderSettingsPropsV1 {
   readonly enabledBuiltinModels: readonly ProviderSettingsBuiltinModelRefV1[];
   readonly preferredBuiltinModel: ProviderSettingsBuiltinModelRefV1 | null;
   readonly profile: ProviderSettingsProfileV1;
+  readonly vault: ProviderSettingsVaultV1;
   readonly onBack: () => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
   readonly onRetryCatalog: () => void;
   readonly onSaveCredential: (
     selection: ProviderSettingsSelectionV1,
     credential: string,
+    persistence: ProviderSettingsCredentialPersistenceV1,
   ) => void;
   readonly onTestConnection: () => void;
+  readonly onCreateVault: (passphrase: string) => void;
+  readonly onUnlockVault: (passphrase: string) => void;
+  readonly onLockVault: () => void;
+  readonly onUseRemembered: (selection: ProviderSettingsSelectionV1) => void;
+  readonly onForgetRemembered: (binding: CredentialVaultBindingV1) => void;
   readonly onSetBuiltinModelEnabled: (
     model: ProviderSettingsBuiltinModelRefV1,
     enabled: boolean,
@@ -332,6 +377,233 @@ function CatalogStateV1({
   );
 }
 
+function vaultStatusCopyV1(
+  copy: SillyOsCopyV1,
+  vault: ProviderSettingsVaultV1,
+): { readonly title: string; readonly description: string } {
+  switch (vault.phase) {
+    case "absent":
+      return {
+        title: copy.credentialVaultAbsentTitle,
+        description: copy.credentialVaultAbsentDescription,
+      };
+    case "locked":
+      return {
+        title: copy.credentialVaultLockedTitle,
+        description: copy.credentialVaultLockedDescription,
+      };
+    case "unlocked":
+      return {
+        title: copy.credentialVaultUnlockedTitle,
+        description: copy.credentialVaultUnlockedDescription,
+      };
+    case "unavailable":
+      return {
+        title: copy.credentialVaultUnavailableTitle,
+        description: copy.credentialVaultUnavailableDescription,
+      };
+    case "busy":
+      return {
+        title: copy.credentialVaultBusyTitle,
+        description: copy.credentialVaultBusyDescription,
+      };
+    case "failed":
+      return {
+        title: copy.credentialVaultFailedTitle,
+        description: copy.credentialVaultFailedDescription,
+      };
+  }
+  return assertNeverV1(vault);
+}
+
+function CredentialVaultPassphraseFormV1({
+  copy,
+  mode,
+  onSubmit,
+}: {
+  readonly copy: SillyOsCopyV1;
+  readonly mode: "create" | "unlock";
+  readonly onSubmit: (passphrase: string) => void;
+}): ReactNode {
+  const passphraseRef = useRef<HTMLInputElement>(null);
+  const confirmationRef = useRef<HTMLInputElement>(null);
+  const [mismatch, setMismatch] = useState(false);
+
+  const submitV1 = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    const passphraseInput = passphraseRef.current;
+    const confirmationInput = confirmationRef.current;
+    const passphrase = passphraseInput?.value ?? "";
+    if (passphrase.length === 0) return;
+    if (mode === "create" && confirmationInput?.value !== passphrase) {
+      setMismatch(true);
+      confirmationInput?.focus();
+      return;
+    }
+    setMismatch(false);
+    if (passphraseInput !== null) passphraseInput.value = "";
+    if (confirmationInput !== null) confirmationInput.value = "";
+    onSubmit(passphrase);
+  };
+
+  return (
+    <form className="provider-settings__vault-form" onSubmit={submitV1}>
+      <label>
+        <span>{copy.credentialVaultPassphrase}</span>
+        <input
+          ref={passphraseRef}
+          type="password"
+          required
+          autoComplete={mode === "create" ? "new-password" : "current-password"}
+          onInput={() => setMismatch(false)}
+        />
+      </label>
+      {mode === "create"
+        ? (
+          <label>
+            <span>{copy.credentialVaultConfirmPassphrase}</span>
+            <input
+              ref={confirmationRef}
+              type="password"
+              required
+              autoComplete="new-password"
+              aria-invalid={mismatch || undefined}
+              aria-describedby={mismatch ? "credential-vault-passphrase-error" : undefined}
+              onInput={() => setMismatch(false)}
+            />
+          </label>
+        )
+        : null}
+      <Button type="submit" variant="secondary" icon={LockKeyhole}>
+        {mode === "create" ? copy.credentialVaultCreate : copy.credentialVaultUnlock}
+      </Button>
+      {mismatch
+        ? (
+          <p id="credential-vault-passphrase-error" role="alert">
+            {copy.credentialVaultPassphraseMismatch}
+          </p>
+        )
+        : null}
+    </form>
+  );
+}
+
+function CredentialVaultPanelV1({
+  copy,
+  vault,
+  onCreateVault,
+  onUnlockVault,
+  onLockVault,
+  onForgetRemembered,
+}: {
+  readonly copy: SillyOsCopyV1;
+  readonly vault: ProviderSettingsVaultV1;
+  readonly onCreateVault: ProviderSettingsPropsV1["onCreateVault"];
+  readonly onUnlockVault: ProviderSettingsPropsV1["onUnlockVault"];
+  readonly onLockVault: ProviderSettingsPropsV1["onLockVault"];
+  readonly onForgetRemembered: ProviderSettingsPropsV1["onForgetRemembered"];
+}): ReactNode {
+  const status = vaultStatusCopyV1(copy, vault);
+  const canForget = vault.phase === "locked" || vault.phase === "unlocked";
+  const retryCreate = vault.phase === "failed" && vault.operation === "create";
+  const retryUnlock = vault.phase === "failed" && vault.operation === "unlock";
+  const retryLock = vault.phase === "failed" && vault.operation === "lock";
+
+  return (
+    <section
+      className="provider-settings__section provider-settings__vault"
+      data-vault-phase={vault.phase}
+      aria-labelledby="credential-vault-title"
+    >
+      <div className="provider-settings__section-heading">
+        <div>
+          <h3 id="credential-vault-title">{copy.credentialVaultTitle}</h3>
+          <p>{copy.credentialVaultDescription}</p>
+        </div>
+        <ShieldCheck size={18} aria-hidden="true" />
+      </div>
+      <div
+        className={`provider-settings__vault-status is-${vault.phase}`}
+        role={vault.phase === "failed" || vault.phase === "unavailable"
+          ? "alert"
+          : vault.phase === "busy"
+          ? "status"
+          : undefined}
+        data-diagnostic-code={vault.phase === "failed" || vault.phase === "unavailable"
+          ? vault.diagnosticCode
+          : undefined}
+      >
+        {vault.phase === "busy"
+          ? <LoaderCircle className="is-spinning" size={17} aria-hidden="true" />
+          : vault.phase === "failed" || vault.phase === "unavailable"
+          ? <TriangleAlert size={17} aria-hidden="true" />
+          : vault.phase === "unlocked"
+          ? <ShieldCheck size={17} aria-hidden="true" />
+          : <LockKeyhole size={17} aria-hidden="true" />}
+        <span>
+          <strong>{status.title}</strong>
+          <small>{status.description}</small>
+        </span>
+        {vault.phase === "unlocked" || retryLock
+          ? (
+            <Button type="button" variant="ghost" size="sm" onClick={onLockVault}>
+              {copy.credentialVaultLock}
+            </Button>
+          )
+          : null}
+      </div>
+      {vault.phase === "absent" || retryCreate
+        ? (
+          <CredentialVaultPassphraseFormV1
+            copy={copy}
+            mode="create"
+            onSubmit={onCreateVault}
+          />
+        )
+        : vault.phase === "locked" || retryUnlock
+        ? (
+          <CredentialVaultPassphraseFormV1
+            copy={copy}
+            mode="unlock"
+            onSubmit={onUnlockVault}
+          />
+        )
+        : null}
+      <div className="provider-settings__vault-bindings">
+        <div>
+          <strong>{copy.credentialVaultBindingsTitle}</strong>
+          <span>
+            {String(vault.bindings.length)} {copy.credentialVaultBindingsCountSuffix}
+          </span>
+        </div>
+        {vault.bindings.length === 0 ? <p>{copy.credentialVaultBindingsEmpty}</p> : (
+          <ul>
+            {vault.bindings.map((binding) => (
+              <li key={`${binding.bindingId}\u0000${binding.baseUrl}`}>
+                <span>
+                  <code title={binding.bindingId}>{binding.bindingId}</code>
+                  <small title={binding.baseUrl}>{binding.baseUrl}</small>
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!canForget}
+                  aria-label={`${copy.credentialVaultForgetBinding} ${binding.bindingId}`}
+                  onClick={() =>
+                    onForgetRemembered(binding)}
+                >
+                  {copy.credentialVaultForgetBinding}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
 interface ProviderConnectionTargetV1 {
   readonly selection: ProviderSettingsSelectionV1 | null;
   readonly providerName: string;
@@ -354,21 +626,34 @@ function ProviderConnectionSectionV1({
   copy,
   target,
   profile,
+  vault,
   onSelectBuiltinModel,
   onSaveCredential,
   onTestConnection,
+  onUseRemembered,
+  onForgetRemembered,
   onForget,
 }: {
   readonly copy: SillyOsCopyV1;
   readonly target: ProviderConnectionTargetV1;
   readonly profile: ProviderSettingsProfileV1;
+  readonly vault: ProviderSettingsVaultV1;
   readonly onSelectBuiltinModel: (modelId: string) => void;
   readonly onSaveCredential: ProviderSettingsPropsV1["onSaveCredential"];
   readonly onTestConnection: ProviderSettingsPropsV1["onTestConnection"];
+  readonly onUseRemembered: ProviderSettingsPropsV1["onUseRemembered"];
+  readonly onForgetRemembered: ProviderSettingsPropsV1["onForgetRemembered"];
   readonly onForget: ProviderSettingsPropsV1["onForget"];
 }): ReactNode {
   const [keyVisible, setKeyVisible] = useState(false);
+  const [rememberOnDevice, setRememberOnDevice] = useState(false);
   const keyInputRef = useRef<HTMLInputElement>(null);
+  const rememberedBinding = target.selection === null
+    ? null
+    : credentialVaultBindingForSelectionV1(target.selection);
+  const hasRememberedBinding = rememberedBinding !== null &&
+    vault.bindings.some((binding) => credentialVaultBindingsEqualV1(binding, rememberedBinding));
+  const vaultUnlocked = vault.phase === "unlocked";
   const matches = sameSelectionV1(profile.active, target.selection);
   const saving = profile.phase === "saving" && matches;
   const credentialSaved = profile.phase === "credential_saved" && matches;
@@ -380,13 +665,21 @@ function ProviderConnectionSectionV1({
   const keySaved = credentialSaved || testing || ready || testFailed || forgetting;
   const mutationPending = saving || testing || forgetting;
 
+  useEffect(() => {
+    if (!vaultUnlocked) setRememberOnDevice(false);
+  }, [vaultUnlocked]);
+
   const submitV1 = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const input = keyInputRef.current;
     if (!target.activatable || target.selection === null || input?.value.length === 0) return;
     let credential = input?.value ?? "";
     if (input !== null) input.value = "";
-    onSaveCredential(target.selection, credential);
+    onSaveCredential(
+      target.selection,
+      credential,
+      vaultUnlocked && rememberOnDevice ? "remember_on_device" : "session_only",
+    );
     credential = "";
   };
 
@@ -530,6 +823,65 @@ function ProviderConnectionSectionV1({
               <Button type="submit" variant="primary" disabled={mutationPending}>
                 {saving ? copy.providerSaving : copy.providerSaveCredential}
               </Button>
+            </div>
+            <label className="provider-settings__remember-choice">
+              <input
+                type="checkbox"
+                checked={vaultUnlocked && rememberOnDevice}
+                disabled={!vaultUnlocked || mutationPending}
+                onChange={(event) => setRememberOnDevice(event.currentTarget.checked)}
+              />
+              <span>
+                <strong>{copy.providerRememberCredential}</strong>
+                <small>
+                  {vaultUnlocked
+                    ? copy.credentialVaultDescription
+                    : copy.providerRememberCredentialUnavailable}
+                </small>
+              </span>
+            </label>
+            <div
+              className="provider-settings__remembered-status"
+              data-remembered-binding={hasRememberedBinding ? "present" : "absent"}
+            >
+              <span>
+                {hasRememberedBinding
+                  ? vaultUnlocked ? copy.providerRememberedAvailable : copy.providerRememberedLocked
+                  : vault.phase === "unavailable"
+                  ? copy.providerRememberedUnknown
+                  : copy.providerRememberedMissing}
+              </span>
+              {hasRememberedBinding && rememberedBinding !== null
+                ? (
+                  <span className="provider-settings__remembered-actions">
+                    {vaultUnlocked
+                      ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={mutationPending}
+                          onClick={() => {
+                            if (target.selection !== null) onUseRemembered(target.selection);
+                          }}
+                        >
+                          {copy.providerUseRemembered}
+                        </Button>
+                      )
+                      : null}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={mutationPending ||
+                        (vault.phase !== "locked" && vault.phase !== "unlocked")}
+                      onClick={() => onForgetRemembered(rememberedBinding)}
+                    >
+                      {copy.providerForgetRemembered}
+                    </Button>
+                  </span>
+                )
+                : null}
             </div>
             <div className="provider-settings__connection-actions">
               <Button
@@ -676,11 +1028,17 @@ export function ProviderSettingsV1({
   enabledBuiltinModels,
   preferredBuiltinModel,
   profile,
+  vault,
   onBack,
   onLocaleChange,
   onRetryCatalog,
   onSaveCredential,
   onTestConnection,
+  onCreateVault,
+  onUnlockVault,
+  onLockVault,
+  onUseRemembered,
+  onForgetRemembered,
   onSetBuiltinModelEnabled,
   onCreateCustomProfile,
   onRemoveCustomProfile,
@@ -1104,14 +1462,26 @@ export function ProviderSettingsV1({
                               </p>
                             </header>
 
+                            <CredentialVaultPanelV1
+                              copy={copy}
+                              vault={vault}
+                              onCreateVault={onCreateVault}
+                              onUnlockVault={onUnlockVault}
+                              onLockVault={onLockVault}
+                              onForgetRemembered={onForgetRemembered}
+                            />
+
                             <ProviderConnectionSectionV1
                               key={connectionTargetKeyV1(connectionTarget.selection)}
                               copy={copy}
                               target={connectionTarget}
                               profile={profile}
+                              vault={vault}
                               onSelectBuiltinModel={setConnectionModelId}
                               onSaveCredential={onSaveCredential}
                               onTestConnection={onTestConnection}
+                              onUseRemembered={onUseRemembered}
+                              onForgetRemembered={onForgetRemembered}
                               onForget={onForget}
                             />
 
@@ -1250,14 +1620,26 @@ export function ProviderSettingsV1({
                               <p>{copy.providerCustomDescription}</p>
                             </header>
 
+                            <CredentialVaultPanelV1
+                              copy={copy}
+                              vault={vault}
+                              onCreateVault={onCreateVault}
+                              onUnlockVault={onUnlockVault}
+                              onLockVault={onLockVault}
+                              onForgetRemembered={onForgetRemembered}
+                            />
+
                             <ProviderConnectionSectionV1
                               key={connectionTargetKeyV1(connectionTarget.selection)}
                               copy={copy}
                               target={connectionTarget}
                               profile={profile}
+                              vault={vault}
                               onSelectBuiltinModel={setConnectionModelId}
                               onSaveCredential={onSaveCredential}
                               onTestConnection={onTestConnection}
+                              onUseRemembered={onUseRemembered}
+                              onForgetRemembered={onForgetRemembered}
                               onForget={onForget}
                             />
 

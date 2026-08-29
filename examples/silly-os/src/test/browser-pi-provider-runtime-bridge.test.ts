@@ -140,6 +140,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
   it("passes the neutral choice through the actual Pi streamSimple call", () => {
     createBrowserPiProviderAgentV1({
       apiKey: "test-only-key",
+      fetch,
       selection: {
         kind: "builtin",
         providerId: "openai",
@@ -189,6 +190,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
         ...openAISelectionRouteV1,
       },
       signal: new AbortController().signal,
+      fetch,
     } as const;
     await expect(probeBrowserPiProviderSelectionV1(input)).resolves.toBe(true);
     expect(harnessV1.streamSimple).toHaveBeenLastCalledWith(
@@ -234,6 +236,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
       apiKey: "same-route-probe-key",
       selection: sameRouteSelection,
       signal: new AbortController().signal,
+      fetch,
     })).resolves.toBe(true);
     expect(harnessV1.streamSimple).toHaveBeenLastCalledWith(
       harnessV1.sameRouteModel,
@@ -243,6 +246,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
 
     createBrowserPiProviderAgentV1({
       apiKey: "same-route-agent-key",
+      fetch,
       selection: sameRouteSelection,
       submit: Object.freeze({
         revision: 1,
@@ -273,10 +277,12 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
       apiKey: "unavailable-probe-key",
       selection: unavailableSelection,
       signal: new AbortController().signal,
+      fetch,
     })).resolves.toBe(false);
     expect(() =>
       createBrowserPiProviderAgentV1({
         apiKey: "unavailable-agent-key",
+        fetch,
         selection: unavailableSelection,
         submit: Object.freeze({
           revision: 1,
@@ -327,6 +333,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
         apiKey: "custom-probe-key",
         selection,
         signal: new AbortController().signal,
+        fetch,
       })).resolves.toBe(true);
       expect(expectedFactory).toHaveBeenCalled();
       expect(harnessV1.customStreamSimple).toHaveBeenLastCalledWith(
@@ -343,6 +350,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
 
       createBrowserPiProviderAgentV1({
         apiKey: "custom-agent-key",
+        fetch,
         selection,
         submit: Object.freeze({
           revision: 1,

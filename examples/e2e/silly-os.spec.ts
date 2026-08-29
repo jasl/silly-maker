@@ -2568,16 +2568,18 @@ test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Pr
 
   const rawGrant = await page.evaluate(async (requestedProgramId) => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("sillymaker.example-silly-os.programs");
-      request.addEventListener("error", () => reject(request.error));
-      request.addEventListener("success", () => resolve(request.result));
+      const openRequest = indexedDB.open("sillymaker.example-silly-os.programs");
+      openRequest.addEventListener("error", () => reject(openRequest.error));
+      openRequest.addEventListener("success", () => resolve(openRequest.result));
     });
     try {
       return await new Promise<unknown>((resolve, reject) => {
         const transaction = database.transaction("program_network_grants", "readonly");
-        const request = transaction.objectStore("program_network_grants").get(requestedProgramId);
-        request.addEventListener("error", () => reject(request.error));
-        request.addEventListener("success", () => resolve(request.result));
+        const getRequest = transaction.objectStore("program_network_grants").get(
+          requestedProgramId,
+        );
+        getRequest.addEventListener("error", () => reject(getRequest.error));
+        getRequest.addEventListener("success", () => resolve(getRequest.result));
       });
     } finally {
       database.close();

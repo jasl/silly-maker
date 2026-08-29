@@ -41,10 +41,12 @@ import type {
 import { workspaceMutationReceiptMaximumV1 } from "../workspace/contracts.ts";
 import {
   createBrowserPiWorkerRawTransportV1,
+  type BrowserPiCredentialHandoffV1,
   type BrowserPiOpenNetworkBrokerV1,
   type BrowserPiWorkerFactoryV1,
   type BrowserPiWorkerRawTransportV1,
 } from "./browser-pi-transport.ts";
+import type { CredentialVaultBindingV1 } from "../credential/credential-vault-contracts.ts";
 import type {
   BrowserPiNetworkApprovalDecisionV1,
   BrowserPiNetworkApprovalRequestV1,
@@ -191,6 +193,10 @@ export interface CreatorAgentPortV1 {
   getSnapshot(): CreatorAgentSnapshotV1;
   subscribe(listener: () => void): () => void;
   configureCredential(apiKey: string): Promise<CreatorAgentConfigureCredentialResultV1>;
+  configureCredentialHandoff(input: {
+    readonly binding: CredentialVaultBindingV1;
+    readonly handoff: BrowserPiCredentialHandoffV1;
+  }): Promise<CreatorAgentConfigureCredentialResultV1>;
   testConnection(): Promise<CreatorAgentTestConnectionResultV1>;
   selectModel(selection: BrowserPiModelSelectionV1): Promise<CreatorAgentSelectModelResultV1>;
   openWorkspace(input: {
@@ -226,6 +232,8 @@ export interface CreatorAgentPortV1 {
     grants: ProgramNetworkGrantSetV1,
   ): Promise<CreatorAgentSynchronizeNetworkGrantsResultV1>;
   acknowledgeTerminal(agentRunId: string): boolean;
+  /** Fail-closed credential revocation; cleanup continues through forget(). */
+  revokeCredential(): void;
   /** Explicitly terminates the Worker that owns the in-memory credential. */
   forget(): Promise<void>;
   dispose(): Promise<void>;
@@ -489,6 +497,7 @@ export function createBrowserCreatorAgentPortV1(
     & {
       readonly onConnectionLost?: () => void;
       readonly workerFactory?: BrowserPiWorkerFactoryV1;
+      readonly createCredentialHandoffId?: () => string;
       readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
       readonly openNetworkBroker: BrowserPiOpenNetworkBrokerV1;
     }
@@ -500,6 +509,7 @@ export function createBrowserCreatorAgentPortV1(
   const { workspaceAuthority } = input;
   const notifyConnectionLost = input.onConnectionLost;
   let providerCredentialConfigured = false;
+  let credentialRevoked = false;
   const transport = createBrowserPiWorkerRawTransportV1({
     ...input,
     workspaceAuthority,
@@ -1171,8 +1181,8 @@ export function createBrowserCreatorAgentPortV1(
     publish();
   });
 
-  const configureCredential = (
-    apiKey: string,
+  const configureCredentialWithV1 = (
+    begin: () => ReturnType<BrowserPiWorkerRawTransportV1["configureCredential"]>,
   ): Promise<CreatorAgentConfigureCredentialResultV1> => {
     if (terminal || finishPromise !== null) {
       return Promise.resolve({ kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") });
@@ -1184,10 +1194,7 @@ export function createBrowserCreatorAgentPortV1(
     diagnostic = null;
     publish();
     const attempt = (async (): Promise<CreatorAgentConfigureCredentialResultV1> => {
-      let credential = apiKey;
-      const configuration = transport.configureCredential(credential);
-      credential = "";
-      const configured = await configuration;
+      const configured = await begin();
       if (terminal || lifecycleEpoch !== expectedEpoch) {
         return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
       }
@@ -1230,6 +1237,25 @@ export function createBrowserCreatorAgentPortV1(
     });
     return attempt;
   };
+
+  const configureCredential = (
+    apiKey: string,
+  ): Promise<CreatorAgentConfigureCredentialResultV1> => {
+    let credential = apiKey;
+    const result = configureCredentialWithV1(() => {
+      const configuration = transport.configureCredential(credential);
+      credential = "";
+      return configuration;
+    });
+    credential = "";
+    return result;
+  };
+
+  const configureCredentialHandoff = (handoffInput: {
+    readonly binding: CredentialVaultBindingV1;
+    readonly handoff: BrowserPiCredentialHandoffV1;
+  }): Promise<CreatorAgentConfigureCredentialResultV1> =>
+    configureCredentialWithV1(() => transport.configureCredentialHandoff(handoffInput));
 
   const testConnection = (): Promise<CreatorAgentTestConnectionResultV1> => {
     if (terminal || finishPromise !== null) {
@@ -1812,8 +1838,10 @@ export function createBrowserCreatorAgentPortV1(
     publish();
     const attempt = (async (): Promise<void> => {
       workspaceExportAbort?.abort();
-      await workspaceExportSettlement?.catch(() => undefined);
-      await drainNetworkApprovalLifecycleBeforeForgetV1();
+      if (!credentialRevoked) {
+        await workspaceExportSettlement?.catch(() => undefined);
+        await drainNetworkApprovalLifecycleBeforeForgetV1();
+      }
       networkApproval = null;
       suppressedNetworkApprovalRuns.clear();
       // Keep subscriptions and Pi-to-product correlation alive until close has
@@ -1866,6 +1894,7 @@ export function createBrowserCreatorAgentPortV1(
       return () => listeners.delete(listener);
     },
     configureCredential,
+    configureCredentialHandoff,
     testConnection,
     selectModel,
     openWorkspace,
@@ -1874,6 +1903,19 @@ export function createBrowserCreatorAgentPortV1(
     workspaceReceiptAcknowledgementThroughSequence:
       workspaceReceiptAcknowledgementThroughSequenceV1,
     exportWorkspace,
+    revokeCredential(): void {
+      if (terminal || credentialRevoked) return;
+      credentialRevoked = true;
+      lifecycleEpoch += 1;
+      providerCredentialConfigured = false;
+      workspaceExportAbort?.abort();
+      workspaceExportAbort = null;
+      networkApproval = null;
+      suppressedNetworkApprovalRuns.clear();
+      settleAndClearNetworkApprovalInterruptionsV1();
+      pendingExactNetworkRetry = null;
+      transport.revokeCredential();
+    },
     async submit(rawRun: CreatorAgentRunRequestV1): Promise<CreatorAgentPortSubmitResultV1> {
       if (terminal || finishPromise !== null) {
         return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };

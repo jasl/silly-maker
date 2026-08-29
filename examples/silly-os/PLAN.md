@@ -919,20 +919,60 @@ prove arbitrary-site CORS, public-origin ingress, browser memory telemetry,
 quota exhaustion on a real device, redirect behavior, background transfer,
 archive extraction, or authenticated download. Playwright fulfillment supplies
 the exact bytes but bypasses Browser CORS/redirect enforcement, so those claims
-remain absent. Deployment is intentionally deferred until S3 is integrated so
-the three origins move once from one committed build identity.
+remain absent. S3 is now integrated locally; N1, N2, and S3 will move together
+only after the combined tree passes its release gates and is committed under one
+build identity.
 
 ### S3 — optional Credential Vault
 
-Session-only remains the default. Persistent credentials activate only after
-the complete CSP/Trusted Types/browser gates and a separate Vault threat model.
-The Vault must provide explicit Remember, unlock, Lock, Forget, and Replace;
-encrypt local ciphertext; keep plaintext inside the Credential/Agent boundary;
-bind each credential to one immutable normalized endpoint; invalidate or
-explicitly rebind on custom-endpoint changes; and reject redirect-following
-credential transport. Investigate WebAuthn PRF/device verification first, then a
-user-passphrase fallback, otherwise remain session-only. Never return a full key
-or expose a generic credential-bearing fetch RPC.
+S3 delivered locally on 2026-08-29. Session-only remains the default. The
+Provider form adds an explicit **Remember on this device** choice; it never
+silently promotes an ordinary Save. A user-created, passphrase-unlocked Vault
+derives a non-extractable AES-256-GCM key with PBKDF2-SHA-256 (`600,000`
+iterations), stores only ciphertext plus bounded metadata in the dedicated
+`sillymaker.example-silly-os.credentials` IndexedDB database, and binds the
+ciphertext through authenticated data to one immutable canonical endpoint and
+credential binding ID. Built-in endpoints remain read-only; a custom endpoint
+change creates a different binding rather than reusing the old key.
+
+Vault creation/unlock, Lock, Forget, Replace, binding inventory, and a one-time
+credential handoff to a fresh product-pinned Pi Agent Worker are typed
+operations. There is no full-key read operation. The Vault Worker sends the
+decrypted value only across the exact one-shot `MessagePort`, clears its local
+reference after transfer, rejects stale or duplicate handoffs, has
+`connect-src 'none'`, and owns neither Product Repository nor Workspace VFS.
+The receiving Agent Worker validates the exact binding, endpoint, handoff ID,
+port count, and deadline before configuring Pi. Provider transport uses
+`credentials: "omit"`, `referrerPolicy: "no-referrer"`, `cache: "no-store"`,
+and `redirect: "error"`, and rejects endpoint/origin drift. Save and the
+optional **Test connection** remain separate actions; neither a remembered key
+nor a successful test certifies Provider CORS, account permission, model
+availability, or a future request.
+
+Lock and both session/remembered Forget paths first synchronously revoke the
+credential owner, terminating the Agent Worker and its Broker before any
+best-effort Workspace cleanup. Revoked cleanup does not wait for a stuck
+`close_workspace` response or Workspace detach before allowing later
+reconfiguration. Normal navigation and application drain retain their graceful
+Workspace-close path.
+
+Focused crypto, raw IndexedDB row, protocol/currentness, endpoint-binding,
+redirect-guard, response-policy, Agent handoff, and stuck-close/detach revocation
+tests pass. A real Chromium
+product flow proves Create Vault, explicit Remember, Lock, refresh-to-locked,
+unlock, and one-time reuse without placing a key in the ordinary Product or
+Workspace repositories. That evidence uses a synthetic key and does not prove a
+real public-origin Provider call or cross-browser WebAuthn behavior. WebAuthn
+PRF/device verification remains deferred; the delivered unlock path is the
+user-passphrase fallback.
+
+The claim is deliberately bounded. Separate IndexedDB names express repository
+ownership but are not a same-origin permission boundary. Encryption protects
+locked local ciphertext and keeps generated/workspace code away from the Vault
+and API key; it does not promise resistance to compromised control-plane code,
+XSS, malicious extensions, device malware, supply-chain compromise, passphrase
+capture, or misuse while the Vault is unlocked. The product exposes no generic
+credential-bearing fetch RPC and the keyless Network Broker remains orthogonal.
 
 ### S4 — persistent Agent state and closed generated UI
 
@@ -1374,10 +1414,11 @@ guessed and minimally contains:
 - HTTPS `baseUrl`;
 - `modelId`, context window, and output-token ceiling.
 
-The API key is not part of that persisted profile. It is transferred from an
-uncontrolled input to the Agent Worker only for the current configured session;
-the session becomes usable after request-free Save without waiting for a
-Provider diagnostic.
+The API key is not part of that persisted non-secret profile. Request-free Save
+uses the current Agent Worker for the default session-only path. S3 additionally
+allows the user to opt into a separate encrypted Credential Vault and then uses
+an exact one-time handoff from that Vault to a fresh Agent Worker. Neither path
+waits for a Provider diagnostic before the session becomes usable.
 
 Pi still owns the actual provider stream. Browser compatibility is limited to
 the credential/API/HTTPS shapes the product implements; CORS, account/model
@@ -1386,17 +1427,20 @@ outcomes. Historical dual-browser qualification remains release evidence, not
 the current model availability list. Pi supporting a provider on Desktop does
 not by itself make that provider a Browser capability.
 
-The API key necessarily exists briefly in the page's password input and browser
-memory. The setup form therefore uses an uncontrolled password input and
-transfers the value immediately to the Agent Worker. The key is memory-only by
-default: it does not enter React state, a URL, logs, telemetry, HTML bootstrap,
-the Program database, IndexedDB, OPFS, Cache API, exports, or downloads.
-Forgetting credentials terminates and rebuilds the Agent Worker. This Worker is
-an ownership boundary that reduces accidental propagation; it is not a defense
-against same-origin script compromise or a privileged browser extension.
-The bounded non-secret custom endpoint/model profile may persist in the
-product-owned Browser Settings repository, but the key and latest connection-
-test state do not.
+The API key necessarily exists briefly in the page's uncontrolled password
+input and browser memory. By default it moves directly to the Agent Worker and
+does not enter React state, a URL, logs, telemetry, HTML bootstrap, the Program
+database, IndexedDB, OPFS, Cache API, exports, or downloads. When the user
+explicitly selects **Remember on this device**, S3 instead writes encrypted
+ciphertext and bounded endpoint-binding metadata to the separate Credential
+Vault, then performs a one-time transfer into a fresh Agent Worker. Plaintext is
+never exposed through a read API. Forgetting the active session terminates the
+Agent Worker; Lock also terminates it and discards the unlocked Vault key;
+Forget remembered deletes only the exact binding. These Workers reduce
+accidental propagation and isolate generated/workspace code, but are not a
+defense against compromised same-origin control code, a privileged extension,
+or a compromised device. The latest connection-test state still does not
+persist.
 
 The primary production route is a direct HTTPS request from the Agent Worker to
 the user-selected compatible Provider. A custom HTTPS endpoint is conditional on its CORS,
@@ -1635,7 +1679,8 @@ The accepted checkpoint order is:
    **B1c-A — truthful built-in connection surface.** Move Connection before the
    long model catalog. For an admitted single-key Provider route, render the
    initial Pi model's actual `baseUrl` as a read-only endpoint, an uncontrolled
-   memory-only API-key field, a request-free **Save key** action, and a separate
+   API-key field whose B1c baseline is session-only, a request-free **Save key**
+   action, and a separate
    repeatable **Test connection** action. Save transfers the key to a fresh
    Worker, completes local Agent RPC/session initialization, and makes every
    enabled model in that Provider/base-URL credential scope usable without
@@ -1747,12 +1792,13 @@ The accepted checkpoint order is:
    Extend the existing bounded Browser Settings repository with only custom
    endpoint metadata, enabled model references, and the preferred reference.
    It uses a new strict revision/key and rejects unknown or secret-bearing
-   fields. API keys, connection-test results, Provider sessions, and Agent state
-   remain Worker-memory-only. `localStorage`, IndexedDB, OPFS, and a same-origin
-   WebCrypto key are not described as an XSS-resistant vault. A future explicit
-   local credential vault needs its own threat model, user-mediated unlock,
-   recovery/deletion contract, and at-rest-only claim; Desktop may instead use
-   an OS keychain and a hosted product may choose a server-side secret owner.
+   fields. At B1c delivery, API keys, connection-test results, Provider sessions,
+   and Agent state remained Worker-memory-only. S3 later adds a separate,
+   explicitly selected encrypted Credential Vault without putting secret fields
+   into this Settings repository; connection-test results and Agent state still
+   remain session-only. Neither the separate IndexedDB database nor WebCrypto is
+   described as an XSS-resistant boundary. Desktop may instead use an OS keychain
+   and a hosted product may choose a server-side secret owner.
 
    Generalize the existing selected-origin Agent Worker response to built-in
    selections as well as custom endpoints, so each production Agent Worker gets

@@ -5,6 +5,7 @@ import type {
   BrowserPiModelSelectionV1,
   BrowserPiProviderCatalogWireV1,
 } from "./browser-pi-worker-protocol.ts";
+import type { BrowserPiProviderFetchV1 } from "./browser-pi-provider-fetch-guard.ts";
 
 export function projectBrowserPiProviderCatalogV1(): BrowserPiProviderCatalogWireV1;
 
@@ -17,6 +18,7 @@ export function probeBrowserPiProviderSelectionV1(input: {
   readonly apiKey: string;
   readonly selection: BrowserPiModelSelectionV1;
   readonly signal: AbortSignal;
+  readonly fetch: BrowserPiProviderFetchV1;
 }): Promise<boolean>;
 
 export function browserPiCreatorToolChoiceV1(proposed: boolean): "auto" | "none";
@@ -25,5 +27,6 @@ export function createBrowserPiProviderAgentV1(
   input: PiAgentRunInputV1 & {
     readonly apiKey: string;
     readonly selection: BrowserPiModelSelectionV1;
+    readonly fetch: BrowserPiProviderFetchV1;
   },
 ): PiAgentPortV1;
