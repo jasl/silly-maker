@@ -539,6 +539,60 @@ share origin storage authority with the SillyOS control plane. Product records
 and Workspace bytes remain separate facts even when a manifest points to one
 exact volume; keys never enter either repository.
 
+General owns one product-level **Data management** surface over those authorities.
+Its storage display is advisory rather than an accounting ledger: the control
+origin reports one `StorageManager.estimate()` for Product Repository, Vault, and
+other origin storage collectively, while the independent Sandbox reports its own
+origin estimate through a typed Host control call. SillyOS may display both usage
+figures and their approximate sum, but it does not attribute bytes to individual
+IndexedDB stores, add the two origin quotas, or call the result an exact managed-
+file measurement. An unavailable estimate remains unknown rather than becoming
+zero.
+
+**Clear all data** is an explicit destructive maintenance operation. The UI names
+the scope—Provider preferences, Program records and network settings, saved API
+keys and Vault protection material, and every current Sandbox Workspace volume—
+and requires a second confirmation. Before deletion, the product revokes the
+active Agent credential capability and settles or cancels current Workspace and
+export work. Each physical owner performs its own typed reset: Product Repository
+clears all owned stores in one transaction; Credential Vault resets even while a
+Password Vault is locked and atomically creates a fresh empty Automatic Vault;
+the Sandbox recursively removes only its product-owned root under an exclusive
+maintenance fence; the Provider settings adapter removes only its exact key.
+The cross-authority operation is intentionally best effort, not an atomic
+transaction. A partial or busy result is reported and remains retryable; the UI
+must never claim success merely because one repository was cleared. Another
+open SillyOS tab may retain a shared Workspace lease or write new state after a
+successful reset boundary; the product asks the user to close active tabs and
+retry a partial result rather than inventing a cross-origin transaction.
+
+The control origin keeps one bounded, non-secret reset-intent record in
+`localStorage`. Publishing a new random reset identity causes other open SillyOS
+tabs to receive the browser `storage` event, revoke their Agent capability,
+release their page-owned Worker/iframe resources through reload, and return to a
+fresh Home. This record contains no Program, credential, conversation, endpoint,
+workspace, or file data and is not an authoritative repository. It improves
+best-effort convergence but does not turn tab delivery or origin deletion into a
+transaction.
+
+Independent tabs may work in different Programs simultaneously. They share the
+physical Product Repository and Sandbox storage authorities, while each tab owns
+its Controller, Pi Agent session, and at most one attached Workspace environment.
+Workspace leases are volume-specific, so one Program's active volume does not
+serialize unrelated Programs. Concurrent mutation of the same Program/volume is
+not presented as collaborative editing: Repository currentness and the volume
+lease continue to reject or serialize it. Product/Agent/Workspace state never
+moves into `localStorage` merely to coordinate tabs.
+
+A later **Export all data** checkpoint will produce one bounded, streamed,
+portable backup containing non-secret Provider preferences, Product/Program
+state, and all authoritative Workspace volumes. It must be assembled without
+moving Workspace bytes into the credential-bearing control plane and must have a
+paired restore/admission contract. API-key plaintext, Vault ciphertext, device
+keys, password material, salts, and verifiers are never exported; the backup
+manifest states `credentialsIncluded: false`. The existing current-Workspace ZIP
+is not this backup and must not be relabeled as one.
+
 ### Credential persistence and Provider egress
 
 The accepted product contract is durable-by-default Provider credentials. On a
@@ -1593,7 +1647,12 @@ by typed Agent RPC.
 Settings is a product surface with three first-level categories:
 
 1. **General** owns product-wide preferences such as the SillyOS interface
-   language. It is the default entry for the application Settings action.
+   language. It is the default entry for the application Settings action. Its
+   separate Data management card shows the two advisory origin-usage
+   projections and places the destructive all-data reset behind an accessible
+   confirmation dialog. The complete portable backup action remains absent until
+   its streamed export and restore contracts are delivered; the current
+   Workspace ZIP stays on the owning Program surface.
 2. **Providers** uses one responsive master/detail task. The Provider rail owns
    search plus separate Built-in Providers and Custom Endpoints sections. The
    detail column owns Provider identity, Connection, and Available models in

@@ -193,7 +193,12 @@ a native companion behind the same typed workspace boundary.
 At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
 S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2/N3, the original S3, and S3-R1 are closed locally;
 the current build-matched three-origin artifact and fixed Vault Worker are
-deployed. S3-R1 and S2-N3 are not deployed. No follow-on phase is active.
+deployed from commit `c60dec9d81f03d8220c9207943541b38711e54eb` (Sandbox
+`0d899b7d-e003-419a-9c58-a5722f153333`, Broker
+`a7a4fdcf-c2ce-4a93-816e-9ff0424c0fcf`, control/Vault
+`9397e86b-14f2-42f0-8628-124d7009a3ba`). That release includes the local
+S3-R1 and S2-N3 clean replacements. D1 Browser data management is closed
+locally and is not deployed. D2 remains inactive; no follow-on phase is active.
 The
 post-Q1 Browser Workspace namespace/file slice is implemented and locally
 verified. N0's exact **Allow once** and N1's Program grants remain historical
@@ -1161,6 +1166,65 @@ Provider relay, arbitrary authentication fields/headers, WebAuthn/recovery,
 cross-device sync, model-quality scoring, a copied Pi catalog, or SillyMaker
 engine changes. A failure of one Provider/model Test is a diagnostic result, not
 permission to reintroduce qualification gating.
+
+### D1 — Browser data management (closed locally 2026-08-29)
+
+General gains one product-owned Data management card without turning storage
+into a SillyMaker engine concern. This slice has two capabilities:
+
+1. read `StorageManager`'s advisory usage/quota projection separately from the
+   control origin and the independent Workspace Sandbox origin, then show the
+   two usage values and an approximate sum without attributing bytes to a store
+   or adding quotas; and
+2. after an accessible second confirmation, revoke the live Agent credential
+   capability, cancel/settle current Workspace work, reset the Vault to a fresh
+   empty Automatic state, clear the Product Repository's three owned stores and
+   the exact Provider-settings key, and purge the Sandbox's product-owned root
+   behind its maintenance fence.
+
+The cross-authority delete is idempotent best effort, not a transaction. The
+product reports busy, failed, or partial results and permits retry. It never
+reports success from a UI state reset alone. D1 does not enumerate managed OPFS
+bytes, introduce a storage database framework, export credentials, or modify an
+engine API. A concurrent tab may hold the Sandbox shared maintenance lease or
+create new data after the reset boundary; D1 reports the former as partial and
+does not attempt a universal cross-origin write freeze.
+
+D1 also publishes one non-secret control-origin reset identity through an exact
+`localStorage` key. Other live control-plane tabs listen for that key only,
+revoke their Agent and reload Home so their Workspace shared leases are released.
+The signal carries no user state. Separate tabs remain free to operate different
+Programs and Pi sessions over the shared IndexedDB/OPFS authorities; same-Program
+collaboration, durable shared Agent state, and a generic tab-sync framework are
+not part of D1.
+
+D1 closed with focused Product Repository, Vault, Sandbox Host, Authority,
+settings, formatter, and reset-coordinator contracts; the combined focused suite
+passed 294 cases. Type-aware lint, CSS lint, formatting, the control-plane build
+boundary, the Workspace Sandbox build boundary, and the unchanged Network Broker
+build boundary passed. A real two-tab Chromium run kept a Translation Program and
+a Writing Program open under two independent fixed-Pi test sessions, then cleared
+from the first tab while the second still held its Workspace. Both returned to
+Home with no console error, and the Product list plus Sandbox volumes were empty.
+This evidence does not promote same-Program collaboration or make cross-origin
+deletion atomic; `volume_busy` and partial retry remain truthful outcomes.
+
+### D2 — streamed all-data backup and restore (inactive)
+
+The product-level backup is a separate slice because the existing ZIP exports
+only one active Workspace and intentionally keeps its bytes at the Sandbox
+origin. D2 will first freeze a bounded non-secret Product/settings snapshot and
+exact Program/volume anchors. The fixed Sandbox Host will validate those anchors
+and stream one backup containing Product/Program state and all Workspace volumes
+without returning volume bytes to the credential-bearing control plane. Before
+download it will recheck currentness; restore will admit the complete manifest
+and publish Product pointers only after all volumes stage successfully.
+
+The manifest declares `credentialsIncluded: false`. API-key plaintext, Vault
+ciphertext, device keys, password material, salts, and verifiers never enter the
+archive. Until D2 and its restore path pass Chromium/WebKit evidence, the current
+per-Program Workspace ZIP remains the only export and the General surface must
+not label it as an all-data backup.
 
 ### S4 — persistent Agent state and closed generated UI
 

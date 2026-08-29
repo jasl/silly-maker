@@ -33,6 +33,12 @@ import type {
   CreatorControllerV1,
   CreatorDurabilityStateV1,
 } from "../product/creator-controller.ts";
+import {
+  createBrowserDataResetCoordinatorV1,
+  runBrowserDataResetOperationV1,
+  subscribeBrowserDataResetRemoteV1,
+  type BrowserDataResetCoordinatorV1,
+} from "../product/browser-data-reset-coordinator.ts";
 import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
 import type { ProgramNetworkAccessV1 } from "../product/program-network-access.ts";
 import { recommendedBrowserProviderBuiltinModelRefsV1 } from "../product/browser-provider-model-recommendations.ts";
@@ -53,6 +59,7 @@ import { CreatorHomeV1 } from "./creator-home.tsx";
 import { ProgramWorkspaceV1 } from "./program-workspace.tsx";
 import {
   type ProviderSettingsCatalogV1,
+  type ProviderSettingsClearAllV1,
   type ProviderSettingsConnectionTestV1,
   type ProviderSettingsCredentialOperationV1,
   type ProviderSettingsCredentialReceiptV1,
@@ -60,6 +67,8 @@ import {
   type ProviderSettingsCustomProfileV1,
   type ProviderSettingsSectionV1,
   type ProviderSettingsSelectionV1,
+  type ProviderSettingsStorageEstimateV1,
+  type ProviderSettingsStorageUsageV1,
   type ProviderSettingsVaultOperationV1,
   type ProviderSettingsVaultV1,
   ProviderSettingsV1,
@@ -147,6 +156,32 @@ function createProviderSettingsRepositoryV1(): BrowserProviderSettingsRepository
   } catch {
     return null;
   }
+}
+
+function createDataResetCoordinatorV1(): BrowserDataResetCoordinatorV1 | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return createBrowserDataResetCoordinatorV1({
+      storage: window.localStorage,
+      eventTarget: window,
+    });
+  } catch {
+    return null;
+  }
+}
+
+function admittedStorageByteCountV1(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+}
+
+function controlStorageEstimateV1(value: StorageEstimate): ProviderSettingsStorageEstimateV1 {
+  const usageBytes = admittedStorageByteCountV1(value.usage);
+  const quotaBytes = admittedStorageByteCountV1(value.quota);
+  return {
+    phase: "available",
+    ...(usageBytes === undefined ? {} : { usageBytes }),
+    ...(quotaBytes === undefined ? {} : { quotaBytes }),
+  };
 }
 
 interface CreatorProviderModelChoiceV1 {
@@ -426,6 +461,7 @@ export function SillyOsAppV1({
     phase: "loading",
   });
   const [providerSettingsRepository] = useState(createProviderSettingsRepositoryV1);
+  const [dataResetCoordinator] = useState(createDataResetCoordinatorV1);
   const [providerSettingsSnapshot, setProviderSettingsSnapshot] = useState<
     BrowserProviderSettingsSnapshotV1
   >(() => {
@@ -454,6 +490,11 @@ export function SillyOsAppV1({
     phase: "disconnected",
     active: null,
   });
+  const [storageUsage, setStorageUsage] = useState<ProviderSettingsStorageUsageV1>({
+    control: { phase: "checking" },
+    workspace: { phase: "checking" },
+  });
+  const [clearAll, setClearAll] = useState<ProviderSettingsClearAllV1>({ phase: "idle" });
 
   useEffect(() => {
     const receipt = credentialReceipt;
@@ -508,6 +549,9 @@ export function SillyOsAppV1({
   const workspaceExportEpochRef = useRef(0);
   const networkAccessEpochRef = useRef(0);
   const networkAccessMutationPendingRef = useRef(false);
+  const storageUsageEpochRef = useRef(0);
+  const clearAllPendingRef = useRef(false);
+  const remoteResetActionRef = useRef<() => void>(() => undefined);
   const reportFailureRef = useRef(reportFailure);
   reportFailureRef.current = reportFailure;
   const workspaceExportAbortRef = useRef<AbortController | null>(null);
@@ -804,6 +848,44 @@ export function SillyOsAppV1({
   useEffect(() => {
     return agentDrainRegistry.register(drainAgentGraphV1);
   }, [agentDrainRegistry, drainAgentGraphV1]);
+
+  const refreshStorageUsageV1 = useCallback((): void => {
+    const epoch = ++storageUsageEpochRef.current;
+    setStorageUsage({
+      control: { phase: "checking" },
+      workspace: { phase: "checking" },
+    });
+    const controlEstimate = typeof navigator !== "undefined" &&
+        typeof navigator.storage?.estimate === "function"
+      ? navigator.storage.estimate()
+      : Promise.reject(new TypeError("sillyos.storage_estimate.unavailable"));
+    void Promise.allSettled([
+      controlEstimate,
+      workspaceAuthority.inspectStorage(),
+    ]).then(([controlResult, workspaceResult]) => {
+      if (storageUsageEpochRef.current !== epoch) return;
+      setStorageUsage({
+        control: controlResult.status === "fulfilled"
+          ? controlStorageEstimateV1(controlResult.value)
+          : { phase: "unavailable", diagnosticCode: "control_estimate_unavailable" },
+        workspace: workspaceResult.status === "fulfilled"
+          ? {
+            phase: "available",
+            ...(workspaceResult.value.usageBytes === undefined
+              ? {}
+              : { usageBytes: workspaceResult.value.usageBytes }),
+            ...(workspaceResult.value.quotaBytes === undefined
+              ? {}
+              : { quotaBytes: workspaceResult.value.quotaBytes }),
+          }
+          : { phase: "unavailable", diagnosticCode: "workspace_estimate_unavailable" },
+      });
+    });
+  }, [workspaceAuthority]);
+
+  useEffect(() => {
+    if (settingsOpen && !internalPiTest) refreshStorageUsageV1();
+  }, [internalPiTest, refreshStorageUsageV1, settingsOpen]);
 
   const changeLocaleV1 = (next: SillyOsLocaleV1): void => {
     setLocale(next);
@@ -1110,6 +1192,131 @@ export function SillyOsAppV1({
       current.revokeCredential();
       void queueAgentPortTeardownV1(current, "forgotten");
     }
+  };
+
+  remoteResetActionRef.current = (): void => {
+    setClearAll({ phase: "clearing" });
+    forgetPiAgentV1();
+    // Unloading closes the Agent Worker, Sandbox iframe, and their shared
+    // Workspace leases. The fresh controller starts at Home against the reset
+    // repositories; localStorage carries only this invalidation signal.
+    window.location.reload();
+  };
+
+  useEffect(() => {
+    if (dataResetCoordinator === null) return undefined;
+    return subscribeBrowserDataResetRemoteV1({
+      coordinator: dataResetCoordinator,
+      isLocalResetPending: () => clearAllPendingRef.current,
+      isAccepting: () => agentDrainRegistry.isAccepting(),
+      onRemoteReset: () => remoteResetActionRef.current(),
+    });
+  }, [agentDrainRegistry, dataResetCoordinator]);
+
+  const resetCredentialVaultForClearV1 = async (): Promise<CredentialVaultListV2> => {
+    await credentialVaultSettlementRef.current.catch(() => undefined);
+    const current = credentialVaultPortRef.current;
+    if (current !== null) return await current.client.reset();
+
+    const { createBrowserCredentialVaultPortV2 } = await import(
+      "../credential/browser-credential-vault-port.ts"
+    );
+    const temporary = createBrowserCredentialVaultPortV2();
+    try {
+      await temporary.client.initialize();
+      return await temporary.client.reset();
+    } finally {
+      temporary.close();
+    }
+  };
+
+  const clearAllDataV1 = (): void => {
+    if (clearAllPendingRef.current) return;
+    clearAllPendingRef.current = true;
+    storageUsageEpochRef.current += 1;
+    credentialVaultOperationEpochRef.current += 1;
+    setClearAll({ phase: "clearing" });
+    setCredentialReceipt(null);
+
+    void (async (): Promise<void> => {
+      const [authorityResult, vaultResult, providerResult] = await runBrowserDataResetOperationV1({
+        coordinator: dataResetCoordinator,
+        reportCoordinationFailure: (error) => {
+          reportFailureRef.current("silly_os.data_reset_coordination_unavailable", error);
+        },
+        revokeLocalCapabilities: forgetPiAgentV1,
+        awaitSettledOperations: async () => {
+          await Promise.all([
+            agentSetupSettlementRef.current.catch(() => undefined),
+            providerModelSelectionSettlementRef.current.catch(() => undefined),
+            agentWorkspaceLifecycleRef.current.catch(() => undefined),
+            agentTerminalSettlementRef.current.catch(() => undefined),
+            agentTeardownRef.current.catch(() => undefined),
+            credentialVaultSettlementRef.current.catch(() => undefined),
+          ]);
+        },
+        resetProductWorkspace: () => workspaceAuthority.resetStoredData(),
+        resetCredentialVault: resetCredentialVaultForClearV1,
+        resetProviderSettings: async () => {
+          if (providerSettingsRepository === null) {
+            throw new TypeError("sillyos.provider_settings.repository_unavailable");
+          }
+          providerSettingsRepository.clear();
+        },
+      });
+
+      const diagnosticCodes: string[] = [];
+      if (authorityResult.status === "rejected") {
+        diagnosticCodes.push("product_workspace_reset_failed");
+      } else {
+        if (authorityResult.value.productRepository.kind !== "cleared") {
+          diagnosticCodes.push(
+            authorityResult.value.productRepository.kind === "failed"
+              ? authorityResult.value.productRepository.diagnosticCode
+              : "product_repository_retained",
+          );
+        }
+        if (authorityResult.value.workspaceVolumes.kind !== "cleared") {
+          diagnosticCodes.push(
+            authorityResult.value.workspaceVolumes.kind === "failed"
+              ? authorityResult.value.workspaceVolumes.diagnosticCode
+              : "workspace_volumes_retained",
+          );
+        }
+      }
+      if (vaultResult.status === "rejected") {
+        diagnosticCodes.push("credential_vault_reset_failed");
+      } else {
+        const nextVault = providerSettingsVaultFromListV1(vaultResult.value);
+        credentialVaultStateRef.current = nextVault;
+        setCredentialVault(nextVault);
+      }
+      if (providerResult.status === "rejected") {
+        diagnosticCodes.push("provider_settings_clear_failed");
+      } else {
+        setProviderSettingsSnapshot(emptyProviderSettingsSnapshotV1());
+      }
+
+      if (diagnosticCodes.length === 0) {
+        window.location.reload();
+        return;
+      }
+      const diagnosticCode = diagnosticCodes.join(",");
+      setClearAll({ phase: "failed", diagnosticCode });
+      reportFailureRef.current("silly_os.clear_all_data_failed", {
+        diagnosticCodes,
+        authorityStatus: authorityResult.status,
+        vaultStatus: vaultResult.status,
+        providerStatus: providerResult.status,
+      });
+      refreshStorageUsageV1();
+    })().catch((error: unknown) => {
+      setClearAll({ phase: "failed", diagnosticCode: "clear_all_failed" });
+      reportFailureRef.current("silly_os.clear_all_data_failed", error);
+      refreshStorageUsageV1();
+    }).finally(() => {
+      clearAllPendingRef.current = false;
+    });
   };
 
   const runCredentialVaultStateOperationV1 = (
@@ -2009,6 +2216,8 @@ export function SillyOsAppV1({
             connectionTest={connectionTest}
             credentialOperation={credentialOperation}
             credentialReceipt={credentialReceipt}
+            storageUsage={storageUsage}
+            clearAll={clearAll}
             initialSection={settingsInitialSection}
             onBack={closeSettingsV1}
             onLocaleChange={changeLocaleV1}
@@ -2020,6 +2229,8 @@ export function SillyOsAppV1({
             onUseAutomaticVault={useAutomaticCredentialVaultV1}
             onUnlockVault={unlockCredentialVaultV1}
             onLockVault={lockCredentialVaultV1}
+            onRefreshStorageUsage={refreshStorageUsageV1}
+            onClearAllData={clearAllDataV1}
             onSaveCredential={saveProviderCredentialV1}
             onForgetCredential={forgetCredentialV1}
             onTestConnection={testProviderConnectionV1}

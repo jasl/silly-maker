@@ -7,10 +7,12 @@ import {
   Eye,
   EyeOff,
   Globe2,
+  HardDrive,
   KeyRound,
   LoaderCircle,
   LockKeyhole,
   Plus,
+  RefreshCcw,
   Search,
   Settings2,
   ShieldCheck,
@@ -31,6 +33,7 @@ import {
 } from "../credential/provider-credential-binding.ts";
 import { SillyButtonV1 as Button } from "./controls.tsx";
 import { LocaleSelectV1, SillyOsBrandV1 } from "./product-chrome.tsx";
+import { formatStorageBytesV1 } from "./storage-format.ts";
 
 export type ProviderSettingsAvailabilityV1 =
   | { readonly status: "available" }
@@ -188,6 +191,25 @@ export interface ProviderSettingsCredentialReceiptV1 {
   readonly target: CredentialVaultConnectionIdentityV2;
 }
 
+export type ProviderSettingsStorageEstimateV1 =
+  | { readonly phase: "checking" }
+  | {
+    readonly phase: "available";
+    readonly usageBytes?: number;
+    readonly quotaBytes?: number;
+  }
+  | { readonly phase: "unavailable"; readonly diagnosticCode?: string };
+
+export interface ProviderSettingsStorageUsageV1 {
+  readonly control: ProviderSettingsStorageEstimateV1;
+  readonly workspace: ProviderSettingsStorageEstimateV1;
+}
+
+export type ProviderSettingsClearAllV1 =
+  | { readonly phase: "idle" }
+  | { readonly phase: "clearing" }
+  | { readonly phase: "failed"; readonly diagnosticCode: string };
+
 export interface ProviderSettingsPropsV1 {
   readonly copy: SillyOsCopyV1;
   readonly catalog: ProviderSettingsCatalogV1;
@@ -198,6 +220,8 @@ export interface ProviderSettingsPropsV1 {
   readonly credentialOperation: ProviderSettingsCredentialOperationV1;
   readonly credentialReceipt: ProviderSettingsCredentialReceiptV1 | null;
   readonly vault: ProviderSettingsVaultV1;
+  readonly storageUsage: ProviderSettingsStorageUsageV1;
+  readonly clearAll: ProviderSettingsClearAllV1;
   readonly initialSection?: ProviderSettingsSectionV1;
   readonly onBack: () => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
@@ -212,6 +236,8 @@ export interface ProviderSettingsPropsV1 {
   readonly onUnlockVault: (passphrase: string) => void;
   readonly onLockVault: () => void;
   readonly onForgetCredential: (bindings: readonly CredentialVaultBindingV2[]) => void;
+  readonly onRefreshStorageUsage: () => void;
+  readonly onClearAllData: () => void;
   readonly onSetBuiltinModelEnabled: (
     model: ProviderSettingsBuiltinModelRefV1,
     enabled: boolean,
@@ -460,13 +486,149 @@ function SettingsNavigationV1({
   );
 }
 
+interface StorageEstimateMetricV1 {
+  readonly value: string;
+  readonly quota: string | null;
+  readonly usageBytes: number | null;
+  readonly diagnosticCode?: string;
+}
+
+function admittedStorageNumberV1(value: number | undefined): number | null {
+  return value !== undefined && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function storageEstimateMetricV1(
+  copy: SillyOsCopyV1,
+  estimate: ProviderSettingsStorageEstimateV1,
+): StorageEstimateMetricV1 {
+  if (estimate.phase === "checking") {
+    return { value: copy.settingsStorageChecking, quota: null, usageBytes: null };
+  }
+  if (estimate.phase === "unavailable") {
+    return {
+      value: copy.settingsStorageUnavailable,
+      quota: null,
+      usageBytes: null,
+      ...(estimate.diagnosticCode === undefined ? {} : { diagnosticCode: estimate.diagnosticCode }),
+    };
+  }
+  const usageBytes = admittedStorageNumberV1(estimate.usageBytes);
+  const quotaBytes = admittedStorageNumberV1(estimate.quotaBytes);
+  return {
+    value: usageBytes === null
+      ? copy.settingsStorageUsageUnavailable
+      : formatStorageBytesV1(usageBytes, copy.locale),
+    quota: quotaBytes === null
+      ? null
+      : `${copy.settingsStorageQuota}: ${formatStorageBytesV1(quotaBytes, copy.locale)}`,
+    usageBytes,
+  };
+}
+
+function StorageEstimateV1({
+  label,
+  description,
+  metric,
+}: {
+  readonly label: string;
+  readonly description: string;
+  readonly metric: StorageEstimateMetricV1;
+}): ReactNode {
+  return (
+    <article
+      className="silly-os-settings__storage-estimate"
+      data-diagnostic-code={metric.diagnosticCode}
+    >
+      <div>
+        <strong>{label}</strong>
+        <small>{description}</small>
+      </div>
+      <div className="silly-os-settings__storage-value">
+        <strong>{metric.value}</strong>
+        {metric.quota === null ? null : <small>{metric.quota}</small>}
+      </div>
+    </article>
+  );
+}
+
 function GeneralSettingsV1({
   copy,
+  storageUsage,
+  clearAll,
   onLocaleChange,
+  onRefreshStorageUsage,
+  onClearAllData,
 }: {
   readonly copy: SillyOsCopyV1;
+  readonly storageUsage: ProviderSettingsStorageUsageV1;
+  readonly clearAll: ProviderSettingsClearAllV1;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
+  readonly onRefreshStorageUsage: () => void;
+  readonly onClearAllData: () => void;
 }): ReactNode {
+  const [clearConfirmationOpen, setClearConfirmationOpen] = useState(false);
+  const [clearSubmitted, setClearSubmitted] = useState(false);
+  const clearSubmittedRef = useRef(false);
+  const clearTriggerRef = useRef<HTMLButtonElement>(null);
+  const clearCancelRef = useRef<HTMLButtonElement>(null);
+  const clearDialogRef = useRef<HTMLDivElement>(null);
+  const clearBusy = clearAll.phase === "clearing";
+  const storageChecking = storageUsage.control.phase === "checking" ||
+    storageUsage.workspace.phase === "checking";
+
+  const controlMetric = storageEstimateMetricV1(copy, storageUsage.control);
+  const workspaceMetric = storageEstimateMetricV1(copy, storageUsage.workspace);
+  const reportedUsageBytes = [controlMetric.usageBytes, workspaceMetric.usageBytes].filter(
+    (value): value is number => value !== null,
+  );
+  const reportedUsageTotal = reportedUsageBytes.length === 0
+    ? null
+    : reportedUsageBytes.reduce((total, value) => total + value, 0);
+
+  const dismissClearConfirmationV1 = (): void => {
+    if (clearBusy) return;
+    setClearConfirmationOpen(false);
+  };
+
+  useEffect(() => {
+    if (!clearConfirmationOpen) return undefined;
+    const clearTrigger = clearTriggerRef.current;
+    clearCancelRef.current?.focus();
+    return () => clearTrigger?.focus();
+  }, [clearConfirmationOpen]);
+
+  useEffect(() => {
+    if (!clearConfirmationOpen) return undefined;
+    const onKeyDownV1 = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (!clearBusy) setClearConfirmationOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const dialog = clearDialogRef.current;
+      if (dialog === null) return;
+      const focusable = [...dialog.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (first === undefined || last === undefined) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDownV1);
+    return () => document.removeEventListener("keydown", onKeyDownV1);
+  }, [clearBusy, clearConfirmationOpen]);
+
   return (
     <div className="silly-os-settings__standalone">
       <header>
@@ -482,6 +644,161 @@ function GeneralSettingsV1({
           <p>{copy.settingsLanguageDescription}</p>
         </div>
         <LocaleSelectV1 copy={copy} onChange={onLocaleChange} />
+      </section>
+      <section
+        className="silly-os-settings__data-card"
+        aria-labelledby="silly-os-data-management-title"
+      >
+        <header className="silly-os-settings__data-heading">
+          <span aria-hidden="true">
+            <HardDrive size={19} />
+          </span>
+          <div>
+            <h2 id="silly-os-data-management-title">{copy.settingsDataManagement}</h2>
+            <p>{copy.settingsDataManagementDescription}</p>
+          </div>
+        </header>
+        <div className="silly-os-settings__storage-grid" aria-live="polite">
+          <StorageEstimateV1
+            label={copy.settingsStorageSillyOsData}
+            description={copy.settingsStorageSillyOsDataDescription}
+            metric={controlMetric}
+          />
+          <StorageEstimateV1
+            label={copy.settingsStorageWorkspaceData}
+            description={copy.settingsStorageWorkspaceDataDescription}
+            metric={workspaceMetric}
+          />
+        </div>
+        <div className="silly-os-settings__storage-summary">
+          <div>
+            {reportedUsageTotal === null ? null : (
+              <p>
+                <span>{copy.settingsStorageReportedTotal}</span>
+                <strong>{formatStorageBytesV1(reportedUsageTotal, copy.locale)}</strong>
+              </p>
+            )}
+            <small>{copy.settingsStorageAdvisory}</small>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            icon={RefreshCcw}
+            disabled={storageChecking || clearBusy}
+            onClick={onRefreshStorageUsage}
+          >
+            {copy.settingsStorageRefresh}
+          </Button>
+        </div>
+        <div className="silly-os-settings__clear-row">
+          <div>
+            <strong>{copy.settingsClearAllTitle}</strong>
+            <p>{copy.settingsClearAllDescription}</p>
+          </div>
+          <Button
+            ref={clearTriggerRef}
+            type="button"
+            className="silly-os-settings__danger-button"
+            variant="secondary"
+            icon={Trash2}
+            disabled={clearBusy}
+            onClick={() => {
+              clearSubmittedRef.current = false;
+              setClearSubmitted(false);
+              setClearConfirmationOpen(true);
+            }}
+          >
+            {copy.settingsClearAllAction}
+          </Button>
+        </div>
+        {clearAll.phase === "failed" && !clearConfirmationOpen
+          ? (
+            <p
+              className="silly-os-settings__clear-error"
+              data-diagnostic-code={clearAll.diagnosticCode}
+              role="alert"
+            >
+              <TriangleAlert size={16} aria-hidden="true" />
+              {copy.settingsClearAllFailed}
+            </p>
+          )
+          : null}
+        {clearConfirmationOpen
+          ? (
+            <div className="silly-os-settings__dialog-layer">
+              <button
+                type="button"
+                className="silly-os-settings__dialog-backdrop"
+                tabIndex={-1}
+                aria-label={copy.settingsClearAllCancel}
+                disabled={clearBusy}
+                onClick={dismissClearConfirmationV1}
+              />
+              <div
+                ref={clearDialogRef}
+                className="silly-os-settings__clear-dialog"
+                role="alertdialog"
+                aria-modal="true"
+                aria-busy={clearBusy || undefined}
+                aria-labelledby="silly-os-clear-dialog-title"
+                aria-describedby="silly-os-clear-dialog-description silly-os-clear-dialog-warning"
+                tabIndex={-1}
+              >
+                <span className="silly-os-settings__clear-dialog-mark" aria-hidden="true">
+                  <Trash2 size={21} />
+                </span>
+                <div className="silly-os-settings__clear-dialog-copy">
+                  <h2 id="silly-os-clear-dialog-title">{copy.settingsClearAllConfirmTitle}</h2>
+                  <p id="silly-os-clear-dialog-description">
+                    {copy.settingsClearAllConfirmDescription}
+                  </p>
+                  <p id="silly-os-clear-dialog-warning">
+                    <TriangleAlert size={15} aria-hidden="true" />
+                    {copy.settingsClearAllConfirmWarning}
+                  </p>
+                  {clearAll.phase === "failed"
+                    ? (
+                      <p
+                        className="silly-os-settings__clear-error"
+                        data-diagnostic-code={clearAll.diagnosticCode}
+                        role="alert"
+                      >
+                        {copy.settingsClearAllFailed}
+                      </p>
+                    )
+                    : null}
+                </div>
+                <div className="silly-os-settings__clear-dialog-actions">
+                  <Button
+                    ref={clearCancelRef}
+                    type="button"
+                    variant="secondary"
+                    disabled={clearBusy}
+                    onClick={dismissClearConfirmationV1}
+                  >
+                    {copy.settingsClearAllCancel}
+                  </Button>
+                  <Button
+                    type="button"
+                    className="silly-os-settings__danger-button is-confirm"
+                    variant="secondary"
+                    icon={clearBusy ? LoaderCircle : Trash2}
+                    aria-busy={clearBusy || undefined}
+                    disabled={clearBusy || clearSubmitted}
+                    onClick={() => {
+                      if (clearSubmittedRef.current || clearBusy) return;
+                      clearSubmittedRef.current = true;
+                      setClearSubmitted(true);
+                      onClearAllData();
+                    }}
+                  >
+                    {clearBusy ? copy.settingsClearingAll : copy.settingsClearAllAction}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )
+          : null}
       </section>
     </div>
   );
@@ -1244,6 +1561,8 @@ export function ProviderSettingsV1({
   credentialOperation,
   credentialReceipt,
   vault,
+  storageUsage,
+  clearAll,
   initialSection = "general",
   onBack,
   onLocaleChange,
@@ -1255,6 +1574,8 @@ export function ProviderSettingsV1({
   onUnlockVault,
   onLockVault,
   onForgetCredential,
+  onRefreshStorageUsage,
+  onClearAllData,
   onSetBuiltinModelEnabled,
   onCreateCustomProfile,
   onRemoveCustomProfile,
@@ -1472,7 +1793,16 @@ export function ProviderSettingsV1({
         <SettingsNavigationV1 copy={copy} section={section} onSelect={setSection} />
         <section className="silly-os-settings__content" data-settings-section={section}>
           {section === "general"
-            ? <GeneralSettingsV1 copy={copy} onLocaleChange={onLocaleChange} />
+            ? (
+              <GeneralSettingsV1
+                copy={copy}
+                storageUsage={storageUsage}
+                clearAll={clearAll}
+                onLocaleChange={onLocaleChange}
+                onRefreshStorageUsage={onRefreshStorageUsage}
+                onClearAllData={onClearAllData}
+              />
+            )
             : section === "credential_vault"
             ? (
               <div className="silly-os-settings__standalone">

@@ -80,6 +80,20 @@ export interface BrowserWorkspaceHostSnapshotWireV1 {
   readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
 }
 
+/** Sandbox-origin advisory state. The values are not per-volume byte counts. */
+export interface BrowserWorkspaceHostStorageInspectionWireV1 {
+  readonly revision: 1;
+  readonly scope: "sandbox_origin_advisory";
+  readonly persisted: boolean;
+  readonly usageBytes?: number;
+  readonly quotaBytes?: number;
+}
+
+export interface BrowserWorkspaceHostPurgeAllWorkspacesResultWireV1 {
+  readonly revision: 1;
+  readonly kind: "purged";
+}
+
 export interface BrowserWorkspaceHostExportProgressWireV1 {
   readonly filesCompleted: number;
   readonly filesTotal: number;
@@ -174,6 +188,8 @@ export interface BrowserWorkspaceHostMutationReceiptWireV1 {
 }
 
 export type BrowserWorkspaceHostControlRequestRecordV1 =
+  | { readonly method: "inspect_storage" }
+  | { readonly method: "purge_all_workspaces" }
   | {
     readonly method: "create_candidate";
     readonly programId: string;
@@ -253,6 +269,14 @@ export interface BrowserWorkspaceHostControlSuccessResponseV1 {
   readonly requestId: number;
   readonly ok: true;
   readonly response:
+    | {
+      readonly method: "inspect_storage";
+      readonly storage: BrowserWorkspaceHostStorageInspectionWireV1;
+    }
+    | {
+      readonly method: "purge_all_workspaces";
+      readonly result: BrowserWorkspaceHostPurgeAllWorkspacesResultWireV1;
+    }
     | {
       readonly method:
         | "open_workspace"
@@ -702,6 +726,18 @@ export function admitBrowserWorkspaceHostControlRequestV1(
     envelope === null || envelope.revision !== 1 || envelope.kind !== "control_request" ||
     !requestIdV1(envelope.requestId)
   ) return null;
+  const unit = exactRecordV1(envelope.record, ["method"]);
+  if (
+    unit !== null &&
+    (unit.method === "inspect_storage" || unit.method === "purge_all_workspaces")
+  ) {
+    return {
+      revision: 1,
+      kind: "control_request",
+      requestId: envelope.requestId,
+      record: { method: unit.method },
+    };
+  }
   const create = exactRecordV1(envelope.record, ["method", "programId", "workspaceId"]);
   if (
     create !== null && create.method === "create_candidate" && identifierV1(create.programId) &&
@@ -1202,6 +1238,41 @@ function admitSnapshotV1(value: unknown): BrowserWorkspaceHostSnapshotWireV1 | n
   };
 }
 
+export function admitBrowserWorkspaceHostStorageInspectionWireV1(
+  value: unknown,
+): BrowserWorkspaceHostStorageInspectionWireV1 | null {
+  const keySets = [
+    ["revision", "scope", "persisted"],
+    ["revision", "scope", "persisted", "usageBytes"],
+    ["revision", "scope", "persisted", "quotaBytes"],
+    ["revision", "scope", "persisted", "usageBytes", "quotaBytes"],
+  ] as const;
+  const record = keySets.map((keys) => exactRecordV1(value, keys)).find((item) => item !== null) ??
+    null;
+  if (
+    record === null || record.revision !== 1 || record.scope !== "sandbox_origin_advisory" ||
+    typeof record.persisted !== "boolean" ||
+    (Object.hasOwn(record, "usageBytes") && !nonNegativeSafeIntegerV1(record.usageBytes)) ||
+    (Object.hasOwn(record, "quotaBytes") && !nonNegativeSafeIntegerV1(record.quotaBytes))
+  ) return null;
+  return {
+    revision: 1,
+    scope: "sandbox_origin_advisory",
+    persisted: record.persisted,
+    ...(Object.hasOwn(record, "usageBytes") ? { usageBytes: record.usageBytes as number } : {}),
+    ...(Object.hasOwn(record, "quotaBytes") ? { quotaBytes: record.quotaBytes as number } : {}),
+  };
+}
+
+export function admitBrowserWorkspaceHostPurgeAllWorkspacesResultWireV1(
+  value: unknown,
+): BrowserWorkspaceHostPurgeAllWorkspacesResultWireV1 | null {
+  const record = exactRecordV1(value, ["revision", "kind"]);
+  return record !== null && record.revision === 1 && record.kind === "purged"
+    ? { revision: 1, kind: "purged" }
+    : null;
+}
+
 export function admitBrowserWorkspaceHostControlOutboundMessageV1(
   value: unknown,
 ): BrowserWorkspaceHostControlOutboundMessageV1 | null {
@@ -1216,6 +1287,30 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
     success !== null && success.revision === 1 && success.kind === "control_response" &&
     requestIdV1(success.requestId) && success.ok === true
   ) {
+    const inspectedStorage = exactRecordV1(success.response, ["method", "storage"]);
+    if (inspectedStorage !== null && inspectedStorage.method === "inspect_storage") {
+      const storage = admitBrowserWorkspaceHostStorageInspectionWireV1(inspectedStorage.storage);
+      return storage === null ? null : {
+        revision: 1,
+        kind: "control_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: "inspect_storage", storage },
+      };
+    }
+    const purgedStorage = exactRecordV1(success.response, ["method", "result"]);
+    if (purgedStorage !== null && purgedStorage.method === "purge_all_workspaces") {
+      const result = admitBrowserWorkspaceHostPurgeAllWorkspacesResultWireV1(
+        purgedStorage.result,
+      );
+      return result === null ? null : {
+        revision: 1,
+        kind: "control_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: "purge_all_workspaces", result },
+      };
+    }
     const response = exactRecordV1(success.response, ["method", "snapshot"]);
     const snapshot = response === null ? null : admitSnapshotV1(response.snapshot);
     if (

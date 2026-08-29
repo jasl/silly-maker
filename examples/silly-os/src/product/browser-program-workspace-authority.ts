@@ -11,6 +11,7 @@ import { createBrowserWorkspaceSandboxFrameTransportV1 } from "../workspace/brow
 import type {
   BrowserWorkspaceHostExportProgressWireV1,
   BrowserWorkspaceHostSnapshotWireV1,
+  BrowserWorkspaceHostStorageInspectionWireV1,
   BrowserWorkspaceVolumeAnchorWireV1,
   BrowserWorkspaceVolumeCandidateWireV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
@@ -67,6 +68,16 @@ export type BrowserProgramWorkspaceFatalV1 = BrowserWorkspaceHostFatalV1;
 export type BrowserProgramWorkspaceExportProgressV1 = BrowserWorkspaceHostExportProgressWireV1;
 export type BrowserProgramWorkspaceExportReadyV1 = BrowserWorkspaceHostExportReadyV1;
 export type BrowserProgramWorkspaceExportResultV1 = BrowserWorkspaceHostExportResultV1;
+
+export type BrowserProgramWorkspaceDataResetStateV1 =
+  | { readonly kind: "cleared" }
+  | { readonly kind: "retained" }
+  | { readonly kind: "failed"; readonly diagnosticCode: string };
+
+export interface BrowserProgramWorkspaceDataResetResultV1 {
+  readonly productRepository: BrowserProgramWorkspaceDataResetStateV1;
+  readonly workspaceVolumes: BrowserProgramWorkspaceDataResetStateV1;
+}
 
 export type BrowserProgramWorkspaceCreateInputV1 = Pick<
   ProgramRepositoryCreateInputV3,
@@ -148,6 +159,8 @@ export interface BrowserProgramWorkspaceAuthorityV1 {
   detachWorkspaceEnvironment(workspaceSessionId: string): Promise<void>;
   closeWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1>;
   closeActiveWorkspace(): Promise<BrowserWorkspaceHostSnapshotWireV1 | null>;
+  inspectStorage(): Promise<BrowserWorkspaceHostStorageInspectionWireV1>;
+  resetStoredData(): Promise<BrowserProgramWorkspaceDataResetResultV1>;
   subscribeFatal(listener: (fatal: BrowserProgramWorkspaceFatalV1) => void): () => void;
   dispose(): Promise<void>;
 }
@@ -1247,6 +1260,90 @@ export function createBrowserProgramWorkspaceAuthorityV1(
         const closed = await host.closeWorkspace(activeWorkspace.workspaceSessionId);
         activeWorkspace = null;
         return closed;
+      });
+    },
+
+    inspectStorage() {
+      return serializeV1(() => host.inspectStorage());
+    },
+
+    resetStoredData() {
+      return serializeV1(async () => {
+        if (activeWorkspace?.environmentAttached === true) {
+          return {
+            productRepository: { kind: "retained" },
+            workspaceVolumes: { kind: "failed", diagnosticCode: "workspace_busy" },
+          };
+        }
+
+        await initializeRepositoryV1();
+        try {
+          await repository.reset();
+        } catch (error) {
+          if (failureCodeV1(error) === "outcome_unknown") {
+            try {
+              await replaceRepositoryAfterUnknownV1();
+              // Repository reset is one physical transaction across all owned
+              // stores, so an empty catalog reconciles the unknown outcome.
+              const resetReconciled = (await repository.list()).length === 0;
+              if (!resetReconciled) {
+                return {
+                  productRepository: {
+                    kind: "failed",
+                    diagnosticCode: "repository_outcome_unknown",
+                  },
+                  workspaceVolumes: { kind: "retained" },
+                };
+              }
+            } catch {
+              return {
+                productRepository: {
+                  kind: "failed",
+                  diagnosticCode: "repository_outcome_unknown",
+                },
+                workspaceVolumes: { kind: "retained" },
+              };
+            }
+          } else {
+            return {
+              productRepository: {
+                kind: "failed",
+                diagnosticCode: failureCodeV1(error) ?? "repository_reset_failed",
+              },
+              workspaceVolumes: { kind: "retained" },
+            };
+          }
+        }
+
+        if (activeWorkspace !== null) {
+          try {
+            await host.closeWorkspace(activeWorkspace.workspaceSessionId);
+            activeWorkspace = null;
+          } catch (error) {
+            return {
+              productRepository: { kind: "cleared" },
+              workspaceVolumes: {
+                kind: "failed",
+                diagnosticCode: failureCodeV1(error) ?? "workspace_close_failed",
+              },
+            };
+          }
+        }
+        try {
+          await host.purgeAllWorkspaces();
+          return {
+            productRepository: { kind: "cleared" },
+            workspaceVolumes: { kind: "cleared" },
+          };
+        } catch (error) {
+          return {
+            productRepository: { kind: "cleared" },
+            workspaceVolumes: {
+              kind: "failed",
+              diagnosticCode: failureCodeV1(error) ?? "workspace_purge_failed",
+            },
+          };
+        }
       });
     },
 

@@ -19,12 +19,13 @@ export type CredentialVaultWorkerMethodV2 =
   | "use_device"
   | "unlock"
   | "lock"
+  | "reset"
   | "upsert"
   | "forget"
   | "handoff";
 
 export type CredentialVaultWorkerRequestRecordV2 =
-  | { readonly method: "initialize" | "list" | "use_device" | "lock" }
+  | { readonly method: "initialize" | "list" | "use_device" | "lock" | "reset" }
   | { readonly method: "set_password" | "unlock"; readonly passphrase: string }
   | {
     readonly method: "upsert";
@@ -65,7 +66,8 @@ type CredentialVaultListMethodV2 =
   | "set_password"
   | "use_device"
   | "unlock"
-  | "lock";
+  | "lock"
+  | "reset";
 
 export type CredentialVaultWorkerSuccessRecordV2 =
   | {
@@ -143,14 +145,14 @@ function isFailureCodeV2(value: unknown): value is CredentialVaultFailureCodeV2 
 function isMethodV2(value: unknown): value is CredentialVaultWorkerMethodV2 {
   return value === "initialize" || value === "list" || value === "set_password" ||
     value === "use_device" || value === "unlock" || value === "lock" ||
-    value === "upsert" || value === "forget" || value === "handoff";
+    value === "reset" || value === "upsert" || value === "forget" || value === "handoff";
 }
 
 function isListMethodV2(
   value: CredentialVaultWorkerMethodV2,
 ): value is CredentialVaultListMethodV2 {
   return value === "initialize" || value === "list" || value === "set_password" ||
-    value === "use_device" || value === "unlock" || value === "lock";
+    value === "use_device" || value === "unlock" || value === "lock" || value === "reset";
 }
 
 export function admitCredentialVaultWorkerRequestEnvelopeV2(
@@ -185,7 +187,8 @@ export function admitCredentialVaultWorkerRequestEnvelopeV2(
 
   let record: CredentialVaultWorkerRequestRecordV2;
   if (
-    method === "initialize" || method === "list" || method === "use_device" || method === "lock"
+    method === "initialize" || method === "list" || method === "use_device" || method === "lock" ||
+    method === "reset"
   ) {
     if (methodOnly?.method !== method) return null;
     record = { method };

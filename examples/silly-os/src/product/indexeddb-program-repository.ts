@@ -840,6 +840,27 @@ export function createIndexedDbProgramRepositoryV4(
       );
     },
 
+    async reset(): Promise<void> {
+      const operation = "reset" as const;
+      let transaction: IDBTransaction | undefined;
+      let completion: Promise<void> | undefined;
+      try {
+        const database = await getDatabaseV1(operation);
+        transaction = database.transaction(programRepositoryObjectStoreNamesV7, "readwrite");
+        completion = transactionCompletionV1(transaction);
+        void completion.catch(() => undefined);
+        await Promise.all(
+          programRepositoryObjectStoreNamesV7.map((storeName) =>
+            requestResultV1(transaction!.objectStore(storeName).clear())
+          ),
+        );
+        await completion;
+      } catch (error) {
+        await abortAfterFailureV1(transaction, completion);
+        throw mapFailureV1(error, operation);
+      }
+    },
+
     async dispose(): Promise<void> {
       if (disposed) return;
       disposed = true;

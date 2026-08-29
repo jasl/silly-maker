@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 
 import {
+  admitBrowserWorkspaceHostPurgeAllWorkspacesResultWireV1,
+  admitBrowserWorkspaceHostStorageInspectionWireV1,
   admitBrowserWorkspaceHostExportInboundMessageV1,
   admitBrowserWorkspaceHostControlRequestV1,
   admitBrowserWorkspaceHostEnvironmentRequestV1,
@@ -23,7 +25,9 @@ import {
   type BrowserWorkspaceHostFileErrorCodeV1,
   type BrowserWorkspaceHostFileErrorWireV1,
   type BrowserWorkspaceHostMutationReceiptWireV1,
+  type BrowserWorkspaceHostPurgeAllWorkspacesResultWireV1,
   type BrowserWorkspaceHostSnapshotWireV1,
+  type BrowserWorkspaceHostStorageInspectionWireV1,
   type BrowserWorkspaceVolumeAnchorWireV1,
   type BrowserWorkspaceVolumeCandidateWireV1,
   isBrowserWorkspaceHostNormalizedPathV1,
@@ -209,6 +213,12 @@ export interface BrowserWorkspaceHostBootstrapPortV1 {
   dispose(): Promise<void>;
 }
 
+/** Sandbox-owned, control-only storage management. It never crosses the Agent environment port. */
+export interface BrowserWorkspaceHostStorageManagementPortV1 {
+  inspectStorage(): Promise<BrowserWorkspaceHostStorageInspectionWireV1>;
+  purgeAllWorkspaces(): Promise<BrowserWorkspaceHostPurgeAllWorkspacesResultWireV1>;
+}
+
 export interface BrowserWorkspaceHostMessagePortV1 {
   postMessage(message: unknown): void;
   addEventListener(
@@ -275,6 +285,7 @@ export class BrowserWorkspaceHostCleanupErrorV1 extends BrowserWorkspaceHostStor
 
 export interface BrowserWorkspaceHostRuntimeOptionsV1 {
   readonly bootstrap: BrowserWorkspaceHostBootstrapPortV1;
+  readonly storageManagement?: BrowserWorkspaceHostStorageManagementPortV1;
   readonly postControlMessage: (message: BrowserWorkspaceHostControlOutboundMessageV1) => void;
   /**
    * Sandbox-owned executable shell adapter. The neutral Host runtime never
@@ -2839,6 +2850,71 @@ export function createBrowserWorkspaceHostRuntimeV1(
     ) {
       closeTransferredPorts(transferredPorts);
       controlFailure(requestId, "invalid_request");
+      return;
+    }
+    if (record.method === "inspect_storage") {
+      try {
+        if (options.storageManagement === undefined) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "storage_unavailable",
+            "Workspace storage inspection is unavailable",
+          );
+        }
+        const storage = admitBrowserWorkspaceHostStorageInspectionWireV1(
+          await options.storageManagement.inspectStorage(),
+        );
+        if (storage === null) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace storage inspection returned an invalid result",
+          );
+        }
+        postControl({
+          revision: 1,
+          kind: "control_response",
+          requestId,
+          ok: true,
+          response: { method: "inspect_storage", storage },
+        });
+      } catch (error) {
+        controlFailure(requestId, storageFailureCodeV1(error));
+      }
+      return;
+    }
+    if (record.method === "purge_all_workspaces") {
+      if (
+        currentOpenSession !== null || sessions.size !== 0 || candidateAnchors.size !== 0 ||
+        receiptTombstones.size !== 0
+      ) {
+        controlFailure(requestId, "workspace_busy");
+        return;
+      }
+      try {
+        if (options.storageManagement === undefined) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "storage_unavailable",
+            "Workspace storage purge is unavailable",
+          );
+        }
+        const result = admitBrowserWorkspaceHostPurgeAllWorkspacesResultWireV1(
+          await options.storageManagement.purgeAllWorkspaces(),
+        );
+        if (result === null) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace storage purge returned an invalid result",
+          );
+        }
+        postControl({
+          revision: 1,
+          kind: "control_response",
+          requestId,
+          ok: true,
+          response: { method: "purge_all_workspaces", result },
+        });
+      } catch (error) {
+        controlFailure(requestId, storageFailureCodeV1(error));
+      }
       return;
     }
     if (record.method === "create_candidate") {

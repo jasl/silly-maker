@@ -11,8 +11,8 @@ import {
   browserWorkspaceHostIoBytesInFlightMaximumV1,
   browserWorkspaceHostIoChunkMaximumBytesV1,
   createBrowserWorkspaceHostOpfsBootstrapV1,
-  type BrowserWorkspaceHostExclusiveLeaseV1,
-  type BrowserWorkspaceHostExclusiveLockPortV1,
+  type BrowserWorkspaceHostLockLeaseV1,
+  type BrowserWorkspaceHostLockPortV1,
 } from "../workspace/browser-workspace-host-opfs.ts";
 import {
   BrowserWorkspaceHostCleanupErrorV1,
@@ -200,21 +200,32 @@ class FakeDirectoryV1 {
   }
 }
 
-class FakeLockPortV1 implements BrowserWorkspaceHostExclusiveLockPortV1 {
-  private readonly held = new Set<string>();
+class FakeLockPortV1 implements BrowserWorkspaceHostLockPortV1 {
+  private readonly held = new Map<string, { exclusive: boolean; shared: number }>();
 
   async acquire(
     name: string,
-    _options: { readonly ifAvailable: boolean },
-  ): Promise<BrowserWorkspaceHostExclusiveLeaseV1 | null> {
-    if (this.held.has(name)) return null;
-    this.held.add(name);
+    options: {
+      readonly mode?: "exclusive" | "shared";
+      readonly ifAvailable: boolean;
+    },
+  ): Promise<BrowserWorkspaceHostLockLeaseV1 | null> {
+    const mode = options.mode ?? "exclusive";
+    const current = this.held.get(name) ?? { exclusive: false, shared: 0 };
+    if (current.exclusive || (mode === "exclusive" && current.shared !== 0)) return null;
+    if (mode === "exclusive") current.exclusive = true;
+    else current.shared += 1;
+    this.held.set(name, current);
     let released = false;
     return {
       release: async () => {
         if (released) return;
         released = true;
-        this.held.delete(name);
+        const held = this.held.get(name);
+        if (held === undefined) return;
+        if (mode === "exclusive") held.exclusive = false;
+        else held.shared -= 1;
+        if (!held.exclusive && held.shared === 0) this.held.delete(name);
       },
     };
   }
@@ -382,6 +393,215 @@ async function openedOpfsV1(volumeId: string): Promise<{
 }
 
 describe("SillyOS Browser Workspace OPFS bootstrap", () => {
+  it("reports advisory origin storage and purges only its private root idempotently", async () => {
+    const root = new FakeDirectoryV1("root");
+    const lockPort = new FakeLockPortV1();
+    await root.handle().getDirectoryHandle("unrelated-origin-data", { create: true });
+    const bootstrap = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => root.handle(),
+      lockPort,
+      createVolumeId: () => "volume.storage-management.1",
+      createInitialCheckpointId: () => "checkpoint.storage-management.1",
+      estimateStorage: async () => ({ usage: 128, quota: 512 }),
+      persistedStorage: async () => true,
+    });
+    await expect(bootstrap.inspectStorage()).resolves.toEqual({
+      revision: 1,
+      scope: "sandbox_origin_advisory",
+      persisted: true,
+      usageBytes: 128,
+      quotaBytes: 512,
+    });
+
+    const candidate = await bootstrap.createCandidate({
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.1",
+    });
+    await expect(bootstrap.purgeAllWorkspaces()).rejects.toMatchObject({
+      code: "workspace_busy",
+    });
+    await bootstrap.discardCandidate(candidate.anchor.volumeId);
+    await expect(bootstrap.purgeAllWorkspaces()).resolves.toEqual({
+      revision: 1,
+      kind: "purged",
+    });
+    await expect(
+      root.handle().getDirectoryHandle(".sillyos-workspace-host-v1"),
+    ).rejects.toMatchObject({ name: "NotFoundError" });
+    await expect(root.handle().getDirectoryHandle("unrelated-origin-data")).resolves.toBeDefined();
+    await expect(bootstrap.purgeAllWorkspaces()).resolves.toEqual({
+      revision: 1,
+      kind: "purged",
+    });
+    await bootstrap.dispose();
+  });
+
+  it("uses a cross-Host maintenance lease to reject purge while another tab owns a workspace", async () => {
+    const root = new FakeDirectoryV1("root");
+    const lockPort = new FakeLockPortV1();
+    const first = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => root.handle(),
+      lockPort,
+      createVolumeId: () => "volume.cross-tab.1",
+      createInitialCheckpointId: () => "checkpoint.cross-tab.1",
+    });
+    const second = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => root.handle(),
+      lockPort,
+    });
+    const candidate = await first.createCandidate({
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.1",
+    });
+    await expect(second.purgeAllWorkspaces()).rejects.toMatchObject({
+      code: "volume_busy",
+    });
+    const lease = await first.openVolume(candidate.anchor);
+    await expect(second.purgeAllWorkspaces()).rejects.toMatchObject({
+      code: "volume_busy",
+    });
+    await lease.close();
+    await expect(second.purgeAllWorkspaces()).resolves.toEqual({
+      revision: 1,
+      kind: "purged",
+    });
+    await first.dispose();
+    await second.dispose();
+  });
+
+  it("keeps different Program volumes independent while retaining same-volume and purge fences", async () => {
+    const root = new FakeDirectoryV1("root");
+    const lockPort = new FakeLockPortV1();
+    const first = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => root.handle(),
+      lockPort,
+      createVolumeId: () => "volume.multi-tab.first.1",
+      createInitialCheckpointId: () => "checkpoint.multi-tab.first.1",
+    });
+    const second = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => root.handle(),
+      lockPort,
+      createVolumeId: () => "volume.multi-tab.second.1",
+      createInitialCheckpointId: () => "checkpoint.multi-tab.second.1",
+    });
+    const purger = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => root.handle(),
+      lockPort,
+    });
+    const [firstCandidate, secondCandidate] = await Promise.all([
+      first.createCandidate({
+        programId: "program.multi-tab.first.1",
+        workspaceId: "workspace.multi-tab.first.1",
+      }),
+      second.createCandidate({
+        programId: "program.multi-tab.second.1",
+        workspaceId: "workspace.multi-tab.second.1",
+      }),
+    ]);
+    const [firstLease, secondLease] = await Promise.all([
+      first.openVolume(firstCandidate.anchor),
+      second.openVolume(secondCandidate.anchor),
+    ]);
+
+    const firstBytes = new TextEncoder().encode("first Program volume");
+    const secondBytes = new TextEncoder().encode("second Program volume");
+    const [firstHead, secondHead] = await Promise.all([
+      firstLease.readHead(),
+      secondLease.readHead(),
+    ]);
+    await Promise.all([
+      firstLease.replaceFile(
+        replaceInputV1(firstHead, firstBytes, "checkpoint.multi-tab.first.2"),
+      ),
+      secondLease.replaceFile(
+        replaceInputV1(secondHead, secondBytes, "checkpoint.multi-tab.second.2"),
+      ),
+    ]);
+    await expect(Promise.all([
+      readWorkspaceFileV1(firstLease, "program.md"),
+      readWorkspaceFileV1(secondLease, "program.md"),
+    ])).resolves.toEqual([firstBytes, secondBytes]);
+
+    await expect(second.openVolume(firstCandidate.anchor)).rejects.toMatchObject({
+      code: "volume_busy",
+    });
+    await expect(purger.purgeAllWorkspaces()).rejects.toMatchObject({
+      code: "volume_busy",
+    });
+    await firstLease.close();
+    await expect(purger.purgeAllWorkspaces()).rejects.toMatchObject({
+      code: "volume_busy",
+    });
+    await secondLease.close();
+    await expect(purger.purgeAllWorkspaces()).resolves.toEqual({
+      revision: 1,
+      kind: "purged",
+    });
+
+    await first.dispose();
+    await second.dispose();
+    await purger.dispose();
+  });
+
+  it("fences cross-tab create and cold open while purge owns the maintenance lease", async () => {
+    const root = new FakeDirectoryV1("root");
+    const lockPort = new FakeLockPortV1();
+    const seed = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => root.handle(),
+      lockPort,
+      createVolumeId: () => "volume.before-purge.1",
+      createInitialCheckpointId: () => "checkpoint.before-purge.1",
+    });
+    const { anchor } = await seed.createCandidate({
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.1",
+    });
+    await seed.dispose();
+
+    let releasePurge!: () => void;
+    const purgeGate = new Promise<void>((resolve) => {
+      releasePurge = resolve;
+    });
+    let markPurgeEntered!: () => void;
+    const purgeEntered = new Promise<void>((resolve) => {
+      markPurgeEntered = resolve;
+    });
+    const purger = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => {
+        markPurgeEntered();
+        await purgeGate;
+        return root.handle();
+      },
+      lockPort,
+    });
+    const competing = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => root.handle(),
+      lockPort,
+      createVolumeId: () => "volume.after-purge.1",
+      createInitialCheckpointId: () => "checkpoint.after-purge.1",
+    });
+
+    const purge = purger.purgeAllWorkspaces();
+    await purgeEntered;
+    await expect(competing.openVolume(anchor)).rejects.toMatchObject({
+      code: "workspace_busy",
+    });
+    await expect(competing.createCandidate({
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.2",
+    })).rejects.toMatchObject({ code: "workspace_busy" });
+    releasePurge();
+    await expect(purge).resolves.toEqual({ revision: 1, kind: "purged" });
+
+    const next = await competing.createCandidate({
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.2",
+    });
+    await competing.discardCandidate(next.anchor.volumeId);
+    await competing.dispose();
+    await purger.dispose();
+  });
+
   it("stages bounded download chunks privately and replays them through replaceFile", async () => {
     const opened = await openedOpfsV1("volume.download-stage.1");
     const signal = new AbortController().signal;

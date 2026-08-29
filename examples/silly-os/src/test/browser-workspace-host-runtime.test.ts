@@ -23,6 +23,7 @@ import {
   type BrowserWorkspaceHostReplaceFileInputV1,
   type BrowserWorkspaceHostReplaceFileResultV1,
   type BrowserWorkspaceHostRuntimeOptionsV1,
+  type BrowserWorkspaceHostStorageManagementPortV1,
   type BrowserWorkspaceHostVolumeLeasePortV1,
 } from "../workspace/browser-workspace-host-runtime.ts";
 import {
@@ -448,9 +449,11 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   }
 }
 
-class FakeBootstrapV1 implements BrowserWorkspaceHostBootstrapPortV1 {
+class FakeBootstrapV1
+  implements BrowserWorkspaceHostBootstrapPortV1, BrowserWorkspaceHostStorageManagementPortV1 {
   readonly volumes = new Map<string, FakeVolumeV1>();
   readonly discardedVolumeIds: string[] = [];
+  purgeCalls = 0;
   private nextVolumeId = 1;
 
   async createCandidate(input: {
@@ -519,6 +522,22 @@ class FakeBootstrapV1 implements BrowserWorkspaceHostBootstrapPortV1 {
     const volume = this.volumes.get(anchor.volumeId);
     if (volume === undefined) throw new Error("missing fake volume");
     return new FakeLeaseV1(anchor, volume);
+  }
+
+  async inspectStorage() {
+    return {
+      revision: 1,
+      scope: "sandbox_origin_advisory",
+      persisted: true,
+      usageBytes: 128,
+      quotaBytes: 512,
+    } as const;
+  }
+
+  async purgeAllWorkspaces() {
+    this.purgeCalls += 1;
+    this.volumes.clear();
+    return { revision: 1, kind: "purged" } as const;
   }
 
   async dispose(): Promise<void> {}
@@ -700,6 +719,78 @@ async function openDownloadWorkspaceV1(workspaceSessionId: string) {
 }
 
 describe("SillyOS Browser Workspace Host runtime", () => {
+  it("reports advisory Sandbox storage and purges idempotently only while idle", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      storageManagement: bootstrap,
+      postControlMessage: (message) => controls.push(message),
+    });
+
+    await runtime.receiveControl(controlRequestV1(1, { method: "inspect_storage" }));
+    expect(lastV1(controls)).toMatchObject({
+      ok: true,
+      response: {
+        method: "inspect_storage",
+        storage: {
+          scope: "sandbox_origin_advisory",
+          persisted: true,
+          usageBytes: 128,
+          quotaBytes: 512,
+        },
+      },
+    });
+    for (const requestId of [2, 3]) {
+      await runtime.receiveControl(controlRequestV1(requestId, {
+        method: "purge_all_workspaces",
+      }));
+      expect(lastV1(controls)).toMatchObject({
+        ok: true,
+        response: { method: "purge_all_workspaces", result: { kind: "purged" } },
+      });
+    }
+    expect(bootstrap.purgeCalls).toBe(2);
+
+    await runtime.receiveControl(controlRequestV1(4, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    await runtime.receiveControl(controlRequestV1(5, { method: "purge_all_workspaces" }));
+    expect(lastV1(controls)).toMatchObject({ ok: false, code: "workspace_busy" });
+    expect(bootstrap.purgeCalls).toBe(2);
+
+    const created = controls.at(-2);
+    if (created?.kind !== "control_response" || !created.ok) {
+      throw new Error("expected candidate response");
+    }
+    if (created.response.method !== "create_candidate") {
+      throw new Error("expected candidate response method");
+    }
+    await runtime.receiveControl(controlRequestV1(6, {
+      method: "open_workspace",
+      anchor: created.response.candidate.anchor,
+    }));
+    const opened = lastV1(controls);
+    if (!opened.ok || !("snapshot" in opened.response)) {
+      throw new Error("expected open workspace response");
+    }
+    await runtime.receiveControl(controlRequestV1(7, { method: "purge_all_workspaces" }));
+    expect(lastV1(controls)).toMatchObject({ ok: false, code: "workspace_busy" });
+    await runtime.receiveControl(controlRequestV1(8, {
+      method: "close_workspace",
+      workspaceSessionId: opened.response.snapshot.descriptor.workspaceSessionId,
+    }));
+    await runtime.receiveControl(controlRequestV1(9, { method: "purge_all_workspaces" }));
+    expect(lastV1(controls)).toMatchObject({
+      ok: true,
+      response: { method: "purge_all_workspaces" },
+    });
+    expect(bootstrap.purgeCalls).toBe(3);
+    await runtime.dispose();
+  });
+
   it("stages Broker chunks before publishing one current download mutation", async () => {
     const opened = await openDownloadWorkspaceV1("workspace-session.download");
     const sink = new FakeMessagePortV1();

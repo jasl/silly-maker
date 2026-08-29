@@ -372,6 +372,30 @@ export function createCredentialVaultWorkerRuntimeV2(input: {
         postV2(requestId, { kind: "success", method: "lock", value: await listV2() });
         return;
       }
+      if (record.method === "reset") {
+        await ensureInitializedV2();
+        const expectedGenerationToken = generationTokenV2;
+        if (expectedGenerationToken === null) {
+          throw new CredentialVaultRuntimeFailureV2("invalid_state");
+        }
+        // Reset is usable while Password protection is locked. Retain only the
+        // current in-memory key, when one exists, while invalidating every
+        // pending handoff before creating or committing the replacement Vault.
+        invalidateUnlockedStateV2(unlockedKeyV2);
+        const key = await cryptoV2.generateDeviceKey();
+        const verifier = await cryptoV2.encryptVerifier(key);
+        const header = storedDeviceHeaderV2(
+          cryptoV2.randomGenerationToken(),
+          key,
+          verifier,
+        );
+        await input.repository.reset(expectedGenerationToken, header);
+        protectionV2 = "device";
+        generationTokenV2 = header.generationToken;
+        invalidateUnlockedStateV2(key);
+        postV2(requestId, { kind: "success", method: "reset", value: await listV2() });
+        return;
+      }
       if (record.method === "upsert") {
         await ensureInitializedV2();
         if (unlockedKeyV2 === null) throw new CredentialVaultRuntimeFailureV2("locked");

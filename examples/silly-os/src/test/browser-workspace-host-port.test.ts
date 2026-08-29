@@ -8,8 +8,8 @@ import {
   type BrowserWorkspaceHostExportReadyV1,
 } from "../workspace/browser-workspace-host-port.ts";
 import type {
-  BrowserWorkspaceHostExclusiveLeaseV1,
-  BrowserWorkspaceHostExclusiveLockPortV1,
+  BrowserWorkspaceHostLockLeaseV1,
+  BrowserWorkspaceHostLockPortV1,
 } from "../workspace/browser-workspace-host-opfs.ts";
 import type { ProgramWorkspaceSnapshotReceiptV1 } from "../workspace/contracts.ts";
 
@@ -90,7 +90,20 @@ class FakeWorkerV1 {
     const exactRetained = this.retainedSnapshot?.snapshotId === expected?.snapshotId;
     const adoptResult = exactPrepared ? "adopted" : "already_retained";
     const discardResult = exactPrepared ? "discarded" : exactRetained ? "retained" : "absent";
-    const response = method === "create_candidate"
+    const response = method === "inspect_storage"
+      ? {
+        method,
+        storage: {
+          revision: 1,
+          scope: "sandbox_origin_advisory",
+          persisted: true,
+          usageBytes: 128,
+          quotaBytes: 512,
+        },
+      }
+      : method === "purge_all_workspaces"
+      ? { method, result: { revision: 1, kind: "purged" } }
+      : method === "create_candidate"
       ? {
         method,
         candidate: {
@@ -205,12 +218,12 @@ class FakeWorkerV1 {
   }
 }
 
-class FakeBootstrapLockPortV1 implements BrowserWorkspaceHostExclusiveLockPortV1 {
+class FakeBootstrapLockPortV1 implements BrowserWorkspaceHostLockPortV1 {
   active = false;
   acquisitions = 0;
   releases = 0;
 
-  async acquire(): Promise<BrowserWorkspaceHostExclusiveLeaseV1> {
+  async acquire(): Promise<BrowserWorkspaceHostLockLeaseV1> {
     this.active = true;
     this.acquisitions += 1;
     return {
@@ -247,6 +260,38 @@ function exportInputV1(
 }
 
 describe("SillyOS Browser Workspace Host page port", () => {
+  it("round-trips typed storage management and distinguishes read loss from purge uncertainty", async () => {
+    const worker = new FakeWorkerV1();
+    const port = createBrowserWorkspaceHostPagePortV1({ transport: worker });
+    await expect(port.inspectStorage()).resolves.toEqual({
+      revision: 1,
+      scope: "sandbox_origin_advisory",
+      persisted: true,
+      usageBytes: 128,
+      quotaBytes: 512,
+    });
+    await expect(port.purgeAllWorkspaces()).resolves.toEqual({
+      revision: 1,
+      kind: "purged",
+    });
+    expect(worker.methods).toEqual(["inspect_storage", "purge_all_workspaces"]);
+    port.dispose();
+
+    const lostReadWorker = new FakeWorkerV1();
+    lostReadWorker.dropMethods.add("inspect_storage");
+    const lostReadPort = createBrowserWorkspaceHostPagePortV1({ transport: lostReadWorker });
+    const lostRead = lostReadPort.inspectStorage();
+    lostReadWorker.fail("error");
+    await expect(lostRead).rejects.toMatchObject({ code: "unavailable" });
+
+    const lostPurgeWorker = new FakeWorkerV1();
+    lostPurgeWorker.dropMethods.add("purge_all_workspaces");
+    const lostPurgePort = createBrowserWorkspaceHostPagePortV1({ transport: lostPurgeWorker });
+    const lostPurge = lostPurgePort.purgeAllWorkspaces();
+    lostPurgeWorker.fail("error");
+    await expect(lostPurge).rejects.toMatchObject({ code: "outcome_unknown" });
+  });
+
   it("holds the exact page bootstrap lease across candidate creation, external CAS work, and open", async () => {
     const worker = new FakeWorkerV1();
     const lockPort = new FakeBootstrapLockPortV1();

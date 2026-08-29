@@ -25,6 +25,7 @@ import type {
   ProgramProposalV1,
 } from "../product/contracts.ts";
 import { SillyButtonV1 as Button, SillyTabsV1 as Tabs } from "./controls.tsx";
+import { formatStorageBytesV1 } from "./storage-format.ts";
 
 export type WorkpieceTabV1 = "view" | "source" | "capabilities" | "activity";
 
@@ -818,20 +819,6 @@ export function shouldOfferBrowserWorkspacePersistenceV1(input: {
     (input.workspace.descriptor?.generation ?? 0) > 1 &&
     input.storage.phase === "available" && !input.storage.persisted &&
     input.storage.persistenceRequest === "idle";
-}
-
-function formatStorageBytesV1(bytes: number, locale: SillyOsCopyV1["locale"]): string {
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"] as const;
-  let value = bytes;
-  let unitIndex = 0;
-  while (value >= 1_024 && unitIndex < units.length - 1) {
-    value /= 1_024;
-    unitIndex += 1;
-  }
-  const maximumFractionDigits = value >= 10 || unitIndex === 0 ? 0 : 1;
-  return `${new Intl.NumberFormat(locale, { maximumFractionDigits }).format(value)} ${
-    units[unitIndex]
-  }`;
 }
 
 function browserStorageEstimateCopyV1(

@@ -333,6 +333,13 @@ describe("Browser ProgramRepositoryV3 Worker V6 boundary", () => {
     });
     await expect(repository.loadWorkspaceContinuation(fixture.program.programId)).resolves
       .toMatchObject({ programRevision: 2, repositoryRevision: 2 });
+    await expect(repository.reset()).resolves.toBeUndefined();
+    await expect(repository.list()).resolves.toEqual([]);
+    await expect(repository.load(fixture.program.programId)).resolves.toBeNull();
+    await expect(repository.loadWorkspaceContinuation(fixture.program.programId)).resolves
+      .toBeNull();
+    await expect(repository.loadProgramNetworkAccess(fixture.program.programId)).resolves
+      .toBeNull();
     await repository.dispose();
 
     expect(worker.terminated).toBe(true);

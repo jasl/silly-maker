@@ -131,6 +131,16 @@ describe("SillyOS Browser Workspace Host protocol", () => {
   });
 
   it("admits exact candidate, generation-free anchor open, discard, and attach requests", () => {
+    for (const method of ["inspect_storage", "purge_all_workspaces"] as const) {
+      expect(
+        admitBrowserWorkspaceHostControlRequestV1(controlRequestV1({ method })),
+      ).toMatchObject({ record: { method } });
+      expect(
+        admitBrowserWorkspaceHostControlRequestV1(
+          controlRequestV1({ method, extra: "forbidden" }),
+        ),
+      ).toBeNull();
+    }
     expect(
       admitBrowserWorkspaceHostControlRequestV1(
         controlRequestV1({
@@ -610,6 +620,67 @@ describe("SillyOS Browser Workspace Host protocol", () => {
           response("discard_snapshot", { result, snapshotId: "snapshot.preview.1" }),
         ),
       ).toMatchObject({ response: { method: "discard_snapshot", result } });
+    }
+  });
+
+  it("admits only exact Sandbox-origin storage inspection and purge responses", () => {
+    const response = (method: string, value: Record<string, unknown>) => ({
+      revision: 1,
+      kind: "control_response",
+      requestId: 3,
+      ok: true,
+      response: { method, ...value },
+    });
+    expect(
+      admitBrowserWorkspaceHostControlOutboundMessageV1(
+        response("inspect_storage", {
+          storage: {
+            revision: 1,
+            scope: "sandbox_origin_advisory",
+            persisted: true,
+            usageBytes: 128,
+            quotaBytes: 512,
+          },
+        }),
+      ),
+    ).toMatchObject({
+      response: {
+        method: "inspect_storage",
+        storage: { persisted: true, usageBytes: 128, quotaBytes: 512 },
+      },
+    });
+    expect(
+      admitBrowserWorkspaceHostControlOutboundMessageV1(
+        response("purge_all_workspaces", { result: { revision: 1, kind: "purged" } }),
+      ),
+    ).toMatchObject({ response: { method: "purge_all_workspaces" } });
+    for (
+      const storage of [
+        {
+          revision: 1,
+          scope: "sandbox_origin_advisory",
+          persisted: false,
+          usageBytes: -1,
+        },
+        {
+          revision: 1,
+          scope: "sandbox_origin_advisory",
+          persisted: false,
+          quotaBytes: 1.5,
+        },
+        {
+          revision: 1,
+          scope: "sandbox_origin_advisory",
+          persisted: false,
+          managedBytes: 0,
+        },
+      ]
+    ) {
+      expect(
+        admitBrowserWorkspaceHostControlOutboundMessageV1(
+          response("inspect_storage", { storage }),
+        ),
+      ).toBeNull();
     }
   });
 

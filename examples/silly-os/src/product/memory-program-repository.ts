@@ -353,6 +353,13 @@ export function createMemoryProgramRepositoryV3(input: {
       return { ...result, aggregate: cloneProgramRepositoryAggregateV3(result.aggregate) };
     },
 
+    async reset(): Promise<void> {
+      assertAvailableV1("reset");
+      backing.programs.clear();
+      backing.workspaceContinuations.clear();
+      backing.programNetworkAccess.clear();
+    },
+
     async dispose(): Promise<void> {
       disposed = true;
     },

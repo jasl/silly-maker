@@ -43,6 +43,7 @@ export type ProgramRepositoryWorkerMethodV6 =
   | "settle_agent_run"
   | "decide"
   | "set_program_network_access"
+  | "reset"
   | "dispose";
 
 export type ProgramRepositoryWorkerRequestV6 =
@@ -65,6 +66,7 @@ export type ProgramRepositoryWorkerRequestV6 =
     readonly method: "set_program_network_access";
     readonly input: ProgramNetworkAccessMutationV1;
   }
+  | { readonly method: "reset" }
   | { readonly method: "dispose" };
 
 export interface ProgramRepositoryWorkerRequestEnvelopeV6 {
@@ -106,7 +108,11 @@ export type ProgramRepositoryWorkerSuccessV6 =
     readonly method: "set_program_network_access";
     readonly value: ProgramNetworkAccessMutationResultV1;
   }
-  | { readonly kind: "success"; readonly method: "dispose"; readonly value: null };
+  | {
+    readonly kind: "success";
+    readonly method: "reset" | "dispose";
+    readonly value: null;
+  };
 
 export interface ProgramRepositoryWorkerFailureV6 {
   readonly kind: "failure";
@@ -180,7 +186,8 @@ function admitRequestRecordV4(
   const unit = exactRecordV4(value, ["method"]);
   if (
     unit !== null &&
-    (unit.method === "initialize" || unit.method === "list" || unit.method === "dispose")
+    (unit.method === "initialize" || unit.method === "list" || unit.method === "reset" ||
+      unit.method === "dispose")
   ) {
     return admittedV4({ method: unit.method });
   }
@@ -262,7 +269,7 @@ function admitSuccessValueV4(
   method: ProgramRepositoryWorkerMethodV6,
   value: unknown,
 ): ProgramRepositoryAdmissionResultV3<ProgramRepositoryWorkerSuccessV6> {
-  if (method === "initialize" || method === "dispose") {
+  if (method === "initialize" || method === "reset" || method === "dispose") {
     return value === null
       ? admittedV4({ kind: "success", method, value: null })
       : rejectedV4("/record/value");

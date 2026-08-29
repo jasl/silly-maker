@@ -114,6 +114,28 @@ export interface SillyOsCopyV1 {
   readonly settingsGeneralDescription: string;
   readonly settingsLanguage: string;
   readonly settingsLanguageDescription: string;
+  readonly settingsDataManagement: string;
+  readonly settingsDataManagementDescription: string;
+  readonly settingsStorageSillyOsData: string;
+  readonly settingsStorageSillyOsDataDescription: string;
+  readonly settingsStorageWorkspaceData: string;
+  readonly settingsStorageWorkspaceDataDescription: string;
+  readonly settingsStorageChecking: string;
+  readonly settingsStorageUnavailable: string;
+  readonly settingsStorageUsageUnavailable: string;
+  readonly settingsStorageQuota: string;
+  readonly settingsStorageReportedTotal: string;
+  readonly settingsStorageAdvisory: string;
+  readonly settingsStorageRefresh: string;
+  readonly settingsClearAllTitle: string;
+  readonly settingsClearAllDescription: string;
+  readonly settingsClearAllAction: string;
+  readonly settingsClearAllConfirmTitle: string;
+  readonly settingsClearAllConfirmDescription: string;
+  readonly settingsClearAllConfirmWarning: string;
+  readonly settingsClearAllCancel: string;
+  readonly settingsClearingAll: string;
+  readonly settingsClearAllFailed: string;
   readonly providerSettingsTitle: string;
   readonly providerSettingsDescription: string;
   readonly providersLabel: string;
@@ -339,6 +361,33 @@ const englishV1: SillyOsCopyV1 = {
   settingsGeneralDescription: "Product-wide preferences for this browser.",
   settingsLanguage: "Language",
   settingsLanguageDescription: "Choose the language used by SillyOS controls and product copy.",
+  settingsDataManagement: "Data management",
+  settingsDataManagementDescription:
+    "Review advisory storage estimates or remove this SillyOS installation's local data.",
+  settingsStorageSillyOsData: "SillyOS data",
+  settingsStorageSillyOsDataDescription: "Product, preferences, and Credential Vault origin",
+  settingsStorageWorkspaceData: "Workspace data",
+  settingsStorageWorkspaceDataDescription: "Independent Workspace Sandbox origin",
+  settingsStorageChecking: "Checking…",
+  settingsStorageUnavailable: "Estimate unavailable",
+  settingsStorageUsageUnavailable: "Usage not reported",
+  settingsStorageQuota: "Quota",
+  settingsStorageReportedTotal: "Reported total",
+  settingsStorageAdvisory:
+    "Browser estimates are advisory and origin-wide. Quotas are not fixed limits and cannot be added together.",
+  settingsStorageRefresh: "Refresh usage",
+  settingsClearAllTitle: "Clear all local data",
+  settingsClearAllDescription:
+    "Remove Programs, preferences, Provider keys, and every Workspace volume stored by this SillyOS installation.",
+  settingsClearAllAction: "Clear all data",
+  settingsClearAllConfirmTitle: "Clear all SillyOS data?",
+  settingsClearAllConfirmDescription:
+    "This removes Programs, preferences, Provider credentials, and Workspace files from this browser. Other open SillyOS tabs return to Home. This cannot be undone.",
+  settingsClearAllConfirmWarning:
+    "If one storage authority is busy or unavailable, the remaining data may need another clear attempt.",
+  settingsClearAllCancel: "Cancel",
+  settingsClearingAll: "Clearing…",
+  settingsClearAllFailed: "Some local data could not be cleared. Close this dialog and try again.",
   providerSettingsTitle: "Providers",
   providerSettingsDescription: "Choose built-in models or add a custom HTTPS endpoint.",
   providersLabel: "Model Providers",
@@ -597,6 +646,32 @@ const chineseV1: SillyOsCopyV1 = {
   settingsGeneralDescription: "此浏览器中的产品级偏好设置。",
   settingsLanguage: "语言",
   settingsLanguageDescription: "选择 SillyOS 控件和产品文案使用的语言。",
+  settingsDataManagement: "数据管理",
+  settingsDataManagementDescription: "查看浏览器估算的空间用量，或清除此 SillyOS 安装的本地数据。",
+  settingsStorageSillyOsData: "SillyOS 数据",
+  settingsStorageSillyOsDataDescription: "产品、偏好设置与凭据保险库所在来源",
+  settingsStorageWorkspaceData: "Workspace 数据",
+  settingsStorageWorkspaceDataDescription: "独立 Workspace Sandbox 所在来源",
+  settingsStorageChecking: "正在检查…",
+  settingsStorageUnavailable: "无法获取估算",
+  settingsStorageUsageUnavailable: "未报告已用空间",
+  settingsStorageQuota: "配额",
+  settingsStorageReportedTotal: "已报告用量合计",
+  settingsStorageAdvisory:
+    "浏览器提供的是按来源统计的参考估算。配额不是固定上限，也不能跨来源相加。",
+  settingsStorageRefresh: "刷新用量",
+  settingsClearAllTitle: "清空所有本地数据",
+  settingsClearAllDescription:
+    "删除此 SillyOS 安装保存的 Program、偏好设置、Provider 密钥和所有 Workspace 卷。",
+  settingsClearAllAction: "清空所有数据",
+  settingsClearAllConfirmTitle: "清空所有 SillyOS 数据？",
+  settingsClearAllConfirmDescription:
+    "此操作将从该浏览器删除 Program、偏好设置、Provider 凭据和 Workspace 文件；其他已打开的 SillyOS 标签页将回到主页。此操作无法撤销。",
+  settingsClearAllConfirmWarning:
+    "如果某个存储边界正忙或不可用，可能需要再次执行清空操作来删除剩余数据。",
+  settingsClearAllCancel: "取消",
+  settingsClearingAll: "正在清空…",
+  settingsClearAllFailed: "部分本地数据未能清空。关闭此对话框后再试一次。",
   providerSettingsTitle: "Provider",
   providerSettingsDescription: "选择预设模型，或添加自定义 HTTPS Endpoint。",
   providersLabel: "模型 Provider",

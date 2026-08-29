@@ -120,8 +120,10 @@ workerScope.addEventListener("message", (event) => {
   }
 
   bound = true;
+  const workspaceStorage = createBrowserWorkspaceHostOpfsBootstrapV1();
   const runtime = createBrowserWorkspaceHostRuntimeV1({
-    bootstrap: createBrowserWorkspaceHostOpfsBootstrapV1(),
+    bootstrap: workspaceStorage,
+    storageManagement: workspaceStorage,
     loadShellRuntime: loadWorkspaceSandboxShellRuntimeV1,
     startDownload: createWorkspaceSandboxDownloadBrokerV1(downloadPort),
     postControlMessage(message) {

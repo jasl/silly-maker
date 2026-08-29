@@ -126,6 +126,12 @@ export function createProgramRepositoryWorkerRuntimeV6(input: {
         postV4(requestId, method, { kind: "success", method, value });
         return;
       }
+      if (method === "reset") {
+        await input.repository.reset();
+        repositorySettled = true;
+        postV4(requestId, method, { kind: "success", method, value: null });
+        return;
+      }
       await input.repository.dispose();
       repositorySettled = true;
       postV4(requestId, method, { kind: "success", method, value: null });

@@ -371,6 +371,31 @@ for (
       await reopened.dispose();
     });
 
+    it("resets Programs, Workspace continuations, and network access as one reusable repository", async () => {
+      const harness = createHarness();
+      const repository = harness.open();
+      const fixture = createProgramFixtureV1(`workspace.${name.toLowerCase()}.reset`);
+      const programId = requireCurrentProgramV1(fixture.initial).program.programId;
+
+      await repository.create(createInputV1(fixture, 100));
+      await repository.setProgramNetworkAccess({ programId, enabled: true });
+      await repository.reset();
+
+      await expect(repository.list()).resolves.toEqual([]);
+      await expect(repository.load(programId)).resolves.toBeNull();
+      await expect(repository.loadWorkspaceContinuation(programId)).resolves.toBeNull();
+      await expect(repository.loadProgramNetworkAccess(programId)).resolves.toBeNull();
+
+      await expect(repository.create(createInputV1(fixture, 101))).resolves.toMatchObject({
+        kind: "committed",
+      });
+      await repository.dispose();
+
+      const reopened = harness.open();
+      await expect(reopened.list()).resolves.toHaveLength(1);
+      await reopened.dispose();
+    });
+
     it("replays one exact revision and rejects stale two-client or altered predecessor CAS", async () => {
       const harness = createHarness();
       const first = harness.open();
@@ -1280,6 +1305,111 @@ describe("IndexedDB ProgramRepository physical V7 contract", () => {
     }
     database.close();
     await repository.dispose();
+  });
+
+  it("shares concurrent different-Program creates and revisions across live connections", async () => {
+    const indexedDB = new FakeIDBFactory();
+    const databaseName = "sillyos-program-repository-v7-live-connections";
+    const alphaRepository = createIndexedDbProgramRepositoryV4({ indexedDB, databaseName });
+    const betaRepository = createIndexedDbProgramRepositoryV4({ indexedDB, databaseName });
+    const alpha = createProgramFixtureV1("workspace.indexeddb.live-alpha");
+    const beta = createProgramFixtureV1("workspace.indexeddb.live-beta");
+    const alphaId = requireCurrentProgramV1(alpha.initial).program.programId;
+    const betaId = requireCurrentProgramV1(beta.initial).program.programId;
+
+    await Promise.all([alphaRepository.initialize(), betaRepository.initialize()]);
+    await expect(Promise.all([
+      alphaRepository.create(createInputV1(alpha, 100)),
+      betaRepository.create(createInputV1(beta, 101)),
+    ])).resolves.toEqual([
+      expect.objectContaining({ kind: "committed" }),
+      expect.objectContaining({ kind: "committed" }),
+    ]);
+
+    const [alphaRevision, betaRevision] = await Promise.all([
+      applyFollowUpV1({
+        repository: alphaRepository,
+        session: alpha.session,
+        continuation: alpha.continuation,
+        text: "Add an alpha review checkpoint.",
+        reviewedHead: { checkpointId: "checkpoint.live-alpha.2", generation: 2 },
+        updatedAt: 200,
+      }),
+      applyFollowUpV1({
+        repository: betaRepository,
+        session: beta.session,
+        continuation: beta.continuation,
+        text: "Add a beta review checkpoint.",
+        reviewedHead: { checkpointId: "checkpoint.live-beta.2", generation: 2 },
+        updatedAt: 201,
+      }),
+    ]);
+
+    await expect(alphaRepository.load(betaId)).resolves.toEqual(betaRevision);
+    await expect(betaRepository.load(alphaId)).resolves.toEqual(alphaRevision);
+    const [alphaList, betaList] = await Promise.all([
+      alphaRepository.list(),
+      betaRepository.list(),
+    ]);
+    expect(alphaList).toEqual(betaList);
+    expect(alphaList).toEqual(expect.arrayContaining([
+      expect.objectContaining({ programId: alphaId, repositoryRevision: 2 }),
+      expect.objectContaining({ programId: betaId, repositoryRevision: 2 }),
+    ]));
+    expect(alphaList).toHaveLength(2);
+
+    await Promise.all([alphaRepository.dispose(), betaRepository.dispose()]);
+  });
+
+  it("returns the current winner when another live connection submits a stale Program revision", async () => {
+    const indexedDB = new FakeIDBFactory();
+    const databaseName = "sillyos-program-repository-v7-stale-connection";
+    const currentRepository = createIndexedDbProgramRepositoryV4({ indexedDB, databaseName });
+    const staleRepository = createIndexedDbProgramRepositoryV4({ indexedDB, databaseName });
+    const workspaceId = "workspace.indexeddb.stale-connection";
+    const currentFixture = createProgramFixtureV1(workspaceId);
+    const staleFixture = createProgramFixtureV1(workspaceId);
+    const before = currentFixture.session.getSnapshot();
+    const { program, proposal } = requireCurrentProgramV1(before);
+
+    await Promise.all([currentRepository.initialize(), staleRepository.initialize()]);
+    await expect(currentRepository.create(createInputV1(currentFixture, 100))).resolves
+      .toMatchObject({ kind: "committed" });
+    if (
+      currentFixture.session.sendFollowUp("Keep the current connection's revision.").kind !== "sent"
+    ) {
+      throw new Error("expected current follow-up");
+    }
+    if (staleFixture.session.sendFollowUp("Publish a divergent stale revision.").kind !== "sent") {
+      throw new Error("expected stale follow-up");
+    }
+    const mutationBase = {
+      programId: program.programId,
+      expectedRepositoryRevision: 1,
+      expectedBase: {
+        proposalId: proposal.proposalId,
+        programId: program.programId,
+        baseProgramRevision: program.revision,
+      },
+      continuation: currentFixture.continuation,
+    } as const;
+    const committed = await currentRepository.applyRevision({
+      ...mutationBase,
+      snapshot: currentFixture.session.getSnapshot(),
+      reviewedHead: { checkpointId: "checkpoint.stale-winner.2", generation: 2 },
+      updatedAt: 200,
+    });
+    if (committed.kind !== "committed") throw new Error("expected current winner");
+
+    await expect(staleRepository.applyRevision({
+      ...mutationBase,
+      snapshot: staleFixture.session.getSnapshot(),
+      reviewedHead: { checkpointId: "checkpoint.stale-loser.2", generation: 2 },
+      updatedAt: 201,
+    })).resolves.toEqual({ kind: "conflict", current: committed.aggregate });
+    await expect(staleRepository.load(program.programId)).resolves.toEqual(committed.aggregate);
+
+    await Promise.all([currentRepository.dispose(), staleRepository.dispose()]);
   });
 
   it("clean-resets only exact physical V4 without reading or converting its rows", async () => {

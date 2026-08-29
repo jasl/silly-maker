@@ -357,6 +357,22 @@ function fakeHostV1(
       volume.candidate = null;
       return "discarded";
     },
+    async inspectStorage() {
+      sharedEvents.push("host:inspect_storage");
+      return {
+        revision: 1,
+        scope: "sandbox_origin_advisory",
+        persisted: false,
+        usageBytes: backing.volumes.size * 1_024,
+        quotaBytes: 32 * 1_024 * 1_024,
+      };
+    },
+    async purgeAllWorkspaces() {
+      sharedEvents.push("host:purge_all_workspaces");
+      if (sessions.size !== 0) throw codedHostErrorV1("volume_busy");
+      backing.volumes.clear();
+      return { revision: 1, kind: "purged" };
+    },
     subscribeFatal(listener) {
       fatalListeners.add(listener);
       return () => fatalListeners.delete(listener);
@@ -425,6 +441,7 @@ function proxyRepositoryV1(
     applyRevision: overrides.applyRevision ?? ((input) => delegate.applyRevision(input)),
     settleAgentRun: overrides.settleAgentRun ?? ((input) => delegate.settleAgentRun(input)),
     decide: overrides.decide ?? ((input) => delegate.decide(input)),
+    reset: overrides.reset ?? (() => delegate.reset()),
     dispose: overrides.dispose ?? (() => delegate.dispose()),
   };
 }
@@ -619,6 +636,65 @@ async function decideV1(input: {
 }
 
 describe("Browser Program workspace authority V1", () => {
+  it("reports Sandbox origin usage and clears each owned data plane after detaching", async () => {
+    const harness = authorityHarnessV1();
+    const { fixture } = await createProgramV1(harness, "workspace.authority.reset");
+    await harness.authority.setProgramNetworkAccess({
+      programId: fixture.programId,
+      enabled: true,
+    });
+    const opened = await harness.authority.openWorkspace({
+      programId: fixture.programId,
+      workspaceId: fixture.workspaceId,
+    });
+
+    await expect(harness.authority.inspectStorage()).resolves.toMatchObject({
+      scope: "sandbox_origin_advisory",
+      usageBytes: 1_024,
+    });
+    await expect(harness.authority.resetStoredData()).resolves.toEqual({
+      productRepository: { kind: "retained" },
+      workspaceVolumes: { kind: "failed", diagnosticCode: "workspace_busy" },
+    });
+    await expect(harness.authority.load(fixture.programId)).resolves.not.toBeNull();
+
+    opened.environmentPort.close();
+    await harness.authority.detachWorkspaceEnvironment(
+      opened.snapshot.descriptor.workspaceSessionId,
+    );
+    await expect(harness.authority.resetStoredData()).resolves.toEqual({
+      productRepository: { kind: "cleared" },
+      workspaceVolumes: { kind: "cleared" },
+    });
+    await expect(harness.authority.list()).resolves.toEqual([]);
+    await expect(harness.authority.loadProgramNetworkAccess(fixture.programId)).resolves.toBeNull();
+    expect(harness.repositoryBacking.workspaceContinuations.size).toBe(0);
+    expect(harness.hostBacking.volumes.size).toBe(0);
+    expect(harness.host.events).toContain("host:purge_all_workspaces");
+    await harness.authority.dispose();
+  });
+
+  it("retains Workspace volumes when the Product Repository reset fails", async () => {
+    const backing = createMemoryProgramRepositoryBackingV3();
+    const delegate = createMemoryProgramRepositoryV3({ backing });
+    const harness = authorityHarnessV1({
+      repositoryBacking: backing,
+      repository: proxyRepositoryV1(delegate, {
+        reset: () => Promise.reject(codedHostErrorV1("repository_reset_failed")),
+      }),
+    });
+    const { fixture } = await createProgramV1(harness, "workspace.authority.reset-failed");
+
+    await expect(harness.authority.resetStoredData()).resolves.toEqual({
+      productRepository: { kind: "failed", diagnosticCode: "repository_reset_failed" },
+      workspaceVolumes: { kind: "retained" },
+    });
+    await expect(harness.authority.load(fixture.programId)).resolves.not.toBeNull();
+    expect(harness.hostBacking.volumes.size).toBe(1);
+    expect(harness.host.events).not.toContain("host:purge_all_workspaces");
+    await harness.authority.dispose();
+  });
+
   it("atomically creates the initial candidate/head pair and cold-reopens its exact volume", async () => {
     const first = authorityHarnessV1();
     const { fixture, result } = await createProgramV1(first, "workspace.authority.reopen");

@@ -21,6 +21,7 @@ import {
   type BrowserWorkspaceHostImmutableSnapshotInputV1,
   type BrowserWorkspaceHostPortableArchiveInputV1,
   type BrowserWorkspaceHostPortableArchiveV1,
+  type BrowserWorkspaceHostStorageManagementPortV1,
   type BrowserWorkspaceHostReplaceFileInputV1,
   type BrowserWorkspaceHostReplaceFileResultV1,
   BrowserWorkspaceHostCleanupErrorV1,
@@ -36,6 +37,7 @@ import {
 } from "./browser-workspace-portable-archive.ts";
 
 const privateRootNameV1 = ".sillyos-workspace-host-v1";
+const storageMaintenanceLockNameV1 = "sillyos.workspace.storage.v1";
 const volumesDirectoryNameV1 = "volumes";
 const controlDirectoryNameV1 = "control";
 const workspaceDirectoryNameV1 = "workspace";
@@ -121,28 +123,28 @@ interface InspectedWriteTargetV1 {
   readonly createdDirectories: readonly string[];
 }
 
-export interface BrowserWorkspaceHostExclusiveLeaseV1 {
+export interface BrowserWorkspaceHostLockLeaseV1 {
   release(): Promise<void>;
 }
 
-export interface BrowserWorkspaceHostExclusiveLockPortV1 {
+export interface BrowserWorkspaceHostLockPortV1 {
   acquire(
     name: string,
-    options: { readonly ifAvailable: boolean },
-  ): Promise<BrowserWorkspaceHostExclusiveLeaseV1 | null>;
+    options: { readonly mode?: "exclusive" | "shared"; readonly ifAvailable: boolean },
+  ): Promise<BrowserWorkspaceHostLockLeaseV1 | null>;
 }
 
 interface WebLockManagerV1 {
   request<T>(
     name: string,
-    options: { readonly mode: "exclusive"; readonly ifAvailable?: boolean },
+    options: { readonly mode: "exclusive" | "shared"; readonly ifAvailable?: boolean },
     callback: (lock: object | null) => Promise<T>,
   ): Promise<T>;
 }
 
 export interface BrowserWorkspaceHostOpfsOptionsV1 {
   readonly getRootDirectory?: () => Promise<FileSystemDirectoryHandle>;
-  readonly lockPort?: BrowserWorkspaceHostExclusiveLockPortV1;
+  readonly lockPort?: BrowserWorkspaceHostLockPortV1;
   readonly createVolumeId?: (input: {
     readonly programId: string;
     readonly workspaceId: string;
@@ -152,11 +154,13 @@ export interface BrowserWorkspaceHostOpfsOptionsV1 {
     readonly quota?: number;
     readonly usage?: number;
   }>;
+  readonly persistedStorage?: () => Promise<boolean>;
   readonly observeIo?: (observation: BrowserWorkspaceHostIoObservationV1) => void;
 }
 
 interface CandidateStateV1 {
   readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
+  readonly maintenanceLease: BrowserWorkspaceHostLockLeaseV1;
 }
 
 /** Product-private shared budget; exported only for exact contract tests. */
@@ -1125,7 +1129,7 @@ async function inspectCompleteCandidateV1(
 
 export function createBrowserWorkspaceHostWebLockPortV1(
   lockManager: WebLockManagerV1,
-): BrowserWorkspaceHostExclusiveLockPortV1 {
+): BrowserWorkspaceHostLockPortV1 {
   return {
     acquire(name, options) {
       return new Promise((resolve, reject) => {
@@ -1136,7 +1140,10 @@ export function createBrowserWorkspaceHostWebLockPortV1(
         let request: Promise<unknown>;
         request = lockManager.request(
           name,
-          { mode: "exclusive", ...(options.ifAvailable ? { ifAvailable: true } : {}) },
+          {
+            mode: options.mode ?? "exclusive",
+            ...(options.ifAvailable ? { ifAvailable: true } : {}),
+          },
           async (lock) => {
             if (lock === null) {
               resolve(null);
@@ -1167,7 +1174,8 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   private readonly staging: FileSystemDirectoryHandle;
   private readonly snapshots: FileSystemDirectoryHandle;
   private readonly workspace: FileSystemDirectoryHandle;
-  private readonly volumeLease: BrowserWorkspaceHostExclusiveLeaseV1;
+  private readonly volumeLease: BrowserWorkspaceHostLockLeaseV1;
+  private readonly maintenanceLease: BrowserWorkspaceHostLockLeaseV1;
   private readonly ioBudget: BrowserWorkspaceHostIoBudgetV1;
   private readonly estimateStorage: () => Promise<{
     readonly quota?: number;
@@ -1183,7 +1191,8 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     readonly staging: FileSystemDirectoryHandle;
     readonly snapshots: FileSystemDirectoryHandle;
     readonly workspace: FileSystemDirectoryHandle;
-    readonly volumeLease: BrowserWorkspaceHostExclusiveLeaseV1;
+    readonly volumeLease: BrowserWorkspaceHostLockLeaseV1;
+    readonly maintenanceLease: BrowserWorkspaceHostLockLeaseV1;
     readonly ioBudget: BrowserWorkspaceHostIoBudgetV1;
     readonly estimateStorage: () => Promise<{
       readonly quota?: number;
@@ -1197,6 +1206,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     this.snapshots = input.snapshots;
     this.workspace = input.workspace;
     this.volumeLease = input.volumeLease;
+    this.maintenanceLease = input.maintenanceLease;
     this.ioBudget = input.ioBudget;
     this.estimateStorage = input.estimateStorage;
   }
@@ -2625,7 +2635,12 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    await this.volumeLease.release();
+    const [volumeRelease, maintenanceRelease] = await Promise.allSettled([
+      this.volumeLease.release(),
+      this.maintenanceLease.release(),
+    ]);
+    if (volumeRelease.status === "rejected") throw volumeRelease.reason;
+    if (maintenanceRelease.status === "rejected") throw maintenanceRelease.reason;
   }
 
   private async clearStaging(): Promise<void> {
@@ -2701,13 +2716,14 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
 
 export function createBrowserWorkspaceHostOpfsBootstrapV1(
   options: BrowserWorkspaceHostOpfsOptionsV1 = {},
-): BrowserWorkspaceHostBootstrapPortV1 {
+): BrowserWorkspaceHostBootstrapPortV1 & BrowserWorkspaceHostStorageManagementPortV1 {
   const getRootDirectory = options.getRootDirectory ?? (() => navigator.storage.getDirectory());
   const lockPort = options.lockPort ?? createBrowserWorkspaceHostWebLockPortV1(navigator.locks);
   const createVolumeId = options.createVolumeId ?? stableVolumeIdentityV1;
   const createInitialCheckpointId = options.createInitialCheckpointId ??
     (() => randomIdentityV1("sillyos.checkpoint"));
   const estimateStorage = options.estimateStorage ?? (() => navigator.storage.estimate());
+  const persistedStorage = options.persistedStorage ?? (() => navigator.storage.persisted());
   const ioBudget = new BrowserWorkspaceHostIoBudgetV1(options.observeIo);
   const candidates = new Map<string, CandidateStateV1>();
   const openLeases = new Set<OpfsVolumeLeaseV1>();
@@ -2721,8 +2737,23 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
     return volumesPromise;
   };
 
+  const acquireMaintenanceLease = async (
+    mode: "exclusive" | "shared",
+    ifAvailable: boolean,
+  ): Promise<BrowserWorkspaceHostLockLeaseV1> => {
+    const lease = await lockPort.acquire(storageMaintenanceLockNameV1, { mode, ifAvailable });
+    if (lease === null) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        mode === "exclusive" ? "volume_busy" : "workspace_busy",
+        "Workspace storage maintenance is already active",
+      );
+    }
+    return lease;
+  };
+
   const openLease = async (
     anchor: BrowserWorkspaceVolumeAnchorWireV1,
+    maintenanceLease: BrowserWorkspaceHostLockLeaseV1,
   ): Promise<OpfsVolumeLeaseV1> => {
     const volumeLease = await lockPort.acquire(`sillyos.workspace.volume.${anchor.volumeId}`, {
       ifAvailable: true,
@@ -2763,6 +2794,7 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
         snapshots,
         workspace,
         volumeLease,
+        maintenanceLease,
         ioBudget,
         estimateStorage,
       });
@@ -2779,6 +2811,8 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
 
   return {
     async createCandidate(input) {
+      const maintenanceLease = await acquireMaintenanceLease("shared", false);
+      let maintenanceLeaseRetained = false;
       let volumeId = "";
       let volumeRoot: FileSystemDirectoryHandle | null = null;
       let removeOwnedVolumeOnFailure = false;
@@ -2820,7 +2854,8 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
                 "Workspace candidate does not contain its exact initial volume",
               );
             }
-            candidates.set(volumeId, { anchor });
+            candidates.set(volumeId, { anchor, maintenanceLease });
+            maintenanceLeaseRetained = true;
             return {
               revision: 1,
               anchor,
@@ -2871,7 +2906,8 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
           ),
           ioBudget,
         );
-        candidates.set(volumeId, { anchor });
+        candidates.set(volumeId, { anchor, maintenanceLease });
+        maintenanceLeaseRetained = true;
         removeOwnedVolumeOnFailure = false;
         return {
           revision: 1,
@@ -2886,6 +2922,10 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
           );
         }
         throw opfsErrorV1(error, "Workspace candidate creation failed");
+      } finally {
+        if (!maintenanceLeaseRetained) {
+          await maintenanceLease.release().catch(() => undefined);
+        }
       }
     },
 
@@ -2900,6 +2940,7 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
       try {
         await removeEntryIfPresentV1(await volumes(), volumeId, { recursive: true });
         candidates.delete(volumeId);
+        await candidate.maintenanceLease.release();
       } catch (error) {
         throw opfsErrorV1(error, "Workspace candidate discard failed");
       }
@@ -2913,20 +2954,98 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
           "Workspace candidate anchor does not match",
         );
       }
-      const lease = await openLease(anchor);
-      if (candidate !== undefined) {
-        candidates.delete(anchor.volumeId);
+      const maintenanceLease = candidate?.maintenanceLease ??
+        await acquireMaintenanceLease("shared", false);
+      let lease: OpfsVolumeLeaseV1;
+      try {
+        lease = await openLease(anchor, maintenanceLease);
+        if (candidate !== undefined) candidates.delete(anchor.volumeId);
+      } catch (error) {
+        if (candidate === undefined) await maintenanceLease.release().catch(() => undefined);
+        throw error;
       }
       const originalClose = lease.close.bind(lease);
       lease.close = async () => {
-        await originalClose();
-        openLeases.delete(lease);
+        try {
+          await originalClose();
+        } finally {
+          openLeases.delete(lease);
+        }
       };
       return lease;
     },
 
+    async inspectStorage() {
+      const maintenanceLease = await acquireMaintenanceLease("shared", false);
+      try {
+        const [estimate, persisted] = await Promise.all([
+          estimateStorage(),
+          persistedStorage(),
+        ]);
+        if (typeof persisted !== "boolean") {
+          throw new TypeError("Storage persistence status is invalid");
+        }
+        const usageBytes = estimate.usage;
+        const quotaBytes = estimate.quota;
+        if (
+          (usageBytes !== undefined &&
+            (!Number.isSafeInteger(usageBytes) || usageBytes < 0)) ||
+          (quotaBytes !== undefined &&
+            (!Number.isSafeInteger(quotaBytes) || quotaBytes < 0))
+        ) {
+          throw new TypeError("Storage estimate is invalid");
+        }
+        return {
+          revision: 1,
+          scope: "sandbox_origin_advisory",
+          persisted,
+          ...(usageBytes === undefined ? {} : { usageBytes }),
+          ...(quotaBytes === undefined ? {} : { quotaBytes }),
+        };
+      } catch (error) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "storage_unavailable",
+          "Sandbox storage estimate is unavailable",
+          null,
+          { cause: error instanceof Error ? error : new Error(String(error)) },
+        );
+      } finally {
+        await maintenanceLease.release().catch(() => undefined);
+      }
+    },
+
+    async purgeAllWorkspaces() {
+      if (candidates.size !== 0 || openLeases.size !== 0) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "workspace_busy",
+          "Workspace storage cannot be purged while a workspace is active",
+        );
+      }
+      const maintenanceLease = await acquireMaintenanceLease("exclusive", true);
+      try {
+        const root = await getRootDirectory();
+        await removeEntryIfPresentV1(root, privateRootNameV1, { recursive: true });
+        volumesPromise = null;
+        if (await directoryHandleIfPresentV1(root, privateRootNameV1) !== null) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace storage purge did not remove its product-owned root",
+          );
+        }
+        return { revision: 1, kind: "purged" };
+      } catch (error) {
+        volumesPromise = null;
+        throw opfsErrorV1(error, "Workspace storage purge failed");
+      } finally {
+        await maintenanceLease.release().catch(() => undefined);
+      }
+    },
+
     async dispose() {
-      await Promise.allSettled([...openLeases].map((lease) => lease.close()));
+      await Promise.allSettled([
+        ...[...openLeases].map((lease) => lease.close()),
+        ...[...candidates.values()].map((candidate) => candidate.maintenanceLease.release()),
+      ]);
       // A retained candidate may already be referenced by a lost/unknown manifest CAS.
       // Physical deletion belongs only to explicit discardCandidate.
       candidates.clear();

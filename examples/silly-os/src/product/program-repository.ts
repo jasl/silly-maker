@@ -48,6 +48,7 @@ export type ProgramRepositoryOperationV3 =
   | "decide"
   | "settle_agent_run"
   | "set_program_network_access"
+  | "reset"
   | "dispose";
 
 export type ProgramRepositoryFailureCodeV3 =
@@ -218,6 +219,7 @@ export interface ProgramRepositoryV3 {
   settleAgentRun(
     input: ProgramRepositorySettleAgentRunInputV3,
   ): Promise<ProgramRepositoryCommitResultV3>;
+  reset(): Promise<void>;
   dispose(): Promise<void>;
 }
 

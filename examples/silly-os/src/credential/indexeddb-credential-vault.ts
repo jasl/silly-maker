@@ -50,6 +50,7 @@ export type CredentialVaultRepositoryOperationV2 =
   | "load_header"
   | "create_header"
   | "replace_protection"
+  | "reset"
   | "list"
   | "load_credential"
   | "upsert"
@@ -110,6 +111,10 @@ export interface CredentialVaultRepositoryV2 {
     expectedGenerationToken: string,
     header: CredentialVaultStoredHeaderV2,
     records: readonly CredentialVaultStoredCredentialV2[],
+  ): Promise<void>;
+  reset(
+    expectedGenerationToken: string,
+    header: CredentialVaultStoredDeviceHeaderV2,
   ): Promise<void>;
   list(): Promise<readonly CredentialVaultBindingV2[]>;
   loadCredential(
@@ -607,6 +612,41 @@ export function createIndexedDbCredentialVaultV2(
         headerStore.put(storedHeader);
         credentialStore.clear();
         for (const record of storedRecords) credentialStore.put(record);
+        await transactionCompletionV2(transaction);
+      } catch (error) {
+        throw mapFailureV2(error, operation);
+      }
+    },
+    async reset(
+      expectedGenerationToken: string,
+      header: CredentialVaultStoredDeviceHeaderV2,
+    ): Promise<void> {
+      const operation = "reset" as const;
+      const expectedToken = exactGenerationTokenV2(expectedGenerationToken, operation);
+      const storedHeader = exactStoredHeaderV2(header, operation);
+      if (storedHeader.protection !== "device") {
+        throw new CredentialVaultRepositoryErrorV2("schema_invalid", operation);
+      }
+      try {
+        const database = await databaseForV2(operation);
+        const transaction = database.transaction(credentialVaultObjectStoreNamesV2, "readwrite");
+        const headerStore = transaction.objectStore(credentialVaultHeaderObjectStoreNameV2);
+        const credentialStore = transaction.objectStore(credentialVaultCredentialObjectStoreNameV2);
+        const existingHeader = await requestResultV2(
+          headerStore.get(credentialVaultHeaderIdV2),
+        );
+        if (existingHeader === undefined) {
+          transaction.abort();
+          throw new CredentialVaultRepositoryErrorV2("schema_invalid", operation);
+        }
+        const currentHeader = exactStoredHeaderV2(existingHeader, operation);
+        if (currentHeader.generationToken !== expectedToken) {
+          transaction.abort();
+          throw new CredentialVaultRepositoryErrorV2("stale_state", operation);
+        }
+        headerStore.clear();
+        headerStore.add(storedHeader);
+        credentialStore.clear();
         await transactionCompletionV2(transaction);
       } catch (error) {
         throw mapFailureV2(error, operation);

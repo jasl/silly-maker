@@ -10,7 +10,11 @@ import {
   createCredentialVaultHandoffReadyV2,
 } from "../credential/credential-vault-protocol.ts";
 import { createCredentialVaultWorkerRuntimeV2 } from "../credential/credential-vault-runtime.ts";
-import { createIndexedDbCredentialVaultV2 } from "../credential/indexeddb-credential-vault.ts";
+import {
+  createIndexedDbCredentialVaultV2,
+  credentialVaultCredentialObjectStoreNameV2,
+  credentialVaultHeaderObjectStoreNameV2,
+} from "../credential/indexeddb-credential-vault.ts";
 
 const channelsV2: MessageChannel[] = [];
 const disposablesV2: { close(): void }[] = [];
@@ -272,6 +276,98 @@ describe("Credential Vault runtime and client V2", () => {
       .toMatchObject({
         code: "handoff_failed",
       });
+  });
+
+  it("resets Automatic state and invalidates a pending handoff without key readback", async () => {
+    const indexedDB = new IDBFactory();
+    const { client, responses } = connectVaultV2(indexedDB, "credential-v2.reset-device");
+    await client.initialize();
+    await client.upsert(bindingV2, "provider-secret");
+
+    const pending = new MessageChannel();
+    channelsV2.push(pending);
+    const pendingHandoff = client.handoff(bindingV2, "handoff.reset.pending", pending.port1);
+    const pendingSettlement = expect(pendingHandoff).rejects.toMatchObject({ code: "locked" });
+    await expect(client.reset()).resolves.toEqual({
+      revision: 2,
+      protection: "device",
+      state: "unlocked",
+      bindings: [],
+    });
+    await pendingSettlement;
+
+    const missing = new MessageChannel();
+    channelsV2.push(missing);
+    const missingHandoff = client.handoff(bindingV2, "handoff.reset.missing", missing.port1);
+    missing.port2.postMessage(
+      createCredentialVaultHandoffReadyV2("handoff.reset.missing", bindingV2),
+    );
+    await expect(missingHandoff).rejects.toMatchObject({ code: "binding_missing" });
+    expect(JSON.stringify(responses)).not.toContain("provider-secret");
+
+    const reopened = connectVaultV2(indexedDB, "credential-v2.reset-device");
+    await expect(reopened.client.initialize()).resolves.toEqual({
+      revision: 2,
+      protection: "device",
+      state: "unlocked",
+      bindings: [],
+    });
+  });
+
+  it("resets a locked Password Vault without the passphrase and fences a stale Worker", async () => {
+    const indexedDB = new IDBFactory();
+    const current = connectVaultV2(indexedDB, "credential-v2.reset-password");
+    const stale = connectVaultV2(indexedDB, "credential-v2.reset-password");
+    await current.client.initialize();
+    await current.client.upsert(bindingV2, "provider-secret");
+    await stale.client.initialize();
+    await current.client.setPassword("correct passphrase");
+    await current.client.lock();
+
+    await expect(current.client.reset()).resolves.toEqual({
+      revision: 2,
+      protection: "device",
+      state: "unlocked",
+      bindings: [],
+    });
+    await expect(stale.client.upsert(bindingV2, "stale replacement")).rejects.toMatchObject({
+      code: "invalid_state",
+    });
+    await expect(stale.client.list()).resolves.toEqual({
+      revision: 2,
+      protection: "device",
+      state: "unlocked",
+      bindings: [],
+    });
+
+    const database = await requestResultV2(indexedDB.open("credential-v2.reset-password"));
+    const transaction = database.transaction([
+      credentialVaultHeaderObjectStoreNameV2,
+      credentialVaultCredentialObjectStoreNameV2,
+    ], "readonly");
+    const [headers, credentials] = await Promise.all([
+      requestResultV2(
+        transaction.objectStore(credentialVaultHeaderObjectStoreNameV2).getAll(),
+      ),
+      requestResultV2(
+        transaction.objectStore(credentialVaultCredentialObjectStoreNameV2).getAll(),
+      ),
+    ]);
+    expect(headers).toHaveLength(1);
+    expect(headers[0]).toMatchObject({ protection: "device" });
+    expect(headers[0]).not.toHaveProperty("salt");
+    expect(headers[0]).not.toHaveProperty("kdf");
+    expect(headers[0]).not.toHaveProperty("iterations");
+    expect(credentials).toEqual([]);
+    database.close();
+
+    const reopened = connectVaultV2(indexedDB, "credential-v2.reset-password");
+    await expect(reopened.client.initialize()).resolves.toEqual({
+      revision: 2,
+      protection: "device",
+      state: "unlocked",
+      bindings: [],
+    });
   });
 
   it("keeps only bounded recent handoff IDs without exhausting a long-lived Worker", async () => {

@@ -169,6 +169,24 @@ describe("Browser Provider Settings repository", () => {
     expect(storage.getItem(browserProviderSettingsStorageKeyV2)).toBeNull();
   });
 
+  it("clears only its exact storage key and remains reusable", () => {
+    const storage = new MemoryStorageV1();
+    const repository = createBrowserProviderSettingsRepositoryV1({ storage });
+    storage.setItem("sillyos.unrelated", "preserve-me");
+    repository.add(profileV1());
+
+    repository.clear();
+
+    expect(storage.getItem(browserProviderSettingsStorageKeyV2)).toBeNull();
+    expect(storage.getItem("sillyos.unrelated")).toBe("preserve-me");
+    expect(repository.read()).toEqual({
+      revision: browserProviderSettingsRevisionV2,
+      customProfiles: [],
+      enabledBuiltinModels: [],
+      preferredModel: null,
+    });
+  });
+
   it("persists and reopens one sorted, immutable, non-secret settings projection", () => {
     const storage = new MemoryStorageV1();
     const repository = createBrowserProviderSettingsRepositoryV1({ storage });

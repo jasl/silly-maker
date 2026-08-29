@@ -38,6 +38,7 @@ export interface CredentialVaultClientV2 {
   useDevice(): Promise<CredentialVaultListV2>;
   unlock(passphrase: string): Promise<CredentialVaultListV2>;
   lock(): Promise<CredentialVaultListV2>;
+  reset(): Promise<CredentialVaultListV2>;
   upsert(
     binding: CredentialVaultBindingV2,
     apiKey: string,
@@ -172,7 +173,14 @@ export function createCredentialVaultClientV2(
 
   const listResultV2 = async (
     record: Extract<CredentialVaultWorkerRequestRecordV2, {
-      readonly method: "initialize" | "list" | "set_password" | "use_device" | "unlock" | "lock";
+      readonly method:
+        | "initialize"
+        | "list"
+        | "set_password"
+        | "use_device"
+        | "unlock"
+        | "lock"
+        | "reset";
     }>,
   ): Promise<CredentialVaultListV2> => {
     const result = await callV2(record);
@@ -200,6 +208,9 @@ export function createCredentialVaultClientV2(
     },
     async lock(): Promise<CredentialVaultListV2> {
       return await listResultV2({ method: "lock" });
+    },
+    async reset(): Promise<CredentialVaultListV2> {
+      return await listResultV2({ method: "reset" });
     },
     async upsert(binding: CredentialVaultBindingV2, apiKey: string) {
       let credential = apiKey;

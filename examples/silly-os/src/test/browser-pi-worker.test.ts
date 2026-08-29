@@ -1078,6 +1078,24 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     }
   }
 
+  async inspectStorage(): ReturnType<BrowserProgramWorkspaceAuthorityV1["inspectStorage"]> {
+    return {
+      revision: 1,
+      scope: "sandbox_origin_advisory",
+      persisted: false,
+      usageBytes: 0,
+      quotaBytes: 0,
+    };
+  }
+
+  async resetStoredData(): ReturnType<BrowserProgramWorkspaceAuthorityV1["resetStoredData"]> {
+    this.programNetworkAccess.clear();
+    return {
+      productRepository: { kind: "cleared" },
+      workspaceVolumes: { kind: "cleared" },
+    };
+  }
+
   subscribeFatal(listener: (fatal: BrowserProgramWorkspaceFatalV1) => void): () => void {
     this.fatalListeners.add(listener);
     return () => this.fatalListeners.delete(listener);
@@ -4096,6 +4114,17 @@ describe("SillyOS Browser Pi transport and product port", () => {
         detachWorkspaceEnvironment: () => Promise.resolve(),
         closeWorkspace: () => Promise.reject(new Error("not open")),
         closeActiveWorkspace: () => Promise.resolve(null),
+        inspectStorage: () =>
+          Promise.resolve({
+            revision: 1,
+            scope: "sandbox_origin_advisory",
+            persisted: false,
+          }),
+        resetStoredData: () =>
+          Promise.resolve({
+            productRepository: { kind: "cleared" },
+            workspaceVolumes: { kind: "cleared" },
+          }),
         subscribeFatal: () => () => {},
         dispose: () => Promise.resolve(),
       };

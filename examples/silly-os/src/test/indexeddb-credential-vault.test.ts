@@ -146,6 +146,62 @@ describe("IndexedDB Credential Vault V2", () => {
     ).resolves.toMatchObject({ payload: { iv: bufferV2(12, 31) } });
   });
 
+  it("atomically replaces every Vault row with one fresh device header", async () => {
+    const indexedDB = new IDBFactory();
+    const databaseName = "credential-v2.user-reset";
+    const repository = createIndexedDbCredentialVaultV2({ indexedDB, databaseName });
+    const staleRepository = createIndexedDbCredentialVaultV2({ indexedDB, databaseName });
+    repositoriesV2.push(repository, staleRepository);
+    const initialHeader = await deviceHeaderV2();
+    await repository.createHeader(initialHeader);
+    const secondEndpoint = { ...bindingV2, baseUrl: "https://api.anthropic.com/v2" };
+    await repository.upsert(credentialV2(bindingV2, 11), initialHeader.generationToken);
+    await repository.upsert(credentialV2(secondEndpoint, 21), initialHeader.generationToken);
+    await staleRepository.initialize();
+
+    const resetHeader = await deviceHeaderV2();
+    await expect(
+      repository.reset(initialHeader.generationToken, resetHeader),
+    ).resolves.toBeUndefined();
+    await expect(repository.loadHeader()).resolves.toMatchObject({
+      generationToken: resetHeader.generationToken,
+      protection: "device",
+    });
+    await expect(repository.list()).resolves.toEqual([]);
+    await expect(
+      repository.loadCredential(bindingV2, initialHeader.generationToken),
+    ).rejects.toMatchObject({ code: "stale_state", operation: "load_credential" });
+
+    await expect(
+      staleRepository.reset(initialHeader.generationToken, await deviceHeaderV2()),
+    ).rejects.toMatchObject({ code: "stale_state", operation: "reset" });
+    await expect(repository.loadHeader()).resolves.toMatchObject({
+      generationToken: resetHeader.generationToken,
+    });
+    await expect(repository.list()).resolves.toEqual([]);
+
+    const database = await requestResultV2(indexedDB.open(databaseName));
+    const transaction = database.transaction([
+      credentialVaultHeaderObjectStoreNameV2,
+      credentialVaultCredentialObjectStoreNameV2,
+    ], "readonly");
+    const [headers, credentials] = await Promise.all([
+      requestResultV2(
+        transaction.objectStore(credentialVaultHeaderObjectStoreNameV2).getAll(),
+      ),
+      requestResultV2(
+        transaction.objectStore(credentialVaultCredentialObjectStoreNameV2).getAll(),
+      ),
+    ]);
+    expect(headers).toHaveLength(1);
+    expect(headers[0]).toMatchObject({
+      generationToken: resetHeader.generationToken,
+      protection: "device",
+    });
+    expect(credentials).toEqual([]);
+    database.close();
+  });
+
   it("cleanly replaces the pre-stable V1 database without retaining its rows", async () => {
     const indexedDB = new IDBFactory();
     const legacyOpen = indexedDB.open("credential-v2.reset", 1);

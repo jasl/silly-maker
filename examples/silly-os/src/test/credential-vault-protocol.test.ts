@@ -74,6 +74,10 @@ describe("Credential Vault Worker protocol V2", () => {
       passphrase: "correct horse battery staple",
     });
     expect(admitCredentialVaultWorkerRequestEnvelopeV2(setPassword)).toEqual(setPassword);
+    const reset = createCredentialVaultWorkerRequestEnvelopeV2("request.reset", {
+      method: "reset",
+    });
+    expect(admitCredentialVaultWorkerRequestEnvelopeV2(reset)).toEqual(reset);
     const upsert = createCredentialVaultWorkerRequestEnvelopeV2("request.upsert", {
       method: "upsert",
       binding: bindingV2,
@@ -89,6 +93,10 @@ describe("Credential Vault Worker protocol V2", () => {
       kind: "credential_vault_request",
       requestId: "request.list",
       record: { method: "list", credential: "secret" },
+    })).toBeNull();
+    expect(admitCredentialVaultWorkerRequestEnvelopeV2({
+      ...reset,
+      record: { method: "reset", credential: "secret" },
     })).toBeNull();
 
     let reads = 0;
@@ -124,6 +132,15 @@ describe("Credential Vault Worker protocol V2", () => {
         value: { disposition: "created", binding: bindingV2, credential: "secret" },
       },
     }, "upsert")).toBeNull();
+
+    const reset = createCredentialVaultWorkerResponseEnvelopeV2("request.reset", {
+      kind: "success",
+      method: "reset",
+      value: createCredentialVaultListV2("device", "unlocked", []),
+    });
+    expect(admitCredentialVaultWorkerResponseEnvelopeV2(reset, "reset")).toEqual(reset);
+    expect(JSON.stringify(reset)).not.toContain("provider-secret");
+    expect(JSON.stringify(reset)).not.toContain("api_key");
   });
 
   it("uses a separate exact ready/delivery protocol for the one-time Agent port", () => {

@@ -56,7 +56,7 @@ interface PendingCallV4 {
 function isMutationMethodV4(method: ProgramRepositoryWorkerMethodV6): boolean {
   return method === "create" || method === "apply_revision" ||
     method === "settle_agent_run" || method === "decide" ||
-    method === "set_program_network_access";
+    method === "set_program_network_access" || method === "reset";
 }
 
 function responseRequestIdV4(value: unknown): string | null {
@@ -255,6 +255,11 @@ export function createBrowserProgramRepositoryV3(
       const response = await callV4({ method: "decide", input });
       if (response.method !== "decide") throw new TypeError("invalid decision response");
       return response.value;
+    },
+
+    async reset(): Promise<void> {
+      const response = await callV4({ method: "reset" });
+      if (response.method !== "reset") throw new TypeError("invalid reset response");
     },
 
     async dispose(): Promise<void> {

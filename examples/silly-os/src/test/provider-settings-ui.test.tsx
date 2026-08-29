@@ -141,6 +141,11 @@ function settingsPropsV1(
     credentialOperation: { phase: "idle", target: null },
     credentialReceipt: null,
     vault: automaticVaultV1(),
+    storageUsage: {
+      control: { phase: "checking" },
+      workspace: { phase: "checking" },
+    },
+    clearAll: { phase: "idle" },
     onBack: vi.fn(),
     onLocaleChange: vi.fn(),
     onRetryCatalog: vi.fn(),
@@ -151,6 +156,8 @@ function settingsPropsV1(
     onUnlockVault: vi.fn(),
     onLockVault: vi.fn(),
     onForgetCredential: vi.fn(),
+    onRefreshStorageUsage: vi.fn(),
+    onClearAllData: vi.fn(),
     onSetBuiltinModelEnabled: vi.fn(),
     onCreateCustomProfile: vi.fn(() => null),
     onRemoveCustomProfile: vi.fn(),
@@ -249,6 +256,129 @@ describe("SillyOS Settings information architecture", () => {
       level: 1,
       name: copyV1.providerSettingsTitle,
     })).toBeVisible();
+  });
+
+  it("shows advisory control and Workspace storage estimates without inventing unknown usage", () => {
+    const onRefreshStorageUsage = vi.fn();
+    renderSettingsV1({
+      storageUsage: {
+        control: {
+          phase: "available",
+          usageBytes: 1_572_864,
+          quotaBytes: 104_857_600,
+        },
+        workspace: { phase: "available", usageBytes: 524_288 },
+      },
+      onRefreshStorageUsage,
+    });
+
+    const section = screen.getByRole("heading", {
+      name: copyV1.settingsDataManagement,
+    }).closest("section");
+    if (section === null) throw new Error("data management section missing");
+    expect(within(section).getByText("1.5 MiB")).toBeVisible();
+    expect(within(section).getByText("512 KiB")).toBeVisible();
+    expect(within(section).getByText("2 MiB")).toBeVisible();
+    expect(within(section).getByText(`${copyV1.settingsStorageQuota}: 100 MiB`)).toBeVisible();
+    expect(within(section).getByText(copyV1.settingsStorageAdvisory)).toBeVisible();
+
+    fireEvent.click(
+      within(section).getByRole("button", {
+        name: copyV1.settingsStorageRefresh,
+      }),
+    );
+    expect(onRefreshStorageUsage).toHaveBeenCalledOnce();
+  });
+
+  it("renders an unavailable estimate as unknown rather than zero", () => {
+    renderSettingsV1({
+      storageUsage: {
+        control: { phase: "available" },
+        workspace: { phase: "unavailable", diagnosticCode: "sandbox_unreachable" },
+      },
+    });
+
+    const section = screen.getByRole("heading", {
+      name: copyV1.settingsDataManagement,
+    }).closest("section");
+    if (section === null) throw new Error("data management section missing");
+    expect(within(section).getByText(copyV1.settingsStorageUsageUnavailable)).toBeVisible();
+    expect(
+      within(section).getByText(copyV1.settingsStorageUnavailable).closest("article"),
+    ).toHaveAttribute("data-diagnostic-code", "sandbox_unreachable");
+    expect(within(section).queryByText("0 B")).toBeNull();
+    expect(within(section).queryByText(copyV1.settingsStorageReportedTotal)).toBeNull();
+  });
+
+  it("requires one accessible clear-all confirmation and keeps a pending clear non-dismissible", () => {
+    const onClearAllData = vi.fn();
+    const view = renderSettingsV1({ onClearAllData });
+    const trigger = screen.getByRole("button", { name: copyV1.settingsClearAllAction });
+
+    fireEvent.click(trigger);
+    let dialog = screen.getByRole("alertdialog", {
+      name: copyV1.settingsClearAllConfirmTitle,
+    });
+    const cancel = within(dialog).getByRole("button", { name: copyV1.settingsClearAllCancel });
+    expect(cancel).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(trigger).toHaveFocus();
+
+    fireEvent.click(trigger);
+    dialog = screen.getByRole("alertdialog", { name: copyV1.settingsClearAllConfirmTitle });
+    const backdrop = document.querySelector<HTMLButtonElement>(
+      ".silly-os-settings__dialog-backdrop",
+    );
+    if (backdrop === null) throw new Error("clear dialog backdrop missing");
+    fireEvent.click(backdrop);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(trigger).toHaveFocus();
+
+    fireEvent.click(trigger);
+    dialog = screen.getByRole("alertdialog", { name: copyV1.settingsClearAllConfirmTitle });
+    const confirm = within(dialog).getByRole("button", {
+      name: copyV1.settingsClearAllAction,
+    });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    expect(onClearAllData).toHaveBeenCalledOnce();
+
+    view.rerender(
+      <ProviderSettingsV1
+        {...settingsPropsV1({ onClearAllData, clearAll: { phase: "clearing" } })}
+      />,
+    );
+    dialog = screen.getByRole("alertdialog", { name: copyV1.settingsClearAllConfirmTitle });
+    expect(dialog).toHaveAttribute("aria-busy", "true");
+    expect(
+      within(dialog).getByRole("button", {
+        name: copyV1.settingsClearAllCancel,
+      }),
+    ).toBeDisabled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("alertdialog")).toBeVisible();
+
+    view.rerender(
+      <ProviderSettingsV1
+        {...settingsPropsV1({
+          onClearAllData,
+          clearAll: { phase: "failed", diagnosticCode: "workspace_busy" },
+        })}
+      />,
+    );
+    dialog = screen.getByRole("alertdialog", { name: copyV1.settingsClearAllConfirmTitle });
+    expect(within(dialog).getByRole("alert")).toHaveAttribute(
+      "data-diagnostic-code",
+      "workspace_busy",
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: copyV1.settingsClearAllCancel,
+      }),
+    );
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(trigger).toHaveFocus();
   });
 });
 

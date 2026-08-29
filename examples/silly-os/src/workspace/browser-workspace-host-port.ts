@@ -6,13 +6,15 @@ import {
   type BrowserWorkspaceHostControlFailureCodeV1,
   type BrowserWorkspaceHostControlRequestRecordV1,
   type BrowserWorkspaceHostControlSuccessResponseV1,
+  type BrowserWorkspaceHostPurgeAllWorkspacesResultWireV1,
   type BrowserWorkspaceHostSnapshotWireV1,
   type BrowserWorkspaceHostExportProgressWireV1,
+  type BrowserWorkspaceHostStorageInspectionWireV1,
   type BrowserWorkspaceVolumeAnchorWireV1,
   type BrowserWorkspaceVolumeCandidateWireV1,
 } from "./browser-workspace-host-protocol.ts";
 import {
-  type BrowserWorkspaceHostExclusiveLockPortV1,
+  type BrowserWorkspaceHostLockPortV1,
   createBrowserWorkspaceHostWebLockPortV1,
 } from "./browser-workspace-host-opfs.ts";
 import type { ProgramWorkspaceSnapshotReceiptV1 } from "./contracts.ts";
@@ -68,7 +70,7 @@ export class BrowserWorkspaceHostControlErrorV1 extends Error {
 
 export interface BrowserWorkspaceHostPagePortOptionsV1 {
   readonly transport: BrowserWorkspaceHostControlTransportV1;
-  readonly bootstrapLockPort?: BrowserWorkspaceHostExclusiveLockPortV1;
+  readonly bootstrapLockPort?: BrowserWorkspaceHostLockPortV1;
   readonly createMessageChannel?: () => MessageChannel;
   readonly createExportId?: () => string;
 }
@@ -92,6 +94,8 @@ export type BrowserWorkspaceHostExportResultV1 =
   | ({ readonly kind: "cancelled" } & BrowserWorkspaceHostExportProgressWireV1);
 
 export interface BrowserWorkspaceHostPagePortV1 {
+  inspectStorage(): Promise<BrowserWorkspaceHostStorageInspectionWireV1>;
+  purgeAllWorkspaces(): Promise<BrowserWorkspaceHostPurgeAllWorkspacesResultWireV1>;
   withBootstrapLease<T>(input: {
     readonly programId: string;
     readonly workspaceId: string;
@@ -193,7 +197,8 @@ export function createBrowserWorkspaceHostPagePortV1(
   const mutationOutcomeCanBeUnknown = (
     method: BrowserWorkspaceHostControlRequestRecordV1["method"],
   ): boolean =>
-    method !== "query_workspace" && method !== "query_snapshot_candidate" &&
+    method !== "inspect_storage" && method !== "query_workspace" &&
+    method !== "query_snapshot_candidate" &&
     method !== "query_retained_snapshot" && method !== "capture_review_head";
 
   const lostResponseError = (request: PendingControlRequestV1): Error => {
@@ -313,6 +318,29 @@ export function createBrowserWorkspaceHostPagePortV1(
   };
 
   return {
+    async inspectStorage() {
+      const response = await request({ method: "inspect_storage" });
+      if (response.method !== "inspect_storage") {
+        throw new BrowserWorkspaceHostControlErrorV1(
+          "invalid_response",
+          "Workspace Host omitted its storage inspection",
+        );
+      }
+      return response.storage;
+    },
+
+    async purgeAllWorkspaces() {
+      const response = await request({ method: "purge_all_workspaces" });
+      if (response.method !== "purge_all_workspaces") {
+        throw new BrowserWorkspaceHostControlErrorV1(
+          "invalid_response",
+          "Workspace Host omitted its purge receipt",
+        );
+      }
+      candidateBootstrapKeys.clear();
+      return response.result;
+    },
+
     async withBootstrapLease(input) {
       if (activeBootstrapKey !== null) {
         throw new BrowserWorkspaceHostControlErrorV1(

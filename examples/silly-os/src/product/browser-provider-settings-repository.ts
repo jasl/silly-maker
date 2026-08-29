@@ -72,6 +72,7 @@ export type BrowserProviderCustomProfileAdmissionV1 =
 export type BrowserProviderSettingsRepositoryOperationV1 =
   | "read"
   | "list"
+  | "clear"
   | "add"
   | "remove"
   | "initialize_builtin_model_defaults"
@@ -106,6 +107,7 @@ export class BrowserProviderSettingsRepositoryErrorV1 extends Error {
 export interface BrowserProviderSettingsRepositoryV1 {
   read(): BrowserProviderSettingsSnapshotV1;
   list(): readonly BrowserProviderCustomProfileV1[];
+  clear(): void;
   initializeBuiltinModelDefaults(
     value: unknown,
   ): BrowserProviderBuiltinModelDefaultsInitializationV1;
@@ -579,6 +581,14 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
 
     list(): readonly BrowserProviderCustomProfileV1[] {
       return cloneProfilesV1(loadV1("list").customProfiles);
+    },
+
+    clear(): void {
+      try {
+        input.storage.removeItem(storageKey);
+      } catch {
+        throw storageFailureV1("clear");
+      }
     },
 
     initializeBuiltinModelDefaults(
