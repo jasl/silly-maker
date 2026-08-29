@@ -179,6 +179,11 @@ export interface StoryDebugDockPropsV1 {
   readonly studioHref?: string;
   /** Chip/menu corner; defaults to `top_right`. */
   readonly position?: DevDockPositionV1;
+  /**
+   * Always-visible sibling of the collapsed chip (mute, host shortcuts).
+   * Not inside `summary`: clicks must not toggle the dock.
+   */
+  readonly chipCompanion?: ReactNode;
   readonly expanded?: boolean;
   readonly defaultExpanded?: boolean;
   onExpandedChange?(expanded: boolean): void;
@@ -597,32 +602,44 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
 
   return createPortal(
     <>
-      <details
-        className={styles["story-debug-dock"]}
+      <div
+        className={styles["story-debug-dock-host"]}
         data-debug-dock="true"
         data-story-debug-dock="true"
         data-devdock-position={position}
-        // Debug chrome owns its input even while collapsed: game focus traps
-        // never steal focus from the chip and game surfaces ignore keyboard
-        // events that originate on it.
+        data-debug-dock-expanded={expanded ? "true" : "false"}
         data-devdock-escape-owner="true"
-        open={expanded}
-        onToggle={(event) => {
-          const next = event.currentTarget.open;
-          setExpanded(next);
-          if (next) grantCapabilities();
-        }}
       >
-        <summary
-          ref={chipRef}
-          className={styles["story-debug-dock__chip"]}
-          data-debug-dock-toggle="true"
-          data-devdock-chip="true"
-          role="button"
-          aria-expanded={expanded}
+        {props.chipCompanion === undefined
+          ? null
+          : (
+            <div
+              className={styles["story-debug-dock__chip-companion"]}
+              data-debug-dock-chip-companion="true"
+            >
+              {props.chipCompanion}
+            </div>
+          )}
+        <details
+          className={styles["story-debug-dock"]}
+          data-devdock-position={position}
+          open={expanded}
+          onToggle={(event) => {
+            const next = event.currentTarget.open;
+            setExpanded(next);
+            if (next) grantCapabilities();
+          }}
         >
-          {labels.chipLabel}
-        </summary>
+          <summary
+            ref={chipRef}
+            className={styles["story-debug-dock__chip"]}
+            data-debug-dock-toggle="true"
+            data-devdock-chip="true"
+            role="button"
+            aria-expanded={expanded}
+          >
+            {labels.chipLabel}
+          </summary>
         {expanded
           ? (
             <div
@@ -876,6 +893,7 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
           )
           : null}
       </details>
+      </div>
       {confirm === null ? null : (
         <StoryDebugDockConfirmDialogV1
           kind={confirm}

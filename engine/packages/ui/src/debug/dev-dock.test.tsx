@@ -1105,7 +1105,7 @@ describe("DevDockV1", () => {
       "utf8",
     );
     expect(launcherCss).toMatch(
-      /\.story-debug-dock\[data-devdock-position="bottom_right"\]\s*\{[^}]*flex-direction:\s*column-reverse/u,
+      /\.story-debug-dock-host\[data-devdock-position="bottom_right"\]\s+\.story-debug-dock,[\s\S]*?\{\s*flex-direction:\s*column-reverse/u,
     );
     expect(windowCss).toMatch(
       /data-devdock-position="bottom_right"\]\s+\.dev-dock__window,[\s\S]*?\{\s*inset-block-end:/u,

@@ -174,6 +174,7 @@ export type {
   WholeCanvasSurfaceSourceV1,
   WholeCanvasSurfaceTargetV1,
 } from "./whole-canvas/whole-canvas-surface-composition.tsx";
+export { MuteToggleV1 } from "./system/mute-toggle.tsx";
 export { useLocaleTextV1 } from "./system/use-locale-text.ts";
 export { useReducedMotionV1 } from "./system/use-reduced-motion.ts";
 export { defineWorkspaceOverlayV1, maximumOverlayDetailDepthV1 } from "./overlays/index.ts";
