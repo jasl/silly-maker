@@ -79,6 +79,13 @@ import {
   canConsumeAgentTerminalV1,
 } from "./agent-terminal-acknowledgement.ts";
 import { CreatorHomeV1 } from "./creator-home.tsx";
+import {
+  creatorVaultCanHandoffProviderCredentialV1,
+  creatorVaultHasProviderCredentialV1,
+  type CreatorReadinessRecoveryTargetV1,
+  projectCreatorReadinessV1,
+  projectCreatorVaultStatusV1,
+} from "./creator-readiness.ts";
 import { SillyOsOverlayHostV1 } from "./design-system/overlay-host.tsx";
 import { ProgramWorkspaceV1 } from "./program-workspace.tsx";
 import {
@@ -141,7 +148,13 @@ type PiAgentSetupStatusV1 =
   | "ready"
   | "test_failed"
   | "failed";
-type SettingsReturnTargetV1 = "home" | "home-models" | "workspace" | "workspace-models";
+type SettingsReturnTargetV1 =
+  | "home"
+  | "home-models"
+  | "home-readiness"
+  | "workspace"
+  | "workspace-models"
+  | "workspace-readiness";
 
 function agentWorkerHoldsCredentialV1(status: PiAgentSetupStatusV1): boolean {
   switch (status) {
@@ -1109,9 +1122,12 @@ export function SillyOsAppV1({
     if (providerCatalog.phase === "loading") loadProviderCatalogV1();
   };
 
-  const openProviderSetupV1 = (): void => {
-    settingsReturnTargetRef.current = "home";
-    setSettingsInitialSection("providers");
+  const openCreatorReadinessSettingsV1 = (
+    surface: "home" | "workspace",
+    target: Exclude<CreatorReadinessRecoveryTargetV1, null>,
+  ): void => {
+    settingsReturnTargetRef.current = `${surface}-readiness`;
+    setSettingsInitialSection(target);
     setSettingsOpen(true);
     if (providerCatalog.phase === "loading") loadProviderCatalogV1();
   };
@@ -1124,9 +1140,18 @@ export function SillyOsAppV1({
       ? `[data-model-picker-surface="${
         returnTarget === "home-models" ? "home" : "workspace"
       }"] [role="combobox"]`
+      : returnTarget === "home-readiness" || returnTarget === "workspace-readiness"
+      ? `[data-creator-readiness-surface="${
+        returnTarget === "home-readiness" ? "home" : "workspace"
+      }"] button`
       : `[data-open-settings="${returnTarget}"]`;
+    const fallbackSelector = returnTarget.startsWith("home")
+      ? "#creator-intent"
+      : "#workspace-follow-up";
     requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>(returnSelector)?.focus();
+      const returnElement = document.querySelector<HTMLElement>(returnSelector) ??
+        document.querySelector<HTMLElement>(fallbackSelector);
+      returnElement?.focus();
     });
   };
 
@@ -1585,7 +1610,7 @@ export function SillyOsAppV1({
       credentialVaultPortRef.current !== vaultPort ||
       credentialVaultEpochRef.current !== workerEpoch ||
       credentialVaultOperationEpochRef.current !== operationEpoch ||
-      credentialVaultStateRef.current.phase !== "unlocked" ||
+      !creatorVaultCanHandoffProviderCredentialV1(credentialVaultStateRef.current) ||
       !credentialVaultBindingsEqualV2(expectedBinding, binding)
     ) {
       deliveryPort.close();
@@ -1608,13 +1633,16 @@ export function SillyOsAppV1({
       return Promise.resolve(false);
     }
     if (
-      vaultPort === null || credentialVaultStateRef.current.phase !== "unlocked" ||
+      vaultPort === null || credentialVaultStateRef.current.state !== "unlocked" ||
       !credentialVaultStateRef.current.bindings.some((candidate) =>
         credentialVaultBindingsEqualV2(candidate, binding)
       )
     ) {
       setPiAgentSetupStatus("failed");
       reportFailure("silly_os.credential_vault_handoff_failed", "binding_unavailable");
+      return Promise.resolve(false);
+    }
+    if (!creatorVaultCanHandoffProviderCredentialV1(credentialVaultStateRef.current)) {
       return Promise.resolve(false);
     }
     const workerEpoch = credentialVaultEpochRef.current;
@@ -1689,7 +1717,8 @@ export function SillyOsAppV1({
   const selectProviderModelChoiceV1 = (choice: CreatorProviderModelChoiceV1): void => {
     if (
       internalPiTest || agentConfigurationPendingRef.current ||
-      providerModelSelectionPendingRef.current || reasoningEffortSelectionPendingRef.current
+      providerModelSelectionPendingRef.current || reasoningEffortSelectionPendingRef.current ||
+      !creatorVaultCanHandoffProviderCredentialV1(credentialVaultStateRef.current)
     ) return;
     const activeSelection = activeProviderSelectionRef.current;
     if (
@@ -1754,7 +1783,7 @@ export function SillyOsAppV1({
       return;
     }
     if (
-      credentialVaultStateRef.current.phase !== "unlocked" ||
+      !creatorVaultCanHandoffProviderCredentialV1(credentialVaultStateRef.current) ||
       !credentialVaultStateRef.current.bindings.some((candidate) =>
         credentialVaultBindingsEqualV2(candidate, binding)
       )
@@ -1835,7 +1864,7 @@ export function SillyOsAppV1({
     }
     if (
       suppliedCredential.length === 0 || vaultPort === null ||
-      credentialVaultStateRef.current.phase !== "unlocked"
+      !creatorVaultCanHandoffProviderCredentialV1(credentialVaultStateRef.current)
     ) {
       setPiAgentSetupStatus("failed");
       reportFailure("silly_os.credential_vault_save_failed", "vault_locked");
@@ -1863,7 +1892,7 @@ export function SillyOsAppV1({
           credentialVaultPortRef.current !== vaultPort ||
           credentialVaultEpochRef.current !== workerEpoch ||
           credentialVaultOperationEpochRef.current !== operationEpoch ||
-          credentialVaultStateRef.current.phase !== "unlocked" ||
+          !creatorVaultCanHandoffProviderCredentialV1(credentialVaultStateRef.current) ||
           !agentDrainRegistry.isAccepting()
         ) return;
         const vaultSnapshot = await vaultPort.client.list();
@@ -2321,18 +2350,9 @@ export function SillyOsAppV1({
     customProviderProfiles,
     providerSettingsSnapshot.enabledBuiltinModels,
   );
-  const usableProviderModelChoices = credentialVault.phase === "unlocked"
-    ? creatorProviderModelChoices.filter((choice) => {
-      try {
-        const binding = credentialVaultBindingForSelectionV2(choice.selection);
-        return credentialVault.bindings.some((candidate) =>
-          credentialVaultBindingsEqualV2(candidate, binding)
-        );
-      } catch {
-        return false;
-      }
-    })
-    : [];
+  const usableProviderModelChoices = creatorProviderModelChoices.filter((choice) =>
+    creatorVaultHasProviderCredentialV1(credentialVault, choice.selection)
+  );
   const creatorProviderModelValue = preferredModelValueV1(
     providerSettingsSnapshot.preferredModel,
     usableProviderModelChoices,
@@ -2359,13 +2379,28 @@ export function SillyOsAppV1({
     : piAgentSetupStatus === "failed"
     ? "failed" as const
     : "initializing" as const;
+  const creatorReadiness = projectCreatorReadinessV1({
+    catalogStatus: providerCatalog.phase,
+    vaultStatus: projectCreatorVaultStatusV1(credentialVault),
+    hasEnabledConfiguredModel: creatorProviderModelChoices.length > 0,
+    hasModelWithCredentialedProvider: usableProviderModelChoices.length > 0,
+    agentStatus: creatorProviderModelStatus === "failed"
+      ? "failed"
+      : creatorProviderModelStatus === "ready"
+      ? "ready"
+      : "initializing",
+  });
+  const liveCreatorReady = internalPiTest || creatorReadiness.status === "ready";
+  const credentialVaultCanHandoff = creatorVaultCanHandoffProviderCredentialV1(credentialVault);
 
   const selectCreatorProviderModelV1 = (value: string): void => {
+    if (!credentialVaultCanHandoff) return;
     const choice = usableProviderModelChoices.find((candidate) => candidate.value === value);
     if (choice !== undefined) selectProviderModelChoiceV1(choice);
   };
   const creatorProviderModelV1 = (surface: "home" | "workspace") => ({
     status: creatorProviderModelStatus,
+    disabled: !credentialVaultCanHandoff,
     selectedValue: creatorProviderModelValue,
     options: usableProviderModelChoices.map((choice) => ({
       value: choice.value,
@@ -2396,7 +2431,7 @@ export function SillyOsAppV1({
   useEffect(() => {
     const choice = preferredProviderChoiceRef.current;
     if (
-      internalPiTest || choice === null || credentialVault.phase !== "unlocked" ||
+      internalPiTest || choice === null || !credentialVaultCanHandoff ||
       credentialOperation.phase !== "idle" ||
       connectionTest.phase === "testing" || piAgentSetupStatus === "failed" ||
       agentFactoryRef.current === null || networkBrokerFactoryRef.current === null ||
@@ -2424,7 +2459,7 @@ export function SillyOsAppV1({
     connectionTest.phase,
     creatorProviderModelValue,
     credentialOperation.phase,
-    credentialVault.phase,
+    credentialVaultCanHandoff,
     internalPiTest,
     piAgentSetupStatus,
     providerModelSelectionPending,
@@ -2484,9 +2519,9 @@ export function SillyOsAppV1({
             <CreatorHomeV1
               copy={copy}
               createDisabled={durability.phase !== "ready" ||
-                !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus) ||
+                (internalPiTest && !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus)) ||
                 reasoningEffortSelectionPending ||
-                (!internalPiTest && creatorProviderModelStatus !== "ready")}
+                !liveCreatorReady}
               programCatalog={{
                 status: durability.phase === "loading" && durability.operation === "catalog"
                   ? "loading"
@@ -2494,8 +2529,7 @@ export function SillyOsAppV1({
                   ? "failed"
                   : "ready",
                 programs: controllerSnapshot.recentPrograms,
-                openDisabled: durability.phase !== "ready" ||
-                  !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus),
+                openDisabled: durability.phase !== "ready",
                 onOpen: (programId) => {
                   void controller.openProgram(programId).then((result) => {
                     if (result.kind !== "completed") {
@@ -2525,33 +2559,19 @@ export function SillyOsAppV1({
                 : {})}
               {...(internalPiTest ? {} : {
                 onOpenSettings: openSettingsV1,
-                ...(usableProviderModelChoices.length > 0
+                creatorReadiness,
+                onOpenCreatorSettings: (
+                  target: Exclude<CreatorReadinessRecoveryTargetV1, null>,
+                ) => openCreatorReadinessSettingsV1("home", target),
+                ...(creatorReadiness.status === "ready"
                   ? { providerModel: creatorProviderModelV1("home") }
                   : {}),
-                ...(usableProviderModelChoices.length === 0
-                  ? {
-                    providerSetup: {
-                      status: piAgentSetupStatus,
-                      onOpenSettings: openProviderSetupV1,
-                    },
-                  }
-                  : {}),
               })}
-              onCreate={(intent, resourceNames) => {
-                void controller.submitIntent(intent).then(async (result) => {
+              onCreate={(intent) => {
+                void controller.submitIntent(intent).then((result) => {
                   if (result.kind !== "completed" || result.value.kind !== "created") {
                     reportFailure("silly_os.creator_intent_rejected", result);
-                    return;
                   }
-                  if (resourceNames.length === 0) return;
-                  const resourceSummary = locale === "zh-CN"
-                    ? `已添加这些附件名称：${
-                      resourceNames.join("、")
-                    }。文件内容尚未发送给 Agent Host。`
-                    : `Added these attachment names: ${
-                      resourceNames.join(", ")
-                    }. File contents were not sent to an Agent Host.`;
-                  await sendFollowUpV1(resourceSummary);
                 });
               }}
             />
@@ -2564,8 +2584,9 @@ export function SillyOsAppV1({
               workspaceReview={controllerSnapshot.workspaceReview}
               homeDisabled={durability.phase === "saving" || agentMutationPending ||
                 agentWorkspaceLifecyclePending || workspaceExportPending}
-              mutationPending={durability.phase === "saving" || agentMutationPending ||
-                !executionWorkspaceReady || workspaceExportPending}
+              decisionPending={durability.phase === "saving"}
+              agentInteractionPending={durability.phase === "saving" || agentMutationPending ||
+                !executionWorkspaceReady || workspaceExportPending || !liveCreatorReady}
               onHome={() => void openHomeV1()}
               onLocaleChange={changeLocaleV1}
               theme={productPreferences.theme}
@@ -2602,7 +2623,15 @@ export function SillyOsAppV1({
                 });
               }}
               onSend={sendFollowUpV1}
-              {...(internalPiTest ? {} : { providerModel: creatorProviderModelV1("workspace") })}
+              {...(internalPiTest ? {} : {
+                creatorReadiness,
+                onOpenCreatorSettings: (
+                  target: Exclude<CreatorReadinessRecoveryTargetV1, null>,
+                ) => openCreatorReadinessSettingsV1("workspace", target),
+                ...(creatorReadiness.status === "ready"
+                  ? { providerModel: creatorProviderModelV1("workspace") }
+                  : {}),
+              })}
               {...(programNetworkAccess?.programId !== routedProgramId ? {} : {
                 networkAccess: {
                   enabled: programNetworkAccess.enabled,

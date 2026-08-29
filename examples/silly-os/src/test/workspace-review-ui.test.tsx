@@ -124,7 +124,12 @@ function renderAgentChatV1(
   props: Partial<
     Pick<
       ChatPanePropsV1,
-      "mutationPending" | "networkAccess" | "onSend" | "piAgentRun" | "providerModel"
+      | "agentInteractionPending"
+      | "decisionPending"
+      | "networkAccess"
+      | "onSend"
+      | "piAgentRun"
+      | "providerModel"
     >
   >,
 ) {
@@ -328,7 +333,7 @@ describe("SillyOS Workspace composer model selection", () => {
   it("disables the model picker during a live run while retaining its Cancel control", () => {
     const onCancel = vi.fn();
     const view = renderAgentChatV1({
-      mutationPending: true,
+      agentInteractionPending: true,
       providerModel: {
         status: "ready",
         selectedValue: "builtin:openai:gpt-latest",
@@ -367,6 +372,37 @@ describe("SillyOS Workspace composer model selection", () => {
     expect(cancel).toBeEnabled();
     fireEvent.click(cancel);
     expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("keeps proposal, Agent, and network pending states independent", () => {
+    const onNetworkChange = vi.fn();
+    const agentPendingView = renderAgentChatV1({
+      agentInteractionPending: true,
+      networkAccess: {
+        enabled: false,
+        pending: false,
+        onChange: onNetworkChange,
+      },
+    });
+
+    expect(screen.getByRole("button", { name: "Accept program" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Reject proposal" })).toBeEnabled();
+    expect(screen.getByRole("textbox", { name: "Ask for a change…" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Allow network access" })).toBeEnabled();
+    agentPendingView.unmount();
+
+    renderAgentChatV1({
+      decisionPending: true,
+      networkAccess: {
+        enabled: false,
+        pending: true,
+        onChange: onNetworkChange,
+      },
+    });
+    expect(screen.getByRole("button", { name: "Accept program" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reject proposal" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Ask for a change…" })).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: "Allow network access" })).toBeDisabled();
   });
 
   it("preserves the deterministic Pi test status and Forget-key card contract", () => {
@@ -516,7 +552,7 @@ describe("SillyOS Workspace review presentation", () => {
         copy={getSillyOsCopyV1("en")}
         snapshot={snapshotV1}
         workspaceReview={exactReview}
-        mutationPending
+        decisionPending
         executionWorkspace={{
           phase: "failed",
           descriptor: { workspaceSessionId: "workspace-session.review-ui", generation: 6 },

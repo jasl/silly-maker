@@ -113,7 +113,8 @@ describe("SillyOS design-system foundation", () => {
     expect(checkbox).toContain('type="checkbox"');
     expect(checkbox).toContain('data-slot="checkbox"');
     expect(creator).toMatch(/<InputV1\s+id="pi-agent-key"/u);
-    expect(creator).toMatch(/<input\s+ref=\{fileInputRef\}\s+hidden\s+type="file"/u);
+    expect(`${creator}\n${chat}`).not.toContain('type="file"');
+    expect(`${creator}\n${chat}`).not.toContain("Add resource");
     expect(componentCss).toContain(".sos-checkbox");
     expect(productCss).not.toContain(".provider-settings__model input");
     expect(productCss).not.toContain(".network-access__toggle input");

@@ -69,8 +69,11 @@ export interface ProgramWorkspacePropsV1 {
   readonly onReject: () => void;
   readonly onSend: ChatPanePropsV1["onSend"];
   readonly providerModel?: ChatPanePropsV1["providerModel"];
+  readonly creatorReadiness?: ChatPanePropsV1["creatorReadiness"];
+  readonly onOpenCreatorSettings?: ChatPanePropsV1["onOpenCreatorSettings"];
   readonly homeDisabled?: boolean;
-  readonly mutationPending?: boolean;
+  readonly decisionPending?: boolean;
+  readonly agentInteractionPending?: boolean;
   readonly networkAccess?: ChatPanePropsV1["networkAccess"];
   readonly piAgentRun?: ChatPanePropsV1["piAgentRun"];
   readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
@@ -158,8 +161,11 @@ function ProgramWorkspaceReadyV1({
   onReject,
   onSend,
   providerModel,
+  creatorReadiness,
+  onOpenCreatorSettings,
   homeDisabled = false,
-  mutationPending = false,
+  decisionPending = false,
+  agentInteractionPending = false,
   networkAccess,
   piAgentRun,
   executionWorkspace,
@@ -335,8 +341,11 @@ function ProgramWorkspaceReadyV1({
               if (narrow) setMobilePane("preview");
             }}
             onSend={onSend}
-            mutationPending={mutationPending}
+            decisionPending={decisionPending}
+            agentInteractionPending={agentInteractionPending}
             {...(providerModel === undefined ? {} : { providerModel })}
+            {...(creatorReadiness === undefined ? {} : { creatorReadiness })}
+            {...(onOpenCreatorSettings === undefined ? {} : { onOpenCreatorSettings })}
             {...(networkAccess === undefined ? {} : { networkAccess })}
             {...(piAgentRun === undefined ? {} : { piAgentRun })}
           />

@@ -1877,11 +1877,39 @@ The delivered DS1b-3 slice closes visible physical primitive convergence.
 `CheckboxV1` fixes native checkbox semantics and the shared product size/accent
 recipe while Program network access and Provider model visibility continue to
 own their distinct labels, availability rules, and mutations. The query-gated
-Pi test password field reuses `InputV1`; the two hidden file inputs remain raw
-native controls because they are invisible `FileList` hosts activated by named
-product Buttons rather than visual input consumers. Navigation/list rows,
-Provider/model patterns, Spinner/loading, and empty/error composition belong to
-DS1c and are not generalized by DS1b.
+Pi test password field reuses `InputV1`. The two hidden file inputs retained at
+that checkpoint were raw native `FileList` hosts rather than visual input
+consumers; DS1c-1 later removed them with the filename-only attachment actions.
+Navigation/list rows, Provider/model patterns, Spinner/loading, and empty/error
+composition belong to DS1c and are not generalized by DS1b.
+
+DS1c begins with a product causality correction rather than a cosmetic wrapper.
+Program availability, Creator readiness, and Workspace execution readiness are
+three different projections:
+
+- a Program persisted in the Product Repository can be opened whenever that
+  repository is ready; lack of an API key, a locked Vault, or a failed Agent may
+  disable Creator calls but cannot hide the user's existing product;
+- Creator readiness explicitly distinguishes Provider-catalog loading/failure,
+  Vault unavailable/locked state, missing credentials, missing enabled models,
+  Agent initialization/failure, and ready state. Creator Home and the Workspace
+  composer show the same product-specific notice or the same model/reasoning
+  picker, never both;
+- credentials remain bound to immutable Provider endpoints rather than models.
+  A transient Vault action or failed unlock-mode change must use the preserved
+  physical lock state: an already unlocked Vault retains its available models,
+  while a busy Vault does not admit a new Agent credential handoff;
+- proposal decisions are gated by their repository/currentness operation,
+  while VFS tools and export are gated by the independent Workspace Sandbox.
+  A single broad `mutationPending` flag must not turn one subsystem's state into
+  a product-wide lock.
+
+Visible resource attachment controls require real byte admission into the
+Program Workspace. Recording only filenames is not an attachment capability,
+so DS1c removes those controls until a later admitted-artifact slice provides
+the underlying behavior. This correction does not alter Pi, Provider, Vault,
+Workspace, or engine contracts and does not introduce a generic status/widget
+framework.
 
 DS1a is backed by focused preference/schema/cross-tab, navigation-only locale,
 pre-mount theme, menu/dialog/focus, Tailwind built-output, and token-containment

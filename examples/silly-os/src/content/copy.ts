@@ -31,7 +31,6 @@ export interface SillyOsCopyV1 {
   readonly creatorDescription: string;
   readonly creatorPlaceholder: string;
   readonly create: string;
-  readonly addResource: string;
   readonly examplesLabel: string;
   readonly recentProgramsLabel: string;
   readonly browserLocal: string;
@@ -99,10 +98,27 @@ export interface SillyOsCopyV1 {
   readonly piTestDraft: string;
   readonly piTestCancel: string;
   readonly piTestForget: string;
-  readonly piLiveTitle: string;
-  readonly piLiveDescription: string;
   readonly piLiveFailed: string;
-  readonly piLiveSetupRequired: string;
+  readonly creatorReadinessCatalogLoadingTitle: string;
+  readonly creatorReadinessCatalogLoadingDescription: string;
+  readonly creatorReadinessCatalogFailedTitle: string;
+  readonly creatorReadinessCatalogFailedDescription: string;
+  readonly creatorReadinessVaultLoadingTitle: string;
+  readonly creatorReadinessVaultLoadingDescription: string;
+  readonly creatorReadinessVaultUnavailableTitle: string;
+  readonly creatorReadinessVaultUnavailableDescription: string;
+  readonly creatorReadinessVaultLockedTitle: string;
+  readonly creatorReadinessVaultLockedDescription: string;
+  readonly creatorReadinessModelRequiredTitle: string;
+  readonly creatorReadinessModelRequiredDescription: string;
+  readonly creatorReadinessCredentialRequiredTitle: string;
+  readonly creatorReadinessCredentialRequiredDescription: string;
+  readonly creatorReadinessAgentInitializingTitle: string;
+  readonly creatorReadinessAgentInitializingDescription: string;
+  readonly creatorReadinessAgentFailedTitle: string;
+  readonly creatorReadinessAgentFailedDescription: string;
+  readonly creatorReadinessOpenProviders: string;
+  readonly creatorReadinessOpenVault: string;
   readonly networkAccessTitle: string;
   readonly networkAccessToggle: string;
   readonly networkAccessDescription: string;
@@ -287,7 +303,6 @@ const englishV1: SillyOsCopyV1 = {
   creatorPlaceholder:
     "For example: translate this visual novel, preserve character voices, and give me a review queue for uncertain lines…",
   create: "Create program",
-  addResource: "Add resource",
   examplesLabel: "Try a starting point",
   recentProgramsLabel: "Recent programs",
   browserLocal: "Stored in this browser",
@@ -360,11 +375,32 @@ const englishV1: SillyOsCopyV1 = {
   piTestDraft: "Agent Creator draft",
   piTestCancel: "Cancel run",
   piTestForget: "Forget test key",
-  piLiveTitle: "Model Provider",
-  piLiveDescription:
-    "Save a Provider API key before creating a Program. The key stays in the Credential Vault until you Forget it or clear this site's data. Testing is optional.",
   piLiveFailed: "Provider Agent unavailable",
-  piLiveSetupRequired: "API key required",
+  creatorReadinessCatalogLoadingTitle: "Loading model Providers",
+  creatorReadinessCatalogLoadingDescription: "Reading this device's Provider and model settings.",
+  creatorReadinessCatalogFailedTitle: "Provider catalog unavailable",
+  creatorReadinessCatalogFailedDescription:
+    "Open Providers to retry the bundled catalog before using Agent Creator.",
+  creatorReadinessVaultLoadingTitle: "Opening Credential Vault",
+  creatorReadinessVaultLoadingDescription: "Preparing saved Provider keys for this session.",
+  creatorReadinessVaultUnavailableTitle: "Credential Vault unavailable",
+  creatorReadinessVaultUnavailableDescription:
+    "Saved Provider keys cannot be used in this browser until the Vault is available.",
+  creatorReadinessVaultLockedTitle: "Credential Vault locked",
+  creatorReadinessVaultLockedDescription: "Unlock the Vault to use its saved Provider keys.",
+  creatorReadinessModelRequiredTitle: "Choose a model",
+  creatorReadinessModelRequiredDescription:
+    "Select at least one model to make it available to Agent Creator.",
+  creatorReadinessCredentialRequiredTitle: "API key required",
+  creatorReadinessCredentialRequiredDescription:
+    "Save an API key for a Provider that offers one of your selected models.",
+  creatorReadinessAgentInitializingTitle: "Starting Agent Creator",
+  creatorReadinessAgentInitializingDescription: "Preparing the selected model for this session.",
+  creatorReadinessAgentFailedTitle: "Agent Creator unavailable",
+  creatorReadinessAgentFailedDescription:
+    "Open Providers to choose another model or update the Provider API key.",
+  creatorReadinessOpenProviders: "Open Providers",
+  creatorReadinessOpenVault: "Open Credential Vault",
   networkAccessTitle: "Network access",
   networkAccessToggle: "Allow network access",
   networkAccessDescription:
@@ -591,7 +627,6 @@ const chineseV1: SillyOsCopyV1 = {
   creatorPlaceholder:
     "例如：翻译这部视觉小说，保留每位角色的说话风格，并把不确定的文本放进人工审查队列……",
   create: "创建程序",
-  addResource: "添加资料",
   examplesLabel: "从一个想法开始",
   recentProgramsLabel: "最近的程序",
   browserLocal: "保存在此浏览器中",
@@ -661,11 +696,28 @@ const chineseV1: SillyOsCopyV1 = {
   piTestDraft: "Agent Creator 草稿",
   piTestCancel: "取消运行",
   piTestForget: "忘记测试 key",
-  piLiveTitle: "模型 Provider",
-  piLiveDescription:
-    "创建 Program 前请先保存 Provider API Key。Key 会保存在凭据保险库中，直到你选择“忘记”或清除此站点的数据；连接测试是可选诊断。",
   piLiveFailed: "Provider Agent 不可用",
-  piLiveSetupRequired: "需要 API key",
+  creatorReadinessCatalogLoadingTitle: "正在载入模型 Provider",
+  creatorReadinessCatalogLoadingDescription: "正在读取此设备上的 Provider 与模型设置。",
+  creatorReadinessCatalogFailedTitle: "Provider 目录不可用",
+  creatorReadinessCatalogFailedDescription: "打开 Provider 设置并重试产品随附的目录。",
+  creatorReadinessVaultLoadingTitle: "正在打开凭据保险库",
+  creatorReadinessVaultLoadingDescription: "正在为当前会话准备已保存的 Provider Key。",
+  creatorReadinessVaultUnavailableTitle: "凭据保险库不可用",
+  creatorReadinessVaultUnavailableDescription:
+    "保险库恢复可用前，此浏览器无法使用已保存的 Provider Key。",
+  creatorReadinessVaultLockedTitle: "凭据保险库已锁定",
+  creatorReadinessVaultLockedDescription: "解锁保险库后才能使用已保存的 Provider Key。",
+  creatorReadinessModelRequiredTitle: "请选择模型",
+  creatorReadinessModelRequiredDescription: "至少勾选一个希望 Agent Creator 使用的模型。",
+  creatorReadinessCredentialRequiredTitle: "需要 API Key",
+  creatorReadinessCredentialRequiredDescription: "请为提供已选模型的 Provider 保存 API Key。",
+  creatorReadinessAgentInitializingTitle: "正在启动 Agent Creator",
+  creatorReadinessAgentInitializingDescription: "正在为当前会话准备所选模型。",
+  creatorReadinessAgentFailedTitle: "Agent Creator 不可用",
+  creatorReadinessAgentFailedDescription: "打开 Provider 设置，更换模型或更新 Provider API Key。",
+  creatorReadinessOpenProviders: "打开 Provider 设置",
+  creatorReadinessOpenVault: "打开凭据保险库",
   networkAccessTitle: "网络访问",
   networkAccessToggle: "允许网络访问",
   networkAccessDescription:

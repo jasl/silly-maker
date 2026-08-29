@@ -195,7 +195,8 @@ S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2/N3, the original S3, S3-R1,
 D1, P1-B1d reasoning effort, and E0 engine-baseline absorption are closed. The current
 local source is rebased onto engine baseline
 `31461f362129e6192f70553a261ada225c2abf8b`. DS1 is the current active product
-phase: DS1a and DS1b are delivered, while DS1c–DS1e remain active-plan work. No
+phase: DS1a, DS1b, and DS1c-1 are delivered, while the remaining DS1c–DS1e work
+stays active-plan work. No
 Mod phase is active. The current build-matched
 three-origin artifact and fixed Vault Worker are deployed from commit
 `a17c3490c9940bb43fc8718df485322c2dee1052` (Sandbox
@@ -266,7 +267,7 @@ or deployed release. Its acceptance is the rebased product/unit/build/security
 gate plus a real computed-style Browser check for product-scope colors, normal
 and compact control geometry, focus tokens, and reduced motion.
 
-### DS1 — SillyOS component and pattern system (active; DS1a and DS1b delivered 2026-08-30)
+### DS1 — SillyOS component and pattern system (active; DS1a, DS1b, and DS1c-1 delivered 2026-08-30)
 
 The owner has activated DS1 as a product lane. It inventories the real Creator,
 Settings, Workspace, Chat, review, progress, empty/error, and overlay states,
@@ -326,17 +327,40 @@ The active sequence is:
    progress semantics without copying the engine's range/accessibility checks.
    The closing **DS1b-3** checkpoint adds one native Checkbox recipe for Program
    network access and Provider model visibility, and routes the query-gated Pi
-   test password field through the existing Input recipe. Hidden file inputs
-   remain native platform controls because they have no visible recipe and are
-   activated through named product Buttons. This closes visible physical
-   primitive convergence. Navigation rows, Provider rows, loading/empty states,
-   and workflow composition stay explicit for DS1c rather than becoming a
-   generic Settings framework.
+   test password field through the existing Input recipe. At that checkpoint,
+   hidden file inputs remained native platform controls because they had no
+   visible recipe and were activated through named product Buttons; DS1c-1 later
+   removed those inputs with the filename-only attachment actions. This closes
+   visible physical primitive convergence. Navigation rows, Provider rows,
+   loading/empty states, and workflow composition stay explicit for DS1c rather
+   than becoming a generic Settings framework.
 3. **DS1c — product patterns.** Converge the Creator composer, model/reasoning
    pickers, settings rows, Provider connection controls, proposal/review cards,
    navigation, workpiece, and empty/error/loading states. Product vocabulary
    and workflows remain explicit rather than hidden behind a generic widget
-   framework.
+   framework. The deliberately bounded **DS1c-1 — truthful Creator readiness**
+   checkpoint is delivered locally. It owns one product-specific readiness
+   projection shared by Creator Home and the Program Workspace composer. The
+   projection distinguishes Provider-catalog loading/failure, Credential Vault
+   unavailable/locked state, missing saved credentials, missing enabled models,
+   Agent startup/failure, and ready state; it does not become a generic async-
+   state framework. A readiness notice and the model/reasoning picker are
+   mutually exclusive on both surfaces and each recovery action opens the
+   relevant Settings category while preserving return focus.
+
+   DS1c-1 also corrects the product boundary exposed by that pattern: a durable
+   Program belongs to the Product Repository and remains openable whenever that
+   repository is ready, even when no Provider credential is available, the
+   Vault is locked, or the Agent cannot start. Provider/Agent readiness gates
+   Creator model calls and Pi tool execution, not access to an existing Program.
+   Proposal decisions retain their own repository/currentness pending state;
+   Workspace execution/export retains its own Sandbox state. The two visible
+   Add resource actions are removed until their bytes can be admitted into the
+   Program Workspace instead of merely recording filenames. This checkpoint
+   changes no Credential Vault schema, Provider catalog, Agent loop, Workspace
+   execution contract, or SillyMaker engine API. Provider catalog/Connection
+   information hierarchy, truthful Workpiece cleanup, and shared collection
+   states remain later independent DS1c slices.
 4. **DS1d — surface convergence.** Migrate Creator Home, all three Settings
    categories, Chat, Workspace View, and Activity in independently reviewable
    slices. Each slice removes superseded selectors and recipes after its real
@@ -407,14 +431,36 @@ test runtime, product layout, or an engine API. `CheckboxV1` fixes native
 checkbox type/ref/state semantics and owns the common product size/accent
 recipe; the Program network and Provider model consumers retain their own
 labels, disabled rules, and mutations. The test-only password field now uses
-`InputV1`, while hidden file inputs remain explicit native exceptions. Focused
-behavior and structural guards cover those boundaries. The combined product
+`InputV1`. Its then-retained hidden file inputs were explicit native exceptions;
+DS1c-1 later removed them because the visible attachment actions admitted no
+bytes. Focused behavior and structural guards cover those boundaries. The combined product
 gate is 70 files / 588 tests; root format, type-aware lint, Stylelint, and
 typecheck pass; the Provider-model and Program-network rendered flows pass in
 Chromium and WebKit (4/4); and an in-app Browser pass confirms desktop/narrow
 geometry, keyboard focus, state change, and no page overflow. All three Browser
 artifact boundaries pass before commit; the closing identity is rebuilt and
-rechecked after commit. DS1c–DS1e remain active product work.
+rechecked after commit. The remaining DS1c slices and DS1d–DS1e remain active
+product work.
+
+DS1c-1 delivered locally on 2026-08-30 without changing Pi, Provider, Vault,
+Workspace, or engine contracts. One fixed product projection now gives Creator
+Home and Workspace Chat the same first truthful blocker; notice and model/
+reasoning picker are mutually exclusive. Existing Programs remain openable
+without an Agent, proposal decisions remain local repository actions, and
+Agent/network pending states no longer form one product-wide lock. API keys
+remain Provider-endpoint credentials rather than model properties. Vault
+actions that fail while the Vault remains physically unlocked retain existing
+model availability and can re-establish the Agent handoff; a busy Vault exposes
+the existing selection but admits no new handoff. Filename-only attachment
+controls were removed because they admitted no bytes. Evidence is 72 SillyOS
+unit files / 613 tests, root format/type-aware lint/Stylelint/typecheck, the
+Browser build and control-plane security boundary, an independent logic/UI/test
+review, and in-app Browser checks at desktop, 390px, and the 280px minimum chat
+pane. Chromium/WebKit source E2E contracts cover Program reopen and independent
+proposal decisions, but were not executed in this checkpoint; DS1c-1 therefore
+makes no new dual-engine rendered claim. Provider information hierarchy,
+truthful Workpiece cleanup, and shared collection states remain independent
+later DS1c slices.
 
 SillyMaker remains the home only for neutral primitives and interaction
 mechanics that can be reproduced without SillyOS vocabulary. A DS1 discovery

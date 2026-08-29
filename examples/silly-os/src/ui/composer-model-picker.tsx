@@ -22,6 +22,7 @@ export interface ComposerReasoningEffortControlV1 {
 
 export interface ComposerModelControlV1 {
   readonly status: "required" | "initializing" | "ready" | "failed";
+  readonly disabled?: boolean;
   readonly selectedValue: string | null;
   readonly options: readonly {
     readonly value: string;
@@ -36,7 +37,6 @@ export interface ComposerModelControlV1 {
 export interface ComposerModelPickerPropsV1 extends ComposerModelControlV1 {
   readonly copy: SillyOsCopyV1;
   readonly surface: "home" | "workspace";
-  readonly disabled?: boolean;
 }
 
 export function ComposerModelPickerV1({

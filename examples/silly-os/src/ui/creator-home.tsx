@@ -2,11 +2,9 @@
 import {
   ArrowRight,
   Drama,
-  FileText,
   FolderOpen,
   KeyRound,
   Languages,
-  Paperclip,
   PenTool,
   Sparkles,
 } from "lucide-react";
@@ -16,6 +14,8 @@ import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
 import type { PreviewProgramKindV1, ProgramProposalStatusV1 } from "../product/contracts.ts";
 import type { SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
 import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
+import { CreatorReadinessNoticeV1 } from "./creator-readiness-notice.tsx";
+import type { CreatorReadinessRecoveryTargetV1, CreatorReadinessV1 } from "./creator-readiness.ts";
 import { ButtonV1 as Button } from "./design-system/button.tsx";
 import { InputV1 } from "./design-system/input.tsx";
 import { TextareaV1 } from "./design-system/textarea.tsx";
@@ -26,7 +26,7 @@ const promptIconsV1 = [Languages, PenTool, Drama] as const;
 
 export interface CreatorHomePropsV1 {
   readonly copy: SillyOsCopyV1;
-  readonly onCreate: (intent: string, resourceNames: readonly string[]) => void;
+  readonly onCreate: (intent: string) => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
   readonly theme: SillyOsThemeModeV1;
   readonly onThemeChange: (theme: SillyOsThemeModeV1) => void;
@@ -49,18 +49,10 @@ export interface CreatorHomePropsV1 {
     readonly status: "loading" | "available" | "initializing" | "ready" | "failed";
     readonly onInitialize: (credential: string) => void;
   };
-  readonly providerSetup?: {
-    readonly status:
-      | "loading"
-      | "available"
-      | "saving"
-      | "credential_saved"
-      | "testing"
-      | "ready"
-      | "test_failed"
-      | "failed";
-    readonly onOpenSettings: () => void;
-  };
+  readonly creatorReadiness?: CreatorReadinessV1;
+  readonly onOpenCreatorSettings?: (
+    target: Exclude<CreatorReadinessRecoveryTargetV1, null>,
+  ) => void;
   readonly providerModel?: ComposerModelControlV1;
 }
 
@@ -73,14 +65,14 @@ export function CreatorHomeV1({
   onOpenSettings,
   createDisabled = false,
   piAgentSetup,
+  creatorReadiness,
+  onOpenCreatorSettings,
   providerModel,
-  providerSetup,
   programCatalog,
 }: CreatorHomePropsV1): ReactNode {
   const [intent, setIntent] = useState("");
-  const [resourceNames, setResourceNames] = useState<readonly string[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const piAgentKeyRef = useRef<HTMLInputElement>(null);
+  const creatorReady = creatorReadiness === undefined || creatorReadiness.status === "ready";
 
   const programKindLabelV1 = (kind: PreviewProgramKindV1): string => {
     switch (kind) {
@@ -99,10 +91,10 @@ export function CreatorHomeV1({
 
   const submitV1 = (event?: FormEvent): void => {
     event?.preventDefault();
-    if (createDisabled) return;
+    if (createDisabled || !creatorReady) return;
     const normalized = intent.trim();
     if (normalized.length === 0) return;
-    onCreate(normalized, resourceNames);
+    onCreate(normalized);
   };
 
   return (
@@ -192,31 +184,13 @@ export function CreatorHomeV1({
             </form>
           )}
 
-          {providerSetup !== undefined && (
-            <button
-              type="button"
-              className="pi-agent-setup pi-agent-setup--warning"
-              data-pi-agent-runtime="pi_provider"
-              data-pi-agent-status={providerSetup.status}
-              onClick={providerSetup.onOpenSettings}
-            >
-              <div className="pi-agent-setup__heading">
-                <KeyRound size={16} aria-hidden="true" />
-                <strong>{copy.piLiveTitle}</strong>
-                <span>
-                  {providerSetup.status === "failed"
-                    ? copy.piLiveFailed
-                    : providerSetup.status === "saving"
-                    ? copy.providerSaving
-                    : copy.piLiveSetupRequired}
-                </span>
-              </div>
-              <p>{copy.piLiveDescription}</p>
-              <span className="pi-agent-setup__warning-action">
-                {copy.settings}
-                <ArrowRight size={15} aria-hidden="true" />
-              </span>
-            </button>
+          {creatorReadiness === undefined ? null : (
+            <CreatorReadinessNoticeV1
+              copy={copy}
+              readiness={creatorReadiness}
+              surface="home"
+              {...(onOpenCreatorSettings === undefined ? {} : { onRecover: onOpenCreatorSettings })}
+            />
           )}
 
           <form className="creator-composer" onSubmit={submitV1}>
@@ -238,46 +212,16 @@ export function CreatorHomeV1({
                 }
               }}
             />
-            {resourceNames.length > 0 && (
-              <div className="creator-composer__resources" aria-label="Selected resources">
-                {resourceNames.map((name) => (
-                  <span key={name}>
-                    <FileText size={14} aria-hidden="true" />
-                    {name}
-                  </span>
-                ))}
-              </div>
-            )}
             <div className="creator-composer__actions">
-              <input
-                ref={fileInputRef}
-                hidden
-                type="file"
-                multiple
-                onChange={(event) =>
-                  setResourceNames(
-                    Array.from(event.currentTarget.files ?? [], (file) => file.name),
-                  )}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                icon={Paperclip}
-                className="creator-composer__resource-button"
-                aria-label={copy.addResource}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <span>{copy.addResource}</span>
-              </Button>
               <div className="creator-composer__primary-actions">
-                {providerModel !== undefined
+                {creatorReady && providerModel !== undefined
                   ? <ComposerModelPickerV1 copy={copy} surface="home" {...providerModel} />
                   : null}
                 <Button
                   type="submit"
                   variant="primary"
                   icon={ArrowRight}
-                  disabled={createDisabled || intent.trim().length === 0}
+                  disabled={createDisabled || !creatorReady || intent.trim().length === 0}
                 >
                   {copy.create}
                 </Button>

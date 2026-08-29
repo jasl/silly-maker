@@ -92,4 +92,17 @@ describe("SillyOS shared composer reasoning effort", () => {
     expect(screen.getByRole("combobox", { name: "Agent Creator reasoning effort" }))
       .toBeDisabled();
   });
+
+  it("retains the selected model while an external capability disables switching", () => {
+    const onSelect = vi.fn();
+    render(<ComposerModelPickerV1 {...propsV1({ disabled: true, onSelect })} />);
+
+    const model = screen.getByRole("combobox", { name: "Agent Creator model" });
+    const reasoning = screen.getByRole("combobox", { name: "Agent Creator reasoning effort" });
+    expect(model).toHaveTextContent("Claude Sonnet 5");
+    expect(model).toBeDisabled();
+    expect(reasoning).toBeDisabled();
+    fireEvent.click(model);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });

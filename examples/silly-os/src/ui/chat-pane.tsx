@@ -7,7 +7,6 @@ import {
   Globe2,
   KeyRound,
   LoaderCircle,
-  Paperclip,
   Sparkles,
   StopCircle,
 } from "lucide-react";
@@ -22,6 +21,8 @@ import type {
 } from "../product/contracts.ts";
 import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
 import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
+import { CreatorReadinessNoticeV1 } from "./creator-readiness-notice.tsx";
+import type { CreatorReadinessRecoveryTargetV1, CreatorReadinessV1 } from "./creator-readiness.ts";
 import { ButtonV1 as Button, IconButtonV1 } from "./design-system/button.tsx";
 import { CheckboxV1 } from "./design-system/checkbox.tsx";
 import { TextareaV1 } from "./design-system/textarea.tsx";
@@ -171,7 +172,12 @@ export interface ChatPanePropsV1 {
   readonly onOpenWorkpiece: () => void;
   readonly onSend: (text: string) => boolean | void | Promise<boolean | void>;
   readonly providerModel?: ComposerModelControlV1;
-  readonly mutationPending?: boolean;
+  readonly creatorReadiness?: CreatorReadinessV1;
+  readonly onOpenCreatorSettings?: (
+    target: Exclude<CreatorReadinessRecoveryTargetV1, null>,
+  ) => void;
+  readonly decisionPending?: boolean;
+  readonly agentInteractionPending?: boolean;
   readonly networkAccess?: {
     readonly enabled: boolean;
     readonly pending: boolean;
@@ -205,21 +211,24 @@ export function ChatPaneV1({
   onOpenWorkpiece,
   onSend,
   providerModel,
-  mutationPending = false,
+  creatorReadiness,
+  onOpenCreatorSettings,
+  decisionPending = false,
+  agentInteractionPending = false,
   networkAccess,
   piAgentRun,
 }: ChatPanePropsV1): ReactNode {
   const [draft, setDraft] = useState("");
   const feedEndRef = useRef<HTMLDivElement>(null);
-  const resourceInputRef = useRef<HTMLInputElement>(null);
   const liveAgent = piAgentRun?.runtime === "pi_provider";
   const showAgentRun = piAgentRun !== undefined &&
     (!liveAgent || piAgentRun.status === "running" || piAgentRun.status === "failed");
   const agentTitle = liveAgent ? copy.creatorName : copy.piTestTitle;
   const agentFailed = liveAgent ? copy.piLiveFailed : copy.piTestFailed;
   const pendingReviewChanged = workspaceReview?.pendingStatus === "changed";
-  const providerModelUnavailable = providerModel !== undefined && providerModel.status !== "ready";
-  const interactionPending = mutationPending;
+  const creatorReady = creatorReadiness === undefined || creatorReadiness.status === "ready";
+  const providerModelUnavailable = !creatorReady ||
+    (providerModel !== undefined && providerModel.status !== "ready");
 
   useEffect(() => {
     feedEndRef.current?.scrollIntoView({ block: "end" });
@@ -228,7 +237,7 @@ export function ChatPaneV1({
   const submitV1 = (event?: FormEvent): void => {
     event?.preventDefault();
     const text = draft.trim();
-    if (text.length === 0 || providerModelUnavailable || interactionPending) return;
+    if (text.length === 0 || providerModelUnavailable || agentInteractionPending) return;
     void Promise.resolve(onSend(text)).then((accepted) => {
       if (accepted === false) return;
       setDraft((current) => current.trim() === text ? "" : current);
@@ -319,7 +328,7 @@ export function ChatPaneV1({
                     size="sm"
                     variant="ghost"
                     icon={KeyRound}
-                    disabled={mutationPending || piAgentRun.status === "running"}
+                    disabled={agentInteractionPending || piAgentRun.status === "running"}
                     onClick={piAgentRun.onForget}
                   >
                     {copy.piTestForget}
@@ -340,7 +349,7 @@ export function ChatPaneV1({
               <label className="network-access__toggle">
                 <CheckboxV1
                   checked={networkAccess.enabled}
-                  disabled={networkAccess.pending || interactionPending}
+                  disabled={networkAccess.pending}
                   onChange={(event) => {
                     void Promise.resolve(networkAccess.onChange(event.currentTarget.checked));
                   }}
@@ -391,7 +400,7 @@ export function ChatPaneV1({
                     size="sm"
                     variant="primary"
                     icon={CircleCheck}
-                    disabled={interactionPending || pendingReviewChanged}
+                    disabled={decisionPending || pendingReviewChanged}
                     aria-describedby={pendingReviewChanged
                       ? pendingReviewStatusDescriptionIdV1
                       : undefined}
@@ -403,7 +412,7 @@ export function ChatPaneV1({
                     size="sm"
                     variant="secondary"
                     icon={CircleX}
-                    disabled={interactionPending}
+                    disabled={decisionPending}
                     onClick={onReject}
                   >
                     {copy.reject}
@@ -445,6 +454,15 @@ export function ChatPaneV1({
         <div ref={feedEndRef} />
       </div>
 
+      {creatorReadiness === undefined ? null : (
+        <CreatorReadinessNoticeV1
+          copy={copy}
+          readiness={creatorReadiness}
+          surface="workspace"
+          {...(onOpenCreatorSettings === undefined ? {} : { onRecover: onOpenCreatorSettings })}
+        />
+      )}
+
       <form className="chat-composer" onSubmit={submitV1}>
         <label className="silly-os-visually-hidden" htmlFor="workspace-follow-up">
           {copy.sendPlaceholder}
@@ -455,7 +473,7 @@ export function ChatPaneV1({
           rows={3}
           maxLength={4_000}
           placeholder={copy.sendPlaceholder}
-          disabled={interactionPending}
+          disabled={agentInteractionPending}
           onChange={(event) => setDraft(event.currentTarget.value)}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing) return;
@@ -466,38 +484,8 @@ export function ChatPaneV1({
           }}
         />
         <div className="chat-composer__actions">
-          <input
-            ref={resourceInputRef}
-            hidden
-            type="file"
-            multiple
-            onChange={(event) => {
-              if (providerModelUnavailable) return;
-              const names = Array.from(event.currentTarget.files ?? [], (file) => file.name);
-              if (names.length === 0) return;
-              void Promise.resolve(onSend(
-                copy.locale === "zh-CN"
-                  ? `为这个程序添加资料：${
-                    names.join("、")
-                  }。当前只记录附件名称，尚未导入文件内容。`
-                  : `Add these resources to the program: ${
-                    names.join(", ")
-                  }. Only the attachment names are recorded; file contents are not imported yet.`,
-              ));
-              event.currentTarget.value = "";
-            }}
-          />
-          <IconButtonV1
-            type="button"
-            variant="ghost"
-            size="sm"
-            icon={Paperclip}
-            accessibleName={copy.addResource}
-            disabled={interactionPending || providerModelUnavailable}
-            onClick={() => resourceInputRef.current?.click()}
-          />
           <div className="chat-composer__primary-actions">
-            {providerModel !== undefined && (
+            {creatorReady && providerModel !== undefined && (
               <ComposerModelPickerV1
                 copy={copy}
                 surface="workspace"
@@ -511,7 +499,8 @@ export function ChatPaneV1({
               size="sm"
               icon={ArrowUp}
               accessibleName={copy.send}
-              disabled={interactionPending || providerModelUnavailable || draft.trim().length === 0}
+              disabled={agentInteractionPending || providerModelUnavailable ||
+                draft.trim().length === 0}
             />
           </div>
         </div>

@@ -882,13 +882,16 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(sillyOsTargetUrlV1("?locale=en"));
   await expectProgramStorageReadyV1(page);
-  const providerWarning = page.locator('[data-pi-agent-runtime="pi_provider"]');
-  await expect(providerWarning).toHaveAttribute("data-pi-agent-status", "available");
-  await expect(providerWarning).toContainText("API key required");
-  await expect(providerWarning).toContainText("Settings");
+  const creatorReadiness = page.locator('[data-creator-readiness-surface="home"]');
+  await expect(creatorReadiness).toHaveAttribute(
+    "data-creator-readiness",
+    "credential_required",
+  );
+  await expect(creatorReadiness).toContainText("API key required");
+  await expect(creatorReadiness).toContainText("Open Providers");
   const homeModelControl = page.locator('[data-creator-model-selector="true"]');
   await expect(homeModelControl).toHaveCount(0);
-  const providerWarningBox = await providerWarning.boundingBox();
+  const providerWarningBox = await creatorReadiness.boundingBox();
   const creatorComposerBox = await page.locator(".creator-composer").boundingBox();
   expect(
     (creatorComposerBox?.y ?? 0) -
@@ -898,7 +901,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
     ".creator-composer .sos-textarea, .creator-composer__actions .sos-button",
   ).evaluateAll((elements) => elements.map((element) => getComputedStyle(element).borderRadius));
   expect(new Set(composerControlRadii)).toEqual(new Set(["12px"]));
-  await providerWarning.click();
+  await creatorReadiness.getByRole("button", { name: "Open Providers" }).click();
 
   const settings = page.locator('[data-silly-os-view="settings"]');
   const globalBack = page.getByRole("button", { name: "Back to Agent Creator" });
@@ -1089,7 +1092,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(credentialSaveReceipt).toHaveCount(0, { timeout: 4_000 });
   expect(providerProbeRequests).toHaveLength(0);
   await globalBack.click();
-  await expect(providerWarning).toHaveCount(0);
+  await expect(creatorReadiness).toHaveCount(0);
   const homeModelSelector = homeModelControl.getByRole("combobox", {
     name: "Agent Creator model",
   });
@@ -1168,7 +1171,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
 
   await page.reload();
   await expectProgramStorageReadyV1(page);
-  await expect(providerWarning).toBeVisible();
+  await expect(creatorReadiness).toHaveAttribute("data-creator-readiness", "vault_locked");
   await expect(homeModelControl).toHaveCount(0);
   await page.locator('[data-open-settings="home"]').click();
   await page.getByRole("menuitem", { name: "Settings" }).click();
@@ -1203,7 +1206,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
     }),
   ).toHaveCount(0);
   await globalBack.click();
-  await expect(providerWarning).toHaveCount(0);
+  await expect(creatorReadiness).toHaveCount(0);
   await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
   await expect(homeModelSelector).toHaveAttribute(
     "data-selected-value",
@@ -1301,24 +1304,16 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
     "feed-to-composer gap",
   ).toBeGreaterThanOrEqual(9);
 
-  const workspaceResourceButton = chatComposer.getByRole("button", { name: "Add resource" });
   const workspaceSendButton = chatComposer.getByRole("button", { name: "Send" });
-  const [workspaceResourceBox, workspaceModelSelectorBox, workspaceSendBox] = await Promise.all([
-    workspaceResourceButton.boundingBox(),
+  const [workspaceModelSelectorBox, workspaceSendBox] = await Promise.all([
     workspaceModelSelector.boundingBox(),
     workspaceSendButton.boundingBox(),
   ]);
-  expect(workspaceResourceBox).not.toBeNull();
   expect(workspaceModelSelectorBox).not.toBeNull();
   expect(workspaceSendBox).not.toBeNull();
-  for (
-    const controlBox of [workspaceResourceBox, workspaceModelSelectorBox, workspaceSendBox]
-  ) {
+  for (const controlBox of [workspaceModelSelectorBox, workspaceSendBox]) {
     expect(controlBox?.height ?? 0).toBeGreaterThanOrEqual(42);
   }
-  expect(
-    (workspaceResourceBox?.x ?? 0) + (workspaceResourceBox?.width ?? 0),
-  ).toBeLessThanOrEqual(workspaceModelSelectorBox?.x ?? 0);
   expect(
     (workspaceModelSelectorBox?.x ?? 0) + (workspaceModelSelectorBox?.width ?? 0),
   ).toBeLessThanOrEqual(workspaceSendBox?.x ?? 0);
@@ -1451,8 +1446,11 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await globalBack.click();
   await expect(workspaceSettings).toBeFocused();
   await page.getByRole("button", { name: "Creator home" }).click();
-  await expect(providerWarning).toHaveAttribute("data-pi-agent-status", "available");
-  await expect(providerWarning).toContainText("API key required");
+  await expect(creatorReadiness).toHaveAttribute(
+    "data-creator-readiness",
+    "credential_required",
+  );
+  await expect(creatorReadiness).toContainText("API key required");
   await expect(homeModelControl).toHaveCount(0);
   await expectNoPageOverflowV1(page);
 
@@ -1486,9 +1484,12 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
 
   await page.goto(sillyOsTargetUrlV1("?locale=en"));
   await expectProgramStorageReadyV1(page);
-  const providerWarning = page.locator('[data-pi-agent-runtime="pi_provider"]');
-  await expect(providerWarning).toHaveAttribute("data-pi-agent-status", "available");
-  await providerWarning.click();
+  const creatorReadiness = page.locator('[data-creator-readiness-surface="home"]');
+  await expect(creatorReadiness).toHaveAttribute(
+    "data-creator-readiness",
+    "credential_required",
+  );
+  await creatorReadiness.getByRole("button", { name: "Open Providers" }).click();
   await expect(page.locator('[data-silly-os-view="settings"]')).toBeVisible();
   await page.locator('[data-add-custom-endpoint="true"]').click();
 
@@ -1573,7 +1574,7 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
 
   await page.reload();
   await expectProgramStorageReadyV1(page);
-  await expect(providerWarning).toHaveCount(0);
+  await expect(creatorReadiness).toHaveCount(0);
   await expect(page.locator('[data-creator-model-selector="true"]')).toHaveAttribute(
     "data-model-state",
     "ready",
@@ -1636,8 +1637,11 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
 
   await page.reload();
   await expectProgramStorageReadyV1(page);
-  await expect(providerWarning).toHaveAttribute("data-pi-agent-status", "available");
-  await providerWarning.click();
+  await expect(creatorReadiness).toHaveAttribute(
+    "data-creator-readiness",
+    "credential_required",
+  );
+  await creatorReadiness.getByRole("button", { name: "Open Providers" }).click();
   await expect(page.locator("[data-custom-profile-id]")).toHaveCount(0);
   await expect(page.getByText("Add an HTTPS endpoint", { exact: true })).toBeVisible();
 });
@@ -1668,8 +1672,12 @@ test("Creator Home persists and reopens an exact accepted Program", async ({ dur
   await page.getByRole("button", { name: "Creator home" }).click();
   await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
   await expectProgramStorageReadyV1(page);
-  await page.reload();
+  await page.goto(sillyOsTargetUrlV1("?locale=en"));
   await expectProgramStorageReadyV1(page);
+  await expect(page.locator('[data-creator-readiness-surface="home"]')).toHaveAttribute(
+    "data-creator-readiness",
+    "credential_required",
+  );
   await expect(page.getByRole("heading", { name: "Recent programs", level: 2 })).toBeVisible();
 
   await openRecentTranslationProgramV1(page, {
@@ -1685,6 +1693,37 @@ test("Creator Home persists and reopens an exact accepted Program", async ({ dur
   await expect(page.getByLabel("Program preview source")).toContainText("revision: 1");
   await page.getByRole("tab", { name: "Activity" }).click();
   await expect(page.getByText("Accepted Program proposal v1", { exact: true })).toBeVisible();
+});
+
+test("a pending Program remains locally reviewable without a Provider credential", async ({ durableProgramPage: page }) => {
+  const initialWorkspace = await openTranslationWorkspaceV1(page);
+  const programId = await readProgramIdV1(initialWorkspace);
+
+  await page.getByRole("button", { name: "Creator home" }).click();
+  await expectProgramStorageReadyV1(page);
+  await page.goto(sillyOsTargetUrlV1("?locale=en"));
+  await expectProgramStorageReadyV1(page);
+
+  const readiness = page.locator('[data-creator-readiness-surface="home"]');
+  await expect(readiness).toHaveAttribute("data-creator-readiness", "credential_required");
+  const recentProgram = page.getByRole("button", {
+    name: "Open program: Translation Workshop",
+    exact: true,
+  });
+  await expect(recentProgram).toHaveAttribute("data-program-id", programId);
+  await expect(recentProgram).toBeEnabled();
+  await recentProgram.click();
+
+  await expect(page.locator('[data-creator-readiness-surface="workspace"]')).toHaveAttribute(
+    "data-creator-readiness",
+    "credential_required",
+  );
+  await expect(page.getByRole("textbox", { name: "Ask for a change…" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Accept program" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Reject proposal" })).toBeEnabled();
+  await page.getByRole("button", { name: "Accept program" }).click();
+  await expectProgramStorageReadyV1(page);
+  await expect(page.getByText("Program accepted", { exact: true }).first()).toBeVisible();
 });
 
 test("a follow-up creates a new exact Program revision for review", async ({ durableProgramPage: page }) => {
