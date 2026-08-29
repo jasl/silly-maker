@@ -119,11 +119,13 @@ control-build QuickJS/Wasm exclusion gate all pass. Python, broader Wasm and
 editor integration remain separate inactive
 checkpoints. Earlier B1c Provider counts
 are dated evidence for their pre-security snapshot
-and do not by themselves accept the current overlay. This lane
-still does not add OAuth, multi-field cloud credentials, a Provider relay,
-public HTTP/LAN access, arbitrary headers, or a second Provider runtime, and it
-does not claim real custom-endpoint qualification until an exact custom route
-passes the later deployed-origin gate.
+and do not by themselves accept the current overlay. Current source still does
+not add OAuth, multi-field cloud credentials, a Provider relay, `fetch_url`,
+remote-to-VFS download, HTTP/LAN access, arbitrary headers, or a second Provider
+runtime, and it does not claim real custom-endpoint qualification until an exact
+custom route passes the later deployed-origin gate. The owner accepted S2-N on
+2026-08-29 as the next explicit Browser capability lane. Its keyless Network
+Broker and bounded tools are specified but not implemented or deployed.
 The raw launcher is not the typed product RPC; the live Browser route is a
 separate product path. This plan remains local to `examples/silly-os`; the
 neutral async GUI disposer was delivered separately by the engine task and is
@@ -175,8 +177,10 @@ a native companion behind the same typed workspace boundary.
 
 At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
 S1a-1, S1b-1, S1b-2, S1b-3, and S2-Q1 are closed locally. The post-Q1 Browser
-Workspace namespace/file slice is implemented and locally verified. No later
-S2 execution profile is activated automatically. The opt-in real QJS Agent-loop
+Workspace namespace/file slice is implemented and locally verified. S2-N0 is
+the accepted next deliberately bounded slice, but no Network Broker, network
+tool, grant, or deployment evidence exists yet; N0 does not activate later
+Program-grant or remote-download work automatically. The opt-in real QJS Agent-loop
 qualifier has passed once with Anthropic `claude-sonnet-4-5` in Chromium. A
 later phase may be refined before it
 starts, but it may not
@@ -199,7 +203,7 @@ SillyMaker sandbox, Agent, Provider, or credential API.
 
 ### B1c-S0 — trusted control-plane floor (closed locally 2026-08-28)
 
-S0 first records the three-plane trust model and prevents the current product
+S0 first records the controlling security-plane trust model and prevents the current product
 from widening an already-known same-origin boundary. Its deliberately bounded
 implementation slice is:
 
@@ -470,8 +474,11 @@ Pi remains the only Agent/tool/plugin authority, so an execution runtime never
 becomes another AgentTool framework or generic runtime RPC. Download,
 `git clone`, package retrieval, and every other network action remain off until
 an explicit capability admits exact targets, byte/time/output limits,
-cancellation, and receipts. Wasm may implement one runtime but never becomes the
-Program or Sandbox contract.
+cancellation, and receipts. Current Workspace, just-bash, and QJS code remains
+network-off. Accepted S2-N adds only named `fetch_url` and later `download` Pi
+tools through their own Broker; it never injects network into `bash` or guest
+code. Wasm may implement one runtime but never becomes the Program or Sandbox
+contract.
 
 Browser and Desktop share the following semantic denominator:
 
@@ -633,6 +640,193 @@ native `bash` schema/result; just-bash owns the admitted command algorithms;
 the Sandbox Host owns Program volume generations and recovery. None of these
 semantics moves into the use-case-neutral SillyMaker engine.
 
+#### S2-N — explicit Browser network tools through a keyless Broker (accepted 2026-08-29; not implemented)
+
+Network access is an explicit Program capability, not an ambient Workspace or
+guest-runtime property. SillyOS will ship fixed Pi `AgentTool` values named
+`fetch_url` and, later, `download`. They use Pi's `AgentTool` contract; Pi
+continues to own call lifecycle, ordering, and the Agent loop, while the pinned
+SillyOS adapter owns each fixed schema and handler. A product-private
+`NetworkCapabilityPort` owns Browser admission, grants, cancellation, and
+currentness. This is direct product-fixed tool composition, not a second Agent/
+tool framework, public plugin lifecycle, generic `fetch` RPC, or SillyMaker
+engine contract.
+
+The product use cases are: download a specified archive, asset, or other file
+into the current Program VFS; read bounded text from a known page or HTTPS data endpoint;
+and search for candidate sources. N0 and N2 deliberately prove the first two
+physical paths. Web search remains an explicit follow-on Pi `AgentTool`, not an
+attempt to parse arbitrary search-results HTML through `fetch_url`. Its concrete
+provider/adapter and any non-LLM credential ownership are selected only after
+the Broker boundary is proved; this follow-on does not block N0 or N2.
+
+Provider egress remains separate. Provider requests and the session-only API
+key stay in the selected fixed Pi Agent Worker. Product code never configures,
+attaches, or derives a Provider key, Authorization header, or Cookie for a
+Broker request. The Broker receives no Product Repository, Credential Vault,
+general Workspace/VFS handle, or generic request headers/body; N2 may give one
+call a bounded write-only staging port. The admitted URL remains user/Agent data
+and can itself contain sensitive information. This defends the credential plane
+from model-, project-, and guest-generated code under the accepted trusted-
+product-code boundary; it does not claim resistance to a compromised product-
+fixed Agent Worker, control plane, browser extension, device, or supply chain.
+
+The API key is the principal product-held credential, but Program files and
+user input may also be private. Granting an origin intentionally permits the
+Agent to encode data into a URL path/query sent to that origin. V1 states that
+consequence and requires a user decision; it does not add DLP, inspect prompts,
+classify Workspace content, score host reputation, or claim to prevent
+prompt-injection-driven disclosure after the user grants a destination.
+
+V1 admits absolute HTTPS URLs and rejects non-HTTPS schemes and URL userinfo. It
+does not reject `localhost`, `.local`, private/loopback IP literals, or public
+hostnames that resolve to local addresses. Those destinations remain subject
+to TLS, CORS, Local Network Access permission, DNS, and target-browser behavior.
+HTTP is absent because an HTTPS-deployed Browser product cannot rely on it under
+mixed-content policy, not because private-network use is forbidden. SillyOS
+does not perform DNS resolution or attempt to outsmart Browser network policy.
+
+The Broker is a third stable tuple origin containing only product-shipped,
+build-identity-matched trusted code. Its own response may admit
+`connect-src https:` because user-selected origins are not statically
+enumerable. The control document admits only the exact Broker frame origin; the
+selected Agent Worker retains only its exact Provider `connect-src`, and the
+Workspace Sandbox retains `connect-src 'none'`. QJS, just-bash guest code, and
+generated code receive no Browser `fetch`; just-bash's bundled but unregistered
+`curl` remains unreachable. The Broker is not placed in an opaque-origin frame,
+because a stable Broker origin is part of the CORS and audit contract.
+
+##### S2-N0 — bounded `fetch_url` and session-only approval
+
+N0 is the deliberately bounded first implementation slice. It adds one fixed
+`fetch_url` Pi `AgentTool`, the third-origin Broker, and the smallest
+session-only **Allow once** flow. It adds no persistent grant, no broad Settings
+surface, no `download`, no Provider relay, and no production-availability
+claim.
+
+The fixed request behavior is:
+
+- model-controlled input is only one bounded absolute HTTPS URL;
+- `GET`, `mode: "cors"`, `redirect: "error"`, `credentials: "omit"`,
+  `referrerPolicy: "no-referrer"`, and `cache: "no-store"`;
+- no custom method, header, body, Cookie, Authorization, redirect following, or
+  browser credential;
+- an exact textual MIME allowlist, UTF-8 decoding, no HTML rendering/content
+  sniffing, and a `256 KiB` hard ceiling over bytes delivered by the decoded
+  Browser response stream;
+- fixed total and idle deadlines, cancellation/currentness fencing, and ignored
+  late settlement;
+- readable bounded 4xx/5xx results, while CORS, DNS, TLS, CSP, LNA, redirect,
+  timeout, and transport failures remain one bounded tool failure rather than
+  speculative diagnosis; and
+- an explicit untrusted-remote-content wrapper in the tool result. It keeps
+  bytes inert in the UI but does not claim that an LLM cannot be influenced by
+  remote text.
+
+An ungranted call sends no request and terminates with typed
+`approval_required`; V1 does not keep a Pi tool promise suspended while waiting
+for UI. The minimal approval surface shows the exact origin and full transient
+requested URL, including the path/query disclosure warning. **Allow once**
+creates one session-memory permit for the exact `(programId,
+workspaceSessionId, operation, normalized URL)`, expires with that Workspace
+session, and is atomically consumed by the first matching later Pi tool call.
+The retry receives a new ordinary run/tool identity and must independently pass
+currentness. A deterministic qualifier may receive the same exact pre-admitted
+test grant; its controlled endpoint must be a distinct CORS origin so a same-
+origin request cannot masquerade as network qualification.
+
+N0 closes only when:
+
+1. focused admission tests reject non-HTTPS, userinfo, malformed input, custom
+   request authority, unsupported MIME, and over-limit content without
+   accidentally adding a private-address denylist;
+2. a controlled endpoint proves success, readable 4xx/5xx, redirect rejection,
+   missing-CORS failure, streamed size failure, total/idle timeout,
+   cancellation, run/currentness loss, and ignored late settlement;
+3. captured requests contain no product-added Authorization, Cookie, referrer,
+   Provider-key sentinel, Program/Workspace identity, custom header, or body;
+   ordinary Browser-generated transport metadata such as `Origin`,
+   `Sec-Fetch-*`, and `User-Agent` is expected;
+4. Chromium and persistent-profile WebKit prove the exact control -> Pi tool ->
+   Broker path without moving response bytes through React or giving Agent/
+   Workspace origins general egress;
+5. actual control, Agent, Workspace, and Broker builds pass exact CSP,
+   build-identity, fixed-asset, and source-graph checks; and
+6. current QJS/just-bash network denial, Workspace cold reopen, and credential-
+   sentinel regressions remain green.
+
+Stop N0 and review the topology if it requires widening the Agent Worker or
+Workspace Sandbox to arbitrary network, deriving a Broker request from the
+Credential plane, giving the Broker general VFS authority, buffering the
+response in React/Agent state, or weakening
+cancellation/currentness. A site's missing CORS, a Browser LNA refusal, or the
+inability to inspect a hostname's resolved IP is an expected product limit, not
+a reason to build a relay, DNS policy engine, or Browser workaround.
+
+##### S2-N1 — durable Program grants
+
+After N0, add the smallest durable grant flow. **Allow for this Program** stores
+only `(programId, immutable normalized HTTPS origin, admitted operation)` in the
+ordinary Product Repository and can be revoked. **Deny** rejects the pending
+request without creating a persistent rule system. Full requested URLs remain
+transient; the Broker reads no repository and receives only a request already
+admitted by Product Core. Network grants are non-secret product preferences and
+never enter the Credential Vault, Workspace VFS, Pi transcript persistence, or
+Broker storage.
+
+N1 requires cross-Program isolation, once-permit consumption, durable-grant cold
+reopen/revocation, zero request before grant, ordinary Chromium/WebKit journeys,
+and one deployed controlled-CORS smoke. A stochastic real-model invocation may
+be recorded separately but is not deterministic closure authority. If this
+would require S3 key persistence, S4 transcript persistence, generic capability
+composition, or automatic replay of arbitrary Agent turns, retain terminal
+`approval_required` and stop instead of broadening the slice.
+
+##### S2-N2 — streamed `download` into the current Workspace
+
+N2 reuses the Broker and grant authority for a fixed Pi `download` AgentTool.
+Model input remains only URL, normalized `/workspace` destination, and
+`overwrite`; trusted code binds `programId`, `volumeId`, Workspace session,
+expected generation, Agent run, and currentness.
+
+The Broker transfers bounded response chunks directly to Workspace Host staging
+over a transferred `MessagePort` with acknowledgement/backpressure. Neither
+React nor the Agent Worker retains the body, and Broker storage never becomes a
+second volume. Workspace Host owns advisory storage estimation, actual quota
+failure, staging cleanup, atomic `overwrite: false` admission, current-head
+revalidation, and final publication.
+
+Only a complete 2xx response may publish a file. 4xx/5xx return bounded
+diagnostics and leave the VFS unchanged. `Content-Length` may reject early but
+never proves final size; Host counts actual streamed bytes. Failure,
+cancellation, quota exhaustion, or currentness loss preserves the previous
+destination and never publishes partial staging bytes. Success produces one
+distinct `tool: "download"` Workspace mutation receipt and one exact durable
+generation; this inbound remote-to-VFS operation must not reuse or be confused
+with the existing outbound portable-ZIP `start_download` handoff.
+
+The initial `32 MiB` ceiling is a candidate, not a claim. N2 reuses the existing
+`1 MiB` chunk and `4 MiB` in-flight bounds where applicable, first repeats the
+already-proved `20 MiB+` profile, and promotes 32 MiB only after actual Chromium
+and persistent-WebKit ingress, cold reopen, quota failure, cancellation, stale-
+head, and memory/backpressure evidence passes. If it does not pass, select the
+lower measured bound instead of creating a container, cache, or multipart
+framework.
+
+Stop N2 if bounded Broker-to-Host transfer cannot maintain backpressure,
+requires full-body accumulation in Agent/control, or requires giving the Broker
+VFS/storage authority. Lowering an unproved size ceiling is allowed; widening
+Workspace `connect-src`, registering `curl`, or adding a general network
+filesystem is not.
+
+`git clone`, package installation, authenticated downloads, arbitrary headers,
+POST/body requests, redirect following, background synchronization, guest
+network APIs, and HTTP compatibility remain separately evidence-gated. S2-N
+activates none of them and does not automatically activate Python, S3, S4, or
+S5. General web search is also absent until its separately named Pi tool and
+bounded result/provider contract are accepted; N0 does not pretend that
+`fetch_url` supplies it.
+
 ### S3 — optional Credential Vault
 
 Session-only remains the default. Persistent credentials activate only after
@@ -744,22 +938,24 @@ promotion gate, not a prerequisite for the 2.9.5 companion preview path.
 
 ## Ownership decisions
 
-| Authority                                                                                                     | Owner                                      | Boundary                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Program identity, accepted revisions, proposals, decisions, and publication receipts                          | SillyOS product database                   | Product repository and typed product services                                                                                                               |
-| Creator Chat, live Pi-session binding, and review coordination                                                | SillyOS Creator supervisor                 | Session-local control plane plus bounded durable references/receipts; conversation is not Program content                                                   |
-| Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per Program           | A product-selected `WorkspaceRuntime`; accepted Program state names an exact immutable snapshot                                                             |
-| Agent loop, session semantics, compaction, model/provider calls, tool dispatch, and Agent extension lifecycle | Pi                                         | Fixed `pi-agent-core`/`pi-ai` in Browser; complete fixed `pi-coding-agent` companion in Desktop; public Pi tool/extension contracts                         |
-| `read`/`write`/`edit`/`bash` Agent schemas, validation, execution algorithms, updates, and results            | Pi                                         | Deterministic and live runs use all four shipped Pi tools through the independent-origin Sandbox                                                            |
-| Structured `grep` schema, bounded result, and fixed Workspace adapter                                         | Pi plus pinned SillyOS capability adapter  | One fixed Browser `AgentTool` and explicit read-only `grep_workspace` operation; raw `rg` remains inside Pi `bash`, and no generic dispatcher is added      |
-| Fixed Browser `qjs` command and child-runtime admission                                                       | SillyOS Browser execution adapter          | One product-shipped implementation below Pi native `bash`; fresh Worker, explicit text staging, no extra AgentTool/runtime RPC, and no Desktop parity claim |
-| Presentation-facing Agent transport                                                                           | SillyOS target adapter                     | Browser Worker or Desktop companion projects only admitted commands/events; raw Pi/provider records never enter React state                                 |
-| Agent-side product functions                                                                                  | Pi plus pinned SillyOS capability adapters | One shared schema/prompt/handler core, registered as a Browser `AgentTool` or Desktop `ExtensionAPI` tool; no parallel Agent/plugin runtime                 |
-| Workspace lifecycle, capabilities, generation, change journal, and terminal mutation receipts                 | SillyOS `WorkspaceRuntimePort`             | Product-private owner that supplies a stable Program-scoped Pi `ExecutionEnv`; it is not a second tool API                                                  |
-| Workspace filesystem and shell effects                                                                        | Product-selected execution provider        | Browser VFS and bounded shell are independent-origin Sandbox capabilities; no control-origin or Host-filesystem fallback remains                            |
-| Pi session and provider credentials                                                                           | Target-local Pi owners                     | Browser Agent Worker owns an ephemeral key/session initially; Desktop owns isolated Pi session/auth storage; Program data holds no secret                   |
-| Responsive presentation and application mounting                                                              | SillyMaker GUI contracts                   | React/UI components, input, focus, accessibility, responsive layout, and admitted UI interaction                                                            |
-| Human approval and publication                                                                                | SillyOS Program authority                  | Exact proposal, base accepted revision, and reviewed workspace generation are rechecked before snapshot publication                                         |
+| Authority                                                                                                     | Owner                                        | Boundary                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Program identity, accepted revisions, proposals, decisions, and publication receipts                          | SillyOS product database                     | Product repository and typed product services                                                                                                                                                              |
+| Creator Chat, live Pi-session binding, and review coordination                                                | SillyOS Creator supervisor                   | Session-local control plane plus bounded durable references/receipts; conversation is not Program content                                                                                                  |
+| Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per Program             | A product-selected `WorkspaceRuntime`; accepted Program state names an exact immutable snapshot                                                                                                            |
+| Agent loop, session semantics, compaction, model/provider calls, tool dispatch, and Agent extension lifecycle | Pi                                           | Fixed `pi-agent-core`/`pi-ai` in Browser; complete fixed `pi-coding-agent` companion in Desktop; public Pi tool/extension contracts                                                                        |
+| `read`/`write`/`edit`/`bash` Agent schemas, validation, execution algorithms, updates, and results            | Pi                                           | Deterministic and live runs use all four shipped Pi tools through the independent-origin Sandbox                                                                                                           |
+| Structured `grep` schema, bounded result, and fixed Workspace adapter                                         | Pi plus pinned SillyOS capability adapter    | One fixed Browser `AgentTool` and explicit read-only `grep_workspace` operation; raw `rg` remains inside Pi `bash`, and no generic dispatcher is added                                                     |
+| Fixed `fetch_url`/`download` schemas and Agent lifecycle                                                      | Pi plus pinned SillyOS network adapters      | Product-shipped `AgentTool` values over one non-generic typed port; no `curl`, guest fetch, arbitrary headers/body, or Credential-plane integration                                                        |
+| Program network grants and Browser egress execution                                                           | SillyOS Program authority and keyless Broker | Non-secret normalized origin/operation decisions; product code derives no Broker request from Provider credentials, and the Broker receives no repository, general Workspace authority, or user/guest code |
+| Fixed Browser `qjs` command and child-runtime admission                                                       | SillyOS Browser execution adapter            | One product-shipped implementation below Pi native `bash`; fresh Worker, explicit text staging, no extra AgentTool/runtime RPC, and no Desktop parity claim                                                |
+| Presentation-facing Agent transport                                                                           | SillyOS target adapter                       | Browser Worker or Desktop companion projects only admitted commands/events; raw Pi/provider records never enter React state                                                                                |
+| Agent-side product functions                                                                                  | Pi plus pinned SillyOS capability adapters   | One shared schema/prompt/handler core, registered as a Browser `AgentTool` or Desktop `ExtensionAPI` tool; no parallel Agent/plugin runtime                                                                |
+| Workspace lifecycle, capabilities, generation, change journal, and terminal mutation receipts                 | SillyOS `WorkspaceRuntimePort`               | Product-private owner that supplies a stable Program-scoped Pi `ExecutionEnv`; it is not a second tool API                                                                                                 |
+| Workspace filesystem and shell effects                                                                        | Product-selected execution provider          | Browser VFS and bounded shell are independent-origin Sandbox capabilities; no control-origin or Host-filesystem fallback remains                                                                           |
+| Pi session and provider credentials                                                                           | Target-local Pi owners                       | Browser Agent Worker owns an ephemeral key/session initially; Desktop owns isolated Pi session/auth storage; Program data holds no secret                                                                  |
+| Responsive presentation and application mounting                                                              | SillyMaker GUI contracts                     | React/UI components, input, focus, accessibility, responsive layout, and admitted UI interaction                                                                                                           |
+| Human approval and publication                                                                                | SillyOS Program authority                    | Exact proposal, base accepted revision, and reviewed workspace generation are rechecked before snapshot publication                                                                                        |
 
 Pi, product storage, workspace runtimes, and tool implementations are
 infrastructure for Programs that need them. They are not optional desktop
@@ -780,7 +976,9 @@ native Pi `bash`. S1b-3 selects those same four adapters for live runs and adds
 one separate read-only grep operation. S2-Q1 registers `qjs` only inside that
 Browser shell adapter; it remains one Pi `bash` call and receipt. The control-
 origin adapter is deleted rather than retained as a synchronized or fallback
-VFS tree.
+VFS tree. S2-N registers named Pi `AgentTool` values orthogonally to native
+`bash`; it never adds `curl` or Browser `fetch` to the Workspace execution
+projection.
 
 SillyOS does not fork or browser-port `pi-coding-agent`. The fixed Pi 0.84.3
 distribution already separates the useful shared runtime from the Node-oriented
@@ -963,8 +1161,13 @@ The accepted execution order is no longer the numeric subsection order:
     One opt-in configured-Anthropic/Chromium write/write/bash-qjs loop passes
     with exact relational output and same-volume post-Forget bytes; Python
     remains absent.
-    Later S2 execution profiles,
-    S3 Credential Vault, S4 Agent/OpenUI state,
+13. **S2-N is accepted but absent:** N0 is the next bounded slice and includes
+    only a keyless third-origin Broker, fixed `fetch_url`, and session-only
+    **Allow once**. No Broker, network AgentTool, grant, remote-to-VFS download,
+    arbitrary Browser egress, or deployment evidence exists at this checkpoint.
+    N0 does not activate durable Program grants or `download`; S2-N1/N2 retain
+    their own acceptance and stop conditions.
+    Python and other later S2 execution profiles, S3 Credential Vault, S4 Agent/OpenUI state,
     S5 BYO Sandbox/products, P1-D, and broader import/artifact work require their
     named predecessor and separate acceptance; none is retroactively part of the
     closed B1a/B1b/P3 checkpoints.
