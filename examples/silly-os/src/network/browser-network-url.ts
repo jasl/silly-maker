@@ -4,7 +4,7 @@ export const browserNetworkUrlMaximumBytesV1 = 8_192;
 
 /**
  * Admits the one model-controlled field accepted by the Browser Network Broker.
- * The returned value is canonical so approval and execution bind the same URL.
+ * The returned value is canonical so admission and execution bind the same URL.
  */
 export function normalizeBrowserNetworkUrlV1(value: unknown): string | null {
   if (typeof value !== "string") return null;

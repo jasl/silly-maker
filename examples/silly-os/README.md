@@ -59,21 +59,21 @@ API-key 表单，也不会显示可用的 Test connection。
 - Program 会在事务提交后写入此浏览器的本地目录，返回 Home 或刷新页面后可以从“最近的
   程序”重开同一修订、决定、消息和 Activity。
 
-S2-N0 还为固定 Pi 增加了一个窄 `fetch_url({ url })` 工具。模型首次请求某个精确 HTTPS URL
-时不会发出网络请求，而会在 Chat 中显示完整 URL、origin 和 path/query 外传风险；用户选择
-**Allow once** 后，产品通过普通新 run 重试并在请求前消费该精确许可。真正的 `GET` 只在独立
+固定 Pi 提供窄 `fetch_url({ url })` 与 `download({ url, destination, overwrite? })` 工具。每个
+Program 只有一个 **允许网络访问** 复选框，默认关闭；关闭时工具在 Network Broker 收到请求前
+返回 `network_disabled`，开启后两个工具可直接访问通过合同校验的 HTTPS URL，不再出现逐次、
+逐 URL 或逐 origin 审批。该选择作为普通非秘密产品设置持久化，不包含完整 URL 或 API Key；
+Agent Worker 会在每次 admitted submit 前同步当前 Program 的布尔值。真正的 `GET` 只在独立
 origin、无 API key 的 Network Broker 中执行，不携带 Cookie、Authorization、referrer、body
-或自定义 header，只返回不超过 `256 KiB` 的声明 UTF-8 文本/JSON/XML。目标仍必须允许 Browser
-CORS；这不是任意网页抓取或搜索能力。N1 已增加 Program 级显式 opt-in：未勾选
-仍是 **Allow once**，勾选只持久化该 Program 对精确 normalized origin/operation 的授权，并可
-撤销。授权只进入普通 Product Repository，不包含完整 URL 或 API Key；Agent Worker 会在每次
-admitted submit 前同步当前 Program 的完整 grant set。N2 还增加了固定
-`download({ url, destination, overwrite? })` 工具：独立 Broker 在 Workspace Host 准备好私有
-staging 后才开始 GET，每次最多转交一个等待 ACK 的 `1 MiB` chunk，完整且仍 current 的 2xx
-响应才会通过原有 journal 发布到 Program volume。Chromium 与 WebKit 已各自验证 `32 MiB`
-二进制、SHA-256、generation/receipt 和冷重开；这仍不等于任意站点 CORS、线上 ingress、搜索、
-解压、认证下载或真实模型调用已经通过。N1/N2/S3 已随当前三 origin artifact 从同一 exact
-committed build identity 部署；这只提升 artifact availability，不提升上述行为资格。
+或自定义 header；`fetch_url` 只返回不超过 `256 KiB` 的声明 UTF-8 文本/JSON/XML。目标仍必须
+允许 Browser CORS；这不是任意网页抓取或搜索能力。`download` 使用独立 Broker，在 Workspace
+Host 准备好私有 staging 后才开始 GET，每次最多转交一个等待 ACK 的 `1 MiB` chunk，完整且仍
+current 的 2xx 响应才会通过原有 journal 发布到 Program volume。Chromium 与 WebKit 已各自
+验证 `32 MiB` 二进制、SHA-256、generation/receipt 和冷重开；这仍不等于任意站点 CORS、线上
+ingress、搜索、解压、认证下载或真实模型调用已经通过。Provider 请求是独立的凭据面能力，不受
+Program 网络开关控制。S2-N3 已在本地通过完整 521 项 SillyOS 单元套件、Chromium/WebKit 的
+开关/冷重开/`fetch_url`/`32 MiB download` 路径及三份生产构建边界检查。N1/N2/S3 已随历史三
+origin artifact 部署；S2-N3 的布尔开关替换尚未部署，artifact availability 不提升上述行为资格。
 
 另有一个只在 `?agent=pi-test` 出现的 B0a 验证入口：它会把产品 lockfile 固定的
 `pi-agent-core` / `pi-ai` 0.84.3 懒加载进 Dedicated Worker，通过 typed RPC 运行真实
@@ -136,8 +136,9 @@ database，因此普通 Program 生命周期与导出不会拥有或混入凭据
 中把普通 Program 的唯一 Authority 切到独立 Sandbox origin：控制面创建精确 origin frame
 transport，Sandbox 内固定 Host Worker 独占 OPFS、
 snapshot/export 与 volume 生命周期，旧控制-origin Host Worker 和 fallback 已删除。物理 Product
-Repository V6 在既有 stores 上增加 Program network grants；旧控制-origin OPFS bytes 可能仍由
-浏览器保留，但产品不再可达，也不会把它们作为迁移输入。
+Repository V7 保留 Program/continuation stores，删除旧 network grants，并增加缺行即默认关闭的
+Program network access store；V6→V7 不迁移历史授权。旧控制-origin OPFS bytes 可能仍由浏览器
+保留，但产品不再可达，也不会把它们作为迁移输入。
 
 Credential Vault V2 是 Provider Key 的唯一持久 owner。Fresh initialization 自动创建
 **Automatic** 模式，把不可导出的设备 AES-256-GCM `CryptoKey` 保存在 Vault IndexedDB，并在

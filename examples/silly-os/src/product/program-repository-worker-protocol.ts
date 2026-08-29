@@ -24,33 +24,33 @@ import {
   type ProgramRepositorySummaryV3,
 } from "./program-repository.ts";
 import {
-  admitProgramNetworkGrantMutationResultV1,
-  admitProgramNetworkGrantSetV1,
-  normalizeProgramNetworkGrantMutationV1,
-  type ProgramNetworkGrantMutationResultV1,
-  type ProgramNetworkGrantMutationV1,
-  type ProgramNetworkGrantSetV1,
-} from "./program-network-grants.ts";
+  admitProgramNetworkAccessMutationResultV1,
+  admitProgramNetworkAccessV1,
+  normalizeProgramNetworkAccessMutationV1,
+  type ProgramNetworkAccessMutationResultV1,
+  type ProgramNetworkAccessMutationV1,
+  type ProgramNetworkAccessV1,
+} from "./program-network-access.ts";
 
-export type ProgramRepositoryWorkerMethodV5 =
+export type ProgramRepositoryWorkerMethodV6 =
   | "initialize"
   | "list"
   | "load"
   | "load_workspace_continuation"
-  | "load_program_network_grants"
+  | "load_program_network_access"
   | "create"
   | "apply_revision"
   | "settle_agent_run"
   | "decide"
-  | "set_program_network_grant"
+  | "set_program_network_access"
   | "dispose";
 
-export type ProgramRepositoryWorkerRequestV5 =
+export type ProgramRepositoryWorkerRequestV6 =
   | { readonly method: "initialize" }
   | { readonly method: "list" }
   | { readonly method: "load"; readonly programId: string }
   | { readonly method: "load_workspace_continuation"; readonly programId: string }
-  | { readonly method: "load_program_network_grants"; readonly programId: string }
+  | { readonly method: "load_program_network_access"; readonly programId: string }
   | { readonly method: "create"; readonly input: ProgramRepositoryCreateInputV3 }
   | {
     readonly method: "apply_revision";
@@ -61,17 +61,20 @@ export type ProgramRepositoryWorkerRequestV5 =
     readonly input: ProgramRepositorySettleAgentRunInputV3;
   }
   | { readonly method: "decide"; readonly input: ProgramRepositoryDecideInputV3 }
-  | { readonly method: "set_program_network_grant"; readonly input: ProgramNetworkGrantMutationV1 }
+  | {
+    readonly method: "set_program_network_access";
+    readonly input: ProgramNetworkAccessMutationV1;
+  }
   | { readonly method: "dispose" };
 
-export interface ProgramRepositoryWorkerRequestEnvelopeV5 {
-  readonly revision: 5;
+export interface ProgramRepositoryWorkerRequestEnvelopeV6 {
+  readonly revision: 6;
   readonly kind: "rpc_request";
   readonly requestId: string;
-  readonly record: ProgramRepositoryWorkerRequestV5;
+  readonly record: ProgramRepositoryWorkerRequestV6;
 }
 
-export type ProgramRepositoryWorkerSuccessV5 =
+export type ProgramRepositoryWorkerSuccessV6 =
   | { readonly kind: "success"; readonly method: "initialize"; readonly value: null }
   | {
     readonly kind: "success";
@@ -90,8 +93,8 @@ export type ProgramRepositoryWorkerSuccessV5 =
   }
   | {
     readonly kind: "success";
-    readonly method: "load_program_network_grants";
-    readonly value: ProgramNetworkGrantSetV1 | null;
+    readonly method: "load_program_network_access";
+    readonly value: ProgramNetworkAccessV1 | null;
   }
   | {
     readonly kind: "success";
@@ -100,23 +103,23 @@ export type ProgramRepositoryWorkerSuccessV5 =
   }
   | {
     readonly kind: "success";
-    readonly method: "set_program_network_grant";
-    readonly value: ProgramNetworkGrantMutationResultV1;
+    readonly method: "set_program_network_access";
+    readonly value: ProgramNetworkAccessMutationResultV1;
   }
   | { readonly kind: "success"; readonly method: "dispose"; readonly value: null };
 
-export interface ProgramRepositoryWorkerFailureV5 {
+export interface ProgramRepositoryWorkerFailureV6 {
   readonly kind: "failure";
-  readonly method: ProgramRepositoryWorkerMethodV5;
+  readonly method: ProgramRepositoryWorkerMethodV6;
   readonly code: ProgramRepositoryFailureCodeV3;
   readonly operation: ProgramRepositoryOperationV3;
 }
 
-export interface ProgramRepositoryWorkerResponseEnvelopeV5 {
-  readonly revision: 5;
+export interface ProgramRepositoryWorkerResponseEnvelopeV6 {
+  readonly revision: 6;
   readonly kind: "rpc_response";
   readonly requestId: string;
-  readonly record: ProgramRepositoryWorkerSuccessV5 | ProgramRepositoryWorkerFailureV5;
+  readonly record: ProgramRepositoryWorkerSuccessV6 | ProgramRepositoryWorkerFailureV6;
 }
 
 type ExactRecordV4 = Readonly<Record<string, unknown>>;
@@ -165,15 +168,15 @@ function failureCodeV4(value: unknown): value is ProgramRepositoryFailureCodeV3 
     value === "wire_invalid" || value === "outcome_unknown";
 }
 
-export function operationForProgramRepositoryWorkerMethodV5(
-  method: ProgramRepositoryWorkerMethodV5,
+export function operationForProgramRepositoryWorkerMethodV6(
+  method: ProgramRepositoryWorkerMethodV6,
 ): ProgramRepositoryOperationV3 {
   return method;
 }
 
 function admitRequestRecordV4(
   value: unknown,
-): ProgramRepositoryAdmissionResultV3<ProgramRepositoryWorkerRequestV5> {
+): ProgramRepositoryAdmissionResultV3<ProgramRepositoryWorkerRequestV6> {
   const unit = exactRecordV4(value, ["method"]);
   if (
     unit !== null &&
@@ -185,7 +188,7 @@ function admitRequestRecordV4(
   if (
     load !== null &&
     (load.method === "load" || load.method === "load_workspace_continuation" ||
-      load.method === "load_program_network_grants")
+      load.method === "load_program_network_access")
   ) {
     try {
       return admittedV4({
@@ -223,11 +226,11 @@ function admitRequestRecordV4(
         input: normalizeProgramRepositoryDecideInputV3(call.input),
       });
     }
-    if (call.method === "set_program_network_grant") {
+    if (call.method === "set_program_network_access") {
       return admittedV4({
-        method: "set_program_network_grant",
-        input: normalizeProgramNetworkGrantMutationV1(
-          call.input as ProgramNetworkGrantMutationV1,
+        method: "set_program_network_access",
+        input: normalizeProgramNetworkAccessMutationV1(
+          call.input as ProgramNetworkAccessMutationV1,
         ),
       });
     }
@@ -237,18 +240,18 @@ function admitRequestRecordV4(
   return rejectedV4("/record/method");
 }
 
-export function admitProgramRepositoryWorkerRequestEnvelopeV5(
+export function admitProgramRepositoryWorkerRequestEnvelopeV6(
   value: unknown,
-): ProgramRepositoryAdmissionResultV3<ProgramRepositoryWorkerRequestEnvelopeV5> {
+): ProgramRepositoryAdmissionResultV3<ProgramRepositoryWorkerRequestEnvelopeV6> {
   const envelope = exactRecordV4(value, ["revision", "kind", "requestId", "record"]);
   if (envelope === null) return rejectedV4("/");
-  if (envelope.revision !== 5) return rejectedV4("/revision");
+  if (envelope.revision !== 6) return rejectedV4("/revision");
   if (envelope.kind !== "rpc_request") return rejectedV4("/kind");
   if (!requestIdV4(envelope.requestId)) return rejectedV4("/requestId");
   const record = admitRequestRecordV4(envelope.record);
   if (record.kind === "rejected") return record;
   return admittedV4({
-    revision: 5,
+    revision: 6,
     kind: "rpc_request",
     requestId: envelope.requestId,
     record: record.value,
@@ -256,9 +259,9 @@ export function admitProgramRepositoryWorkerRequestEnvelopeV5(
 }
 
 function admitSuccessValueV4(
-  method: ProgramRepositoryWorkerMethodV5,
+  method: ProgramRepositoryWorkerMethodV6,
   value: unknown,
-): ProgramRepositoryAdmissionResultV3<ProgramRepositoryWorkerSuccessV5> {
+): ProgramRepositoryAdmissionResultV3<ProgramRepositoryWorkerSuccessV6> {
   if (method === "initialize" || method === "dispose") {
     return value === null
       ? admittedV4({ kind: "success", method, value: null })
@@ -302,26 +305,26 @@ function admitSuccessValueV4(
         value: continuation.value,
       });
   }
-  if (method === "load_program_network_grants") {
+  if (method === "load_program_network_access") {
     if (value === null) {
       return admittedV4({
         kind: "success",
-        method: "load_program_network_grants",
+        method: "load_program_network_access",
         value: null,
       });
     }
-    const grants = admitProgramNetworkGrantSetV1(value);
-    return grants.kind === "rejected" ? rejectedV4(`/record/value${grants.path}`) : admittedV4({
+    const access = admitProgramNetworkAccessV1(value);
+    return access.kind === "rejected" ? rejectedV4(`/record/value${access.path}`) : admittedV4({
       kind: "success",
-      method: "load_program_network_grants",
-      value: grants.value,
+      method: "load_program_network_access",
+      value: access.value,
     });
   }
-  if (method === "set_program_network_grant") {
-    const result = admitProgramNetworkGrantMutationResultV1(value);
+  if (method === "set_program_network_access") {
+    const result = admitProgramNetworkAccessMutationResultV1(value);
     return result.kind === "rejected" ? rejectedV4(`/record/value${result.path}`) : admittedV4({
       kind: "success",
-      method: "set_program_network_grant",
+      method: "set_program_network_access",
       value: result.value,
     });
   }
@@ -330,13 +333,13 @@ function admitSuccessValueV4(
   return admittedV4({ kind: "success", method, value: result.value });
 }
 
-export function admitProgramRepositoryWorkerResponseEnvelopeV5(
+export function admitProgramRepositoryWorkerResponseEnvelopeV6(
   value: unknown,
-  expectedMethod: ProgramRepositoryWorkerMethodV5,
-): ProgramRepositoryAdmissionResultV3<ProgramRepositoryWorkerResponseEnvelopeV5> {
+  expectedMethod: ProgramRepositoryWorkerMethodV6,
+): ProgramRepositoryAdmissionResultV3<ProgramRepositoryWorkerResponseEnvelopeV6> {
   const envelope = exactRecordV4(value, ["revision", "kind", "requestId", "record"]);
   if (envelope === null) return rejectedV4("/");
-  if (envelope.revision !== 5) return rejectedV4("/revision");
+  if (envelope.revision !== 6) return rejectedV4("/revision");
   if (envelope.kind !== "rpc_response") return rejectedV4("/kind");
   if (!requestIdV4(envelope.requestId)) return rejectedV4("/requestId");
   const success = exactRecordV4(envelope.record, ["kind", "method", "value"]);
@@ -345,20 +348,20 @@ export function admitProgramRepositoryWorkerResponseEnvelopeV5(
     const admitted = admitSuccessValueV4(expectedMethod, success.value);
     if (admitted.kind === "rejected") return admitted;
     return admittedV4({
-      revision: 5,
+      revision: 6,
       kind: "rpc_response",
       requestId: envelope.requestId,
       record: admitted.value,
     });
   }
   const failure = exactRecordV4(envelope.record, ["kind", "method", "code", "operation"]);
-  const operation = operationForProgramRepositoryWorkerMethodV5(expectedMethod);
+  const operation = operationForProgramRepositoryWorkerMethodV6(expectedMethod);
   if (
     failure === null || failure.kind !== "failure" || failure.method !== expectedMethod ||
     !failureCodeV4(failure.code) || failure.operation !== operation
   ) return rejectedV4("/record");
   return admittedV4({
-    revision: 5,
+    revision: 6,
     kind: "rpc_response",
     requestId: envelope.requestId,
     record: {

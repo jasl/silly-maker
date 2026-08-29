@@ -84,17 +84,9 @@ export interface SillyOsCopyV1 {
   readonly piLiveDescription: string;
   readonly piLiveFailed: string;
   readonly piLiveSetupRequired: string;
-  readonly networkApprovalTitle: string;
-  readonly networkApprovalWarning: string;
-  readonly networkApprovalOrigin: string;
-  readonly networkApprovalUrl: string;
-  readonly networkApprovalAllowOnce: string;
-  readonly networkApprovalRememberProgram: string;
-  readonly networkApprovalAllowProgram: string;
-  readonly networkApprovalDeny: string;
   readonly networkAccessTitle: string;
-  readonly networkAccessEmpty: string;
-  readonly networkAccessRevoke: string;
+  readonly networkAccessToggle: string;
+  readonly networkAccessDescription: string;
   readonly settings: string;
   readonly settingsBack: string;
   readonly settingsCategoryGeneral: string;
@@ -316,18 +308,10 @@ const englishV1: SillyOsCopyV1 = {
     "Save a Provider API key before creating a Program. The key stays in the Credential Vault until you Forget it or clear this site's data. Testing is optional.",
   piLiveFailed: "Provider Agent unavailable",
   piLiveSetupRequired: "API key required",
-  networkApprovalTitle: "Network access requested",
-  networkApprovalWarning:
-    "Allowing this request sends the full URL to the destination. Its path or query may contain data from this Program.",
-  networkApprovalOrigin: "Destination",
-  networkApprovalUrl: "Full URL",
-  networkApprovalAllowOnce: "Allow once",
-  networkApprovalRememberProgram: "Allow this destination for this Program",
-  networkApprovalAllowProgram: "Allow for this Program",
-  networkApprovalDeny: "Deny",
   networkAccessTitle: "Network access",
-  networkAccessEmpty: "No destinations are allowed for this Program.",
-  networkAccessRevoke: "Revoke",
+  networkAccessToggle: "Allow network access",
+  networkAccessDescription:
+    "Off by default. When enabled, Agent tools may fetch pages and download files over HTTPS for this Program. Full URL paths and queries may be sent to remote sites, and browser CORS still applies.",
   settings: "Settings",
   settingsBack: "Back to Agent Creator",
   settingsCategoryGeneral: "General",
@@ -582,18 +566,10 @@ const chineseV1: SillyOsCopyV1 = {
     "创建 Program 前请先保存 Provider API Key。Key 会保存在凭据保险库中，直到你选择“忘记”或清除此站点的数据；连接测试是可选诊断。",
   piLiveFailed: "Provider Agent 不可用",
   piLiveSetupRequired: "需要 API key",
-  networkApprovalTitle: "需要网络访问",
-  networkApprovalWarning:
-    "允许后会将完整 URL 发送到目标站点；路径或查询参数中可能包含此 Program 的数据。",
-  networkApprovalOrigin: "目标站点",
-  networkApprovalUrl: "完整 URL",
-  networkApprovalAllowOnce: "仅允许一次",
-  networkApprovalRememberProgram: "为此 Program 允许该目标站点",
-  networkApprovalAllowProgram: "为此 Program 允许",
-  networkApprovalDeny: "拒绝",
   networkAccessTitle: "网络访问",
-  networkAccessEmpty: "此 Program 尚未允许任何目标站点。",
-  networkAccessRevoke: "撤销",
+  networkAccessToggle: "允许网络访问",
+  networkAccessDescription:
+    "默认关闭。启用后，Agent 工具可以为此 Program 通过 HTTPS 抓取页面和下载文件；完整 URL 的路径与查询参数可能发送至远程站点，且仍受浏览器 CORS 限制。",
   settings: "设置",
   settingsBack: "返回 Agent Creator",
   settingsCategoryGeneral: "通用",

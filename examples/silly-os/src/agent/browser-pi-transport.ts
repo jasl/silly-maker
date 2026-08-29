@@ -13,7 +13,7 @@ import type {
   BrowserProgramWorkspaceAuthorityV1,
   BrowserProgramWorkspaceFatalV1,
 } from "../product/browser-program-workspace-authority.ts";
-import type { ProgramNetworkGrantV1 } from "../product/program-network-grants.ts";
+import type { ProgramNetworkAccessV1 } from "../product/program-network-access.ts";
 import type { BrowserWorkspaceHostSnapshotWireV1 } from "../workspace/browser-workspace-host-protocol.ts";
 import type { BrowserNetworkBrokerLeaseV1 } from "../network/browser-network-broker-frame-transport.ts";
 import {
@@ -29,8 +29,6 @@ import {
   type BrowserPiModelSelectionFailureCodeV1,
   type BrowserPiWorkerConfigureV1,
   type BrowserPiModelSelectionV1,
-  type BrowserPiNetworkApprovalDecisionV1,
-  type BrowserPiNetworkApprovalRequestV1,
   type BrowserPiWorkspaceMutationReceiptWireV1,
   type BrowserPiWorkspaceRequestRecordV1,
   type BrowserPiWorkspaceSnapshotWireV1,
@@ -100,10 +98,9 @@ export interface BrowserPiWorkerRawTransportV1 extends AgentRpcRawTransportInter
     readonly workspaceSessionId: string;
     readonly throughSequence: number;
   }): Promise<BrowserPiWorkspaceSnapshotWireV1>;
-  replaceNetworkGrants(input: {
-    readonly programId: string;
+  replaceNetworkAccess(input: {
+    readonly access: ProgramNetworkAccessV1;
     readonly workspaceSessionId: string;
-    readonly grants: readonly ProgramNetworkGrantV1[];
   }): Promise<BrowserPiWorkspaceSnapshotWireV1>;
   subscribeWorkspaceReceipts(
     listener: (receipt: BrowserPiWorkspaceMutationReceiptWireV1) => void,
@@ -111,19 +108,6 @@ export interface BrowserPiWorkerRawTransportV1 extends AgentRpcRawTransportInter
   subscribeWorkspaceFailures(
     listener: (failure: BrowserPiWorkspaceFailureV1) => void,
   ): () => void;
-  subscribeNetworkApprovals(
-    listener: (approval: BrowserPiNetworkApprovalRequestV1) => void,
-  ): () => void;
-  resolveNetworkApproval(input: {
-    readonly approvalId: string;
-    readonly decision: BrowserPiNetworkApprovalDecisionV1;
-  }): Promise<
-    | { readonly kind: "resolved"; readonly decision: BrowserPiNetworkApprovalDecisionV1 }
-    | {
-      readonly kind: "unavailable";
-      readonly reason: "not_pending" | "connection_closed";
-    }
-  >;
   /** Immediately terminates the Worker that owns the in-memory credential. */
   revokeCredential(): void;
   /** Terminates the configured or connected Worker and clears its in-memory credential. */
@@ -135,7 +119,6 @@ interface PendingCallV1 {
     | "start"
     | "submit"
     | "cancel"
-    | "resolve_network_approval"
     | BrowserPiWorkspaceRequestRecordV1["method"];
   readonly resolve: (value: unknown) => void;
   readonly reject: (reason: Error) => void;
@@ -146,10 +129,6 @@ type BufferedWorkerEventV1 =
   | {
     readonly kind: "workspace_receipt";
     readonly receipt: BrowserPiWorkspaceMutationReceiptWireV1;
-  }
-  | {
-    readonly kind: "network_approval_required";
-    readonly approval: BrowserPiNetworkApprovalRequestV1;
   };
 
 interface ConnectionStateV1 {
@@ -183,7 +162,6 @@ interface ConnectionStateV1 {
   nextCallId: number;
   pendingSubmitGates: number;
   activeWorkspace: BrowserPiWorkspaceSnapshotWireV1 | null;
-  pendingNetworkApproval: BrowserPiNetworkApprovalRequestV1 | null;
   workspaceReceiptSequence: number;
   activeSelection: BrowserPiModelSelectionV1 | null;
   credentialAccepted: boolean;
@@ -260,7 +238,7 @@ function transportErrorV1(code: string): TypeError {
 
 function isWorkspaceMethodV1(method: PendingCallV1["method"]): boolean {
   return method.endsWith("_workspace") || method === "acknowledge_workspace_receipts" ||
-    method === "replace_network_grants";
+    method === "replace_network_access";
 }
 
 function hostDescriptorMatchesPiSnapshotV1(
@@ -320,10 +298,6 @@ export function createBrowserPiWorkerRawTransportV1({
     (receipt: BrowserPiWorkspaceMutationReceiptWireV1) => void
   >();
   const workspaceFailureListeners = new Set<(failure: BrowserPiWorkspaceFailureV1) => void>();
-  const networkApprovalListeners = new Set<
-    (approval: BrowserPiNetworkApprovalRequestV1) => void
-  >();
-
   const detachWorkspaceEnvironment = (workspaceSessionId: string): Promise<void> => {
     const settlement = workspaceEnvironmentDetachSettlement.then(() =>
       workspaceAuthority.detachWorkspaceEnvironment(workspaceSessionId)
@@ -357,7 +331,6 @@ export function createBrowserPiWorkerRawTransportV1({
     }
     state.pending.clear();
     state.bufferedEvents.length = 0;
-    state.pendingNetworkApproval = null;
     if (state.setup?.kind === "select_model") {
       state.setup.resolve({ kind: "unavailable", reason: "not_configured" });
     } else state.setup?.resolve(false);
@@ -485,7 +458,6 @@ export function createBrowserPiWorkerRawTransportV1({
       nextCallId: 1,
       pendingSubmitGates: 0,
       activeWorkspace: null,
-      pendingNetworkApproval: null,
       workspaceReceiptSequence: 0,
       activeSelection: selection,
       credentialAccepted: false,
@@ -525,38 +497,12 @@ export function createBrowserPiWorkerRawTransportV1({
       }
     };
 
-    const deliverNetworkApproval = (
-      approval: BrowserPiNetworkApprovalRequestV1,
-    ): void => {
-      const workspace = state.activeWorkspace;
-      if (
-        workspace === null || workspace.phase !== "open" ||
-        approval.programId !== workspace.programId ||
-        approval.workspaceId !== workspace.workspaceId ||
-        approval.workspaceSessionId !== workspace.workspaceSessionId ||
-        state.pendingNetworkApproval !== null
-      ) {
-        closeState(state, "network_approval_invalid");
-        return;
-      }
-      state.pendingNetworkApproval = approval;
-      for (const listener of [...networkApprovalListeners]) {
-        try {
-          listener(approval);
-        } catch {
-          // Approval observers cannot alter transport lifecycle.
-        }
-      }
-    };
-
     const flushEvents = (): void => {
       if (state.closed || state.pendingSubmitGates !== 0) return;
       const events = state.bufferedEvents.splice(0);
       for (const event of events) {
         if (event.kind === "workspace_receipt") {
           deliverWorkspaceReceipt(event.receipt);
-        } else if (event.kind === "network_approval_required") {
-          deliverNetworkApproval(event.approval);
         } else if (state.onRecord !== null) {
           try {
             state.onRecord(event.record);
@@ -658,15 +604,10 @@ export function createBrowserPiWorkerRawTransportV1({
         closeState(state, "message_before_ready");
         return;
       }
-      if (
-        message.kind === "rpc_record" || message.kind === "workspace_receipt" ||
-        message.kind === "network_approval_required"
-      ) {
+      if (message.kind === "rpc_record" || message.kind === "workspace_receipt") {
         const buffered: BufferedWorkerEventV1 = message.kind === "rpc_record"
           ? { kind: "rpc_record", record: message.record }
-          : message.kind === "workspace_receipt"
-          ? { kind: "workspace_receipt", receipt: message.receipt }
-          : { kind: "network_approval_required", approval: message.approval };
+          : { kind: "workspace_receipt", receipt: message.receipt };
         if (state.pendingSubmitGates !== 0) {
           if (state.bufferedEvents.length >= bufferedRecordMaximumV1) {
             closeState(state, "record_buffer_limit");
@@ -675,8 +616,6 @@ export function createBrowserPiWorkerRawTransportV1({
           state.bufferedEvents.push(buffered);
         } else if (buffered.kind === "workspace_receipt") {
           deliverWorkspaceReceipt(buffered.receipt);
-        } else if (buffered.kind === "network_approval_required") {
-          deliverNetworkApproval(buffered.approval);
         } else if (state.onRecord !== null) {
           try {
             state.onRecord(buffered.record);
@@ -686,27 +625,6 @@ export function createBrowserPiWorkerRawTransportV1({
         } else {
           closeState(state, "record_without_connection");
         }
-        return;
-      }
-      if (message.kind === "network_approval_response") {
-        const pending = state.pending.get(message.requestId);
-        if (pending === undefined || pending.method !== "resolve_network_approval") {
-          closeState(state, "network_approval_response_unexpected");
-          return;
-        }
-        state.pending.delete(message.requestId);
-        if (!message.ok) {
-          state.pendingNetworkApproval = null;
-          pending.resolve({ kind: "unavailable", reason: "not_pending" });
-          return;
-        }
-        const approval = state.pendingNetworkApproval;
-        if (approval === null || approval.approvalId !== message.approvalId) {
-          closeState(state, "network_approval_response_invalid");
-          return;
-        }
-        state.pendingNetworkApproval = null;
-        pending.resolve({ kind: "resolved", decision: message.decision });
         return;
       }
       const pending = state.pending.get(message.requestId);
@@ -723,9 +641,6 @@ export function createBrowserPiWorkerRawTransportV1({
         if (message.ok) {
           const previousWorkspaceSessionId = state.activeWorkspace?.workspaceSessionId;
           state.activeWorkspace = message.response.snapshot;
-          if (message.response.method === "close_workspace") {
-            state.pendingNetworkApproval = null;
-          }
           const lastReceipt = message.response.snapshot.receipts.at(-1);
           if (message.response.method === "acknowledge_workspace_receipts") {
             state.workspaceReceiptSequence = Math.max(
@@ -1106,12 +1021,12 @@ export function createBrowserPiWorkerRawTransportV1({
         throughSequence: input.throughSequence,
       });
     },
-    replaceNetworkGrants(input): Promise<BrowserPiWorkspaceSnapshotWireV1> {
+    replaceNetworkAccess(input): Promise<BrowserPiWorkspaceSnapshotWireV1> {
       return workspaceRequestV1({
-        method: "replace_network_grants",
-        programId: input.programId,
+        method: "replace_network_access",
+        programId: input.access.programId,
         workspaceSessionId: input.workspaceSessionId,
-        grants: input.grants,
+        enabled: input.access.enabled,
       });
     },
     subscribeWorkspaceReceipts(listener): () => void {
@@ -1121,55 +1036,6 @@ export function createBrowserPiWorkerRawTransportV1({
     subscribeWorkspaceFailures(listener): () => void {
       workspaceFailureListeners.add(listener);
       return () => workspaceFailureListeners.delete(listener);
-    },
-    subscribeNetworkApprovals(listener): () => void {
-      networkApprovalListeners.add(listener);
-      return () => networkApprovalListeners.delete(listener);
-    },
-    resolveNetworkApproval(input) {
-      const state = activeState;
-      if (state === null || state.closed || !state.ready) {
-        return Promise.resolve({ kind: "unavailable", reason: "connection_closed" });
-      }
-      if (state.pendingNetworkApproval?.approvalId !== input.approvalId) {
-        return Promise.resolve({ kind: "unavailable", reason: "not_pending" });
-      }
-      const requestId = state.nextCallId++;
-      return new Promise<
-        | { readonly kind: "resolved"; readonly decision: BrowserPiNetworkApprovalDecisionV1 }
-        | {
-          readonly kind: "unavailable";
-          readonly reason: "not_pending" | "connection_closed";
-        }
-      >((resolve, reject) => {
-        state.pending.set(requestId, {
-          method: "resolve_network_approval",
-          resolve: (value) =>
-            resolve(
-              value as
-                | {
-                  readonly kind: "resolved";
-                  readonly decision: BrowserPiNetworkApprovalDecisionV1;
-                }
-                | { readonly kind: "unavailable"; readonly reason: "not_pending" },
-            ),
-          reject,
-        });
-        const message = Object.freeze({
-          revision: 1,
-          kind: "resolve_network_approval",
-          requestId,
-          approvalId: input.approvalId,
-          decision: input.decision,
-        });
-        try {
-          // Worker.postMessage has no targetOrigin parameter.
-          // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
-          state.worker.postMessage(message);
-        } catch {
-          closeState(state, "network_approval_post_failed");
-        }
-      });
     },
     revokeCredential(): void {
       credentialRevoked = true;
@@ -1181,7 +1047,6 @@ export function createBrowserPiWorkerRawTransportV1({
     async forget(): Promise<void> {
       unsubscribeWorkspaceAuthorityFatal();
       workspaceFailureListeners.clear();
-      networkApprovalListeners.clear();
       const state = activeState;
       if (state !== null) {
         const workspace = state.activeWorkspace;

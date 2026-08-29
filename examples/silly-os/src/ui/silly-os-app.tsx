@@ -34,10 +34,7 @@ import type {
   CreatorDurabilityStateV1,
 } from "../product/creator-controller.ts";
 import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
-import type {
-  ProgramNetworkGrantSetV1,
-  ProgramNetworkGrantV1,
-} from "../product/program-network-grants.ts";
+import type { ProgramNetworkAccessV1 } from "../product/program-network-access.ts";
 import { recommendedBrowserProviderBuiltinModelRefsV1 } from "../product/browser-provider-model-recommendations.ts";
 import { browserWorkspaceDownloadFileNameMaximumUtf8BytesV1 } from "../workspace/browser-workspace-host-protocol.ts";
 import {
@@ -461,10 +458,10 @@ export function SillyOsAppV1({
   const [workspaceExport, setWorkspaceExport] = useState<WorkpieceWorkspaceExportV1>({
     phase: "idle",
   });
-  const [programNetworkGrants, setProgramNetworkGrants] = useState<
-    ProgramNetworkGrantSetV1 | null
+  const [programNetworkAccess, setProgramNetworkAccess] = useState<
+    ProgramNetworkAccessV1 | null
   >(null);
-  const [networkGrantMutationPending, setNetworkGrantMutationPending] = useState(false);
+  const [networkAccessMutationPending, setNetworkAccessMutationPending] = useState(false);
   const agentFactoryRef = useRef<
     BrowserCreatorAgentModuleV1["createBrowserCreatorAgentPortV1"] | null
   >(null);
@@ -495,8 +492,8 @@ export function SillyOsAppV1({
   const agentWorkspaceLifecycleRef = useRef<Promise<void>>(Promise.resolve());
   const agentTerminalSettlementRef = useRef<Promise<void>>(Promise.resolve());
   const workspaceExportEpochRef = useRef(0);
-  const networkGrantEpochRef = useRef(0);
-  const networkGrantMutationPendingRef = useRef(false);
+  const networkAccessEpochRef = useRef(0);
+  const networkAccessMutationPendingRef = useRef(false);
   const reportFailureRef = useRef(reportFailure);
   reportFailureRef.current = reportFailure;
   const workspaceExportAbortRef = useRef<AbortController | null>(null);
@@ -512,6 +509,8 @@ export function SillyOsAppV1({
   const routedProgramId = snapshot.route === "workspace"
     ? snapshot.program?.programId ?? null
     : null;
+  const routedProgramIdRef = useRef(routedProgramId);
+  routedProgramIdRef.current = routedProgramId;
   const routedWorkspaceId = snapshot.route === "workspace"
     ? snapshot.workspace?.workspaceId ?? null
     : null;
@@ -519,15 +518,15 @@ export function SillyOsAppV1({
     null;
 
   useEffect(() => {
-    const epoch = ++networkGrantEpochRef.current;
-    setProgramNetworkGrants(null);
+    const epoch = ++networkAccessEpochRef.current;
+    setProgramNetworkAccess(null);
     if (routedProgramId === null) return;
-    void workspaceAuthority.loadProgramNetworkGrants(routedProgramId).then((grants) => {
-      if (networkGrantEpochRef.current !== epoch) return;
-      setProgramNetworkGrants(grants);
+    void workspaceAuthority.loadProgramNetworkAccess(routedProgramId).then((access) => {
+      if (networkAccessEpochRef.current !== epoch) return;
+      setProgramNetworkAccess(access);
     }, (error: unknown) => {
-      if (networkGrantEpochRef.current !== epoch) return;
-      reportFailureRef.current("silly_os.browser_network_grants_load_failed", error);
+      if (networkAccessEpochRef.current !== epoch) return;
+      reportFailureRef.current("silly_os.browser_network_access_load_failed", error);
     });
   }, [routedProgramId, workspaceAuthority]);
 
@@ -695,9 +694,6 @@ export function SillyOsAppV1({
           persistence,
           agentRunId: terminal.run.agentRunId,
           receipts: port.getSnapshot().workspace.receipts,
-          receiptThroughSequence: port.workspaceReceiptAcknowledgementThroughSequence(
-            terminal.run.agentRunId,
-          ),
           acknowledgeWorkspaceReceipts: (throughSequence) =>
             port.acknowledgeWorkspaceReceipts(throughSequence),
           acknowledgeTerminal: (agentRunId) => port.acknowledgeTerminal(agentRunId),
@@ -1667,10 +1663,6 @@ export function SillyOsAppV1({
       reportFailure("silly_os.browser_pi_unavailable", "credential_required");
       return false;
     }
-    if (port.getSnapshot().networkApproval !== null) {
-      reportFailure("silly_os.browser_network_approval_pending", "approval_required");
-      return false;
-    }
     const currentSession = controller.getSnapshot().session;
     if (
       currentSession.route !== "workspace" || currentSession.program === null ||
@@ -1694,88 +1686,58 @@ export function SillyOsAppV1({
     return false;
   };
 
-  const mutateProgramNetworkGrantV1 = async (
-    programId: string,
-    grant: ProgramNetworkGrantV1,
-    enabled: boolean,
-  ): Promise<ProgramNetworkGrantSetV1 | null> => {
-    if (networkGrantMutationPendingRef.current || routedProgramId !== programId) return null;
-    networkGrantMutationPendingRef.current = true;
-    setNetworkGrantMutationPending(true);
+  const setProgramNetworkAccessV1 = async (enabled: boolean): Promise<boolean> => {
+    const programId = routedProgramId;
+    const mutationEpoch = networkAccessEpochRef.current;
+    if (
+      programId === null || networkAccessMutationPendingRef.current ||
+      programNetworkAccess?.programId !== programId
+    ) return false;
+    networkAccessMutationPendingRef.current = true;
+    setNetworkAccessMutationPending(true);
     try {
-      const mutation = await workspaceAuthority.setProgramNetworkGrant({
+      const mutation = await workspaceAuthority.setProgramNetworkAccess({
         programId,
-        grant,
         enabled,
       });
       if (mutation.kind === "missing") {
-        reportFailure("silly_os.browser_network_grant_failed", "program_missing");
-        return null;
+        reportFailure("silly_os.browser_network_access_failed", "program_missing");
+        return false;
       }
-      const grants = mutation.value;
-      if (routedProgramId === programId) setProgramNetworkGrants(grants);
+      const access = mutation.value;
+      if (
+        networkAccessEpochRef.current === mutationEpoch &&
+        routedProgramIdRef.current === programId
+      ) setProgramNetworkAccess(access);
       const port = agentPortRef.current;
       const descriptor = port?.getSnapshot().workspace.descriptor ?? null;
       if (port !== null && descriptor?.programId === programId) {
-        const synchronized = await port.synchronizeNetworkGrants(grants);
+        const synchronized = await port.synchronizeNetworkAccess(access);
         if (synchronized.kind !== "synchronized") {
           // The durable mutation is authoritative. Terminate a Worker whose
-          // stale cache could otherwise retain a revoked origin.
+          // stale cache could otherwise retain enabled network access.
           forgetPiAgentV1();
-          reportFailure("silly_os.browser_network_grant_sync_failed", synchronized.diagnostic);
-          return null;
+          reportFailure("silly_os.browser_network_access_sync_failed", synchronized.diagnostic);
+          return false;
         }
       }
-      return grants;
+      return true;
     } catch (error) {
-      reportFailure("silly_os.browser_network_grant_failed", error);
-      return null;
+      if (!enabled) {
+        const port = agentPortRef.current;
+        if (port?.getSnapshot().workspace.descriptor?.programId === programId) {
+          // A failed response can follow a committed disable. Revoke the only
+          // Worker that may still cache enabled access instead of guessing the
+          // mutation outcome or allowing it to continue egress.
+          forgetPiAgentV1();
+        }
+      }
+      reportFailure("silly_os.browser_network_access_failed", error);
+      return false;
     } finally {
-      networkGrantMutationPendingRef.current = false;
-      setNetworkGrantMutationPending(false);
+      networkAccessMutationPendingRef.current = false;
+      setNetworkAccessMutationPending(false);
     }
-  };
-
-  const resolveNetworkApprovalV1 = async (
-    approvalId: string,
-    decision: "allow_once" | "deny",
-    persistForProgram = false,
-  ): Promise<boolean> => {
-    const port = agentPortRef.current;
-    if (port === null) return false;
-    const approval = port.getSnapshot().networkApproval;
-    if (approval === null || approval.approvalId !== approvalId) return false;
-    if (decision === "allow_once" && persistForProgram) {
-      const grants = await mutateProgramNetworkGrantV1(approval.programId, {
-        origin: approval.origin,
-        operation: approval.operation,
-      }, true);
-      if (grants === null || agentPortRef.current !== port) return false;
-    }
-    let result: Awaited<ReturnType<BrowserCreatorAgentPortV1["resolveNetworkApproval"]>>;
-    try {
-      result = await port.resolveNetworkApproval({ approvalId, decision });
-    } catch (error) {
-      reportFailure("silly_os.browser_network_approval_failed", error);
-      return false;
-    }
-    if (result.kind !== "resolved") {
-      reportFailure("silly_os.browser_network_approval_failed", result.diagnostic);
-      return false;
-    }
-    if (result.decision === "deny") return true;
-    if (result.retryText === null) {
-      reportFailure("silly_os.browser_network_approval_failed", "retry_text_missing");
-      return false;
-    }
-    return sendFollowUpV1(result.retryText);
-  };
-
-  const revokeProgramNetworkGrantV1 = async (
-    grant: ProgramNetworkGrantV1,
-  ): Promise<boolean> => {
-    if (routedProgramId === null) return false;
-    return await mutateProgramNetworkGrantV1(routedProgramId, grant, false) !== null;
   };
 
   const retryAgentWorkspaceV1 = (): void => {
@@ -1895,10 +1857,8 @@ export function SillyOsAppV1({
     abortController.abort();
   };
 
-  const pendingNetworkApproval = agentSnapshot?.networkApproval ?? null;
   const agentMutationPending = agentSnapshot?.phase === "running" ||
     (agentSnapshot?.terminalRuns.length ?? 0) > 0;
-  const networkApprovalPending = pendingNetworkApproval !== null;
   const agentWorkspaceLifecyclePending = agentSnapshot?.workspace.phase === "opening" ||
     agentSnapshot?.workspace.phase === "closing";
   const executionWorkspaceReady = snapshot.route === "workspace" && snapshot.program !== null &&
@@ -1910,7 +1870,7 @@ export function SillyOsAppV1({
   const workspaceExportAvailable = agentPort !== null &&
     executionWorkspaceReady && executionWorkspaceSessionId !== null;
   const workspaceExportDisabled = durability.phase !== "ready" || agentMutationPending ||
-    networkApprovalPending || agentWorkspaceLifecyclePending || !executionWorkspaceReady ||
+    agentWorkspaceLifecyclePending || !executionWorkspaceReady ||
     workspaceExportPending;
   const creatorProviderModelChoices = creatorProviderModelChoicesV1(
     providerCatalog,
@@ -2130,13 +2090,11 @@ export function SillyOsAppV1({
             homeDisabled={durability.phase === "saving" || agentMutationPending ||
               agentWorkspaceLifecyclePending || workspaceExportPending}
             mutationPending={durability.phase === "saving" || agentMutationPending ||
-              networkApprovalPending ||
               !executionWorkspaceReady || workspaceExportPending}
             onHome={() => void openHomeV1()}
             onLocaleChange={changeLocaleV1}
             {...(internalPiTest ? {} : { onOpenSettings: openSettingsV1 })}
             onAccept={() => {
-              if (networkApprovalPending) return;
               const proposal = snapshot.proposal;
               if (proposal === null) {
                 reportFailure("silly_os.proposal_unavailable", proposal);
@@ -2152,7 +2110,6 @@ export function SillyOsAppV1({
               });
             }}
             onReject={() => {
-              if (networkApprovalPending) return;
               const proposal = snapshot.proposal;
               if (proposal === null) {
                 reportFailure("silly_os.proposal_unavailable", proposal);
@@ -2169,6 +2126,13 @@ export function SillyOsAppV1({
             }}
             onSend={sendFollowUpV1}
             {...(internalPiTest ? {} : { providerModel: creatorProviderModelV1("workspace") })}
+            {...(programNetworkAccess?.programId !== routedProgramId ? {} : {
+              networkAccess: {
+                enabled: programNetworkAccess.enabled,
+                pending: networkAccessMutationPending,
+                onChange: setProgramNetworkAccessV1,
+              },
+            })}
             {...(agentSnapshot === null ? {} : {
               executionWorkspace: agentSnapshot.workspace,
               onRetryExecutionWorkspace: retryAgentWorkspaceV1,
@@ -2196,37 +2160,7 @@ export function SillyOsAppV1({
                   });
                 },
                 onForget: forgetPiAgentV1,
-                ...(pendingNetworkApproval === null ? {} : {
-                  networkApproval: {
-                    approvalId: pendingNetworkApproval.approvalId,
-                    origin: pendingNetworkApproval.origin,
-                    url: pendingNetworkApproval.url,
-                    onAllowOnce: () =>
-                      resolveNetworkApprovalV1(
-                        pendingNetworkApproval.approvalId,
-                        "allow_once",
-                      ),
-                    onAllowForProgram: () =>
-                      resolveNetworkApprovalV1(
-                        pendingNetworkApproval.approvalId,
-                        "allow_once",
-                        true,
-                      ),
-                    onDeny: () =>
-                      resolveNetworkApprovalV1(
-                        pendingNetworkApproval.approvalId,
-                        "deny",
-                      ),
-                  },
-                }),
               },
-              ...(programNetworkGrants === null ? {} : {
-                networkGrants: {
-                  grants: programNetworkGrants.grants,
-                  pending: networkGrantMutationPending,
-                  onRevoke: revokeProgramNetworkGrantV1,
-                },
-              }),
             })}
           />
         )}

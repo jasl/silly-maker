@@ -38,8 +38,6 @@ export async function acknowledgeAppliedAgentTerminalV1(input: {
   readonly persistence: CreatorControllerResultV1<CreatorAgentTerminalApplyResultV1>;
   readonly agentRunId: string;
   readonly receipts: readonly WorkspaceMutationReceiptV1[];
-  /** Includes receipt prefixes inherited from transient approval interruptions. */
-  readonly receiptThroughSequence?: number | null;
   readonly acknowledgeWorkspaceReceipts: (
     throughSequence: number,
   ) => Promise<WorkspaceReceiptAcknowledgedV1 | WorkspaceReceiptUnavailableV1>;
@@ -49,10 +47,8 @@ export async function acknowledgeAppliedAgentTerminalV1(input: {
     return { kind: "retained" };
   }
 
-  const receiptThroughSequence = input.receiptThroughSequence === undefined
-    ? input.receipts.findLast((receipt) => receipt.agentRunId === input.agentRunId)?.sequence ??
-      null
-    : input.receiptThroughSequence;
+  const receiptThroughSequence =
+    input.receipts.findLast((receipt) => receipt.agentRunId === input.agentRunId)?.sequence ?? null;
   if (receiptThroughSequence !== null) {
     const acknowledged = await input.acknowledgeWorkspaceReceipts(receiptThroughSequence);
     if (acknowledged.kind === "unavailable") {

@@ -26,10 +26,9 @@ import {
   type BrowserProgramWorkspaceAuthorityV1,
 } from "../product/browser-program-workspace-authority.ts";
 import {
-  admitProgramNetworkGrantSetV1,
-  type ProgramNetworkOperationV1,
-  type ProgramNetworkGrantSetV1,
-} from "../product/program-network-grants.ts";
+  admitProgramNetworkAccessV1,
+  type ProgramNetworkAccessV1,
+} from "../product/program-network-access.ts";
 import {
   browserPiDistributionIdentityV1,
   type BrowserPiDistributionIdentityV1,
@@ -48,8 +47,6 @@ import {
 } from "./browser-pi-transport.ts";
 import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
 import type {
-  BrowserPiNetworkApprovalDecisionV1,
-  BrowserPiNetworkApprovalRequestV1,
   BrowserPiModelSelectionV1,
   BrowserPiWorkspaceMutationReceiptWireV1,
   BrowserPiWorkspaceSnapshotWireV1,
@@ -105,18 +102,6 @@ export interface CreatorAgentWorkspaceSnapshotV1 {
   readonly diagnostic: CreatorAgentWorkspaceDiagnosticV1 | null;
 }
 
-export interface CreatorAgentNetworkApprovalV1 {
-  readonly revision: 1;
-  readonly approvalId: string;
-  readonly agentRunId: string;
-  readonly programId: string;
-  readonly workspaceSessionId: string;
-  readonly operation: ProgramNetworkOperationV1;
-  readonly origin: string;
-  readonly url: string;
-  readonly retryText: string;
-}
-
 export interface CreatorAgentSnapshotV1 {
   readonly revision: number;
   readonly phase: CreatorAgentPhaseV1;
@@ -128,8 +113,6 @@ export interface CreatorAgentSnapshotV1 {
   /** Unacknowledged terminal product projections, in arrival order. */
   readonly terminalRuns: readonly CreatorAgentTerminalRunV1[];
   readonly diagnostic: CreatorAgentDiagnosticV1 | null;
-  /** Session-only user decision. This request never enters Program persistence. */
-  readonly networkApproval: CreatorAgentNetworkApprovalV1 | null;
   /** Session-local execution projection; durable bytes remain owned by the Workspace Host. */
   readonly workspace: CreatorAgentWorkspaceSnapshotV1;
 }
@@ -155,15 +138,7 @@ export type CreatorAgentPortCancelResultV1 =
   | { readonly kind: "idle" }
   | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
 
-export type CreatorAgentResolveNetworkApprovalResultV1 =
-  | {
-    readonly kind: "resolved";
-    readonly decision: BrowserPiNetworkApprovalDecisionV1;
-    readonly retryText: string | null;
-  }
-  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
-
-export type CreatorAgentSynchronizeNetworkGrantsResultV1 =
+export type CreatorAgentSynchronizeNetworkAccessResultV1 =
   | { readonly kind: "synchronized" }
   | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
 
@@ -209,11 +184,6 @@ export interface CreatorAgentPortV1 {
   acknowledgeWorkspaceReceipts(
     throughSequence: number,
   ): Promise<CreatorAgentAcknowledgeWorkspaceReceiptsResultV1>;
-  /**
-   * Returns the contiguous Workspace receipt prefix that may be released only
-   * after this exact product run has durably settled.
-   */
-  workspaceReceiptAcknowledgementThroughSequence(agentRunId: string): number | null;
   exportWorkspace(input: {
     readonly workspaceSessionId: string;
     readonly fileName: string;
@@ -226,13 +196,9 @@ export interface CreatorAgentPortV1 {
   }): Promise<CreatorAgentExportWorkspaceResultV1>;
   submit(input: CreatorAgentRunRequestV1): Promise<CreatorAgentPortSubmitResultV1>;
   cancel(agentRunId?: string): Promise<CreatorAgentPortCancelResultV1>;
-  resolveNetworkApproval(input: {
-    readonly approvalId: string;
-    readonly decision: BrowserPiNetworkApprovalDecisionV1;
-  }): Promise<CreatorAgentResolveNetworkApprovalResultV1>;
-  synchronizeNetworkGrants(
-    grants: ProgramNetworkGrantSetV1,
-  ): Promise<CreatorAgentSynchronizeNetworkGrantsResultV1>;
+  synchronizeNetworkAccess(
+    access: ProgramNetworkAccessV1,
+  ): Promise<CreatorAgentSynchronizeNetworkAccessResultV1>;
   acknowledgeTerminal(agentRunId: string): boolean;
   /** Fail-closed credential revocation; cleanup continues through forget(). */
   revokeCredential(): void;
@@ -253,17 +219,6 @@ interface TrackedCreatorAgentRunV1 {
 interface NormalizedCreatorAgentRunV1 {
   readonly run: CreatorAgentRunRequestV1;
   readonly submit: CreatorAgentSubmitV1;
-}
-
-interface NetworkApprovalInterruptionV1 {
-  readonly approvalId: string;
-  readonly run: CreatorAgentRunRequestV1;
-  readonly inheritedReceiptThroughSequence: number | null;
-  readonly settled: Promise<number | null>;
-  settle: (throughSequence: number | null) => void;
-  decision: BrowserPiNetworkApprovalDecisionV1 | null;
-  settledReceiptThroughSequence: number | null | undefined;
-  successorAgentRunId: string | null;
 }
 
 interface FailedTerminalProjectionV1 {
@@ -437,26 +392,6 @@ function matchesRunV1(
     candidate.baseProgramRevision === run.baseProgramRevision && candidate.text === run.text;
 }
 
-function maximumSequenceV1(
-  left: number | null,
-  right: number | null,
-): number | null {
-  if (left === null) return right;
-  if (right === null) return left;
-  return Math.max(left, right);
-}
-
-function matchesExactNetworkRetryV1(
-  retry: CreatorAgentRunRequestV1,
-  interrupted: CreatorAgentRunRequestV1,
-): boolean {
-  return retry.agentRunId !== interrupted.agentRunId &&
-    retry.proposalId === interrupted.proposalId && retry.programId === interrupted.programId &&
-    retry.baseProgramRevision === interrupted.baseProgramRevision &&
-    retry.baseRepositoryRevision === interrupted.baseRepositoryRevision &&
-    retry.text === interrupted.text;
-}
-
 function mapRemoteFailureV1(
   run: CreatorAgentRunRequestV1,
   value: AgentRpcDiagnosticInternalV1,
@@ -518,11 +453,6 @@ export function createBrowserCreatorAgentPortV1(
     onConnectionLost: () => {
       if (!providerCredentialConfigured) return;
       providerCredentialConfigured = false;
-      networkApproval = null;
-      pendingExactNetworkRetry = null;
-      suppressedNetworkApprovalRuns.clear();
-      settleAndClearNetworkApprovalInterruptionsV1();
-      inheritedWorkspaceReceiptThroughSequence.clear();
       if (!terminal) {
         connectionFailureDiagnostic = diagnosticV1("connection_failed", "/connection");
         failFacadeV1(connectionFailureDiagnostic);
@@ -543,9 +473,6 @@ export function createBrowserCreatorAgentPortV1(
     string,
     BrowserPiWorkspaceMutationReceiptWireV1[]
   >();
-  const suppressedNetworkApprovalRuns = new Set<string>();
-  const networkApprovalInterruptions = new Map<string, NetworkApprovalInterruptionV1>();
-  const inheritedWorkspaceReceiptThroughSequence = new Map<string, number>();
   const submitSettlementGates = new Set<string>();
   const terminalDiagnostics = new Map<string, CreatorAgentDiagnosticV1>();
   let lifecycleEpoch = 0;
@@ -561,8 +488,6 @@ export function createBrowserCreatorAgentPortV1(
   let candidate: CreatorProgramRevisionCandidateV1 | null = null;
   let terminalRuns: readonly CreatorAgentTerminalRunV1[] = [];
   let diagnostic: CreatorAgentDiagnosticV1 | null = null;
-  let networkApproval: CreatorAgentNetworkApprovalV1 | null = null;
-  let pendingExactNetworkRetry: NetworkApprovalInterruptionV1 | null = null;
   let connectionFailureDiagnostic: CreatorAgentDiagnosticV1 | null = null;
   let workspacePhase: CreatorAgentWorkspacePhaseV1 = "closed";
   let workspaceDescriptor: WorkspaceExecutionDescriptorV1 | null = null;
@@ -578,7 +503,6 @@ export function createBrowserCreatorAgentPortV1(
   let finishPromise: Promise<void> | null = null;
   let unsubscribeWorkspaceReceipts: (() => void) | null = null;
   let unsubscribeWorkspaceFailures: (() => void) | null = null;
-  let unsubscribeNetworkApprovals: (() => void) | null = null;
   let snapshot!: CreatorAgentSnapshotV1;
 
   const latestTrackedRunV1 = (): TrackedCreatorAgentRunV1 | null => {
@@ -587,72 +511,6 @@ export function createBrowserCreatorAgentPortV1(
       if (latest === null || run.ordinal > latest.ordinal) latest = run;
     }
     return latest;
-  };
-
-  const workspaceReceiptAcknowledgementThroughSequenceV1 = (
-    agentRunId: string,
-  ): number | null => {
-    const inherited = inheritedWorkspaceReceiptThroughSequence.get(agentRunId) ?? null;
-    const own = workspaceReceipts.findLast((receipt) => receipt.agentRunId === agentRunId)
-      ?.sequence ?? null;
-    return maximumSequenceV1(inherited, own);
-  };
-
-  const createNetworkApprovalInterruptionV1 = (
-    approvalId: string,
-    run: CreatorAgentRunRequestV1,
-  ): NetworkApprovalInterruptionV1 => {
-    let settle!: (throughSequence: number | null) => void;
-    const settled = new Promise<number | null>((resolve) => {
-      settle = resolve;
-    });
-    return {
-      approvalId,
-      run,
-      inheritedReceiptThroughSequence:
-        inheritedWorkspaceReceiptThroughSequence.get(run.agentRunId) ?? null,
-      settled,
-      settle,
-      decision: null,
-      settledReceiptThroughSequence: undefined,
-      successorAgentRunId: null,
-    };
-  };
-
-  const releaseNetworkApprovalInterruptionV1 = (
-    interruption: NetworkApprovalInterruptionV1,
-  ): void => {
-    if (networkApprovalInterruptions.get(interruption.run.agentRunId) === interruption) {
-      networkApprovalInterruptions.delete(interruption.run.agentRunId);
-    }
-    if (pendingExactNetworkRetry === interruption) pendingExactNetworkRetry = null;
-    inheritedWorkspaceReceiptThroughSequence.delete(interruption.run.agentRunId);
-  };
-
-  const settleAndClearNetworkApprovalInterruptionsV1 = (): void => {
-    for (const interruption of networkApprovalInterruptions.values()) {
-      if (interruption.settledReceiptThroughSequence === undefined) {
-        interruption.settledReceiptThroughSequence = null;
-        interruption.settle(null);
-      }
-    }
-    networkApprovalInterruptions.clear();
-  };
-
-  const propagateSettledNetworkRetryReceiptsV1 = (
-    interruption: NetworkApprovalInterruptionV1,
-  ): void => {
-    const successorAgentRunId = interruption.successorAgentRunId;
-    const throughSequence = interruption.settledReceiptThroughSequence;
-    if (successorAgentRunId === null || throughSequence === undefined) return;
-    if (throughSequence !== null) {
-      const existing = inheritedWorkspaceReceiptThroughSequence.get(successorAgentRunId) ?? null;
-      inheritedWorkspaceReceiptThroughSequence.set(
-        successorAgentRunId,
-        maximumSequenceV1(existing, throughSequence) ?? throughSequence,
-      );
-    }
-    releaseNetworkApprovalInterruptionV1(interruption);
   };
 
   const refreshFacadeV1 = (): void => {
@@ -700,7 +558,6 @@ export function createBrowserCreatorAgentPortV1(
       candidate,
       terminalRuns: Object.freeze([...terminalRuns]),
       diagnostic,
-      networkApproval,
       workspace: Object.freeze({
         phase: workspacePhase,
         descriptor: workspaceDescriptor,
@@ -962,44 +819,6 @@ export function createBrowserCreatorAgentPortV1(
         return;
       }
       case "run_failed": {
-        const remoteCode = event.diagnostic.path.startsWith("/remote/")
-          ? event.diagnostic.path.slice("/remote/".length)
-          : "";
-        if (remoteCode === "approval_required") {
-          const matchingApproval = networkApproval?.agentRunId === tracked.run.agentRunId;
-          const suppressed = suppressedNetworkApprovalRuns.delete(tracked.run.agentRunId);
-          const interruption = networkApprovalInterruptions.get(tracked.run.agentRunId);
-          if ((!matchingApproval && !suppressed) || interruption === undefined) {
-            settleTrackedRunV1(
-              tracked,
-              Object.freeze({
-                run: tracked.run,
-                outcome: "failed",
-                diagnosticCode: "protocol_invalid",
-              }),
-              diagnosticV1("protocol_invalid", "/networkApproval/run"),
-            );
-            return;
-          }
-          if (tracked.piRunId !== null) {
-            flushWorkspaceReceiptsV1(piRunKeyV1(tracked.sessionId, tracked.piRunId));
-          }
-          const receiptThroughSequence = maximumSequenceV1(
-            interruption.inheritedReceiptThroughSequence,
-            workspaceReceipts.findLast((receipt) => receipt.agentRunId === tracked.run.agentRunId)
-              ?.sequence ?? null,
-          );
-          interruption.settledReceiptThroughSequence = receiptThroughSequence;
-          interruption.settle(receiptThroughSequence);
-          inheritedWorkspaceReceiptThroughSequence.delete(tracked.run.agentRunId);
-          // Approval is a transient interruption, not a terminal product event.
-          // Removing this correlation fences every later record from the old Pi run.
-          removeTrackedRunV1(tracked);
-          propagateSettledNetworkRetryReceiptsV1(interruption);
-          refreshFacadeV1();
-          publish();
-          return;
-        }
         const projected = mapRemoteFailureV1(tracked.run, event.diagnostic);
         if (isFailedProjectionV1(projected)) {
           settleTrackedRunV1(tracked, projected.terminalRun, projected.diagnostic);
@@ -1052,62 +871,6 @@ export function createBrowserCreatorAgentPortV1(
     handleStreamEventV1(tracked, event);
   });
 
-  const projectNetworkApprovalV1 = (request: BrowserPiNetworkApprovalRequestV1): void => {
-    if (terminal) return;
-    const tracked = trackedByPiRun.get(piRunKeyV1(request.sessionId, request.runId));
-    const descriptor = workspaceDescriptor;
-    if (
-      tracked === undefined || tracked.piRunId !== request.runId ||
-      request.programId !== tracked.run.programId || descriptor === null ||
-      descriptor.programId !== request.programId ||
-      descriptor.workspaceId !== request.workspaceId ||
-      descriptor.workspaceSessionId !== request.workspaceSessionId
-    ) {
-      void transport.resolveNetworkApproval({
-        approvalId: request.approvalId,
-        decision: "deny",
-      }).catch(() => undefined);
-      failFacadeV1(diagnosticV1("protocol_invalid", "/networkApproval"));
-      return;
-    }
-    if (networkApproval !== null) {
-      if (networkApproval.approvalId === request.approvalId) return;
-      suppressedNetworkApprovalRuns.add(tracked.run.agentRunId);
-      void transport.resolveNetworkApproval({
-        approvalId: request.approvalId,
-        decision: "deny",
-      }).catch(() => undefined);
-      return;
-    }
-    if (networkApprovalInterruptions.has(tracked.run.agentRunId)) {
-      void transport.resolveNetworkApproval({
-        approvalId: request.approvalId,
-        decision: "deny",
-      }).catch(() => undefined);
-      failFacadeV1(diagnosticV1("protocol_invalid", "/networkApproval/duplicate"));
-      return;
-    }
-    const interruption = createNetworkApprovalInterruptionV1(
-      request.approvalId,
-      tracked.run,
-    );
-    networkApprovalInterruptions.set(tracked.run.agentRunId, interruption);
-    networkApproval = Object.freeze({
-      revision: 1,
-      approvalId: request.approvalId,
-      agentRunId: tracked.run.agentRunId,
-      programId: request.programId,
-      workspaceSessionId: request.workspaceSessionId,
-      operation: request.operation,
-      origin: request.origin,
-      url: request.url,
-      retryText: tracked.run.text,
-    });
-    publish();
-  };
-
-  unsubscribeNetworkApprovals = transport.subscribeNetworkApprovals(projectNetworkApprovalV1);
-
   unsubscribeWorkspaceReceipts = transport.subscribeWorkspaceReceipts((receipt) => {
     if (terminal) return;
     const key = piRunKeyV1(receipt.sessionId, receipt.runId);
@@ -1129,11 +892,6 @@ export function createBrowserCreatorAgentPortV1(
 
   unsubscribeWorkspaceFailures = transport.subscribeWorkspaceFailures((failure) => {
     if (terminal) return;
-    networkApproval = null;
-    pendingExactNetworkRetry = null;
-    suppressedNetworkApprovalRuns.clear();
-    settleAndClearNetworkApprovalInterruptionsV1();
-    inheritedWorkspaceReceiptThroughSequence.clear();
     const current = workspaceDescriptor;
     const exactWorkspace = current === null ||
       (current.programId === failure.programId && current.workspaceId === failure.workspaceId &&
@@ -1366,18 +1124,6 @@ export function createBrowserCreatorAgentPortV1(
     workspaceDiagnostic = null;
   };
 
-  const abandonPendingNetworkApprovalV1 = async (): Promise<
-    CreatorAgentWorkspaceDiagnosticV1 | null
-  > => {
-    const pending = networkApproval;
-    if (pending === null) return null;
-    const result = await resolveNetworkApproval({
-      approvalId: pending.approvalId,
-      decision: "deny",
-    });
-    return result.kind === "resolved" ? null : mapAgentFailureToWorkspaceV1(result.diagnostic);
-  };
-
   const openWorkspace = async (raw: {
     readonly programId: string;
     readonly workspaceId: string;
@@ -1395,14 +1141,6 @@ export function createBrowserCreatorAgentPortV1(
         kind: "unavailable",
         diagnostic: workspaceDiagnosticV1("protocol_invalid", "/workspace/open"),
       };
-    }
-    const abandonedApproval = await abandonPendingNetworkApprovalV1();
-    if (abandonedApproval !== null) {
-      return { kind: "unavailable", diagnostic: abandonedApproval };
-    }
-    const abandonedRetry = await abandonPendingExactNetworkRetryV1();
-    if (abandonedRetry !== null) {
-      return { kind: "unavailable", diagnostic: abandonedRetry };
     }
     if (sessionId === null) {
       const unavailable = mapAgentFailureToWorkspaceV1(
@@ -1459,14 +1197,6 @@ export function createBrowserCreatorAgentPortV1(
         kind: "unavailable",
         diagnostic: workspaceDiagnosticV1("disposed", "/"),
       };
-    }
-    const abandonedApproval = await abandonPendingNetworkApprovalV1();
-    if (abandonedApproval !== null) {
-      return { kind: "unavailable", diagnostic: abandonedApproval };
-    }
-    const abandonedRetry = await abandonPendingExactNetworkRetryV1();
-    if (abandonedRetry !== null) {
-      return { kind: "unavailable", diagnostic: abandonedRetry };
     }
     const descriptor = workspaceDescriptor;
     if (descriptor === null || workspacePhase === "closed") return { kind: "idle" };
@@ -1580,23 +1310,6 @@ export function createBrowserCreatorAgentPortV1(
     }
   };
 
-  const abandonPendingExactNetworkRetryV1 = async (): Promise<
-    CreatorAgentWorkspaceDiagnosticV1 | null
-  > => {
-    const interruption = pendingExactNetworkRetry;
-    if (interruption === null) return null;
-    const throughSequence = await interruption.settled;
-    if (terminal || finishPromise !== null) {
-      return workspaceDiagnosticV1("disposed", "/networkApproval/retry");
-    }
-    if (throughSequence !== null) {
-      const acknowledged = await acknowledgeWorkspaceReceipts(throughSequence);
-      if (acknowledged.kind === "unavailable") return acknowledged.diagnostic;
-    }
-    releaseNetworkApprovalInterruptionV1(interruption);
-    return null;
-  };
-
   const exportWorkspace = async (exportInput: {
     readonly workspaceSessionId: string;
     readonly fileName: string;
@@ -1658,96 +1371,13 @@ export function createBrowserCreatorAgentPortV1(
     }
   };
 
-  const resolveNetworkApproval = async (raw: {
-    readonly approvalId: string;
-    readonly decision: BrowserPiNetworkApprovalDecisionV1;
-  }): Promise<CreatorAgentResolveNetworkApprovalResultV1> => {
+  const synchronizeNetworkAccess = async (
+    raw: ProgramNetworkAccessV1,
+  ): Promise<CreatorAgentSynchronizeNetworkAccessResultV1> => {
     if (terminal || finishPromise !== null) {
-      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/networkApproval") };
+      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/networkAccess") };
     }
-    const pending = networkApproval;
-    if (
-      pending === null || pending.approvalId !== raw.approvalId ||
-      (raw.decision !== "allow_once" && raw.decision !== "deny")
-    ) {
-      return {
-        kind: "unavailable",
-        diagnostic: diagnosticV1("request_failed", "/networkApproval/pending"),
-      };
-    }
-    const interruption = networkApprovalInterruptions.get(pending.agentRunId);
-    if (
-      interruption === undefined || interruption.approvalId !== pending.approvalId ||
-      interruption.decision !== null
-    ) {
-      return {
-        kind: "unavailable",
-        diagnostic: diagnosticV1("protocol_invalid", "/networkApproval/interruption"),
-      };
-    }
-    const expectedEpoch = lifecycleEpoch;
-    if (raw.decision === "deny") {
-      const throughSequence = await interruption.settled;
-      if (terminal || lifecycleEpoch !== expectedEpoch) {
-        return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/networkApproval") };
-      }
-      if (throughSequence !== null) {
-        const acknowledged = await acknowledgeWorkspaceReceipts(throughSequence);
-        if (acknowledged.kind === "unavailable") {
-          return {
-            kind: "unavailable",
-            diagnostic: diagnosticV1("request_failed", "/networkApproval/receipts"),
-          };
-        }
-      }
-    }
-    const runStillTracked = trackedByProductRunId.has(pending.agentRunId);
-    if (runStillTracked) suppressedNetworkApprovalRuns.add(pending.agentRunId);
-    let result: Awaited<ReturnType<BrowserPiWorkerRawTransportV1["resolveNetworkApproval"]>>;
-    try {
-      result = await transport.resolveNetworkApproval(raw);
-    } catch {
-      if (runStillTracked) suppressedNetworkApprovalRuns.delete(pending.agentRunId);
-      return {
-        kind: "unavailable",
-        diagnostic: diagnosticV1("request_failed", "/networkApproval/resolve"),
-      };
-    }
-    if (terminal || lifecycleEpoch !== expectedEpoch) {
-      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/networkApproval") };
-    }
-    if (result.kind !== "resolved") {
-      if (runStillTracked) suppressedNetworkApprovalRuns.delete(pending.agentRunId);
-      return {
-        kind: "unavailable",
-        diagnostic: diagnosticV1("request_failed", "/networkApproval/resolve"),
-      };
-    }
-    if (networkApproval?.approvalId !== pending.approvalId) {
-      return {
-        kind: "unavailable",
-        diagnostic: diagnosticV1("protocol_invalid", "/networkApproval/current"),
-      };
-    }
-    interruption.decision = result.decision;
-    networkApproval = null;
-    if (result.decision === "allow_once") pendingExactNetworkRetry = interruption;
-    else releaseNetworkApprovalInterruptionV1(interruption);
-    publish();
-    return {
-      kind: "resolved",
-      decision: result.decision,
-      retryText: result.decision === "allow_once" ? pending.retryText : null,
-    };
-  };
-
-  const synchronizeNetworkGrants = async (
-    raw: ProgramNetworkGrantSetV1,
-  ): Promise<CreatorAgentSynchronizeNetworkGrantsResultV1> => {
-    if (terminal || finishPromise !== null) {
-      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/networkGrants") };
-    }
-    const admitted = admitProgramNetworkGrantSetV1(raw);
+    const admitted = admitProgramNetworkAccessV1(raw);
     const descriptor = workspaceDescriptor;
     if (
       admitted.kind === "rejected" || descriptor === null || workspacePhase !== "open" ||
@@ -1755,81 +1385,25 @@ export function createBrowserCreatorAgentPortV1(
     ) {
       return {
         kind: "unavailable",
-        diagnostic: diagnosticV1("request_failed", "/networkGrants/scope"),
+        diagnostic: diagnosticV1("request_failed", "/networkAccess/scope"),
       };
     }
     const expectedEpoch = lifecycleEpoch;
     try {
-      await transport.replaceNetworkGrants({
-        programId: admitted.value.programId,
+      await transport.replaceNetworkAccess({
+        access: admitted.value,
         workspaceSessionId: descriptor.workspaceSessionId,
-        grants: admitted.value.grants,
       });
     } catch {
       return {
         kind: "unavailable",
-        diagnostic: diagnosticV1("request_failed", "/networkGrants/synchronize"),
+        diagnostic: diagnosticV1("request_failed", "/networkAccess/synchronize"),
       };
     }
     if (terminal || lifecycleEpoch !== expectedEpoch) {
-      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/networkGrants") };
+      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/networkAccess") };
     }
     return { kind: "synchronized" };
-  };
-
-  const acknowledgeWorkspaceReceiptsBeforeForgetV1 = async (
-    throughSequence: number | null,
-  ): Promise<boolean> => {
-    if (throughSequence === null) return true;
-    const descriptor = workspaceDescriptor;
-    if (
-      descriptor === null ||
-      !workspaceReceipts.some((receipt) => receipt.sequence === throughSequence)
-    ) return false;
-    try {
-      const result = await transport.acknowledgeWorkspaceReceipts({
-        workspaceSessionId: descriptor.workspaceSessionId,
-        throughSequence,
-      });
-      if (result.workspaceSessionId !== descriptor.workspaceSessionId) return false;
-      workspaceDescriptor = workspaceDescriptorV1(result);
-      workspaceReceipts = Object.freeze(
-        workspaceReceipts.filter((receipt) => receipt.sequence > throughSequence),
-      );
-      workspacePhase = result.phase;
-      workspaceDiagnostic = null;
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  const drainNetworkApprovalLifecycleBeforeForgetV1 = async (): Promise<void> => {
-    const pending = networkApproval;
-    if (pending !== null) {
-      const interruption = networkApprovalInterruptions.get(pending.agentRunId);
-      if (interruption !== undefined) {
-        const throughSequence = await interruption.settled;
-        if (await acknowledgeWorkspaceReceiptsBeforeForgetV1(throughSequence)) {
-          const result = await transport.resolveNetworkApproval({
-            approvalId: pending.approvalId,
-            decision: "deny",
-          }).catch(() => null);
-          if (result?.kind === "resolved") {
-            interruption.decision = "deny";
-            networkApproval = null;
-            releaseNetworkApprovalInterruptionV1(interruption);
-          }
-        }
-      }
-      return;
-    }
-    const retry = pendingExactNetworkRetry;
-    if (retry === null) return;
-    const throughSequence = await retry.settled;
-    if (await acknowledgeWorkspaceReceiptsBeforeForgetV1(throughSequence)) {
-      releaseNetworkApprovalInterruptionV1(retry);
-    }
   };
 
   const finish = async (finalPhase: "forgotten" | "disposed"): Promise<void> => {
@@ -1844,10 +1418,7 @@ export function createBrowserCreatorAgentPortV1(
       workspaceExportAbort?.abort();
       if (!credentialRevoked) {
         await workspaceExportSettlement?.catch(() => undefined);
-        await drainNetworkApprovalLifecycleBeforeForgetV1();
       }
-      networkApproval = null;
-      suppressedNetworkApprovalRuns.clear();
       // Keep subscriptions and Pi-to-product correlation alive until close has
       // drained its final receipt and Agent terminal records.
       await transport.forget().catch(() => undefined);
@@ -1856,8 +1427,6 @@ export function createBrowserCreatorAgentPortV1(
       unsubscribeWorkspaceReceipts = null;
       unsubscribeWorkspaceFailures?.();
       unsubscribeWorkspaceFailures = null;
-      unsubscribeNetworkApprovals?.();
-      unsubscribeNetworkApprovals = null;
       terminal = true;
       sessionId = null;
       trackedByProductRunId.clear();
@@ -1865,10 +1434,6 @@ export function createBrowserCreatorAgentPortV1(
       pendingStreamEvents.clear();
       pendingWorkspaceReceipts.clear();
       submitSettlementGates.clear();
-      suppressedNetworkApprovalRuns.clear();
-      settleAndClearNetworkApprovalInterruptionsV1();
-      inheritedWorkspaceReceiptThroughSequence.clear();
-      pendingExactNetworkRetry = null;
       pendingStreamEventCount = 0;
       pendingWorkspaceReceiptCount = 0;
       activeRunId = null;
@@ -1876,7 +1441,6 @@ export function createBrowserCreatorAgentPortV1(
       candidate = null;
       diagnostic = null;
       connectionFailureDiagnostic = null;
-      networkApproval = null;
       phase = finalPhase;
       workspacePhase = finalPhase;
       workspaceDescriptor = null;
@@ -1904,8 +1468,6 @@ export function createBrowserCreatorAgentPortV1(
     openWorkspace,
     closeWorkspace,
     acknowledgeWorkspaceReceipts,
-    workspaceReceiptAcknowledgementThroughSequence:
-      workspaceReceiptAcknowledgementThroughSequenceV1,
     exportWorkspace,
     revokeCredential(): void {
       if (terminal || credentialRevoked) return;
@@ -1914,37 +1476,17 @@ export function createBrowserCreatorAgentPortV1(
       providerCredentialConfigured = false;
       workspaceExportAbort?.abort();
       workspaceExportAbort = null;
-      networkApproval = null;
-      suppressedNetworkApprovalRuns.clear();
-      settleAndClearNetworkApprovalInterruptionsV1();
-      pendingExactNetworkRetry = null;
       transport.revokeCredential();
     },
     async submit(rawRun: CreatorAgentRunRequestV1): Promise<CreatorAgentPortSubmitResultV1> {
       if (terminal || finishPromise !== null) {
         return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
       }
-      if (networkApproval !== null) {
-        return {
-          kind: "unavailable",
-          diagnostic: diagnosticV1("request_failed", "/networkApproval/pending"),
-        };
-      }
       const normalized = normalizeCreatorAgentRunV1(rawRun);
       if (normalized === null) {
         return {
           kind: "unavailable",
           diagnostic: diagnosticV1("submit_invalid", "/run"),
-        };
-      }
-      const retryInterruption = pendingExactNetworkRetry;
-      if (
-        retryInterruption !== null &&
-        !matchesExactNetworkRetryV1(normalized.run, retryInterruption.run)
-      ) {
-        return {
-          kind: "unavailable",
-          diagnostic: diagnosticV1("request_failed", "/networkApproval/retry"),
         };
       }
       if (
@@ -2041,11 +1583,10 @@ export function createBrowserCreatorAgentPortV1(
             expectedProgramRevision: normalized.run.baseProgramRevision,
             expectedRepositoryRevision: normalized.run.baseRepositoryRevision,
             expectedGeneration: submitWorkspace.generation,
-            operation: async (grants) => {
-              await transport.replaceNetworkGrants({
-                programId: grants.programId,
+            operation: async (access) => {
+              await transport.replaceNetworkAccess({
+                access,
                 workspaceSessionId: submitWorkspace.workspaceSessionId,
-                grants: grants.grants,
               });
               return await client.submit({
                 sessionId: expectedSessionId,
@@ -2085,11 +1626,6 @@ export function createBrowserCreatorAgentPortV1(
         diagnostic = mapped;
         publish();
         return { kind: "unavailable", diagnostic: mapped };
-      }
-      if (retryInterruption !== null) {
-        retryInterruption.successorAgentRunId = tracked.run.agentRunId;
-        pendingExactNetworkRetry = null;
-        propagateSettledNetworkRetryReceiptsV1(retryInterruption);
       }
       tracked.piRunId = result.runId;
       const key = piRunKeyV1(expectedSessionId, result.runId);
@@ -2134,8 +1670,7 @@ export function createBrowserCreatorAgentPortV1(
       // run_failed(cancelled), which becomes the durable product projection.
       return { kind: "cancel_requested" };
     },
-    resolveNetworkApproval,
-    synchronizeNetworkGrants,
+    synchronizeNetworkAccess,
     acknowledgeTerminal(agentRunId: string): boolean {
       const index = terminalRuns.findIndex(({ run }) => run.agentRunId === agentRunId);
       if (index < 0) return false;
@@ -2143,7 +1678,6 @@ export function createBrowserCreatorAgentPortV1(
         ...terminalRuns.slice(0, index),
         ...terminalRuns.slice(index + 1),
       ]);
-      inheritedWorkspaceReceiptThroughSequence.delete(agentRunId);
       terminalDiagnostics.delete(agentRunId);
       if (!terminal) refreshFacadeV1();
       publish();

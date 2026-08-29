@@ -2607,86 +2607,7 @@ body,
   animation: silly-os-spin 900ms linear infinite;
 }
 
-.network-approval {
-  margin: 16px 0 0 38px;
-  padding: 12px;
-  border: 1px solid #dfc77f;
-  border-radius: 12px;
-  background: #fffaf0;
-}
-
-.network-approval__heading {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: #6f5409;
-}
-
-.network-approval__heading strong {
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.network-approval > p {
-  margin: 8px 0 0;
-  color: #62583d;
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.network-approval dl {
-  display: grid;
-  margin: 10px 0 0;
-  gap: 7px;
-}
-
-.network-approval dl > div {
-  display: grid;
-  min-inline-size: 0;
-  gap: 2px;
-}
-
-.network-approval dt {
-  color: var(--sos-ink-muted);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.network-approval dd {
-  min-inline-size: 0;
-  margin: 0;
-}
-
-.network-approval code {
-  display: block;
-  color: var(--sos-ink);
-  font-size: 10px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-
-.network-approval__actions {
-  display: flex;
-  margin-block-start: 10px;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.network-approval__remember {
-  display: flex;
-  align-items: center;
-  margin-block-start: 10px;
-  color: #62583d;
-  font-size: 11px;
-  gap: 7px;
-}
-
-.network-approval__remember input {
-  margin: 0;
-}
-
-.network-grants {
+.network-access {
   margin: 16px 0 0 38px;
   padding: 10px 12px;
   border: 1px solid #d9dad5;
@@ -2694,51 +2615,39 @@ body,
   background: #fbfbf9;
 }
 
-.network-grants__heading {
+.network-access__heading,
+.network-access__heading > span,
+.network-access__toggle {
   display: flex;
   align-items: center;
+}
+
+.network-access__heading {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.network-access__heading > span,
+.network-access__toggle {
   gap: 7px;
 }
 
-.network-grants p {
+.network-access__toggle {
+  color: var(--sos-ink);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.network-access__toggle input {
+  margin: 0;
+}
+
+.network-access p {
   margin: 8px 0 0;
   color: var(--sos-ink-muted);
   font-size: 11px;
-}
-
-.network-grants ul {
-  display: grid;
-  margin: 8px 0 0;
-  padding: 0;
-  gap: 6px;
-  list-style: none;
-}
-
-.network-grants li,
-.network-grants li > span {
-  display: flex;
-  align-items: center;
-}
-
-.network-grants li {
-  justify-content: space-between;
-  min-inline-size: 0;
-  gap: 8px;
-}
-
-.network-grants li > span {
-  min-inline-size: 0;
-  gap: 6px;
-}
-
-.network-grants code {
-  font-size: 10px;
-  overflow-wrap: anywhere;
-}
-
-.network-grants small {
-  color: var(--sos-ink-muted);
-  font-size: 9px;
+  line-height: 1.5;
 }
 
 @keyframes silly-os-spin {
@@ -4494,7 +4403,7 @@ body,
 
   .program-proposal,
   .pi-agent-run,
-  .network-approval,
+  .network-access,
   .program-workspace-review,
   .workpiece-link {
     margin-inline-start: 0;

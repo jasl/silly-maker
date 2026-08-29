@@ -15,6 +15,7 @@ import {
   createBrowserPiWorkerRuntimeV1 as createBrowserPiWorkerRuntimeCoreV1,
   createBrowserPiWorkspaceToolsV1,
 } from "../agent/browser-pi-worker-runtime.ts";
+import { piNetworkDisabledErrorCodeV1 } from "../agent/pi-network-tool-binder.ts";
 import type {
   BrowserPiModelSelectionFailureCodeV1,
   BrowserPiModelSelectionV1,
@@ -63,11 +64,11 @@ import {
 import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
 import type { CreatorAgentRunRequestV1, CreatorAgentSubmitV1 } from "../product/contracts.ts";
 import {
-  applyProgramNetworkGrantMutationV1,
-  cloneProgramNetworkGrantSetV1,
-  createEmptyProgramNetworkGrantSetV1,
-  type ProgramNetworkGrantSetV1,
-} from "../product/program-network-grants.ts";
+  applyProgramNetworkAccessMutationV1,
+  cloneProgramNetworkAccessV1,
+  createDefaultProgramNetworkAccessV1,
+  type ProgramNetworkAccessV1,
+} from "../product/program-network-access.ts";
 import {
   programWorkspaceSnapshotReceiptsEqualV1,
   type ProgramWorkspaceSnapshotReceiptV1,
@@ -826,7 +827,7 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   private nextRequestId = 1;
   private nextCheckpointOrdinal = 2;
   private controlledWorkerGeneration: number | null = null;
-  private readonly programNetworkGrants = new Map<string, ProgramNetworkGrantSetV1>();
+  private readonly programNetworkAccess = new Map<string, ProgramNetworkAccessV1>();
   private disposed = false;
   closeWorkspaceCalls = 0;
   agentSubmitAdmissionCalls = 0;
@@ -901,24 +902,21 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     throw new Error("test repository decision is unavailable");
   }
 
-  async loadProgramNetworkGrants(programId: string): Promise<ProgramNetworkGrantSetV1> {
-    return cloneProgramNetworkGrantSetV1(
-      this.programNetworkGrants.get(programId) ?? createEmptyProgramNetworkGrantSetV1(programId),
+  async loadProgramNetworkAccess(programId: string): Promise<ProgramNetworkAccessV1> {
+    return cloneProgramNetworkAccessV1(
+      this.programNetworkAccess.get(programId) ?? createDefaultProgramNetworkAccessV1(programId),
     );
   }
 
-  async setProgramNetworkGrant(
-    input: Parameters<BrowserProgramWorkspaceAuthorityV1["setProgramNetworkGrant"]>[0],
-  ): ReturnType<BrowserProgramWorkspaceAuthorityV1["setProgramNetworkGrant"]> {
-    const applied = applyProgramNetworkGrantMutationV1(
-      await this.loadProgramNetworkGrants(input.programId),
+  async setProgramNetworkAccess(
+    input: Parameters<BrowserProgramWorkspaceAuthorityV1["setProgramNetworkAccess"]>[0],
+  ): ReturnType<BrowserProgramWorkspaceAuthorityV1["setProgramNetworkAccess"]> {
+    const applied = applyProgramNetworkAccessMutationV1(
+      await this.loadProgramNetworkAccess(input.programId),
       input,
     );
-    if (applied.kind === "capacity_exceeded") {
-      throw new Error("test Program network grant capacity exceeded");
-    }
-    this.programNetworkGrants.set(input.programId, cloneProgramNetworkGrantSetV1(applied.value));
-    return { kind: applied.kind, value: cloneProgramNetworkGrantSetV1(applied.value) };
+    this.programNetworkAccess.set(input.programId, cloneProgramNetworkAccessV1(applied.value));
+    return { kind: applied.kind, value: cloneProgramNetworkAccessV1(applied.value) };
   }
 
   async withAgentSubmitAdmission<T>(
@@ -928,13 +926,11 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
       readonly expectedProgramRevision: number;
       readonly expectedRepositoryRevision: number;
       readonly expectedGeneration: number;
-      readonly operation: (
-        grants: ReturnType<typeof createEmptyProgramNetworkGrantSetV1>,
-      ) => Promise<T>;
+      readonly operation: (access: ProgramNetworkAccessV1) => Promise<T>;
     },
   ): Promise<T> {
     this.agentSubmitAdmissionCalls += 1;
-    return await input.operation(await this.loadProgramNetworkGrants(input.programId));
+    return await input.operation(await this.loadProgramNetworkAccess(input.programId));
   }
 
   get readFileRangeRequests(): TestBrowserWorkspaceVolumeStateV1["readFileRangeRequests"] {
@@ -1302,10 +1298,10 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   startRequests = 0;
   testConnectionRequests = 0;
   readonly requestOrder: string[] = [];
-  readonly networkGrantReplacements: Array<{
+  readonly networkAccessReplacements: Array<{
     readonly programId: string;
     readonly workspaceSessionId: string;
-    readonly grants: ProgramNetworkGrantSetV1["grants"];
+    readonly enabled: boolean;
   }> = [];
   readonly workspaceReceiptAcknowledgements: number[] = [];
   private configuredRuntime: unknown = null;
@@ -1318,7 +1314,6 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   private nextWorkspaceReceiptSequence = 1;
   private workspace: BrowserPiWorkspaceSnapshotWireV1 | null = null;
   private environmentPort: MessagePort | null = null;
-  private pendingNetworkApprovalId: string | null = null;
 
   private emit(message: unknown): void {
     const data = structuredClone(message);
@@ -1394,28 +1389,6 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
       }
       return;
     }
-    if (envelope.kind === "resolve_network_approval") {
-      if (envelope.approvalId !== this.pendingNetworkApprovalId) {
-        this.emit({
-          revision: 1,
-          kind: "network_approval_response",
-          requestId: envelope.requestId,
-          ok: false,
-          code: "not_pending",
-        });
-        return;
-      }
-      this.pendingNetworkApprovalId = null;
-      this.emit({
-        revision: 1,
-        kind: "network_approval_response",
-        requestId: envelope.requestId,
-        ok: true,
-        approvalId: envelope.approvalId,
-        decision: envelope.decision,
-      });
-      return;
-    }
     const record = envelope.record as Readonly<Record<string, unknown>>;
     if (envelope.kind === "workspace_request") {
       if (record.method === "attach_workspace") {
@@ -1459,16 +1432,16 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
           ...this.workspace,
           receipts: this.workspace.receipts.filter((receipt) => receipt.sequence > throughSequence),
         };
-      } else if (record.method === "replace_network_grants") {
-        this.requestOrder.push("replace_network_grants");
-        this.networkGrantReplacements.push(structuredClone({
+      } else if (record.method === "replace_network_access") {
+        this.requestOrder.push("replace_network_access");
+        this.networkAccessReplacements.push(structuredClone({
           programId: record.programId,
           workspaceSessionId: record.workspaceSessionId,
-          grants: record.grants,
+          enabled: record.enabled,
         }) as {
           readonly programId: string;
           readonly workspaceSessionId: string;
-          readonly grants: ProgramNetworkGrantSetV1["grants"];
+          readonly enabled: boolean;
         });
       }
       const workspace = this.workspace;
@@ -1543,7 +1516,7 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   }
 
   emitRunFailure(
-    code: "approval_required" | "cancelled" | "pi_failed",
+    code: "cancelled" | "pi_failed",
     piRunId: string = this.latestPiRunId ?? "",
   ): void {
     this.emit({
@@ -1559,38 +1532,9 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
     });
   }
 
-  emitNetworkApproval(
-    approvalId: string,
-    piRunId: string = this.latestPiRunId ?? "",
-    operation: "fetch_url" | "download" = "fetch_url",
-  ): void {
-    const execution = this.latestExecution;
-    if (execution === null) throw new Error("expected an execution binding");
-    this.pendingNetworkApprovalId = approvalId;
-    this.emit({
-      revision: 1,
-      kind: "network_approval_required",
-      approval: {
-        revision: 1,
-        approvalId,
-        programId: execution.programId,
-        workspaceId: execution.workspaceId,
-        workspaceSessionId: execution.workspaceSessionId,
-        sessionId: "controlled.session.1",
-        runId: piRunId,
-        toolCallId: operation === "download" ? "tool.download.1" : "tool.fetch-url.1",
-        operation,
-        origin: "https://assets.example.test",
-        url: operation === "download"
-          ? "https://assets.example.test/archive.zip?from=program"
-          : "https://assets.example.test/file.txt?from=program",
-      },
-    });
-  }
-
   emitWorkspaceMutation(
     piRunId: string = this.latestPiRunId ?? "",
-    changedPath = ".sillyos/network-before-approval.txt",
+    changedPath = ".sillyos/agent-mutation.txt",
   ): void {
     const workspace = this.workspace;
     const execution = this.latestExecution;
@@ -3419,7 +3363,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     await workspaceAuthority.dispose();
   });
 
-  it("binds durable network grants to one exact Program Workspace and does not consume them", async () => {
+  it("binds network access to one exact Program Workspace and resets it on close", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const brokerRequests: string[] = [];
     const brokerLease = createTestNetworkBrokerLeaseV1({
@@ -3450,16 +3394,16 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     );
 
     runtime.receive(workspaceRequestV1(3, {
-      method: "replace_network_grants",
+      method: "replace_network_access",
       programId: "program.other",
       workspaceSessionId: execution.workspaceSessionId,
-      grants: [{ origin: "https://example.test", operation: "fetch_url" }],
+      enabled: true,
     }));
     runtime.receive(workspaceRequestV1(4, {
-      method: "replace_network_grants",
+      method: "replace_network_access",
       programId: execution.programId,
       workspaceSessionId: "workspace.session.other",
-      grants: [{ origin: "https://example.test", operation: "fetch_url" }],
+      enabled: true,
     }));
     await waitUntilV1(() =>
       [3, 4].every((requestId) =>
@@ -3471,15 +3415,15 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     );
 
     runtime.receive(workspaceRequestV1(5, {
-      method: "replace_network_grants",
+      method: "replace_network_access",
       programId: execution.programId,
       workspaceSessionId: execution.workspaceSessionId,
-      grants: [{ origin: "https://example.test", operation: "fetch_url" }],
+      enabled: true,
     }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "workspace_response" && message.requestId === 5 && message.ok &&
-        message.response.method === "replace_network_grants"
+        message.response.method === "replace_network_access"
       )
     );
     runtime.receive(rpcRequestV1(6, { revision: 1, requestId: 1, method: "start" }));
@@ -3535,8 +3479,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
       )
     );
-    expect(messages.some((message) => message.kind === "network_approval_required")).toBe(false);
-
     runtime.receive(workspaceRequestV1(9, {
       method: "close_workspace",
       workspaceSessionId: execution.workspaceSessionId,
@@ -3566,7 +3508,11 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       reopenedExecution,
     );
     await waitUntilV1(() =>
-      messages.some((message) => message.kind === "network_approval_required")
+      messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.3" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
+      )
     );
     expect(brokerRequests).toEqual([url, url]);
 
@@ -3575,7 +3521,95 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     await workspaceAuthority.dispose();
   });
 
-  it("keeps fetch and download grants orthogonal and streams a download directly into Workspace", async () => {
+  it("returns a network_disabled tool error without actively terminating the Pi run", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const brokerRequests: string[] = [];
+    const brokerLease = createTestNetworkBrokerLeaseV1({
+      onRequest: (url, respond) => {
+        brokerRequests.push(url);
+        respond();
+      },
+    });
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    let toolError: unknown = null;
+    let abortCalls = 0;
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+      createProviderAgent: (input) => ({
+        async prompt() {
+          const fetchUrl = input.workspaceTools.find((tool) => tool.name === "fetch_url");
+          if (fetchUrl === undefined) throw new Error("expected fetch_url tool");
+          try {
+            await fetchUrl.execute(
+              "sillyos-fetch-url-disabled-1",
+              { url: "https://example.test/disabled.txt" },
+            );
+          } catch (error) {
+            toolError = error;
+          }
+          return { stopReason: "stop" };
+        },
+        abort() {
+          abortCalls += 1;
+        },
+        dispose() {},
+      }),
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "pi_provider",
+      selection: availableSelectionV1,
+      credential: { kind: "api_key", value: "sentinel-network-disabled-key" },
+    }, [brokerLease.agentPort]);
+    const execution = await attachRuntimeWorkspaceV1(
+      runtime,
+      messages,
+      workspaceAuthority,
+      2,
+    );
+    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 3 && message.ok
+      )
+    );
+    runtime.receive(rpcRequestV1(4, {
+      revision: 1,
+      requestId: 2,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          proposalId: "workspace.preview.1.proposal.network.disabled",
+          text: "Try the product-fixed network tool while Program access is disabled.",
+        }),
+      },
+    }, execution));
+    await waitUntilV1(() =>
+      toolError !== null && messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_failed"
+      )
+    );
+
+    expect(toolError).toBeInstanceOf(Error);
+    expect((toolError as Error).message).toBe(piNetworkDisabledErrorCodeV1);
+    expect(brokerRequests).toEqual([]);
+    expect(abortCalls).toBe(0);
+    expect(messages).toContainEqual(expect.objectContaining({
+      kind: "rpc_record",
+      record: expect.objectContaining({ kind: "run_failed", code: "candidate_missing" }),
+    }));
+
+    runtime.dispose();
+    brokerLease.terminate();
+    await workspaceAuthority.dispose();
+  });
+
+  it("streams an enabled Program download directly into Workspace", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const brokerMessages: unknown[] = [];
     const downloadRequests: string[] = [];
@@ -3608,10 +3642,10 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const origin = "https://downloads.example.test";
     const url = `${origin}/assets/archive.zip?revision=1`;
     runtime.receive(workspaceRequestV1(3, {
-      method: "replace_network_grants",
+      method: "replace_network_access",
       programId: execution.programId,
       workspaceSessionId: execution.workspaceSessionId,
-      grants: [{ origin, operation: "fetch_url" }],
+      enabled: true,
     }));
     runtime.receive(rpcRequestV1(4, { revision: 1, requestId: 1, method: "start" }));
     await waitUntilV1(() =>
@@ -3623,60 +3657,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       )
     );
     const downloadText = `${deterministicDownloadProbePrefixV1}${url}`;
-    runtime.receive(rpcRequestV1(5, {
-      revision: 1,
-      requestId: 2,
-      method: "submit",
-      params: {
-        sessionId: "sillyos.session.1",
-        text: serializeCreatorAgentSubmitV1({
-          ...submitV1,
-          proposalId: "workspace.preview.1.proposal.download.denied",
-          text: downloadText,
-        }),
-      },
-    }, execution));
-    await waitUntilV1(() =>
-      messages.some((message) => message.kind === "network_approval_required") &&
-      messages.some((message) =>
-        message.kind === "rpc_record" &&
-        (message.record as Readonly<Record<string, unknown>>).kind === "run_failed" &&
-        (message.record as Readonly<Record<string, unknown>>).code === "approval_required"
-      )
-    );
-    const approval = messages.find((message) => message.kind === "network_approval_required");
-    if (approval?.kind !== "network_approval_required") {
-      throw new Error("expected a download network approval");
-    }
-    expect(approval.approval).toMatchObject({
-      operation: "download",
-      origin,
-      url,
-      toolCallId: "sillyos-download-1",
-    });
-    expect(downloadRequests).toEqual([]);
-    runtime.receive({
-      revision: 1,
-      kind: "resolve_network_approval",
-      requestId: 6,
-      approvalId: approval.approval.approvalId,
-      decision: "deny",
-    });
-    runtime.receive(workspaceRequestV1(7, {
-      method: "replace_network_grants",
-      programId: execution.programId,
-      workspaceSessionId: execution.workspaceSessionId,
-      grants: [{ origin, operation: "download" }],
-    }));
-    await waitUntilV1(() =>
-      [6, 7].every((requestId) =>
-        messages.some((message) =>
-          (message.kind === "network_approval_response" ||
-            message.kind === "workspace_response") &&
-          message.requestId === requestId && message.ok
-        )
-      )
-    );
     runtime.receive(rpcRequestV1(8, {
       revision: 1,
       requestId: 3,
@@ -3685,7 +3665,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         sessionId: "sillyos.session.1",
         text: serializeCreatorAgentSubmitV1({
           ...submitV1,
-          proposalId: "workspace.preview.1.proposal.download.allowed",
+          proposalId: "workspace.preview.1.proposal.download.enabled",
           text: downloadText,
         }),
       },
@@ -3693,7 +3673,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     await waitUntilV1(() =>
       downloadRequests.length === 1 && messages.some((message) =>
         message.kind === "rpc_record" &&
-        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.2" &&
+        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.1" &&
         (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
       )
     );
@@ -3709,8 +3689,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         workspaceId: execution.workspaceId,
         workspaceSessionId: execution.workspaceSessionId,
         sessionId: "sillyos.session.1",
-        runId: "sillyos.run.2",
-        toolCallId: "sillyos-download-2",
+        runId: "sillyos.run.1",
+        toolCallId: "sillyos-download-1",
         tool: "download",
         expectedGeneration: 1,
         baseGeneration: 1,
@@ -3721,10 +3701,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       }),
     }));
     expect(JSON.stringify(brokerMessages)).not.toContain("sentinel-download-key");
-    expect(
-      messages.filter((message) => message.kind === "network_approval_required"),
-    ).toHaveLength(1);
-
     runtime.dispose();
     brokerLease.terminate();
     await workspaceAuthority.dispose();
@@ -3763,10 +3739,10 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const origin = "https://downloads.example.test";
     const url = `${origin}/assets/silent.zip`;
     runtime.receive(workspaceRequestV1(3, {
-      method: "replace_network_grants",
+      method: "replace_network_access",
       programId: execution.programId,
       workspaceSessionId: execution.workspaceSessionId,
-      grants: [{ origin, operation: "download" }],
+      enabled: true,
     }));
     runtime.receive(rpcRequestV1(4, { revision: 1, requestId: 1, method: "start" }));
     await waitUntilV1(() =>
@@ -3821,37 +3797,22 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     await workspaceAuthority.dispose();
   });
 
-  it("requires exact fetch_url approval, then consumes one permit without sending the key", async () => {
+  it("blocks fetch_url while disabled and runs it directly after Program access is enabled", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const brokerMessages: unknown[] = [];
     const brokerRequests: string[] = [];
-    const brokerCancels: string[] = [];
-    const lateBrokerResponse: { current: (() => void) | null } = { current: null };
-    let brokerRequestsBeforeGrant: readonly string[] | null = null;
-    let onNetworkApproval: (
-      message: Extract<
-        BrowserPiWorkerAnyOutboundMessageV1,
-        { readonly kind: "network_approval_required" }
-      >,
-    ) => void = () => {};
     const brokerLease = createTestNetworkBrokerLeaseV1({
       onMessage: (message) => brokerMessages.push(message),
       onRequest: (url, respond) => {
         brokerRequests.push(url);
-        if (brokerRequests.length === 1) respond();
-        else lateBrokerResponse.current = respond;
+        respond();
       },
-      onCancel: (requestId) => brokerCancels.push(requestId),
     });
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeCoreV1({
       expectedEndpointOrigin: null,
       providerFetch: fetch,
-      postMessage: (message) => {
-        const cloned = structuredClone(message);
-        messages.push(cloned);
-        if (cloned.kind === "network_approval_required") onNetworkApproval(cloned);
-      },
+      postMessage: (message) => messages.push(structuredClone(message)),
     });
     runtime.receive({
       revision: 1,
@@ -3887,114 +3848,46 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       }, execution));
     };
 
-    // Resolve and retry reentrantly from the approval side-event. This keeps
-    // the predecessor non-terminal and proves its drain cannot erase the
-    // exact one-shot permit that was just granted.
-    onNetworkApproval = (message) => {
-      onNetworkApproval = () => {};
-      brokerRequestsBeforeGrant = [...brokerRequests];
-      runtime.receive({
-        revision: 1,
-        kind: "resolve_network_approval",
-        requestId: 5,
-        approvalId: message.approval.approvalId,
-        decision: "allow_once",
-      });
-      submitFetchV1(6, "workspace.preview.1.proposal.network.2");
-    };
     submitFetchV1(4, "workspace.preview.1.proposal.network.1");
     await waitUntilV1(() =>
-      messages.some((message) => message.kind === "network_approval_required") &&
       messages.some((message) =>
         message.kind === "rpc_record" &&
-        (message.record as Readonly<Record<string, unknown>>).code === "approval_required"
-      ) &&
+        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.1" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
+      )
+    );
+    expect(brokerRequests).toEqual([]);
+
+    runtime.receive(workspaceRequestV1(5, {
+      method: "replace_network_access",
+      programId: execution.programId,
+      workspaceSessionId: execution.workspaceSessionId,
+      enabled: true,
+    }));
+    await waitUntilV1(() =>
       messages.some((message) =>
+        message.kind === "workspace_response" && message.requestId === 5 && message.ok
+      )
+    );
+    submitFetchV1(6, "workspace.preview.1.proposal.network.2");
+    await waitUntilV1(() =>
+      brokerRequests.length === 1 && messages.some((message) =>
         message.kind === "rpc_record" &&
         (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.2" &&
         (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
       )
     );
-    const approvalIndex = messages.findIndex((message) =>
-      message.kind === "network_approval_required"
-    );
-    const failedIndex = messages.findIndex((message) =>
-      message.kind === "rpc_record" &&
-      (message.record as Readonly<Record<string, unknown>>).code === "approval_required"
-    );
-    expect(approvalIndex).toBeGreaterThan(-1);
-    expect(failedIndex).toBeGreaterThan(approvalIndex);
-    expect(brokerRequestsBeforeGrant).toEqual([]);
-    const approvalEvent = messages[approvalIndex];
-    if (approvalEvent?.kind !== "network_approval_required") {
-      throw new Error("expected exact network approval event");
-    }
-    expect(approvalEvent.approval).toMatchObject({
-      programId: submitV1.programId,
-      workspaceId: workspaceIdV1,
-      workspaceSessionId: workspaceSessionIdV1,
-      sessionId: "sillyos.session.1",
-      runId: "sillyos.run.1",
-      toolCallId: "sillyos-fetch-url-1",
-      operation: "fetch_url",
-      origin: "https://example.test",
-      url,
-    });
-
-    expect(messages).toContainEqual(expect.objectContaining({
-      kind: "network_approval_response",
-      requestId: 5,
-      ok: true,
-    }));
     expect(brokerRequests).toEqual([url]);
     expect(JSON.stringify(brokerMessages)).not.toContain("sentinel-network-key");
 
     submitFetchV1(7, "workspace.preview.1.proposal.network.3");
     await waitUntilV1(() =>
-      messages.filter((message) => message.kind === "network_approval_required").length === 2
-    );
-    expect(brokerRequests).toEqual([url]);
-
-    const secondApproval =
-      messages.filter((message) => message.kind === "network_approval_required")[1];
-    if (secondApproval?.kind !== "network_approval_required") {
-      throw new Error("expected the second exact network approval event");
-    }
-    runtime.receive({
-      revision: 1,
-      kind: "resolve_network_approval",
-      requestId: 8,
-      approvalId: secondApproval.approval.approvalId,
-      decision: "allow_once",
-    });
-    submitFetchV1(9, "workspace.preview.1.proposal.network.4");
-    await waitUntilV1(() => brokerRequests.length === 2);
-    runtime.receive(rpcRequestV1(10, {
-      revision: 1,
-      requestId: 10,
-      method: "cancel",
-      params: { sessionId: "sillyos.session.1", runId: "sillyos.run.4" },
-    }));
-    await waitUntilV1(() =>
-      brokerCancels.length === 1 && messages.some((message) =>
+      brokerRequests.length === 2 && messages.some((message) =>
         message.kind === "rpc_record" &&
-        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.4" &&
-        (message.record as Readonly<Record<string, unknown>>).kind === "run_failed" &&
-        (message.record as Readonly<Record<string, unknown>>).code === "cancelled"
+        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.3" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
       )
     );
-    expect(lateBrokerResponse.current).not.toBeNull();
-    const settleLateBrokerResponse = lateBrokerResponse.current;
-    if (settleLateBrokerResponse === null) {
-      throw new Error("expected the held Broker response");
-    }
-    settleLateBrokerResponse();
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    expect(messages.some((message) =>
-      message.kind === "rpc_record" &&
-      (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.4" &&
-      (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
-    )).toBe(false);
     expect(brokerRequests).toEqual([url, url]);
     runtime.dispose();
     brokerLease.terminate();
@@ -4189,11 +4082,11 @@ describe("SillyOS Browser Pi transport and product port", () => {
         applyRevision: repositoryUnavailable,
         settleAgentRun: repositoryUnavailable,
         decide: repositoryUnavailable,
-        loadProgramNetworkGrants: (programId) =>
-          Promise.resolve(createEmptyProgramNetworkGrantSetV1(programId)),
-        setProgramNetworkGrant: repositoryUnavailable,
+        loadProgramNetworkAccess: (programId) =>
+          Promise.resolve(createDefaultProgramNetworkAccessV1(programId)),
+        setProgramNetworkAccess: repositoryUnavailable,
         withAgentSubmitAdmission: async (input) =>
-          await input.operation(createEmptyProgramNetworkGrantSetV1(input.programId)),
+          await input.operation(createDefaultProgramNetworkAccessV1(input.programId)),
         openWorkspace: () =>
           Promise.reject(
             new BrowserWorkspaceHostControlErrorV1(hostCode, `synthetic ${hostCode}`),
@@ -4322,19 +4215,12 @@ describe("SillyOS Browser Pi transport and product port", () => {
     await port.dispose();
   });
 
-  it("replaces the complete Program grant set before submitting and rejects another scope", async () => {
+  it("synchronizes the admitted Program network setting before submitting", async () => {
     const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
-    const grants = [
-      { origin: "https://downloads.example.test", operation: "download" as const },
-      { origin: "https://assets.example.test", operation: "fetch_url" as const },
-    ];
-    for (const grant of grants) {
-      await expect(workspaceAuthority.setProgramNetworkGrant({
-        programId: submitV1.programId,
-        grant,
-        enabled: true,
-      })).resolves.toMatchObject({ kind: "committed" });
-    }
+    await expect(workspaceAuthority.setProgramNetworkAccess({
+      programId: submitV1.programId,
+      enabled: true,
+    })).resolves.toMatchObject({ kind: "committed" });
     const worker = new ControllableBrowserPiWorkerV1();
     const port = createBrowserCreatorAgentPortV1({
       runtime: "deterministic_test",
@@ -4348,24 +4234,24 @@ describe("SillyOS Browser Pi transport and product port", () => {
       port.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
     ).resolves.toMatchObject({ kind: "opened" });
 
-    await expect(port.synchronizeNetworkGrants(
-      createEmptyProgramNetworkGrantSetV1("program.other"),
+    await expect(port.synchronizeNetworkAccess(
+      createDefaultProgramNetworkAccessV1("program.other"),
     )).resolves.toEqual({
       kind: "unavailable",
-      diagnostic: { code: "request_failed", path: "/networkGrants/scope" },
+      diagnostic: { code: "request_failed", path: "/networkAccess/scope" },
     });
-    expect(worker.networkGrantReplacements).toEqual([]);
+    expect(worker.networkAccessReplacements).toEqual([]);
 
     await expect(port.submit(productRunV1())).resolves.toEqual({
       kind: "submitted",
       agentRunId: "agent.run.product.1",
     });
-    expect(worker.networkGrantReplacements).toEqual([{
+    expect(worker.networkAccessReplacements).toEqual([{
       programId: submitV1.programId,
       workspaceSessionId: workspaceSessionIdV1,
-      grants,
+      enabled: true,
     }]);
-    expect(worker.requestOrder).toEqual(["replace_network_grants", "submit"]);
+    expect(worker.requestOrder).toEqual(["replace_network_access", "submit"]);
     expect(workspaceAuthority.agentSubmitAdmissionCalls).toBe(1);
     await port.dispose();
   });
@@ -5248,62 +5134,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     await port.dispose();
   });
 
-  it("keeps Allow once non-terminal before or after the interrupted run record", async () => {
-    for (const failureOrder of ["before_allow", "after_allow"] as const) {
-      const worker = new ControllableBrowserPiWorkerV1();
-      const port = createBrowserCreatorAgentPortV1({
-        runtime: "deterministic_test",
-        workspaceAuthority: testWorkspaceAuthorityV1(),
-        workerFactory: () => worker,
-      });
-      await openProductWorkspaceV1(port);
-      const run = productRunV1({
-        agentRunId: `agent.run.network.${failureOrder}`,
-        text: "Fetch the exact requested page.",
-      });
-      await expect(port.submit(run)).resolves.toEqual({
-        kind: "submitted",
-        agentRunId: run.agentRunId,
-      });
-      const piRunId = worker.latestPiRunId;
-      if (piRunId === null) throw new Error("expected a transient Pi run id");
-      const approvalId = `approval.${failureOrder}.1`;
-      worker.emitNetworkApproval(approvalId, piRunId);
-      await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
-      if (failureOrder === "before_allow") worker.emitRunFailure("approval_required", piRunId);
-
-      expect(port.getSnapshot().networkApproval).toMatchObject({
-        revision: 1,
-        approvalId,
-        agentRunId: run.agentRunId,
-        programId: run.programId,
-        workspaceSessionId: workspaceSessionIdV1,
-        operation: "fetch_url",
-        origin: "https://assets.example.test",
-        url: "https://assets.example.test/file.txt?from=program",
-        retryText: run.text,
-      });
-      await expect(
-        port.resolveNetworkApproval({ approvalId, decision: "allow_once" }),
-      ).resolves.toEqual({
-        kind: "resolved",
-        decision: "allow_once",
-        retryText: run.text,
-      });
-      if (failureOrder === "after_allow") worker.emitRunFailure("approval_required", piRunId);
-      await waitUntilV1(() => port.getSnapshot().activeRunId === null);
-
-      expect(port.getSnapshot()).toMatchObject({
-        phase: "ready",
-        activeRunId: null,
-        networkApproval: null,
-        terminalRuns: [],
-      });
-      await port.dispose();
-    }
-  });
-
-  it("projects a download approval without exposing transient Pi identities", async () => {
+  it("synchronizes Program network access only for the open Workspace scope", async () => {
     const worker = new ControllableBrowserPiWorkerV1();
     const port = createBrowserCreatorAgentPortV1({
       runtime: "deterministic_test",
@@ -5311,320 +5142,26 @@ describe("SillyOS Browser Pi transport and product port", () => {
       workerFactory: () => worker,
     });
     await openProductWorkspaceV1(port);
-    const run = productRunV1({
-      agentRunId: "agent.run.network.download",
-      text: "Download the exact requested archive.",
-    });
-    await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
-    const piRunId = worker.latestPiRunId;
-    if (piRunId === null) throw new Error("expected a transient Pi run id");
-    worker.emitNetworkApproval("approval.download.1", piRunId, "download");
-    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
 
-    expect(port.getSnapshot().networkApproval).toEqual({
+    await expect(port.synchronizeNetworkAccess(
+      createDefaultProgramNetworkAccessV1("program.other"),
+    )).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "request_failed", path: "/networkAccess/scope" },
+    });
+    expect(worker.networkAccessReplacements).toEqual([]);
+
+    await expect(port.synchronizeNetworkAccess({
       revision: 1,
-      approvalId: "approval.download.1",
-      agentRunId: run.agentRunId,
-      programId: run.programId,
+      programId: submitV1.programId,
+      enabled: true,
+    })).resolves.toEqual({ kind: "synchronized" });
+    expect(worker.networkAccessReplacements).toEqual([{
+      programId: submitV1.programId,
       workspaceSessionId: workspaceSessionIdV1,
-      operation: "download",
-      origin: "https://assets.example.test",
-      url: "https://assets.example.test/archive.zip?from=program",
-      retryText: run.text,
-    });
-    expect(JSON.stringify(port.getSnapshot().networkApproval)).not.toContain(piRunId);
-
-    worker.emitRunFailure("approval_required", piRunId);
-    await expect(
-      port.resolveNetworkApproval({ approvalId: "approval.download.1", decision: "deny" }),
-    ).resolves.toMatchObject({ kind: "resolved", decision: "deny" });
-    await port.dispose();
-  });
-
-  it("clears a denied approval without inventing terminal product state", async () => {
-    const worker = new ControllableBrowserPiWorkerV1();
-    const port = createBrowserCreatorAgentPortV1({
-      runtime: "deterministic_test",
-      workspaceAuthority: testWorkspaceAuthorityV1(),
-      workerFactory: () => worker,
-    });
-    await openProductWorkspaceV1(port);
-    const run = productRunV1({ agentRunId: "agent.run.network.denied" });
-    await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
-    const piRunId = worker.latestPiRunId;
-    if (piRunId === null) throw new Error("expected a transient Pi run id");
-    worker.emitNetworkApproval("approval.denied.1", piRunId);
-    worker.emitRunFailure("approval_required", piRunId);
-    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
-
-    await expect(
-      port.resolveNetworkApproval({ approvalId: "approval.denied.1", decision: "deny" }),
-    ).resolves.toEqual({
-      kind: "resolved",
-      decision: "deny",
-      retryText: null,
-    });
-    expect(port.getSnapshot()).toMatchObject({
-      phase: "ready",
-      networkApproval: null,
-      terminalRuns: [],
-    });
-    await port.dispose();
-  });
-
-  it("carries pre-approval mutation evidence into the exact retry terminal", async () => {
-    const worker = new ControllableBrowserPiWorkerV1();
-    const port = createBrowserCreatorAgentPortV1({
-      runtime: "deterministic_test",
-      workspaceAuthority: testWorkspaceAuthorityV1(),
-      workerFactory: () => worker,
-    });
-    await openProductWorkspaceV1(port);
-    const interrupted = productRunV1({
-      agentRunId: "agent.run.network.receipt.interrupted",
-      text: "Write a note, then fetch the exact requested page.",
-    });
-    await expect(port.submit(interrupted)).resolves.toMatchObject({ kind: "submitted" });
-    const interruptedPiRunId = worker.latestPiRunId;
-    if (interruptedPiRunId === null) throw new Error("expected a transient Pi run id");
-    worker.emitWorkspaceMutation(interruptedPiRunId);
-    worker.emitNetworkApproval("approval.receipt.allow.1", interruptedPiRunId);
-    worker.emitRunFailure("approval_required", interruptedPiRunId);
-    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
-
-    await expect(port.resolveNetworkApproval({
-      approvalId: "approval.receipt.allow.1",
-      decision: "allow_once",
-    })).resolves.toEqual({
-      kind: "resolved",
-      decision: "allow_once",
-      retryText: interrupted.text,
-    });
-    await expect(port.submit(productRunV1({
-      agentRunId: "agent.run.network.receipt.unrelated",
-      text: "Do something else.",
-      baseProgramRevision: interrupted.baseProgramRevision,
-      baseRepositoryRevision: interrupted.baseRepositoryRevision,
-    }))).resolves.toEqual({
-      kind: "unavailable",
-      diagnostic: { code: "request_failed", path: "/networkApproval/retry" },
-    });
-
-    const retry = Object.freeze({
-      ...interrupted,
-      agentRunId: "agent.run.network.receipt.retry",
-    });
-    await expect(port.submit(retry)).resolves.toEqual({
-      kind: "submitted",
-      agentRunId: retry.agentRunId,
-    });
-    worker.emitCompleted(retry, "The exact retry completed.");
-    await waitUntilV1(() => port.getSnapshot().terminalRuns.length === 1);
-
-    expect(port.getSnapshot().workspace.receipts).toMatchObject([{
-      sequence: 1,
-      agentRunId: interrupted.agentRunId,
-      effect: "changed",
+      enabled: true,
     }]);
-    expect(port.workspaceReceiptAcknowledgementThroughSequence(retry.agentRunId)).toBe(1);
-    await expect(port.acknowledgeWorkspaceReceipts(1)).resolves.toEqual({
-      kind: "acknowledged",
-      throughSequence: 1,
-    });
-    expect(port.acknowledgeTerminal(retry.agentRunId)).toBe(true);
-    expect(port.getSnapshot()).toMatchObject({
-      phase: "ready",
-      terminalRuns: [],
-      workspace: { receipts: [] },
-    });
     await port.dispose();
-  });
-
-  it("releases each changed receipt only after an explicit repeated Deny decision", async () => {
-    const worker = new ControllableBrowserPiWorkerV1();
-    const port = createBrowserCreatorAgentPortV1({
-      runtime: "deterministic_test",
-      workspaceAuthority: testWorkspaceAuthorityV1(),
-      workerFactory: () => worker,
-    });
-    await openProductWorkspaceV1(port);
-
-    for (const sequence of [1, 2] as const) {
-      const run = productRunV1({
-        agentRunId: `agent.run.network.receipt.denied.${String(sequence)}`,
-        text: `Write note ${String(sequence)}, then fetch the requested page.`,
-      });
-      await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
-      const piRunId = worker.latestPiRunId;
-      if (piRunId === null) throw new Error("expected a transient Pi run id");
-      worker.emitWorkspaceMutation(piRunId, `denied-${String(sequence)}.txt`);
-      worker.emitNetworkApproval(`approval.receipt.deny.${String(sequence)}`, piRunId);
-      worker.emitRunFailure("approval_required", piRunId);
-      await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
-
-      expect(port.getSnapshot().workspace.receipts).toMatchObject([{
-        sequence,
-        agentRunId: run.agentRunId,
-      }]);
-
-      const result = await port.resolveNetworkApproval({
-        approvalId: `approval.receipt.deny.${String(sequence)}`,
-        decision: "deny",
-      });
-      expect(result).toEqual({
-        kind: "resolved",
-        decision: "deny",
-        retryText: null,
-      });
-      expect(port.getSnapshot()).toMatchObject({
-        phase: "ready",
-        terminalRuns: [],
-        workspace: { receipts: [] },
-      });
-    }
-    await port.dispose();
-  });
-
-  it("retains the Deny approval and receipt anchor when prefix acknowledgement fails", async () => {
-    const worker = new ControllableBrowserPiWorkerV1();
-    const port = createBrowserCreatorAgentPortV1({
-      runtime: "deterministic_test",
-      workspaceAuthority: testWorkspaceAuthorityV1(),
-      workerFactory: () => worker,
-    });
-    await openProductWorkspaceV1(port);
-    const run = productRunV1({ agentRunId: "agent.run.network.receipt.deny-retry" });
-    await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
-    const piRunId = worker.latestPiRunId;
-    if (piRunId === null) throw new Error("expected a transient Pi run id");
-    worker.emitWorkspaceMutation(piRunId);
-    worker.emitNetworkApproval("approval.receipt.deny-retry.1", piRunId);
-    worker.emitRunFailure("approval_required", piRunId);
-    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
-
-    worker.failReceiptAcknowledgement = true;
-    await expect(port.resolveNetworkApproval({
-      approvalId: "approval.receipt.deny-retry.1",
-      decision: "deny",
-    })).resolves.toEqual({
-      kind: "unavailable",
-      diagnostic: { code: "request_failed", path: "/networkApproval/receipts" },
-    });
-    expect(port.getSnapshot()).toMatchObject({
-      networkApproval: { approvalId: "approval.receipt.deny-retry.1" },
-      workspace: { receipts: [{ sequence: 1, agentRunId: run.agentRunId }] },
-    });
-
-    worker.failReceiptAcknowledgement = false;
-    await expect(port.resolveNetworkApproval({
-      approvalId: "approval.receipt.deny-retry.1",
-      decision: "deny",
-    })).resolves.toEqual({ kind: "resolved", decision: "deny", retryText: null });
-    expect(port.getSnapshot()).toMatchObject({
-      phase: "ready",
-      networkApproval: null,
-      terminalRuns: [],
-      workspace: { receipts: [] },
-    });
-    await port.dispose();
-  });
-
-  it("abandons an unused exact retry before closing and does not block the next workspace", async () => {
-    const worker = new ControllableBrowserPiWorkerV1();
-    const port = createBrowserCreatorAgentPortV1({
-      runtime: "deterministic_test",
-      workspaceAuthority: testWorkspaceAuthorityV1(),
-      workerFactory: () => worker,
-    });
-    await openProductWorkspaceV1(port);
-    const interrupted = productRunV1({
-      agentRunId: "agent.run.network.unused-retry",
-      text: "Write once, then request network access.",
-    });
-    await expect(port.submit(interrupted)).resolves.toMatchObject({ kind: "submitted" });
-    const piRunId = worker.latestPiRunId;
-    if (piRunId === null) throw new Error("expected a transient Pi run id");
-    worker.emitNetworkApproval("approval.unused-retry.1", piRunId);
-    worker.emitRunFailure("approval_required", piRunId);
-    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
-    await expect(port.resolveNetworkApproval({
-      approvalId: "approval.unused-retry.1",
-      decision: "allow_once",
-    })).resolves.toMatchObject({ kind: "resolved", decision: "allow_once" });
-
-    await expect(port.closeWorkspace(workspaceSessionIdV1)).resolves.toMatchObject({
-      kind: "closed",
-    });
-    expect(port.getSnapshot().workspace.receipts).toEqual([]);
-    await openProductWorkspaceV1(port);
-    const ordinary = productRunV1({
-      agentRunId: "agent.run.network.after-unused-retry",
-      text: "Continue without the abandoned network retry.",
-    });
-    await expect(port.submit(ordinary)).resolves.toEqual({
-      kind: "submitted",
-      agentRunId: ordinary.agentRunId,
-    });
-    await port.dispose();
-  });
-
-  it("drains a changed pending-approval receipt before implicit close Deny", async () => {
-    const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
-    const worker = new ControllableBrowserPiWorkerV1();
-    const port = createBrowserCreatorAgentPortV1({
-      runtime: "deterministic_test",
-      workspaceAuthority,
-      workerFactory: () => worker,
-    });
-    await openProductWorkspaceV1(port);
-    const run = productRunV1({ agentRunId: "agent.run.network.pending-close" });
-    await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
-    const piRunId = worker.latestPiRunId;
-    if (piRunId === null) throw new Error("expected a transient Pi run id");
-    worker.emitWorkspaceMutation(piRunId, "pending-close.txt");
-    workspaceAuthority.reflectControlledWorkerGeneration(2);
-    worker.emitNetworkApproval("approval.pending-close.1", piRunId);
-    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
-
-    const closing = port.closeWorkspace(workspaceSessionIdV1);
-    worker.emitRunFailure("approval_required", piRunId);
-    await expect(closing).resolves.toMatchObject({ kind: "closed" });
-    expect(worker.workspaceReceiptAcknowledgements).toEqual([1]);
-    expect(port.getSnapshot()).toMatchObject({
-      networkApproval: null,
-      terminalRuns: [],
-      workspace: { phase: "closed", receipts: [] },
-    });
-    await port.dispose();
-  });
-
-  it("drains a changed pending-approval receipt before Forget discards the session", async () => {
-    const worker = new ControllableBrowserPiWorkerV1();
-    const port = createBrowserCreatorAgentPortV1({
-      runtime: "deterministic_test",
-      workspaceAuthority: testWorkspaceAuthorityV1(),
-      workerFactory: () => worker,
-    });
-    await openProductWorkspaceV1(port);
-    const run = productRunV1({ agentRunId: "agent.run.network.pending-forget" });
-    await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
-    const piRunId = worker.latestPiRunId;
-    if (piRunId === null) throw new Error("expected a transient Pi run id");
-    worker.emitWorkspaceMutation(piRunId, "pending-forget.txt");
-    worker.emitNetworkApproval("approval.pending-forget.1", piRunId);
-    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
-
-    const forgetting = port.forget();
-    worker.emitRunFailure("approval_required", piRunId);
-    await forgetting;
-    expect(worker.workspaceReceiptAcknowledgements).toEqual([1]);
-    expect(worker.terminated).toBe(true);
-    expect(port.getSnapshot()).toMatchObject({
-      phase: "forgotten",
-      networkApproval: null,
-      terminalRuns: [],
-      workspace: { phase: "forgotten", descriptor: null, receipts: [] },
-    });
   });
 
   it("revokes the credential owner before a stuck Workspace close can block cleanup", async () => {
@@ -5648,46 +5185,5 @@ describe("SillyOS Browser Pi transport and product port", () => {
       phase: "forgotten",
       workspace: { phase: "forgotten", descriptor: null },
     });
-  });
-
-  it("clears transient approval state when closing or forgetting the workspace session", async () => {
-    for (const lifecycle of ["close", "forget"] as const) {
-      const worker = new ControllableBrowserPiWorkerV1();
-      const port = createBrowserCreatorAgentPortV1({
-        runtime: "deterministic_test",
-        workspaceAuthority: testWorkspaceAuthorityV1(),
-        workerFactory: () => worker,
-      });
-      await openProductWorkspaceV1(port);
-      const run = productRunV1({ agentRunId: `agent.run.network.${lifecycle}` });
-      await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
-      const piRunId = worker.latestPiRunId;
-      if (piRunId === null) throw new Error("expected a transient Pi run id");
-      worker.emitNetworkApproval(`approval.${lifecycle}.1`, piRunId);
-      await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
-
-      if (lifecycle === "close") {
-        const closing = port.closeWorkspace(workspaceSessionIdV1);
-        worker.emitRunFailure("approval_required", piRunId);
-        await expect(closing).resolves.toMatchObject({
-          kind: "closed",
-        });
-        expect(port.getSnapshot()).toMatchObject({
-          networkApproval: null,
-          terminalRuns: [],
-          workspace: { phase: "closed" },
-        });
-        await port.dispose();
-      } else {
-        const forgetting = port.forget();
-        worker.emitRunFailure("approval_required", piRunId);
-        await forgetting;
-        expect(port.getSnapshot()).toMatchObject({
-          phase: "forgotten",
-          networkApproval: null,
-          terminalRuns: [],
-        });
-      }
-    }
   });
 });

@@ -4,6 +4,7 @@ import { Agent } from "@earendil-works/pi-agent-core";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall, Type } from "@earendil-works/pi-ai";
 
 import { creatorAgentTextMaximumCharactersV1 } from "../product/contracts.ts";
+import { piNetworkDisabledErrorCodeV1 } from "./pi-network-tool-binder.ts";
 
 export const creatorProgramRevisionToolNameV1 = "sillyos_propose_program_revision";
 export const deterministicCancellationHoldPrefixV1 = "Hold this deterministic run until cancelled:";
@@ -38,6 +39,11 @@ function toolResultTextV1(message) {
     textBlocks += 1;
   }
   return text;
+}
+
+function isNetworkDisabledToolResultV1(message) {
+  return message?.role === "toolResult" && message.isError === true &&
+    toolResultTextV1(message) === piNetworkDisabledErrorCodeV1;
 }
 
 const creatorProgramRevisionToolSchemaV1 = Type.Object(
@@ -260,6 +266,7 @@ export function createDeterministicPiAgentV1(input) {
         const result = context.messages.toReversed().find((message) =>
           message.role === "toolResult" && message.toolName === "download"
         );
+        if (isNetworkDisabledToolResultV1(result)) return proposalResponse;
         const actual = toolResultTextV1(result);
         const details = result?.role === "toolResult" ? result.details : null;
         if (
@@ -286,6 +293,7 @@ export function createDeterministicPiAgentV1(input) {
         const result = context.messages.toReversed().find((message) =>
           message.role === "toolResult" && message.toolName === "fetch_url"
         );
+        if (isNetworkDisabledToolResultV1(result)) return proposalResponse;
         const actual = toolResultTextV1(result);
         const details = result?.role === "toolResult" ? result.details : null;
         if (

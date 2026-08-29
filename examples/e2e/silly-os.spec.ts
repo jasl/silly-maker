@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// <reference lib="dom" />
-import type { Frame, Locator, Page } from "@playwright/test";
+import type { Frame, Locator, Page, Route } from "@playwright/test";
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -159,11 +159,11 @@ interface DurableWorkspaceContinuationV1 {
   readonly repositoryRevision: number;
 }
 
-interface DurableProgramDatabaseStateV6 {
-  readonly version: 6;
+interface DurableProgramDatabaseStateV7 {
+  readonly version: 7;
   readonly programRows: readonly unknown[];
   readonly continuationRows: readonly unknown[];
-  readonly networkGrantRows: readonly unknown[];
+  readonly networkAccessRows: readonly unknown[];
 }
 
 const workspaceExportManifestNameV1 = "sillyos-workspace.json";
@@ -463,7 +463,7 @@ async function readDurableProgramV3(
   }, programId);
 }
 
-async function readProgramDatabaseStateV6(page: Page): Promise<DurableProgramDatabaseStateV6> {
+async function readProgramDatabaseStateV7(page: Page): Promise<DurableProgramDatabaseStateV7> {
   return await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open("sillymaker.example-silly-os.programs");
@@ -472,7 +472,7 @@ async function readProgramDatabaseStateV6(page: Page): Promise<DurableProgramDat
     });
     try {
       const transaction = database.transaction(
-        ["programs", "workspace_continuations", "program_network_grants"],
+        ["programs", "workspace_continuations", "program_network_access"],
         "readonly",
       );
       const readAllV1 = (storeName: string): Promise<unknown[]> =>
@@ -481,17 +481,17 @@ async function readProgramDatabaseStateV6(page: Page): Promise<DurableProgramDat
           request.addEventListener("error", () => reject(request.error));
           request.addEventListener("success", () => resolve(request.result));
         });
-      const [programRows, continuationRows, networkGrantRows] = await Promise.all([
+      const [programRows, continuationRows, networkAccessRows] = await Promise.all([
         readAllV1("programs"),
         readAllV1("workspace_continuations"),
-        readAllV1("program_network_grants"),
+        readAllV1("program_network_access"),
       ]);
       return {
         version: database.version,
         programRows,
         continuationRows,
-        networkGrantRows,
-      } as DurableProgramDatabaseStateV6;
+        networkAccessRows,
+      } as DurableProgramDatabaseStateV7;
     } finally {
       database.close();
     }
@@ -1422,7 +1422,7 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
     page.locator('[data-chat-role="creator"]').getByText(
       "Deterministic test proposal ready.",
       { exact: true },
-    ),
+    ).last(),
   ).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
@@ -1992,11 +1992,11 @@ test("Playwright WebKit's non-persistent context reports unavailable OPFS withou
   await expect(
     page.getByRole("button", { name: "Open program: Translation Workshop", exact: true }),
   ).toHaveCount(0);
-  await expect(readProgramDatabaseStateV6(page)).resolves.toEqual({
-    version: 6,
+  await expect(readProgramDatabaseStateV7(page)).resolves.toEqual({
+    version: 7,
     programRows: [],
     continuationRows: [],
-    networkGrantRows: [],
+    networkAccessRows: [],
   });
 });
 
@@ -2289,10 +2289,14 @@ test("@mobile portrait uses one navigable pane without page overflow", async ({ 
   await expectNoPageOverflowV1(page);
 });
 
-test("the fixed Pi fetch_url tool keeps one-shot and durable Program grants separate from the keyless Network Broker", async ({ durableProgramPage: page }) => {
+test("the Program network toggle gates fixed Pi fetch_url without per-request approval", async ({ durableProgramPage: page }) => {
   test.setTimeout(120_000);
   const sentinelKey = "sillyos-network-key-must-not-cross-broker";
+  const blockedUrl = "https://network-target.test/assets/blocked.txt?source=silly-os";
   const targetUrl = "https://network-target.test/assets/notes.txt?source=silly-os";
+  const secondOriginUrl = "https://second-network-target.test/assets/second.txt";
+  const coldUrl = "https://second-network-target.test/assets/cold.txt";
+  const disabledAgainUrl = "https://network-target.test/assets/disabled-again.txt";
   const targetBody = "SillyOS Browser Broker physical response\n";
   const brokerOrigin = "http://" + sillyOsNetworkBrokerTargetV1.host + ":" +
     String(sillyOsNetworkBrokerTargetV1.port);
@@ -2304,7 +2308,7 @@ test("the fixed Pi fetch_url tool keeps one-shot and durable Program grants sepa
   };
   const targetRequests: CapturedBrokerRequestV1[] = [];
 
-  await page.route("https://network-target.test/**", async (route) => {
+  const fulfillTargetV1 = async (route: Route): Promise<void> => {
     const request = route.request();
     targetRequests.push({
       method: request.method(),
@@ -2321,7 +2325,9 @@ test("the fixed Pi fetch_url tool keeps one-shot and durable Program grants sepa
       },
       body: targetBody,
     });
-  });
+  };
+  await page.route("https://network-target.test/**", fulfillTargetV1);
+  await page.route("https://second-network-target.test/**", fulfillTargetV1);
   // Playwright route.fulfill synthesizes a terminal Response and bypasses the
   // Browser's redirect and CORS enforcement. Those negative paths stay in the
   // fetch-adapter contracts until a controlled real HTTPS target is available.
@@ -2329,7 +2335,6 @@ test("the fixed Pi fetch_url tool keeps one-shot and durable Program grants sepa
   await openCreatorHomeV1(page);
   await initializePiTestV1(page, sentinelKey);
   await expect(page.locator("iframe[data-silly-os-network-broker='active']")).toHaveCount(1);
-  expect(targetRequests).toHaveLength(0);
 
   await page.getByRole("textbox", { name: "What would you like to make?" }).fill(
     translationIntentV1,
@@ -2340,34 +2345,31 @@ test("the fixed Pi fetch_url tool keeps one-shot and durable Program grants sepa
   await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
   const programId = await readProgramIdV1(workspace);
   const workspaceSessionId = await readWorkspaceSessionIdV1(workspace);
+  const accessToggle = page.getByRole("checkbox", { name: "Allow network access" });
+  const composer = page.getByRole("textbox", { name: "Ask for a change…" });
+
+  await expect(accessToggle).not.toBeChecked();
+  await composer.fill(`${deterministicFetchUrlProbePrefixV1}${blockedUrl}`);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  expect(targetRequests).toHaveLength(0);
+  await expect(composer).toBeEnabled();
+
+  await accessToggle.click();
+  await expect(accessToggle).toBeChecked();
+  await expect(accessToggle).toBeEnabled();
 
   const fetchRequirement = `${deterministicFetchUrlProbePrefixV1}${targetUrl}`;
-  const composer = page.getByRole("textbox", { name: "Ask for a change…" });
   await composer.fill(fetchRequirement);
   await page.getByRole("button", { name: "Send" }).click();
-
-  const approval = page.getByRole("alert").filter({ hasText: "Network access requested" });
-  await expect(approval).toBeVisible();
-  await expect(approval).toContainText("https://network-target.test");
-  await expect(approval).toContainText(targetUrl);
-  await expect(approval).toContainText("path or query may contain data");
-  await expect(composer).toBeDisabled();
-  expect(targetRequests).toHaveLength(0);
-
-  await approval.getByRole("button", { name: "Allow once" }).click();
   await expect.poll(() => targetRequests.length).toBe(1);
-  await expect(approval).toHaveCount(0);
-  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v3");
   await expect(
     page.locator('[data-chat-role="creator"]').getByText(
       "Deterministic test proposal ready.",
       { exact: true },
-    ),
+    ).last(),
   ).toBeVisible();
-  await expect(composer).toBeEnabled();
-  await expect(
-    page.locator('[data-chat-role="user"]').getByText(fetchRequirement, { exact: true }),
-  ).toHaveCount(1);
 
   const [request] = targetRequests;
   expect(request).toBeDefined();
@@ -2383,9 +2385,9 @@ test("the fixed Pi fetch_url tool keeps one-shot and durable Program grants sepa
   expect(JSON.stringify(request)).not.toContain(sentinelKey);
 
   const afterAllowed = await readDurableProgramV3(page, programId);
-  if (afterAllowed === null) throw new Error("expected durable Program after allowed fetch");
+  if (afterAllowed === null) throw new Error("expected durable Program after enabled fetch");
   if (afterAllowed.reviewBinding === null) {
-    throw new Error("expected current Workspace identity after allowed fetch");
+    throw new Error("expected current Workspace identity after enabled fetch");
   }
   const protectedIdentities = [
     programId,
@@ -2396,69 +2398,34 @@ test("the fixed Pi fetch_url tool keeps one-shot and durable Program grants sepa
   for (const identity of protectedIdentities) {
     expect(JSON.stringify(request)).not.toContain(identity);
   }
-  const durableReceiptCount = afterAllowed.agentRunReceipts.length;
 
-  await composer.fill(fetchRequirement);
+  await composer.fill(`${deterministicFetchUrlProbePrefixV1}${secondOriginUrl}`);
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(approval).toBeVisible();
-  expect(targetRequests).toHaveLength(1);
-  await approval.getByRole("button", { name: "Deny" }).click();
-  await expect(approval).toHaveCount(0);
-  expect(targetRequests).toHaveLength(1);
-  await expect(
-    page.locator('[data-chat-role="user"]').getByText(fetchRequirement, { exact: true }),
-  ).toHaveCount(1);
-  await expect.poll(async () =>
-    (await readDurableProgramV3(page, programId))?.agentRunReceipts.length ?? -1
-  ).toBe(durableReceiptCount);
-
-  const durableTargetUrl = "https://network-target.test/assets/durable.txt?grant=program";
-  const durableRequirement = `${deterministicFetchUrlProbePrefixV1}${durableTargetUrl}`;
-  await composer.fill(durableRequirement);
-  await page.getByRole("button", { name: "Send" }).click();
-  await expect(approval).toBeVisible();
-  await approval.getByRole("checkbox", {
-    name: "Allow this destination for this Program",
-  }).check();
-  await approval.getByRole("button", { name: "Allow for this Program" }).click();
   await expect.poll(() => targetRequests.length).toBe(2);
-  await expect(approval).toHaveCount(0);
-  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v3");
-
-  const reusedTargetUrl = "https://network-target.test/assets/reused.txt?grant=durable";
-  const reusedRequirement = `${deterministicFetchUrlProbePrefixV1}${reusedTargetUrl}`;
-  await composer.fill(reusedRequirement);
-  await page.getByRole("button", { name: "Send" }).click();
-  await expect.poll(() => targetRequests.length).toBe(3);
-  await expect(approval).toHaveCount(0);
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v4");
 
-  const rawGrant = await page.evaluate(async (requestedProgramId) => {
+  const rawAccess = await page.evaluate(async (requestedProgramId) => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const grantDatabaseRequest = indexedDB.open("sillymaker.example-silly-os.programs");
-      grantDatabaseRequest.addEventListener("error", () => reject(grantDatabaseRequest.error));
-      grantDatabaseRequest.addEventListener("success", () => resolve(grantDatabaseRequest.result));
+      const openRequest = indexedDB.open("sillymaker.example-silly-os.programs");
+      openRequest.addEventListener("error", () => reject(openRequest.error));
+      openRequest.addEventListener("success", () => resolve(openRequest.result));
     });
     try {
       return await new Promise<unknown>((resolve, reject) => {
-        const transaction = database.transaction("program_network_grants", "readonly");
-        const grantRequest = transaction.objectStore("program_network_grants").get(
+        const transaction = database.transaction("program_network_access", "readonly");
+        const getRequest = transaction.objectStore("program_network_access").get(
           requestedProgramId,
         );
-        grantRequest.addEventListener("error", () => reject(grantRequest.error));
-        grantRequest.addEventListener("success", () => resolve(grantRequest.result));
+        getRequest.addEventListener("error", () => reject(getRequest.error));
+        getRequest.addEventListener("success", () => resolve(getRequest.result));
       });
     } finally {
       database.close();
     }
   }, programId);
-  expect(rawGrant).toEqual({
-    revision: 1,
-    programId,
-    grants: [{ operation: "fetch_url", origin: "https://network-target.test" }],
-  });
-  expect(JSON.stringify(rawGrant)).not.toContain(durableTargetUrl);
-  expect(JSON.stringify(rawGrant)).not.toContain(sentinelKey);
+  expect(rawAccess).toEqual({ revision: 1, programId, enabled: true });
+  expect(JSON.stringify(rawAccess)).not.toContain(targetUrl);
+  expect(JSON.stringify(rawAccess)).not.toContain(sentinelKey);
 
   await page.getByRole("button", { name: "Creator home" }).click();
   await expectProgramStorageReadyV1(page);
@@ -2470,23 +2437,21 @@ test("the fixed Pi fetch_url tool keeps one-shot and durable Program grants sepa
     revision: 4,
     status: "Preview",
   });
+
+  await expect(accessToggle).toBeChecked();
   const reopenedComposer = page.getByRole("textbox", { name: "Ask for a change…" });
-  const coldTargetUrl = "https://network-target.test/assets/cold.txt?grant=reopened";
-  await reopenedComposer.fill(`${deterministicFetchUrlProbePrefixV1}${coldTargetUrl}`);
+  await reopenedComposer.fill(`${deterministicFetchUrlProbePrefixV1}${coldUrl}`);
   await page.getByRole("button", { name: "Send" }).click();
-  await expect.poll(() => targetRequests.length).toBe(4);
-  await expect(approval).toHaveCount(0);
+  await expect.poll(() => targetRequests.length).toBe(3);
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v5");
 
-  await page.getByRole("button", { name: "Revoke" }).click();
-  await expect(page.getByText("No destinations are allowed for this Program.")).toBeVisible();
-  const revokedTargetUrl = "https://network-target.test/assets/revoked.txt";
-  await reopenedComposer.fill(`${deterministicFetchUrlProbePrefixV1}${revokedTargetUrl}`);
+  await expect(accessToggle).toBeEnabled();
+  await accessToggle.click();
+  await expect(accessToggle).not.toBeChecked();
+  await reopenedComposer.fill(`${deterministicFetchUrlProbePrefixV1}${disabledAgainUrl}`);
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(approval).toBeVisible();
-  expect(targetRequests).toHaveLength(4);
-  await approval.getByRole("button", { name: "Deny" }).click();
-  await expect(approval).toHaveCount(0);
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v6");
+  expect(targetRequests).toHaveLength(3);
 
   for (const capturedRequest of targetRequests) {
     expect(capturedRequest.method).toBe("GET");
@@ -2501,7 +2466,6 @@ test("the fixed Pi fetch_url tool keeps one-shot and durable Program grants sepa
     }
   }
 });
-
 test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Program volume", async ({ durableProgramPage: page }) => {
   test.setTimeout(180_000);
   const sentinelKey = "sillyos-download-key-must-not-cross-broker";
@@ -2551,22 +2515,17 @@ test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Pr
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
   const programId = await readProgramIdV1(workspace);
   const workspaceSessionId = await readWorkspaceSessionIdV1(workspace);
+  const accessToggle = page.getByRole("checkbox", { name: "Allow network access" });
+  await expect(accessToggle).not.toBeChecked();
+  await accessToggle.click();
+  await expect(accessToggle).toBeChecked();
+  await expect(accessToggle).toBeEnabled();
 
   const requirement = `${deterministicDownloadProbePrefixV1}${targetUrl}`;
   const composer = page.getByRole("textbox", { name: "Ask for a change…" });
   await composer.fill(requirement);
   await page.getByRole("button", { name: "Send" }).click();
-  const approval = page.getByRole("alert").filter({ hasText: "Network access requested" });
-  await expect(approval).toBeVisible();
-  await expect(approval).toContainText(targetUrl);
-  expect(capturedRequests).toHaveLength(0);
-  await approval.getByRole("checkbox", {
-    name: "Allow this destination for this Program",
-  }).check();
-  await approval.getByRole("button", { name: "Allow for this Program" }).click();
-
   await expect.poll(() => capturedRequests.length).toBe(1);
-  await expect(approval).toHaveCount(0);
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
   await expect(workspace).toHaveAttribute("data-execution-workspace-receipt", "1");
@@ -2597,7 +2556,7 @@ test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Pr
   expect(JSON.stringify(request)).not.toContain(programId);
   expect(JSON.stringify(request)).not.toContain(workspaceSessionId);
 
-  const rawGrant = await page.evaluate(async (requestedProgramId) => {
+  const rawAccess = await page.evaluate(async (requestedProgramId) => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       const openRequest = indexedDB.open("sillymaker.example-silly-os.programs");
       openRequest.addEventListener("error", () => reject(openRequest.error));
@@ -2605,8 +2564,8 @@ test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Pr
     });
     try {
       return await new Promise<unknown>((resolve, reject) => {
-        const transaction = database.transaction("program_network_grants", "readonly");
-        const getRequest = transaction.objectStore("program_network_grants").get(
+        const transaction = database.transaction("program_network_access", "readonly");
+        const getRequest = transaction.objectStore("program_network_access").get(
           requestedProgramId,
         );
         getRequest.addEventListener("error", () => reject(getRequest.error));
@@ -2616,13 +2575,9 @@ test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Pr
       database.close();
     }
   }, programId);
-  expect(rawGrant).toEqual({
-    revision: 1,
-    programId,
-    grants: [{ operation: "download", origin: "https://network-target.test" }],
-  });
-  expect(JSON.stringify(rawGrant)).not.toContain(targetUrl);
-  expect(JSON.stringify(rawGrant)).not.toContain(sentinelKey);
+  expect(rawAccess).toEqual({ revision: 1, programId, enabled: true });
+  expect(JSON.stringify(rawAccess)).not.toContain(targetUrl);
+  expect(JSON.stringify(rawAccess)).not.toContain(sentinelKey);
 
   await page.getByRole("button", { name: "Creator home" }).click();
   await expectProgramStorageReadyV1(page);
@@ -2635,6 +2590,7 @@ test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Pr
     status: "Preview",
   });
   await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(accessToggle).toBeChecked();
   expect(await readWorkspaceContinuationV1(page, programId)).toEqual(continuation);
   await expect.poll(() =>
     inspectSandboxWorkspaceFileDigestV1(

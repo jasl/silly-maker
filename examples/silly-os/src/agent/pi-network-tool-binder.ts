@@ -6,6 +6,7 @@ import { Type } from "./pi-workspace-runtime-bridge.js";
 export const piFetchUrlToolNameV1 = "fetch_url";
 export const piFetchUrlUntrustedContentPrefixV1 = "[Untrusted remote content]\n";
 export const piDownloadToolNameV1 = "download";
+export const piNetworkDisabledErrorCodeV1 = "network_disabled";
 
 export interface PiFetchUrlParametersV1 {
   readonly url: string;
@@ -64,8 +65,8 @@ const piDownloadSchemaV1 = Type.Object(
 
 /**
  * Product-fixed Pi AgentTool for one bounded Browser network capability.
- * Pi owns tool dispatch; the supplied handler owns authorization and the
- * independent Broker request for the exact current run.
+ * Pi owns tool dispatch; the supplied handler enforces the current Program's
+ * network setting and owns the independent Broker request.
  */
 export function createPiFetchUrlToolV1(input: {
   readonly execute: (
@@ -78,7 +79,7 @@ export function createPiFetchUrlToolV1(input: {
     name: piFetchUrlToolNameV1,
     label: "Fetch URL",
     description:
-      "Fetch one user-authorized HTTPS URL as bounded text. Browser CORS and the target server still decide whether the response is readable.",
+      "Fetch one HTTPS URL as bounded text when network access is enabled for the current Program. Browser CORS and the target server still decide whether the response is readable.",
     parameters: piFetchUrlSchemaV1,
     executionMode: "sequential",
     async execute(toolCallId, params, signal) {
@@ -95,9 +96,10 @@ export function createPiFetchUrlToolV1(input: {
 }
 
 /**
- * Product-fixed Pi AgentTool for one authorized remote-to-Workspace transfer.
- * The handler binds current run/Workspace authority and moves the response over
- * a private streamed channel; Pi receives only the final bounded receipt.
+ * Product-fixed Pi AgentTool for one bounded remote-to-Workspace transfer.
+ * The handler enforces the current Program's network setting, binds current
+ * run/Workspace authority, and moves the response over a private streamed
+ * channel; Pi receives only the final bounded receipt.
  */
 export function createPiDownloadToolV1(input: {
   readonly execute: (
@@ -110,7 +112,7 @@ export function createPiDownloadToolV1(input: {
     name: piDownloadToolNameV1,
     label: "Download",
     description:
-      "Download one user-authorized HTTPS response into the current Program workspace. The complete response body is not returned to the model.",
+      "Download one HTTPS response into the current Program workspace when network access is enabled. The complete response body is not returned to the model.",
     parameters: piDownloadSchemaV1,
     executionMode: "sequential",
     async execute(toolCallId, params, signal) {

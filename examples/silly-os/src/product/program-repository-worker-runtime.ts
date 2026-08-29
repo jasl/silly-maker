@@ -7,15 +7,15 @@ import {
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "./program-repository.ts";
 import {
-  admitProgramRepositoryWorkerRequestEnvelopeV5,
-  admitProgramRepositoryWorkerResponseEnvelopeV5,
-  operationForProgramRepositoryWorkerMethodV5,
-  type ProgramRepositoryWorkerMethodV5,
-  type ProgramRepositoryWorkerResponseEnvelopeV5,
-  type ProgramRepositoryWorkerSuccessV5,
+  admitProgramRepositoryWorkerRequestEnvelopeV6,
+  admitProgramRepositoryWorkerResponseEnvelopeV6,
+  operationForProgramRepositoryWorkerMethodV6,
+  type ProgramRepositoryWorkerMethodV6,
+  type ProgramRepositoryWorkerResponseEnvelopeV6,
+  type ProgramRepositoryWorkerSuccessV6,
 } from "./program-repository-worker-protocol.ts";
 
-export interface ProgramRepositoryWorkerRuntimeV5 {
+export interface ProgramRepositoryWorkerRuntimeV6 {
   receive(message: unknown): void;
   dispose(): void;
 }
@@ -26,31 +26,31 @@ function failureCodeForRuntimeErrorV4(error: unknown): ProgramRepositoryFailureC
   return "request_failed";
 }
 
-export function createProgramRepositoryWorkerRuntimeV5(input: {
+export function createProgramRepositoryWorkerRuntimeV6(input: {
   readonly repository: ProgramRepositoryWithWorkspaceContinuationV1;
-  readonly postMessage: (message: ProgramRepositoryWorkerResponseEnvelopeV5) => void;
+  readonly postMessage: (message: ProgramRepositoryWorkerResponseEnvelopeV6) => void;
   readonly onFatalError?: (error: unknown) => void;
-}): ProgramRepositoryWorkerRuntimeV5 {
+}): ProgramRepositoryWorkerRuntimeV6 {
   let disposed = false;
   let tail = Promise.resolve();
 
   const postV4 = (
     requestId: string,
-    method: ProgramRepositoryWorkerMethodV5,
-    record: ProgramRepositoryWorkerSuccessV5,
+    method: ProgramRepositoryWorkerMethodV6,
+    record: ProgramRepositoryWorkerSuccessV6,
   ): void => {
     if (disposed) return;
-    const response: ProgramRepositoryWorkerResponseEnvelopeV5 = {
-      revision: 5,
+    const response: ProgramRepositoryWorkerResponseEnvelopeV6 = {
+      revision: 6,
       kind: "rpc_response",
       requestId,
       record,
     };
-    const admitted = admitProgramRepositoryWorkerResponseEnvelopeV5(response, method);
+    const admitted = admitProgramRepositoryWorkerResponseEnvelopeV6(response, method);
     if (admitted.kind === "rejected") {
       throw createProgramRepositoryFailureV3(
         "wire_invalid",
-        operationForProgramRepositoryWorkerMethodV5(method),
+        operationForProgramRepositoryWorkerMethodV6(method),
       );
     }
     // DedicatedWorkerGlobalScope.postMessage has no targetOrigin parameter.
@@ -60,7 +60,7 @@ export function createProgramRepositoryWorkerRuntimeV5(input: {
 
   const handleV4 = async (message: unknown): Promise<void> => {
     if (disposed) return;
-    const admitted = admitProgramRepositoryWorkerRequestEnvelopeV5(message);
+    const admitted = admitProgramRepositoryWorkerRequestEnvelopeV6(message);
     if (admitted.kind === "rejected") return;
     const { requestId, record } = admitted.value;
     const { method } = record;
@@ -90,8 +90,8 @@ export function createProgramRepositoryWorkerRuntimeV5(input: {
         postV4(requestId, method, { kind: "success", method, value });
         return;
       }
-      if (method === "load_program_network_grants") {
-        const value = await input.repository.loadProgramNetworkGrants(record.programId);
+      if (method === "load_program_network_access") {
+        const value = await input.repository.loadProgramNetworkAccess(record.programId);
         repositorySettled = true;
         postV4(requestId, method, { kind: "success", method, value });
         return;
@@ -120,8 +120,8 @@ export function createProgramRepositoryWorkerRuntimeV5(input: {
         postV4(requestId, method, { kind: "success", method, value });
         return;
       }
-      if (method === "set_program_network_grant") {
-        const value = await input.repository.setProgramNetworkGrant(record.input);
+      if (method === "set_program_network_access") {
+        const value = await input.repository.setProgramNetworkAccess(record.input);
         repositorySettled = true;
         postV4(requestId, method, { kind: "success", method, value });
         return;
@@ -132,9 +132,9 @@ export function createProgramRepositoryWorkerRuntimeV5(input: {
     } catch (error) {
       if (disposed) return;
       if (repositorySettled) throw error;
-      const operation = operationForProgramRepositoryWorkerMethodV5(method);
-      const response: ProgramRepositoryWorkerResponseEnvelopeV5 = {
-        revision: 5,
+      const operation = operationForProgramRepositoryWorkerMethodV6(method);
+      const response: ProgramRepositoryWorkerResponseEnvelopeV6 = {
+        revision: 6,
         kind: "rpc_response",
         requestId,
         record: {
@@ -144,7 +144,7 @@ export function createProgramRepositoryWorkerRuntimeV5(input: {
           operation,
         },
       };
-      const responseAdmission = admitProgramRepositoryWorkerResponseEnvelopeV5(response, method);
+      const responseAdmission = admitProgramRepositoryWorkerResponseEnvelopeV6(response, method);
       if (responseAdmission.kind === "admitted") {
         // Worker ports have no targetOrigin parameter.
         // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin

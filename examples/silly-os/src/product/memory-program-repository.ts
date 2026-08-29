@@ -26,24 +26,24 @@ import {
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "./program-repository.ts";
 import {
-  applyProgramNetworkGrantMutationV1,
-  cloneProgramNetworkGrantSetV1,
-  createEmptyProgramNetworkGrantSetV1,
-  normalizeProgramNetworkGrantMutationV1,
-  type ProgramNetworkGrantSetV1,
-} from "./program-network-grants.ts";
+  applyProgramNetworkAccessMutationV1,
+  cloneProgramNetworkAccessV1,
+  createDefaultProgramNetworkAccessV1,
+  normalizeProgramNetworkAccessMutationV1,
+  type ProgramNetworkAccessV1,
+} from "./program-network-access.ts";
 
 export interface MemoryProgramRepositoryBackingV3 {
   readonly programs: Map<string, ProgramRepositoryAggregateV3>;
   readonly workspaceContinuations: Map<string, BrowserProgramContinuationManifestV1>;
-  readonly programNetworkGrants: Map<string, ProgramNetworkGrantSetV1>;
+  readonly programNetworkAccess: Map<string, ProgramNetworkAccessV1>;
 }
 
 export function createMemoryProgramRepositoryBackingV3(): MemoryProgramRepositoryBackingV3 {
   return {
     programs: new Map(),
     workspaceContinuations: new Map(),
-    programNetworkGrants: new Map(),
+    programNetworkAccess: new Map(),
   };
 }
 
@@ -87,20 +87,20 @@ export function createMemoryProgramRepositoryV3(input: {
     return { aggregate, continuation };
   };
 
-  const loadStoredNetworkGrantsV1 = (
+  const loadStoredNetworkAccessV1 = (
     programId: string,
     operation: Parameters<typeof createProgramRepositoryFailureV3>[1],
-  ): ProgramNetworkGrantSetV1 | null => {
+  ): ProgramNetworkAccessV1 | null => {
     const pair = loadStoredPairV3(programId, operation);
     if (pair === null) return null;
-    const stored = backing.programNetworkGrants.get(programId);
-    if (stored === undefined) return createEmptyProgramNetworkGrantSetV1(programId);
+    const stored = backing.programNetworkAccess.get(programId);
+    if (stored === undefined) return createDefaultProgramNetworkAccessV1(programId);
     try {
-      const grants = cloneProgramNetworkGrantSetV1(stored);
-      if (grants.programId !== pair.aggregate.programId) {
-        throw new TypeError("Program network grant identity mismatch");
+      const access = cloneProgramNetworkAccessV1(stored);
+      if (access.programId !== pair.aggregate.programId) {
+        throw new TypeError("Program network access identity mismatch");
       }
-      return grants;
+      return access;
     } catch {
       throw createProgramRepositoryFailureV3("schema_invalid", operation);
     }
@@ -182,45 +182,42 @@ export function createMemoryProgramRepositoryV3(input: {
       return loadStoredPairV3(programId, "load_workspace_continuation")?.continuation ?? null;
     },
 
-    async loadProgramNetworkGrants(rawProgramId) {
-      assertAvailableV1("load_program_network_grants");
+    async loadProgramNetworkAccess(rawProgramId) {
+      assertAvailableV1("load_program_network_access");
       const programId = normalizeProgramRepositoryProgramIdV3(rawProgramId);
-      return loadStoredNetworkGrantsV1(programId, "load_program_network_grants");
+      return loadStoredNetworkAccessV1(programId, "load_program_network_access");
     },
 
-    async setProgramNetworkGrant(rawInput) {
-      assertAvailableV1("set_program_network_grant");
-      const mutation = normalizeProgramNetworkGrantMutationV1(rawInput);
-      const current = loadStoredNetworkGrantsV1(
+    async setProgramNetworkAccess(rawInput) {
+      assertAvailableV1("set_program_network_access");
+      const mutation = normalizeProgramNetworkAccessMutationV1(rawInput);
+      const current = loadStoredNetworkAccessV1(
         mutation.programId,
-        "set_program_network_grant",
+        "set_program_network_access",
       );
       if (current === null) return { kind: "missing" };
-      const applied = applyProgramNetworkGrantMutationV1(current, mutation);
-      if (applied.kind === "capacity_exceeded") {
-        throw createProgramRepositoryFailureV3("quota_exceeded", "set_program_network_grant");
-      }
+      const applied = applyProgramNetworkAccessMutationV1(current, mutation);
       if (applied.kind === "unchanged") {
-        return { kind: "unchanged", value: cloneProgramNetworkGrantSetV1(applied.value) };
+        return { kind: "unchanged", value: cloneProgramNetworkAccessV1(applied.value) };
       }
-      const next = cloneProgramNetworkGrantSetV1(applied.value);
-      const previous = backing.programNetworkGrants.get(mutation.programId);
+      const next = cloneProgramNetworkAccessV1(applied.value);
+      const previous = backing.programNetworkAccess.get(mutation.programId);
       try {
-        if (next.grants.length === 0) backing.programNetworkGrants.delete(mutation.programId);
-        else backing.programNetworkGrants.set(mutation.programId, next);
+        if (next.enabled) backing.programNetworkAccess.set(mutation.programId, next);
+        else backing.programNetworkAccess.delete(mutation.programId);
       } catch {
         try {
-          if (previous === undefined) backing.programNetworkGrants.delete(mutation.programId);
-          else backing.programNetworkGrants.set(mutation.programId, previous);
+          if (previous === undefined) backing.programNetworkAccess.delete(mutation.programId);
+          else backing.programNetworkAccess.set(mutation.programId, previous);
         } catch {
           // The deterministic backing is unavailable if both mutation and rollback reject.
         }
         throw createProgramRepositoryFailureV3(
           "transaction_aborted",
-          "set_program_network_grant",
+          "set_program_network_access",
         );
       }
-      return { kind: "committed", value: cloneProgramNetworkGrantSetV1(next) };
+      return { kind: "committed", value: cloneProgramNetworkAccessV1(next) };
     },
 
     async create(rawInput) {

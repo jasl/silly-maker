@@ -71,29 +71,4 @@ describe("Agent terminal acknowledgement", () => {
       acknowledgeTerminal.mock.invocationCallOrder[0] ?? 0,
     );
   });
-
-  it("releases an inherited approval-interruption prefix without rewriting receipt identity", async () => {
-    const acknowledgeWorkspaceReceipts = vi.fn(async () => ({
-      kind: "acknowledged" as const,
-      throughSequence: receiptV1.sequence,
-    }));
-    const retryAgentRunId = "agent.run.terminal-ack.retry";
-    const acknowledgeTerminal = vi.fn((agentRunId: string) => agentRunId === retryAgentRunId);
-
-    await expect(acknowledgeAppliedAgentTerminalV1({
-      persistence: {
-        kind: "completed",
-        value: { kind: "applied", outcome: "completed" },
-      },
-      agentRunId: retryAgentRunId,
-      receipts: [receiptV1],
-      receiptThroughSequence: receiptV1.sequence,
-      acknowledgeWorkspaceReceipts,
-      acknowledgeTerminal,
-    })).resolves.toEqual({ kind: "acknowledged" });
-
-    expect(receiptV1.agentRunId).toBe("agent.run.terminal-ack");
-    expect(acknowledgeWorkspaceReceipts).toHaveBeenCalledWith(receiptV1.sequence);
-    expect(acknowledgeTerminal).toHaveBeenCalledWith(retryAgentRunId);
-  });
 });

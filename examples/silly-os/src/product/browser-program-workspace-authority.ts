@@ -21,10 +21,10 @@ import {
 } from "../workspace/contracts.ts";
 import { createBrowserProgramRepositoryV3 } from "./browser-program-repository.ts";
 import type {
-  ProgramNetworkGrantMutationResultV1,
-  ProgramNetworkGrantMutationV1,
-  ProgramNetworkGrantSetV1,
-} from "./program-network-grants.ts";
+  ProgramNetworkAccessMutationResultV1,
+  ProgramNetworkAccessMutationV1,
+  ProgramNetworkAccessV1,
+} from "./program-network-access.ts";
 import {
   advanceBrowserProgramContinuationV1,
   applyProgramRepositoryAgentRunTerminalV3,
@@ -118,17 +118,17 @@ export interface BrowserProgramWorkspaceAuthorityV1 {
     input: BrowserProgramWorkspaceSettleAgentRunInputV1,
   ): Promise<ProgramRepositoryCommitResultV3>;
   decide(input: BrowserProgramWorkspaceDecideInputV1): Promise<ProgramRepositoryCommitResultV3>;
-  loadProgramNetworkGrants(programId: string): Promise<ProgramNetworkGrantSetV1 | null>;
-  setProgramNetworkGrant(
-    input: ProgramNetworkGrantMutationV1,
-  ): Promise<ProgramNetworkGrantMutationResultV1>;
+  loadProgramNetworkAccess(programId: string): Promise<ProgramNetworkAccessV1 | null>;
+  setProgramNetworkAccess(
+    input: ProgramNetworkAccessMutationV1,
+  ): Promise<ProgramNetworkAccessMutationResultV1>;
   withAgentSubmitAdmission<T>(input: {
     readonly programId: string;
     readonly workspaceSessionId: string;
     readonly expectedProgramRevision: number;
     readonly expectedRepositoryRevision: number;
     readonly expectedGeneration: number;
-    readonly operation: (grants: ProgramNetworkGrantSetV1) => Promise<T>;
+    readonly operation: (access: ProgramNetworkAccessV1) => Promise<T>;
   }): Promise<T>;
   openWorkspace(input: {
     readonly programId: string;
@@ -1078,18 +1078,30 @@ export function createBrowserProgramWorkspaceAuthorityV1(
       });
     },
 
-    loadProgramNetworkGrants(programId) {
-      return serializeV1(() => repository.loadProgramNetworkGrants(programId));
+    loadProgramNetworkAccess(programId) {
+      return serializeV1(() => repository.loadProgramNetworkAccess(programId));
     },
 
-    setProgramNetworkGrant(input) {
-      return serializeV1(() => repository.setProgramNetworkGrant(input));
+    setProgramNetworkAccess(input) {
+      return serializeV1(async () => {
+        try {
+          return await repository.setProgramNetworkAccess(input);
+        } catch (error) {
+          if (failureCodeV1(error) !== "outcome_unknown") throw error;
+          await replaceRepositoryAfterUnknownV1();
+          const reconciled = await repository.loadProgramNetworkAccess(input.programId);
+          if (reconciled !== null && reconciled.enabled === input.enabled) {
+            return { kind: "unchanged", value: reconciled };
+          }
+          throw error;
+        }
+      });
     },
 
     withAgentSubmitAdmission(input) {
       return serializeV1(async () => {
         const pair = await requirePairV1(input.programId);
-        const grants = await repository.loadProgramNetworkGrants(input.programId);
+        const access = await repository.loadProgramNetworkAccess(input.programId);
         const program = pair.aggregate.snapshot.program;
         const active = activeWorkspace;
         if (
@@ -1109,10 +1121,10 @@ export function createBrowserProgramWorkspaceAuthorityV1(
         if (snapshot.descriptor.generation !== input.expectedGeneration) {
           throw authorityErrorV1("agent_submit_stale");
         }
-        if (grants === null || grants.programId !== input.programId) {
-          throw authorityErrorV1("network_grants_missing");
+        if (access === null || access.programId !== input.programId) {
+          throw authorityErrorV1("network_access_missing");
         }
-        return await input.operation(grants);
+        return await input.operation(access);
       });
     },
 

@@ -31,26 +31,33 @@ import {
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "./program-repository.ts";
 import {
-  applyProgramNetworkGrantMutationV1,
-  cloneProgramNetworkGrantSetV1,
-  createEmptyProgramNetworkGrantSetV1,
-  normalizeProgramNetworkGrantMutationV1,
-  type ProgramNetworkGrantSetV1,
-} from "./program-network-grants.ts";
+  applyProgramNetworkAccessMutationV1,
+  cloneProgramNetworkAccessV1,
+  createDefaultProgramNetworkAccessV1,
+  normalizeProgramNetworkAccessMutationV1,
+  type ProgramNetworkAccessV1,
+} from "./program-network-access.ts";
 
 export const programRepositoryDatabaseNameV4 = "sillymaker.example-silly-os.programs";
-export const programRepositoryDatabaseVersionV6 = 6;
+export const programRepositoryDatabaseVersionV7 = 7;
 export const programRepositoryProgramObjectStoreNameV4 = "programs";
 export const programRepositoryWorkspaceContinuationObjectStoreNameV4 = "workspace_continuations";
-export const programRepositoryNetworkGrantObjectStoreNameV1 = "program_network_grants";
+export const programRepositoryNetworkAccessObjectStoreNameV1 = "program_network_access";
+
+const legacyProgramRepositoryNetworkGrantObjectStoreNameV1 = "program_network_grants";
 
 const programRepositoryPairObjectStoreNamesV4 = [
   programRepositoryProgramObjectStoreNameV4,
   programRepositoryWorkspaceContinuationObjectStoreNameV4,
 ] as const;
 
-const programRepositoryObjectStoreNamesV6 = [
-  programRepositoryNetworkGrantObjectStoreNameV1,
+const programRepositoryObjectStoreNamesV7 = [
+  programRepositoryNetworkAccessObjectStoreNameV1,
+  ...programRepositoryPairObjectStoreNamesV4,
+] as const;
+
+const legacyProgramRepositoryObjectStoreNamesV6 = [
+  legacyProgramRepositoryNetworkGrantObjectStoreNameV1,
   ...programRepositoryPairObjectStoreNamesV4,
 ] as const;
 
@@ -157,11 +164,11 @@ function hasExactStoreNamesV1(database: IDBDatabase, expected: readonly string[]
 function hasExactSchemaV1(database: IDBDatabase): boolean {
   try {
     if (
-      database.version !== programRepositoryDatabaseVersionV6 ||
-      !hasExactStoreNamesV1(database, programRepositoryObjectStoreNamesV6)
+      database.version !== programRepositoryDatabaseVersionV7 ||
+      !hasExactStoreNamesV1(database, programRepositoryObjectStoreNamesV7)
     ) return false;
-    const transaction = database.transaction(programRepositoryObjectStoreNamesV6, "readonly");
-    return programRepositoryObjectStoreNamesV6.every((storeName) =>
+    const transaction = database.transaction(programRepositoryObjectStoreNamesV7, "readonly");
+    return programRepositoryObjectStoreNamesV7.every((storeName) =>
       hasExactProgramStoreShapeV1(transaction.objectStore(storeName))
     );
   } catch {
@@ -196,11 +203,11 @@ function resetExactPhysicalV4V1(
     }
   }
   // The preview schema has no migration obligation. Delete both exact stores without
-  // opening a cursor or reading a row, then create the Product Repository V5 catalog directly.
+  // opening a cursor or reading a row, then create the Product Repository V7 catalog directly.
   for (const storeName of programRepositoryPairObjectStoreNamesV4) {
     database.deleteObjectStore(storeName);
   }
-  createStoresV1(database, programRepositoryObjectStoreNamesV6);
+  createStoresV1(database, programRepositoryObjectStoreNamesV7);
 }
 
 function upgradeExactPhysicalV5V1(
@@ -221,8 +228,32 @@ function upgradeExactPhysicalV5V1(
     }
   }
   // V5 already owns the exact Program/continuation pair. Add the independent
-  // non-secret grant store without reading, rewriting, or deleting either row.
-  createStoresV1(database, [programRepositoryNetworkGrantObjectStoreNameV1]);
+  // non-secret access store without reading, rewriting, or deleting either row.
+  createStoresV1(database, [programRepositoryNetworkAccessObjectStoreNameV1]);
+}
+
+function replaceExactPhysicalV6NetworkStoreV1(
+  request: IDBOpenDBRequest,
+  operation: ProgramRepositoryOperationV3,
+): void {
+  const database = request.result;
+  const transaction = request.transaction;
+  if (
+    transaction === null ||
+    !hasExactStoreNamesV1(database, legacyProgramRepositoryObjectStoreNamesV6)
+  ) {
+    throw createProgramRepositoryFailureV3("schema_invalid", operation);
+  }
+  for (const storeName of legacyProgramRepositoryObjectStoreNamesV6) {
+    if (!hasExactProgramStoreShapeV1(transaction.objectStore(storeName))) {
+      throw createProgramRepositoryFailureV3("schema_invalid", operation);
+    }
+  }
+  // Network access is a clean replacement, not a migration of prior
+  // origin/operation grants. Preserve the exact Program/continuation pair while
+  // deleting the obsolete grant store without reading any of its rows.
+  database.deleteObjectStore(legacyProgramRepositoryNetworkGrantObjectStoreNameV1);
+  createStoresV1(database, [programRepositoryNetworkAccessObjectStoreNameV1]);
 }
 
 function openDatabaseV1(input: {
@@ -234,7 +265,7 @@ function openDatabaseV1(input: {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest;
     try {
-      request = input.indexedDB.open(input.databaseName, programRepositoryDatabaseVersionV6);
+      request = input.indexedDB.open(input.databaseName, programRepositoryDatabaseVersionV7);
     } catch (error) {
       reject(mapFailureV1(error, input.operation));
       return;
@@ -257,8 +288,9 @@ function openDatabaseV1(input: {
       }
       try {
         if (
-          (event.oldVersion !== 0 && event.oldVersion !== 4 && event.oldVersion !== 5) ||
-          event.newVersion !== programRepositoryDatabaseVersionV6
+          (event.oldVersion !== 0 && event.oldVersion !== 4 && event.oldVersion !== 5 &&
+            event.oldVersion !== 6) ||
+          event.newVersion !== programRepositoryDatabaseVersionV7
         ) {
           throw createProgramRepositoryFailureV3("schema_invalid", input.operation);
         }
@@ -266,10 +298,14 @@ function openDatabaseV1(input: {
           if (request.result.objectStoreNames.length !== 0) {
             throw createProgramRepositoryFailureV3("schema_invalid", input.operation);
           }
-          createStoresV1(request.result, programRepositoryObjectStoreNamesV6);
+          createStoresV1(request.result, programRepositoryObjectStoreNamesV7);
         } else if (event.oldVersion === 4) {
           resetExactPhysicalV4V1(request, input.operation);
-        } else upgradeExactPhysicalV5V1(request, input.operation);
+        } else if (event.oldVersion === 5) {
+          upgradeExactPhysicalV5V1(request, input.operation);
+        } else {
+          replaceExactPhysicalV6NetworkStoreV1(request, input.operation);
+        }
       } catch (error) {
         upgradeFailure = error;
         try {
@@ -334,18 +370,18 @@ function storedContinuationV1(
   }
 }
 
-function storedNetworkGrantSetV1(
+function storedNetworkAccessV1(
   value: unknown,
   programId: string,
   operation: ProgramRepositoryOperationV3,
-): ProgramNetworkGrantSetV1 {
-  if (value === undefined) return createEmptyProgramNetworkGrantSetV1(programId);
+): ProgramNetworkAccessV1 {
+  if (value === undefined) return createDefaultProgramNetworkAccessV1(programId);
   try {
-    const grants = cloneProgramNetworkGrantSetV1(value as ProgramNetworkGrantSetV1);
-    if (grants.programId !== programId) {
-      throw new TypeError("Program network grant identity mismatch");
+    const access = cloneProgramNetworkAccessV1(value as ProgramNetworkAccessV1);
+    if (access.programId !== programId) {
+      throw new TypeError("Program network access identity mismatch");
     }
-    return grants;
+    return access;
   } catch {
     throw createProgramRepositoryFailureV3("schema_invalid", operation);
   }
@@ -600,111 +636,103 @@ export function createIndexedDbProgramRepositoryV4(
       }
     },
 
-    async loadProgramNetworkGrants(rawProgramId) {
+    async loadProgramNetworkAccess(rawProgramId) {
       const programId = normalizeProgramRepositoryProgramIdV3(rawProgramId);
       try {
-        const database = await getDatabaseV1("load_program_network_grants");
-        const transaction = database.transaction(programRepositoryObjectStoreNamesV6, "readonly");
+        const database = await getDatabaseV1("load_program_network_access");
+        const transaction = database.transaction(programRepositoryObjectStoreNamesV7, "readonly");
         const completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
         const pairPromise = loadPairFromTransactionV1({
           transaction,
           programId,
-          operation: "load_program_network_grants",
+          operation: "load_program_network_access",
         });
-        const grantRequest = transaction.objectStore(
-          programRepositoryNetworkGrantObjectStoreNameV1,
+        const accessRequest = transaction.objectStore(
+          programRepositoryNetworkAccessObjectStoreNameV1,
         ).get(programId);
-        const [pair, grantRow] = await Promise.all([
+        const [pair, accessRow] = await Promise.all([
           pairPromise,
-          requestResultV1(grantRequest),
+          requestResultV1(accessRequest),
         ]);
         if (pair === null) {
-          if (grantRow !== undefined) {
+          if (accessRow !== undefined) {
             throw createProgramRepositoryFailureV3(
               "schema_invalid",
-              "load_program_network_grants",
+              "load_program_network_access",
             );
           }
           await completion;
           return null;
         }
-        const grants = storedNetworkGrantSetV1(
-          grantRow,
+        const access = storedNetworkAccessV1(
+          accessRow,
           programId,
-          "load_program_network_grants",
+          "load_program_network_access",
         );
         await completion;
-        return grants;
+        return access;
       } catch (error) {
-        throw mapFailureV1(error, "load_program_network_grants");
+        throw mapFailureV1(error, "load_program_network_access");
       }
     },
 
-    async setProgramNetworkGrant(rawInput) {
-      const input = normalizeProgramNetworkGrantMutationV1(rawInput);
+    async setProgramNetworkAccess(rawInput) {
+      const input = normalizeProgramNetworkAccessMutationV1(rawInput);
       let transaction: IDBTransaction | undefined;
       let completion: Promise<void> | undefined;
       try {
-        const database = await getDatabaseV1("set_program_network_grant");
-        transaction = database.transaction(programRepositoryObjectStoreNamesV6, "readwrite");
+        const database = await getDatabaseV1("set_program_network_access");
+        transaction = database.transaction(programRepositoryObjectStoreNamesV7, "readwrite");
         completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
         const pairPromise = loadPairFromTransactionV1({
           transaction,
           programId: input.programId,
-          operation: "set_program_network_grant",
+          operation: "set_program_network_access",
         });
-        const grantStore = transaction.objectStore(
-          programRepositoryNetworkGrantObjectStoreNameV1,
+        const accessStore = transaction.objectStore(
+          programRepositoryNetworkAccessObjectStoreNameV1,
         );
-        const grantRequest = grantStore.get(input.programId);
-        const [pair, grantRow] = await Promise.all([
+        const accessRequest = accessStore.get(input.programId);
+        const [pair, accessRow] = await Promise.all([
           pairPromise,
-          requestResultV1(grantRequest),
+          requestResultV1(accessRequest),
         ]);
         if (pair === null) {
-          if (grantRow !== undefined) {
+          if (accessRow !== undefined) {
             throw createProgramRepositoryFailureV3(
               "schema_invalid",
-              "set_program_network_grant",
+              "set_program_network_access",
             );
           }
           await completion;
           return { kind: "missing" };
         }
-        const current = storedNetworkGrantSetV1(
-          grantRow,
+        const current = storedNetworkAccessV1(
+          accessRow,
           input.programId,
-          "set_program_network_grant",
+          "set_program_network_access",
         );
-        const applied = applyProgramNetworkGrantMutationV1(current, input);
-        if (applied.kind === "capacity_exceeded") {
-          transaction.abort();
-          await completion.catch(() => undefined);
-          throw createProgramRepositoryFailureV3(
-            "quota_exceeded",
-            "set_program_network_grant",
-          );
-        }
+        const applied = applyProgramNetworkAccessMutationV1(current, input);
         if (applied.kind === "unchanged") {
           await completion;
           return {
             kind: "unchanged",
-            value: cloneProgramNetworkGrantSetV1(applied.value),
+            value: cloneProgramNetworkAccessV1(applied.value),
           };
         }
-        const next = cloneProgramNetworkGrantSetV1(applied.value);
-        if (next.grants.length === 0) {
-          await requestResultV1(grantStore.delete(input.programId));
+        const next = cloneProgramNetworkAccessV1(applied.value);
+        if (next.enabled) {
+          await requestResultV1(accessStore.put(next));
         } else {
-          await requestResultV1(grantStore.put(next));
+          await requestResultV1(accessStore.delete(input.programId));
         }
         await completion;
-        return { kind: "committed", value: cloneProgramNetworkGrantSetV1(next) };
+        return { kind: "committed", value: cloneProgramNetworkAccessV1(next) };
       } catch (error) {
         await abortAfterFailureV1(transaction, completion);
-        throw mapFailureV1(error, "set_program_network_grant");
+        throw mapFailureV1(error, "set_program_network_access");
       }
     },
 

@@ -417,10 +417,10 @@ function proxyRepositoryV1(
     load: overrides.load ?? ((programId) => delegate.load(programId)),
     loadWorkspaceContinuation: overrides.loadWorkspaceContinuation ??
       ((programId) => delegate.loadWorkspaceContinuation(programId)),
-    loadProgramNetworkGrants: overrides.loadProgramNetworkGrants ??
-      ((programId) => delegate.loadProgramNetworkGrants(programId)),
-    setProgramNetworkGrant: overrides.setProgramNetworkGrant ??
-      ((input) => delegate.setProgramNetworkGrant(input)),
+    loadProgramNetworkAccess: overrides.loadProgramNetworkAccess ??
+      ((programId) => delegate.loadProgramNetworkAccess(programId)),
+    setProgramNetworkAccess: overrides.setProgramNetworkAccess ??
+      ((input) => delegate.setProgramNetworkAccess(input)),
     create: overrides.create ?? ((input) => delegate.create(input)),
     applyRevision: overrides.applyRevision ?? ((input) => delegate.applyRevision(input)),
     settleAgentRun: overrides.settleAgentRun ?? ((input) => delegate.settleAgentRun(input)),
@@ -1612,61 +1612,45 @@ describe("Browser Program workspace authority V1", () => {
     await harness.authority.dispose();
   });
 
-  it("admits only the complete grant set owned by the submitted Program", async () => {
+  it("admits only the network boolean owned by the submitted Program", async () => {
     const harness = authorityHarnessV1();
-    const first = await createProgramV1(harness, "workspace.authority.network-grants-a");
-    const second = await createProgramV1(harness, "workspace.authority.network-grants-b");
-    const firstGrants = [
-      { origin: "https://downloads.example.test", operation: "download" as const },
-      { origin: "https://assets.example.test", operation: "fetch_url" as const },
-    ];
-    const secondGrant = {
-      origin: "https://private.example.test",
-      operation: "fetch_url" as const,
-    };
-    for (const grant of firstGrants) {
-      await expect(harness.authority.setProgramNetworkGrant({
-        programId: first.fixture.programId,
-        grant,
-        enabled: true,
-      })).resolves.toMatchObject({ kind: "committed" });
-    }
-    await expect(harness.authority.setProgramNetworkGrant({
-      programId: second.fixture.programId,
-      grant: secondGrant,
+    const first = await createProgramV1(harness, "workspace.authority.network-access-a");
+    const second = await createProgramV1(harness, "workspace.authority.network-access-b");
+    await expect(harness.authority.setProgramNetworkAccess({
+      programId: first.fixture.programId,
       enabled: true,
     })).resolves.toMatchObject({ kind: "committed" });
 
-    await expect(harness.authority.loadProgramNetworkGrants(first.fixture.programId)).resolves
+    await expect(harness.authority.loadProgramNetworkAccess(first.fixture.programId)).resolves
       .toEqual({
         revision: 1,
         programId: first.fixture.programId,
-        grants: firstGrants,
+        enabled: true,
       });
-    await expect(harness.authority.loadProgramNetworkGrants(second.fixture.programId)).resolves
+    await expect(harness.authority.loadProgramNetworkAccess(second.fixture.programId)).resolves
       .toEqual({
         revision: 1,
         programId: second.fixture.programId,
-        grants: [secondGrant],
+        enabled: false,
       });
 
     const opened = await harness.authority.openWorkspace(first.fixture);
-    let admittedGrants: unknown = null;
+    let admittedAccess: unknown = null;
     await expect(harness.authority.withAgentSubmitAdmission({
       programId: first.fixture.programId,
       workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
       expectedProgramRevision: 1,
       expectedRepositoryRevision: 1,
       expectedGeneration: opened.snapshot.descriptor.generation,
-      operation: (grants) => {
-        admittedGrants = grants;
+      operation: (access) => {
+        admittedAccess = access;
         return Promise.resolve("submitted" as const);
       },
     })).resolves.toBe("submitted");
-    expect(admittedGrants).toEqual({
+    expect(admittedAccess).toEqual({
       revision: 1,
       programId: first.fixture.programId,
-      grants: firstGrants,
+      enabled: true,
     });
 
     let crossProgramOperationInvoked = false;
@@ -1687,6 +1671,53 @@ describe("Browser Program workspace authority V1", () => {
     await harness.authority.detachWorkspaceEnvironment(
       opened.snapshot.descriptor.workspaceSessionId,
     );
+    await harness.authority.dispose();
+  });
+
+  it("reconciles the exact network setting after a committed response is lost", async () => {
+    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
+    const delegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
+    let loseNextMutationResponse = false;
+    const repository = proxyRepositoryV1(delegate, {
+      async setProgramNetworkAccess(input) {
+        const result = await delegate.setProgramNetworkAccess(input);
+        if (!loseNextMutationResponse) return result;
+        loseNextMutationResponse = false;
+        throw createProgramRepositoryFailureV3(
+          "outcome_unknown",
+          "set_program_network_access",
+        );
+      },
+    });
+    const harness = authorityHarnessV1({ repositoryBacking, repository });
+    const created = await createProgramV1(
+      harness,
+      "workspace.authority.network-access-unknown",
+    );
+    await expect(harness.authority.setProgramNetworkAccess({
+      programId: created.fixture.programId,
+      enabled: true,
+    })).resolves.toMatchObject({ kind: "committed", value: { enabled: true } });
+
+    loseNextMutationResponse = true;
+    await expect(harness.authority.setProgramNetworkAccess({
+      programId: created.fixture.programId,
+      enabled: false,
+    })).resolves.toEqual({
+      kind: "unchanged",
+      value: {
+        revision: 1,
+        programId: created.fixture.programId,
+        enabled: false,
+      },
+    });
+    expect(repositoryBacking.programNetworkAccess.has(created.fixture.programId)).toBe(false);
+    await expect(harness.authority.loadProgramNetworkAccess(created.fixture.programId)).resolves
+      .toEqual({
+        revision: 1,
+        programId: created.fixture.programId,
+        enabled: false,
+      });
     await harness.authority.dispose();
   });
 

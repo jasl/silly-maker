@@ -170,16 +170,10 @@ export interface ChatPanePropsV1 {
   readonly onSend: (text: string) => boolean | void | Promise<boolean | void>;
   readonly providerModel?: ComposerModelControlV1;
   readonly mutationPending?: boolean;
-  readonly networkGrants?: {
-    readonly grants: readonly {
-      readonly origin: string;
-      readonly operation: "fetch_url" | "download";
-    }[];
+  readonly networkAccess?: {
+    readonly enabled: boolean;
     readonly pending: boolean;
-    readonly onRevoke: (grant: {
-      readonly origin: string;
-      readonly operation: "fetch_url" | "download";
-    }) => boolean | void | Promise<boolean | void>;
+    readonly onChange: (enabled: boolean) => boolean | void | Promise<boolean | void>;
   };
   readonly piAgentRun?: {
     readonly runtime: BrowserPiWorkerRuntimeV1;
@@ -194,14 +188,6 @@ export interface ChatPanePropsV1 {
     readonly diagnosticPath: string | null;
     readonly onCancel: () => void;
     readonly onForget: () => void;
-    readonly networkApproval?: {
-      readonly approvalId: string;
-      readonly origin: string;
-      readonly url: string;
-      readonly onAllowOnce: () => boolean | void | Promise<boolean | void>;
-      readonly onAllowForProgram: () => boolean | void | Promise<boolean | void>;
-      readonly onDeny: () => boolean | void | Promise<boolean | void>;
-    };
   };
 }
 
@@ -218,12 +204,10 @@ export function ChatPaneV1({
   onSend,
   providerModel,
   mutationPending = false,
-  networkGrants,
+  networkAccess,
   piAgentRun,
 }: ChatPanePropsV1): ReactNode {
   const [draft, setDraft] = useState("");
-  const [networkDecisionPending, setNetworkDecisionPending] = useState(false);
-  const [rememberNetworkOrigin, setRememberNetworkOrigin] = useState(false);
   const feedEndRef = useRef<HTMLDivElement>(null);
   const resourceInputRef = useRef<HTMLInputElement>(null);
   const liveAgent = piAgentRun?.runtime === "pi_provider";
@@ -233,27 +217,11 @@ export function ChatPaneV1({
   const agentFailed = liveAgent ? copy.piLiveFailed : copy.piTestFailed;
   const pendingReviewChanged = workspaceReview?.pendingStatus === "changed";
   const providerModelUnavailable = providerModel !== undefined && providerModel.status !== "ready";
-  const networkApproval = piAgentRun?.networkApproval;
-  const interactionPending = mutationPending || networkApproval !== undefined;
+  const interactionPending = mutationPending;
 
   useEffect(() => {
     feedEndRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, networkApproval?.approvalId]);
-
-  useEffect(() => {
-    setNetworkDecisionPending(false);
-    setRememberNetworkOrigin(false);
-  }, [networkApproval?.approvalId]);
-
-  const resolveNetworkApprovalV1 = (
-    operation: (() => boolean | void | Promise<boolean | void>) | undefined,
-  ): void => {
-    if (operation === undefined || networkDecisionPending) return;
-    setNetworkDecisionPending(true);
-    void Promise.resolve(operation()).catch(() => undefined).finally(() =>
-      setNetworkDecisionPending(false)
-    );
-  };
+  }, [messages.length]);
 
   const submitV1 = (event?: FormEvent): void => {
     event?.preventDefault();
@@ -360,99 +328,26 @@ export function ChatPaneV1({
           </aside>
         )}
 
-        {networkApproval !== undefined && (
-          <aside
-            className="network-approval"
-            data-network-approval-id={networkApproval.approvalId}
-            role="alert"
-          >
-            <div className="network-approval__heading">
-              <Globe2 size={16} aria-hidden="true" />
-              <strong>{copy.networkApprovalTitle}</strong>
+        {networkAccess !== undefined && (
+          <section className="network-access" aria-labelledby="network-access-heading">
+            <div className="network-access__heading">
+              <span>
+                <Globe2 size={15} aria-hidden="true" />
+                <strong id="network-access-heading">{copy.networkAccessTitle}</strong>
+              </span>
+              <label className="network-access__toggle">
+                <input
+                  type="checkbox"
+                  checked={networkAccess.enabled}
+                  disabled={networkAccess.pending || interactionPending}
+                  onChange={(event) => {
+                    void Promise.resolve(networkAccess.onChange(event.currentTarget.checked));
+                  }}
+                />
+                <span>{copy.networkAccessToggle}</span>
+              </label>
             </div>
-            <p>{copy.networkApprovalWarning}</p>
-            <dl>
-              <div>
-                <dt>{copy.networkApprovalOrigin}</dt>
-                <dd>
-                  <code>{networkApproval.origin}</code>
-                </dd>
-              </div>
-              <div>
-                <dt>{copy.networkApprovalUrl}</dt>
-                <dd>
-                  <code>{networkApproval.url}</code>
-                </dd>
-              </div>
-            </dl>
-            <label className="network-approval__remember">
-              <input
-                type="checkbox"
-                checked={rememberNetworkOrigin}
-                disabled={networkDecisionPending}
-                onChange={(event) => setRememberNetworkOrigin(event.currentTarget.checked)}
-              />
-              <span>{copy.networkApprovalRememberProgram}</span>
-            </label>
-            <div className="network-approval__actions">
-              <Button
-                type="button"
-                size="sm"
-                variant="primary"
-                disabled={networkDecisionPending}
-                onClick={() =>
-                  resolveNetworkApprovalV1(
-                    rememberNetworkOrigin
-                      ? networkApproval.onAllowForProgram
-                      : networkApproval.onAllowOnce,
-                  )}
-              >
-                {rememberNetworkOrigin
-                  ? copy.networkApprovalAllowProgram
-                  : copy.networkApprovalAllowOnce}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={networkDecisionPending}
-                onClick={() => resolveNetworkApprovalV1(networkApproval.onDeny)}
-              >
-                {copy.networkApprovalDeny}
-              </Button>
-            </div>
-          </aside>
-        )}
-
-        {networkGrants !== undefined && (
-          <section className="network-grants" aria-labelledby="network-grants-heading">
-            <div className="network-grants__heading">
-              <Globe2 size={15} aria-hidden="true" />
-              <strong id="network-grants-heading">{copy.networkAccessTitle}</strong>
-            </div>
-            {networkGrants.grants.length === 0 ? <p>{copy.networkAccessEmpty}</p> : (
-              <ul>
-                {networkGrants.grants.map((grant) => (
-                  <li key={`${grant.operation}:${grant.origin}`}>
-                    <span>
-                      <code>{grant.origin}</code>
-                      <small>{grant.operation}</small>
-                    </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      disabled={networkGrants.pending || interactionPending}
-                      onClick={() => {
-                        void Promise.resolve(networkGrants.onRevoke(grant));
-                      }}
-                    >
-                      {copy.networkAccessRevoke}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <p>{copy.networkAccessDescription}</p>
           </section>
         )}
 

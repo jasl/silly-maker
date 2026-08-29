@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createBrowserProgramRepositoryV3,
-  type ProgramRepositoryWorkerLikeV5,
+  type ProgramRepositoryWorkerLikeV6,
 } from "../product/browser-program-repository.ts";
 import {
   createMemoryProgramRepositoryBackingV3,
@@ -18,8 +18,8 @@ import {
   type ProgramRepositorySettleAgentRunInputV3,
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "../product/program-repository.ts";
-import { admitProgramRepositoryWorkerRequestEnvelopeV5 } from "../product/program-repository-worker-protocol.ts";
-import { createProgramRepositoryWorkerRuntimeV5 } from "../product/program-repository-worker-runtime.ts";
+import { admitProgramRepositoryWorkerRequestEnvelopeV6 } from "../product/program-repository-worker-protocol.ts";
+import { createProgramRepositoryWorkerRuntimeV6 } from "../product/program-repository-worker-runtime.ts";
 import { createCreatorSessionV1 } from "../product/creator-session.ts";
 import { createDeterministicFakeCreatorV1 } from "../product/fake-creator.ts";
 
@@ -27,7 +27,7 @@ interface WorkerMessageEventV4 {
   readonly data: unknown;
 }
 
-class FakeProgramRepositoryWorkerV4 implements ProgramRepositoryWorkerLikeV5 {
+class FakeProgramRepositoryWorkerV4 implements ProgramRepositoryWorkerLikeV6 {
   readonly messageListeners = new Set<(event: WorkerMessageEventV4) => void>();
   readonly errorListeners = new Set<() => void>();
   readonly messageErrorListeners = new Set<() => void>();
@@ -81,7 +81,7 @@ function createLoopbackWorkerV4(input: {
   readonly throwResponse?: () => boolean;
 }) {
   const worker = new FakeProgramRepositoryWorkerV4();
-  const runtime = createProgramRepositoryWorkerRuntimeV5({
+  const runtime = createProgramRepositoryWorkerRuntimeV6({
     repository: input.repository,
     postMessage: (message) => {
       if (input.throwResponse?.() === true) throw new Error("synthetic Worker post failure");
@@ -210,11 +210,11 @@ function acceptedProgramV3(workspaceId: string) {
   return { ...fixture, accepted, snapshotReceipt, decideInput };
 }
 
-describe("Browser ProgramRepositoryV3 Worker V5 boundary", () => {
+describe("Browser ProgramRepositoryV3 Worker V6 boundary", () => {
   it("rejects retired envelopes and the detached continuation mutation", () => {
     const fixture = acceptedProgramV3("workspace.worker.protocol");
     expect(
-      admitProgramRepositoryWorkerRequestEnvelopeV5({
+      admitProgramRepositoryWorkerRequestEnvelopeV6({
         revision: 3,
         kind: "rpc_request",
         requestId: "program-repository.rpc.legacy",
@@ -222,8 +222,8 @@ describe("Browser ProgramRepositoryV3 Worker V5 boundary", () => {
       }),
     ).toEqual({ kind: "rejected", path: "/revision" });
     expect(
-      admitProgramRepositoryWorkerRequestEnvelopeV5({
-        revision: 5,
+      admitProgramRepositoryWorkerRequestEnvelopeV6({
+        revision: 6,
         kind: "rpc_request",
         requestId: "program-repository.rpc.continuation-load",
         record: {
@@ -236,8 +236,8 @@ describe("Browser ProgramRepositoryV3 Worker V5 boundary", () => {
       value: { record: { method: "load_workspace_continuation" } },
     });
     expect(
-      admitProgramRepositoryWorkerRequestEnvelopeV5({
-        revision: 5,
+      admitProgramRepositoryWorkerRequestEnvelopeV6({
+        revision: 6,
         kind: "rpc_request",
         requestId: "program-repository.rpc.retired-continuation-insert",
         record: {
@@ -247,8 +247,8 @@ describe("Browser ProgramRepositoryV3 Worker V5 boundary", () => {
       }),
     ).toMatchObject({ kind: "rejected" });
     expect(
-      admitProgramRepositoryWorkerRequestEnvelopeV5({
-        revision: 5,
+      admitProgramRepositoryWorkerRequestEnvelopeV6({
+        revision: 6,
         kind: "rpc_request",
         requestId: "program-repository.rpc.accepted-decision",
         record: { method: "decide", input: fixture.decideInput },
@@ -263,8 +263,8 @@ describe("Browser ProgramRepositoryV3 Worker V5 boundary", () => {
       },
     });
     expect(
-      admitProgramRepositoryWorkerRequestEnvelopeV5({
-        revision: 5,
+      admitProgramRepositoryWorkerRequestEnvelopeV6({
+        revision: 6,
         kind: "rpc_request",
         requestId: "program-repository.rpc.invalid-rejected-decision",
         record: {
@@ -298,22 +298,17 @@ describe("Browser ProgramRepositoryV3 Worker V5 boundary", () => {
     await expect(repository.loadWorkspaceContinuation(fixture.program.programId)).resolves.toEqual(
       fixture.continuation,
     );
-    const networkGrant = {
-      origin: "https://assets.example",
-      operation: "download",
-    } as const;
-    await expect(repository.loadProgramNetworkGrants(fixture.program.programId)).resolves.toEqual({
+    await expect(repository.loadProgramNetworkAccess(fixture.program.programId)).resolves.toEqual({
       revision: 1,
       programId: fixture.program.programId,
-      grants: [],
+      enabled: false,
     });
-    await expect(repository.setProgramNetworkGrant({
+    await expect(repository.setProgramNetworkAccess({
       programId: fixture.program.programId,
-      grant: networkGrant,
       enabled: true,
-    })).resolves.toMatchObject({ kind: "committed", value: { grants: [networkGrant] } });
-    await expect(repository.loadProgramNetworkGrants(fixture.program.programId)).resolves
-      .toMatchObject({ grants: [networkGrant] });
+    })).resolves.toMatchObject({ kind: "committed", value: { enabled: true } });
+    await expect(repository.loadProgramNetworkAccess(fixture.program.programId)).resolves
+      .toMatchObject({ enabled: true });
     await expect(repository.list()).resolves.toEqual([
       expect.objectContaining({ updatedAt: 10, repositoryRevision: 1 }),
     ]);
@@ -371,6 +366,50 @@ describe("Browser ProgramRepositoryV3 Worker V5 boundary", () => {
     expect(backing.workspaceContinuations.get(fixture.program.programId)).toEqual(
       fixture.continuation,
     );
+    await expect(repository.dispose()).resolves.toBeUndefined();
+  });
+
+  it("retains a committed network disable when its response is lost", async () => {
+    const backing = createMemoryProgramRepositoryBackingV3();
+    let throwNextResponse = false;
+    const worker = createLoopbackWorkerV4({
+      repository: createMemoryProgramRepositoryV3({ backing }),
+      throwResponse: () => {
+        if (!throwNextResponse) return false;
+        throwNextResponse = false;
+        return true;
+      },
+    });
+    const repository = createBrowserProgramRepositoryV3({ createWorker: () => worker });
+    const fixture = createProgramFixtureV3("workspace.worker.network-disable-unknown");
+
+    await repository.initialize();
+    await repository.create(fixture.createInput);
+    await repository.setProgramNetworkAccess({
+      programId: fixture.program.programId,
+      enabled: true,
+    });
+    throwNextResponse = true;
+    await expect(repository.setProgramNetworkAccess({
+      programId: fixture.program.programId,
+      enabled: false,
+    })).rejects.toMatchObject({
+      code: "outcome_unknown",
+      operation: "set_program_network_access",
+    });
+
+    expect(worker.terminated).toBe(true);
+    expect(backing.programNetworkAccess.has(fixture.program.programId)).toBe(false);
+    const reconciler = createBrowserProgramRepositoryV3({
+      createWorker: () =>
+        createLoopbackWorkerV4({ repository: createMemoryProgramRepositoryV3({ backing }) }),
+    });
+    await expect(reconciler.loadProgramNetworkAccess(fixture.program.programId)).resolves.toEqual({
+      revision: 1,
+      programId: fixture.program.programId,
+      enabled: false,
+    });
+    await reconciler.dispose();
     await expect(repository.dispose()).resolves.toBeUndefined();
   });
 
@@ -471,7 +510,7 @@ describe("Browser ProgramRepositoryV3 Worker V5 boundary", () => {
       const requestId = (message as { readonly requestId: string }).requestId;
       queueMicrotask(() => {
         worker.emitMessage({
-          revision: 5,
+          revision: 6,
           kind: "rpc_response",
           requestId,
           record: { kind: "success", method: "create", value: null },

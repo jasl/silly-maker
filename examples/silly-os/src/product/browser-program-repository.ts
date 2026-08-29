@@ -10,22 +10,22 @@ import {
   type ProgramRepositorySettleAgentRunInputV3,
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "./program-repository.ts";
-import type { ProgramNetworkGrantMutationV1 } from "./program-network-grants.ts";
+import type { ProgramNetworkAccessMutationV1 } from "./program-network-access.ts";
 import {
-  admitProgramRepositoryWorkerRequestEnvelopeV5,
-  admitProgramRepositoryWorkerResponseEnvelopeV5,
-  operationForProgramRepositoryWorkerMethodV5,
-  type ProgramRepositoryWorkerMethodV5,
-  type ProgramRepositoryWorkerRequestEnvelopeV5,
-  type ProgramRepositoryWorkerRequestV5,
-  type ProgramRepositoryWorkerSuccessV5,
+  admitProgramRepositoryWorkerRequestEnvelopeV6,
+  admitProgramRepositoryWorkerResponseEnvelopeV6,
+  operationForProgramRepositoryWorkerMethodV6,
+  type ProgramRepositoryWorkerMethodV6,
+  type ProgramRepositoryWorkerRequestEnvelopeV6,
+  type ProgramRepositoryWorkerRequestV6,
+  type ProgramRepositoryWorkerSuccessV6,
 } from "./program-repository-worker-protocol.ts";
 
 interface ProgramRepositoryWorkerMessageEventV4 {
   readonly data: unknown;
 }
 
-export interface ProgramRepositoryWorkerLikeV5 {
+export interface ProgramRepositoryWorkerLikeV6 {
   addEventListener(
     type: "message",
     listener: (event: ProgramRepositoryWorkerMessageEventV4) => void,
@@ -41,22 +41,22 @@ export interface ProgramRepositoryWorkerLikeV5 {
 }
 
 export interface CreateBrowserProgramRepositoryOptionsV3 {
-  readonly createWorker?: () => ProgramRepositoryWorkerLikeV5;
+  readonly createWorker?: () => ProgramRepositoryWorkerLikeV6;
 }
 
 interface PendingCallV4 {
-  readonly method: ProgramRepositoryWorkerMethodV5;
+  readonly method: ProgramRepositoryWorkerMethodV6;
   readonly operation: ProgramRepositoryOperationV3;
   readonly mutation: boolean;
   delivered: boolean;
-  readonly resolve: (record: ProgramRepositoryWorkerSuccessV5) => void;
+  readonly resolve: (record: ProgramRepositoryWorkerSuccessV6) => void;
   readonly reject: (error: unknown) => void;
 }
 
-function isMutationMethodV4(method: ProgramRepositoryWorkerMethodV5): boolean {
+function isMutationMethodV4(method: ProgramRepositoryWorkerMethodV6): boolean {
   return method === "create" || method === "apply_revision" ||
     method === "settle_agent_run" || method === "decide" ||
-    method === "set_program_network_grant";
+    method === "set_program_network_access";
 }
 
 function responseRequestIdV4(value: unknown): string | null {
@@ -72,10 +72,10 @@ function responseRequestIdV4(value: unknown): string | null {
   }
 }
 
-function defaultProgramRepositoryWorkerV4(): ProgramRepositoryWorkerLikeV5 {
+function defaultProgramRepositoryWorkerV4(): ProgramRepositoryWorkerLikeV6 {
   return new Worker(new URL("./program-repository.worker.ts", import.meta.url), {
     type: "module",
-    name: "sillyos-program-repository-v5",
+    name: "sillyos-program-repository-v6",
   });
 }
 
@@ -124,7 +124,7 @@ export function createBrowserProgramRepositoryV3(
     if (requestId === null) return;
     const call = pending.get(requestId);
     if (call === undefined) return;
-    const response = admitProgramRepositoryWorkerResponseEnvelopeV5(event.data, call.method);
+    const response = admitProgramRepositoryWorkerResponseEnvelopeV6(event.data, call.method);
     if (response.kind === "rejected" || response.value.requestId !== requestId) {
       terminateV4("unavailable");
       return;
@@ -147,21 +147,21 @@ export function createBrowserProgramRepositoryV3(
   worker.addEventListener("messageerror", onTransportLossV4);
 
   const callV4 = (
-    record: ProgramRepositoryWorkerRequestV5,
+    record: ProgramRepositoryWorkerRequestV6,
     allowDisposing = false,
-  ): Promise<ProgramRepositoryWorkerSuccessV5> => {
-    const operation = operationForProgramRepositoryWorkerMethodV5(record.method);
+  ): Promise<ProgramRepositoryWorkerSuccessV6> => {
+    const operation = operationForProgramRepositoryWorkerMethodV6(record.method);
     if (lifecycle === "disposed" || (lifecycle === "disposing" && !allowDisposing)) {
       return Promise.reject(createProgramRepositoryFailureV3("disposed", operation));
     }
     const requestId = `program-repository.rpc.${String(nextRequestId++)}`;
-    const candidate: ProgramRepositoryWorkerRequestEnvelopeV5 = {
-      revision: 5,
+    const candidate: ProgramRepositoryWorkerRequestEnvelopeV6 = {
+      revision: 6,
       kind: "rpc_request",
       requestId,
       record,
     };
-    const admitted = admitProgramRepositoryWorkerRequestEnvelopeV5(candidate);
+    const admitted = admitProgramRepositoryWorkerRequestEnvelopeV6(candidate);
     if (admitted.kind === "rejected") {
       return Promise.reject(
         new TypeError(`sillyos.program_repository.request.invalid${admitted.path}`),
@@ -215,18 +215,18 @@ export function createBrowserProgramRepositoryV3(
       return response.value;
     },
 
-    async loadProgramNetworkGrants(programId) {
-      const response = await callV4({ method: "load_program_network_grants", programId });
-      if (response.method !== "load_program_network_grants") {
-        throw new TypeError("invalid Program network grant load response");
+    async loadProgramNetworkAccess(programId) {
+      const response = await callV4({ method: "load_program_network_access", programId });
+      if (response.method !== "load_program_network_access") {
+        throw new TypeError("invalid Program network access load response");
       }
       return response.value;
     },
 
-    async setProgramNetworkGrant(input: ProgramNetworkGrantMutationV1) {
-      const response = await callV4({ method: "set_program_network_grant", input });
-      if (response.method !== "set_program_network_grant") {
-        throw new TypeError("invalid Program network grant mutation response");
+    async setProgramNetworkAccess(input: ProgramNetworkAccessMutationV1) {
+      const response = await callV4({ method: "set_program_network_access", input });
+      if (response.method !== "set_program_network_access") {
+        throw new TypeError("invalid Program network access mutation response");
       }
       return response.value;
     },

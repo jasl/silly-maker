@@ -123,7 +123,7 @@ function renderAgentChatV1(
   props: Partial<
     Pick<
       ChatPanePropsV1,
-      "mutationPending" | "networkGrants" | "onSend" | "piAgentRun" | "providerModel"
+      "mutationPending" | "networkAccess" | "onSend" | "piAgentRun" | "providerModel"
     >
   >,
 ) {
@@ -146,84 +146,19 @@ function renderAgentChatV1(
 }
 
 describe("SillyOS Workspace composer model selection", () => {
-  it("shows one transient network approval and gates ordinary workspace mutations", async () => {
-    const onAllowOnce = vi.fn(() => Promise.resolve(true));
-    const onAllowForProgram = vi.fn(() => Promise.resolve(true));
-    const onDeny = vi.fn(() => Promise.resolve(true));
-    const onSend = vi.fn();
-    renderAgentChatV1({
-      onSend,
-      piAgentRun: {
-        runtime: "pi_provider",
-        status: "ready",
-        draft: "",
-        diagnosticPath: null,
-        onCancel: vi.fn(),
-        onForget: vi.fn(),
-        networkApproval: {
-          approvalId: "approval.network-ui.1",
-          origin: "https://assets.example.test",
-          url: "https://assets.example.test/page?q=program-data",
-          onAllowOnce,
-          onAllowForProgram,
-          onDeny,
-        },
-      },
-    });
-
-    expect(screen.getByRole("alert")).toHaveTextContent("Network access requested");
-    expect(screen.getByRole("alert")).toHaveTextContent("https://assets.example.test");
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "https://assets.example.test/page?q=program-data",
-    );
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Its path or query may contain data from this Program.",
-    );
-    expect(screen.getByRole("textbox", { name: "Ask for a change…" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Accept program" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Reject proposal" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Deny" }));
-    await waitFor(() => expect(onDeny).toHaveBeenCalledOnce());
-    expect(onAllowOnce).not.toHaveBeenCalled();
-    expect(onAllowForProgram).not.toHaveBeenCalled();
-    expect(onSend).not.toHaveBeenCalled();
-  });
-
-  it("keeps Program-wide access opt-in and resets it for each approval identity", async () => {
-    const onAllowOnce = vi.fn(() => Promise.resolve(true));
-    const onAllowForProgram = vi.fn(() => Promise.resolve(true));
-    const firstApproval = {
-      approvalId: "approval.network-ui.opt-in.1",
-      origin: "https://assets.example.test",
-      url: "https://assets.example.test/first.txt",
-      onAllowOnce,
-      onAllowForProgram,
-      onDeny: vi.fn(() => Promise.resolve(true)),
-    };
+  it("renders one Program-level network toggle that is off by default", async () => {
+    const onChange = vi.fn(() => Promise.resolve(true));
     const view = renderAgentChatV1({
-      piAgentRun: {
-        runtime: "pi_provider",
-        status: "ready",
-        draft: "",
-        diagnosticPath: null,
-        onCancel: vi.fn(),
-        onForget: vi.fn(),
-        networkApproval: firstApproval,
-      },
+      networkAccess: { enabled: false, pending: false, onChange },
     });
 
-    const remember = screen.getByRole("checkbox", {
-      name: "Allow this destination for this Program",
-    });
-    expect(remember).not.toBeChecked();
-    expect(screen.getByRole("button", { name: "Allow once" })).toBeEnabled();
-    fireEvent.click(remember);
-    expect(remember).toBeChecked();
-    fireEvent.click(screen.getByRole("button", { name: "Allow for this Program" }));
-    await waitFor(() => expect(onAllowForProgram).toHaveBeenCalledOnce());
-    expect(onAllowOnce).not.toHaveBeenCalled();
+    const toggle = screen.getByRole("checkbox", { name: "Allow network access" });
+    expect(toggle).not.toBeChecked();
+    expect(screen.getByRole("region", { name: "Network access" })).toHaveTextContent(
+      "Off by default",
+    );
+    fireEvent.click(toggle);
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(true));
 
     view.rerender(
       <ChatPaneV1
@@ -237,65 +172,11 @@ describe("SillyOS Workspace composer model selection", () => {
         onReject={vi.fn()}
         onOpenWorkpiece={vi.fn()}
         onSend={vi.fn()}
-        piAgentRun={{
-          runtime: "pi_provider",
-          status: "ready",
-          draft: "",
-          diagnosticPath: null,
-          onCancel: vi.fn(),
-          onForget: vi.fn(),
-          networkApproval: {
-            ...firstApproval,
-            approvalId: "approval.network-ui.opt-in.2",
-            url: "https://assets.example.test/second.txt",
-          },
-        }}
+        networkAccess={{ enabled: true, pending: true, onChange }}
       />,
     );
-    await waitFor(() =>
-      expect(screen.getByRole("checkbox", {
-        name: "Allow this destination for this Program",
-      })).not.toBeChecked()
-    );
-    expect(screen.getByRole("button", { name: "Allow once" })).toBeEnabled();
-  });
-
-  it("renders the Program grant set and revokes the exact operation and origin", async () => {
-    const onRevoke = vi.fn(() => Promise.resolve(true));
-    const grant = {
-      origin: "https://downloads.example.test",
-      operation: "download" as const,
-    };
-    const view = renderAgentChatV1({
-      networkGrants: { grants: [grant], pending: false, onRevoke },
-    });
-
-    expect(screen.getByRole("region", { name: "Network access" })).toHaveTextContent(
-      "https://downloads.example.test",
-    );
-    expect(screen.getByText("download")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
-    await waitFor(() => expect(onRevoke).toHaveBeenCalledWith(grant));
-
-    view.rerender(
-      <ChatPaneV1
-        copy={getSillyOsCopyV1("en")}
-        messages={[]}
-        proposal={proposalV1}
-        program={programV1}
-        workspaceReview={null}
-        workpieceOpen
-        onAccept={vi.fn()}
-        onReject={vi.fn()}
-        onOpenWorkpiece={vi.fn()}
-        onSend={vi.fn()}
-        networkGrants={{ grants: [], pending: false, onRevoke }}
-      />,
-    );
-    expect(screen.getByRole("region", { name: "Network access" })).toHaveTextContent(
-      "No destinations are allowed for this Program.",
-    );
-    expect(screen.queryByRole("button", { name: "Revoke" })).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "Allow network access" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Allow network access" })).toBeDisabled();
   });
 
   it("uses the shared picker and hides the persistent live Provider card when ready or completed", () => {

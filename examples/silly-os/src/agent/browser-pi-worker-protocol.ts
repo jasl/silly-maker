@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 import { admitCreatorAgentSubmitTextV1 } from "../product/creator-agent-admission.ts";
-import {
-  admitProgramNetworkGrantSetV1,
-  type ProgramNetworkOperationV1,
-  type ProgramNetworkGrantV1,
-} from "../product/program-network-grants.ts";
-import { normalizeBrowserNetworkUrlV1 } from "../network/browser-network-url.ts";
+import { admitProgramNetworkAccessV1 } from "../product/program-network-access.ts";
 import { admitCredentialVaultHandoffReadyV2 } from "../credential/credential-vault-protocol.ts";
 import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
 import { isBrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
@@ -99,16 +94,6 @@ export interface BrowserPiWorkerConfigureV1 {
     };
 }
 
-export type BrowserPiNetworkApprovalDecisionV1 = "allow_once" | "deny";
-
-export interface BrowserPiWorkerResolveNetworkApprovalV1 {
-  readonly revision: 1;
-  readonly kind: "resolve_network_approval";
-  readonly requestId: number;
-  readonly approvalId: string;
-  readonly decision: BrowserPiNetworkApprovalDecisionV1;
-}
-
 export interface BrowserPiWorkerTestConnectionV1 {
   readonly revision: 1;
   readonly kind: "test_connection";
@@ -166,10 +151,10 @@ export type BrowserPiWorkspaceRequestRecordV1 =
     readonly throughSequence: number;
   }
   | {
-    readonly method: "replace_network_grants";
+    readonly method: "replace_network_access";
     readonly programId: string;
     readonly workspaceSessionId: string;
-    readonly grants: readonly ProgramNetworkGrantV1[];
+    readonly enabled: boolean;
   };
 
 export interface BrowserPiWorkerWorkspaceRequestV1 {
@@ -184,7 +169,6 @@ export type BrowserPiWorkerInboundMessageV1 =
   | BrowserPiWorkerConfigureV1
   | BrowserPiWorkerTestConnectionV1
   | BrowserPiWorkerSelectModelV1
-  | BrowserPiWorkerResolveNetworkApprovalV1
   | BrowserPiWorkerRpcRequestV1
   | BrowserPiWorkerWorkspaceRequestV1;
 
@@ -278,43 +262,6 @@ export interface BrowserPiWorkerRpcRecordV1 {
   readonly record: unknown;
 }
 
-export interface BrowserPiNetworkApprovalRequestV1 {
-  readonly revision: 1;
-  readonly approvalId: string;
-  readonly programId: string;
-  readonly workspaceId: string;
-  readonly workspaceSessionId: string;
-  readonly sessionId: string;
-  readonly runId: string;
-  readonly toolCallId: string;
-  readonly operation: ProgramNetworkOperationV1;
-  readonly origin: string;
-  readonly url: string;
-}
-
-export interface BrowserPiWorkerNetworkApprovalRequiredV1 {
-  readonly revision: 1;
-  readonly kind: "network_approval_required";
-  readonly approval: BrowserPiNetworkApprovalRequestV1;
-}
-
-export interface BrowserPiWorkerNetworkApprovalResolvedV1 {
-  readonly revision: 1;
-  readonly kind: "network_approval_response";
-  readonly requestId: number;
-  readonly ok: true;
-  readonly approvalId: string;
-  readonly decision: BrowserPiNetworkApprovalDecisionV1;
-}
-
-export interface BrowserPiWorkerNetworkApprovalUnavailableV1 {
-  readonly revision: 1;
-  readonly kind: "network_approval_response";
-  readonly requestId: number;
-  readonly ok: false;
-  readonly code: "not_pending";
-}
-
 export interface BrowserPiWorkerProtocolFailureV1 {
   readonly revision: 1;
   readonly kind: "protocol_failure";
@@ -365,7 +312,7 @@ export type BrowserPiWorkspaceSuccessResponseV1 =
       | "attach_workspace"
       | "close_workspace"
       | "query_workspace"
-      | "replace_network_grants";
+      | "replace_network_access";
     readonly snapshot: BrowserPiWorkspaceSnapshotWireV1;
   }
   | {
@@ -421,9 +368,6 @@ export type BrowserPiWorkerOutboundMessageV1 =
   | BrowserPiWorkerRpcResponseV1
   | BrowserPiWorkerRpcFailureV1
   | BrowserPiWorkerRpcRecordV1
-  | BrowserPiWorkerNetworkApprovalRequiredV1
-  | BrowserPiWorkerNetworkApprovalResolvedV1
-  | BrowserPiWorkerNetworkApprovalUnavailableV1
   | BrowserPiWorkerProtocolFailureV1;
 
 export type BrowserPiWorkerAnyOutboundMessageV1 =
@@ -839,46 +783,6 @@ function admitExecutionBindingV1(value: unknown): BrowserPiWorkerExecutionBindin
   };
 }
 
-export function admitBrowserPiNetworkApprovalRequestV1(
-  value: unknown,
-): BrowserPiNetworkApprovalRequestV1 | null {
-  const approval = exactDataRecordV1(value, [
-    "revision",
-    "approvalId",
-    "programId",
-    "workspaceId",
-    "workspaceSessionId",
-    "sessionId",
-    "runId",
-    "toolCallId",
-    "operation",
-    "origin",
-    "url",
-  ]);
-  if (
-    approval === null || approval.revision !== 1 || !isIdentifierV1(approval.approvalId) ||
-    !isIdentifierV1(approval.programId) || !isIdentifierV1(approval.workspaceId) ||
-    !isIdentifierV1(approval.workspaceSessionId) || !isIdentifierV1(approval.sessionId) ||
-    !isIdentifierV1(approval.runId) || !isIdentifierV1(approval.toolCallId) ||
-    approval.operation !== "fetch_url" && approval.operation !== "download"
-  ) return null;
-  const url = normalizeBrowserNetworkUrlV1(approval.url);
-  if (url === null || url !== approval.url || approval.origin !== new URL(url).origin) return null;
-  return {
-    revision: 1,
-    approvalId: approval.approvalId,
-    programId: approval.programId,
-    workspaceId: approval.workspaceId,
-    workspaceSessionId: approval.workspaceSessionId,
-    sessionId: approval.sessionId,
-    runId: approval.runId,
-    toolCallId: approval.toolCallId,
-    operation: approval.operation,
-    origin: new URL(url).origin,
-    url,
-  };
-}
-
 function admitWorkspaceRequestRecordV1(value: unknown): BrowserPiWorkspaceRequestRecordV1 | null {
   const attach = exactDataRecordV1(value, ["method", "descriptor"]);
   if (attach !== null && attach.method === "attach_workspace") {
@@ -910,28 +814,28 @@ function admitWorkspaceRequestRecordV1(value: unknown): BrowserPiWorkspaceReques
       throughSequence: acknowledge.throughSequence,
     };
   }
-  const replaceNetworkGrants = exactDataRecordV1(value, [
+  const replaceNetworkAccess = exactDataRecordV1(value, [
     "method",
     "programId",
     "workspaceSessionId",
-    "grants",
+    "enabled",
   ]);
   if (
-    replaceNetworkGrants !== null &&
-    replaceNetworkGrants.method === "replace_network_grants" &&
-    isIdentifierV1(replaceNetworkGrants.workspaceSessionId)
+    replaceNetworkAccess !== null &&
+    replaceNetworkAccess.method === "replace_network_access" &&
+    isIdentifierV1(replaceNetworkAccess.workspaceSessionId)
   ) {
-    const admitted = admitProgramNetworkGrantSetV1({
+    const admitted = admitProgramNetworkAccessV1({
       revision: 1,
-      programId: replaceNetworkGrants.programId,
-      grants: replaceNetworkGrants.grants,
+      programId: replaceNetworkAccess.programId,
+      enabled: replaceNetworkAccess.enabled,
     });
     if (admitted.kind === "rejected") return null;
     return {
-      method: "replace_network_grants",
+      method: "replace_network_access",
       programId: admitted.value.programId,
-      workspaceSessionId: replaceNetworkGrants.workspaceSessionId,
-      grants: admitted.value.grants,
+      workspaceSessionId: replaceNetworkAccess.workspaceSessionId,
+      enabled: admitted.value.enabled,
     };
   }
   return null;
@@ -1088,13 +992,6 @@ export function admitBrowserPiWorkerInboundMessageV1(
       "revision",
       "kind",
       "requestId",
-      "approvalId",
-      "decision",
-    ]) ??
-    exactDataRecordV1(value, [
-      "revision",
-      "kind",
-      "requestId",
       "record",
       "execution",
     ]) ?? exactDataRecordV1(value, ["revision", "kind", "requestId", "record"]) ??
@@ -1134,19 +1031,6 @@ export function admitBrowserPiWorkerInboundMessageV1(
       kind: "select_model",
       requestId: discriminator.requestId,
       selection,
-    };
-  }
-  if (discriminator.kind === "resolve_network_approval") {
-    if (
-      !isIdentifierV1(discriminator.approvalId) ||
-      (discriminator.decision !== "allow_once" && discriminator.decision !== "deny")
-    ) return null;
-    return {
-      revision: 1,
-      kind: "resolve_network_approval",
-      requestId: discriminator.requestId,
-      approvalId: discriminator.approvalId,
-      decision: discriminator.decision,
     };
   }
   if (discriminator.kind === "workspace_request") {
@@ -1235,14 +1119,6 @@ export function admitBrowserPiWorkerInboundMessageV1(
 export function admitBrowserPiWorkerOutboundMessageV1(
   value: unknown,
 ): BrowserPiWorkerOutboundMessageV1 | null {
-  const approvalEvent = exactDataRecordV1(value, ["revision", "kind", "approval"]);
-  if (
-    approvalEvent !== null && approvalEvent.revision === 1 &&
-    approvalEvent.kind === "network_approval_required"
-  ) {
-    const approval = admitBrowserPiNetworkApprovalRequestV1(approvalEvent.approval);
-    return approval === null ? null : { revision: 1, kind: "network_approval_required", approval };
-  }
   const base = exactDataRecordV1(value, ["revision", "kind", "code"]) ??
     exactDataRecordV1(value, ["revision", "kind", "record"]) ??
     exactDataRecordV1(value, ["revision", "kind", "requestId", "code"]) ??
@@ -1256,14 +1132,6 @@ export function admitBrowserPiWorkerOutboundMessageV1(
     ]) ??
     exactDataRecordV1(value, ["revision", "kind", "requestId", "selection"]) ??
     exactDataRecordV1(value, ["revision", "kind", "requestId", "ok", "catalog"]) ??
-    exactDataRecordV1(value, [
-      "revision",
-      "kind",
-      "requestId",
-      "ok",
-      "approvalId",
-      "decision",
-    ]) ??
     exactDataRecordV1(value, ["revision", "kind", "requestId", "ok", "response"]) ??
     exactDataRecordV1(value, ["revision", "kind", "requestId", "ok", "code"]);
   if (base === null || base.revision !== 1) return null;
@@ -1279,29 +1147,6 @@ export function admitBrowserPiWorkerOutboundMessageV1(
     return { revision: 1, kind: "rpc_record", record: base.record };
   }
   if (!isRequestIdV1(base.requestId)) return null;
-  if (base.kind === "network_approval_response") {
-    if (base.ok === false && base.code === "not_pending") {
-      return {
-        revision: 1,
-        kind: "network_approval_response",
-        requestId: base.requestId,
-        ok: false,
-        code: "not_pending",
-      };
-    }
-    if (
-      base.ok !== true || !isIdentifierV1(base.approvalId) ||
-      (base.decision !== "allow_once" && base.decision !== "deny")
-    ) return null;
-    return {
-      revision: 1,
-      kind: "network_approval_response",
-      requestId: base.requestId,
-      ok: true,
-      approvalId: base.approvalId,
-      decision: base.decision,
-    };
-  }
   if (base.kind === "configuration_failure") {
     if (base.code !== "selection_unavailable" && base.code !== "credential_handoff_failed") {
       return null;
@@ -1421,12 +1266,12 @@ function admitWorkspaceSuccessResponseV1(
   if (
     ordinary !== null &&
     (ordinary.method === "attach_workspace" || ordinary.method === "close_workspace" ||
-      ordinary.method === "query_workspace" || ordinary.method === "replace_network_grants")
+      ordinary.method === "query_workspace" || ordinary.method === "replace_network_access")
   ) {
     const snapshot = admitBrowserPiWorkspaceSnapshotWireV1(ordinary.snapshot);
     if (
       snapshot === null ||
-      ((ordinary.method === "attach_workspace" || ordinary.method === "replace_network_grants") &&
+      ((ordinary.method === "attach_workspace" || ordinary.method === "replace_network_access") &&
         snapshot.phase !== "open") ||
       (ordinary.method === "close_workspace" && snapshot.phase !== "closed")
     ) return null;
