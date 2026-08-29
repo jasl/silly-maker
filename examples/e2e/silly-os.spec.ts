@@ -688,6 +688,12 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await settingsGeneral.click();
   await expect(page.locator('[data-settings-section="general"]')).toBeVisible();
   await expect(page.getByRole("heading", { name: "General", level: 1 })).toBeVisible();
+  const generalLocaleSelects = page.getByRole("combobox", { name: "Language" });
+  await expect(generalLocaleSelects).toHaveCount(2);
+  for (let index = 0; index < await generalLocaleSelects.count(); index += 1) {
+    const box = await generalLocaleSelects.nth(index).boundingBox();
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  }
   await settingsVault.click();
   const vaultPanel = page.locator('[data-vault-phase="unlocked"]');
   await expect(vaultPanel).toBeVisible();
@@ -716,12 +722,23 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   const globalBackBox = await globalBack.boundingBox();
   expect(globalBackBox?.width ?? 0).toBeGreaterThanOrEqual(44);
   expect(globalBackBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-  const localeButtons = page.locator(".silly-os-settings__topbar .silly-os-locale button");
-  for (let index = 0; index < await localeButtons.count(); index += 1) {
-    const box = await localeButtons.nth(index).boundingBox();
-    expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-  }
+  const localeSelect = page.locator(".silly-os-settings__topbar .silly-os-locale select");
+  await expect(localeSelect).toHaveCount(1);
+  await expect(localeSelect).toHaveValue("en");
+  await expect(localeSelect.locator("option")).toHaveCount(2);
+  const localeSelectBox = await localeSelect.boundingBox();
+  expect(localeSelectBox?.width ?? 0).toBeGreaterThanOrEqual(88);
+  expect(localeSelectBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await localeSelect.selectOption("zh-CN");
+  await expect(page.locator(".silly-os")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-locale", "zh-CN");
+  await expect(page.getByRole("heading", { name: "预设 Provider" })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("locale")).toBe("zh-CN");
+  await localeSelect.selectOption("en");
+  await expect(page.locator(".silly-os")).toHaveAttribute("lang", "en");
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-locale", "en");
+  await expect(page.getByRole("heading", { name: "Built-in Providers" })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("locale")).toBe("en");
   await expectNoPageOverflowV1(page);
 
   await expect(page.getByRole("heading", { name: "Built-in Providers" })).toBeVisible();
@@ -788,8 +805,16 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(page.getByRole("button", { name: "Test connection" })).toBeDisabled();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(keyInput).toHaveValue("");
-  await expect(page.getByText("API key saved in Credential Vault", { exact: true }))
-    .toBeVisible();
+  const credentialSaveReceipt = page.getByText(
+    "API key saved in Credential Vault",
+    { exact: true },
+  );
+  await expect(credentialSaveReceipt).toBeVisible();
+  const credentialSaveStatus = credentialSaveReceipt.locator("..");
+  await expect(credentialSaveStatus.locator("small")).toHaveCount(0);
+  await expect(credentialSaveStatus).not.toContainText("OpenAI");
+  await expect(credentialSaveStatus).not.toContainText("gpt-4.1-nano");
+  await expect(credentialSaveReceipt).toHaveCount(0, { timeout: 4_000 });
   expect(providerProbeRequests).toHaveLength(0);
   await globalBack.click();
   await expect(providerWarning).toHaveCount(0);
@@ -824,7 +849,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(globalBack).toBeFocused();
   await page.locator('[data-provider-id="openai"]').click();
   await expect(page.getByText("API key saved in Credential Vault", { exact: true }))
-    .toBeVisible();
+    .toHaveCount(0);
   await connectionModelSelect.selectOption("gpt-4.1-nano");
   const testConnectionButton = page.getByRole("button", { name: "Test connection" });
   await expect(testConnectionButton).toBeEnabled();
@@ -1101,7 +1126,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await page.getByRole("button", { name: "Providers", exact: true }).click();
   await page.locator('[data-provider-id="openai"]').click();
   await expect(page.getByText("API key saved in Credential Vault", { exact: true }))
-    .toBeVisible();
+    .toHaveCount(0);
   const mobileCredentialActions = page.locator(".provider-settings__credential-actions");
   const mobileUpdateButton = mobileCredentialActions.getByRole("button", {
     name: "Update",
@@ -1215,7 +1240,8 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
     `.provider-settings__credential-form[data-key-saved="true"]`,
   );
   await expect(customConnection).toContainText("Last connection test passed");
-  await expect(customConnection).toContainText(`${customName} · ${customModel}`);
+  await expect(customConnection).toContainText(customModel);
+  await expect(customConnection).not.toContainText(customName);
   await expect(customProfile).toHaveAttribute("data-connection-status", "available");
   expect(customProbeRequests).toHaveLength(1);
   expect(customProbeRequests[0]?.method).toBe("POST");

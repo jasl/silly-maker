@@ -139,6 +139,7 @@ function settingsPropsV1(
     preferredBuiltinModel: null,
     connectionTest: { phase: "disconnected", active: null },
     credentialOperation: { phase: "idle", target: null },
+    credentialReceipt: null,
     vault: automaticVaultV1(),
     onBack: vi.fn(),
     onLocaleChange: vi.fn(),
@@ -171,7 +172,8 @@ function connectionSectionV1(): HTMLElement {
 
 describe("SillyOS Settings information architecture", () => {
   it("exposes General, Providers, and Credential Vault with General as the default", () => {
-    renderSettingsV1();
+    const onLocaleChange = vi.fn();
+    const { container } = renderSettingsV1({ onLocaleChange });
 
     const navigation = screen.getByRole("complementary", { name: copyV1.settings });
     const general = within(navigation).getByRole("button", {
@@ -192,6 +194,21 @@ describe("SillyOS Settings information architecture", () => {
       name: copyV1.settingsCategoryGeneral,
     })).toBeVisible();
     expect(screen.queryByRole("navigation", { name: copyV1.providersLabel })).toBeNull();
+
+    const topbar = container.querySelector(".silly-os-settings__topbar");
+    expect(topbar).not.toBeNull();
+    const localeSelect = within(topbar as HTMLElement).getByRole("combobox", {
+      name: copyV1.settingsLanguage,
+    });
+    expect(localeSelect).toHaveValue("en");
+    expect(within(localeSelect).getAllByRole("option").map((option) => option.textContent)).toEqual(
+      [
+        "English",
+        "简体中文",
+      ],
+    );
+    fireEvent.change(localeSelect, { target: { value: "zh-CN" } });
+    expect(onLocaleChange).toHaveBeenCalledWith("zh-CN");
   });
 
   it("uses initialSection=providers as a direct Provider-settings entry", () => {
@@ -421,6 +438,49 @@ describe("SillyOS Provider connection and model independence", () => {
     );
     expect(onSaveCredential).not.toHaveBeenCalled();
     expect(onTestConnection).toHaveBeenCalledOnce();
+  });
+
+  it("shows a one-line save receipt only for an explicit successful save event", () => {
+    const view = renderSettingsV1({
+      initialSection: "providers",
+      vault: automaticVaultV1([openAiBindingV2]),
+    });
+
+    expect(screen.queryByText(copyV1.providerCredentialSaved)).toBeNull();
+
+    view.rerender(
+      <ProviderSettingsV1
+        {...settingsPropsV1({
+          initialSection: "providers",
+          vault: automaticVaultV1([openAiBindingV2]),
+          credentialReceipt: {
+            kind: "saved",
+            target: {
+              kind: "builtin",
+              providerId: "openai",
+              baseUrl: openAiBindingV2.baseUrl,
+            },
+          },
+        })}
+      />,
+    );
+
+    const receipt = screen.getByText(copyV1.providerCredentialSaved).closest("[role=status]");
+    expect(receipt).not.toBeNull();
+    expect(receipt).toHaveAttribute("data-credential-receipt", "saved");
+    expect(receipt?.querySelector("small")).toBeNull();
+    expect(receipt).not.toHaveTextContent("OpenAI");
+    expect(receipt).not.toHaveTextContent("gpt-4.1-nano");
+
+    view.rerender(
+      <ProviderSettingsV1
+        {...settingsPropsV1({
+          initialSection: "providers",
+          vault: automaticVaultV1([openAiBindingV2]),
+        })}
+      />,
+    );
+    expect(screen.queryByText(copyV1.providerCredentialSaved)).toBeNull();
   });
 
   it("keys Saved, Update, and Test to the exact endpoint of the selected test model", () => {

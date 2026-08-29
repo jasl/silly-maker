@@ -280,29 +280,42 @@ body,
 }
 
 .silly-os-locale {
-  display: inline-flex;
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   block-size: 32px;
-  padding: 2px 3px 2px 8px;
-  gap: 2px;
   border: 1px solid var(--sos-line);
-  border-radius: 999px;
+  border-radius: 8px;
   color: var(--sos-ink-soft);
   background: var(--sos-surface);
 }
 
-.silly-os-locale button {
-  min-inline-size: 34px;
-  padding-inline: 7px;
+.silly-os-locale__globe {
+  margin-inline-start: 8px;
+  pointer-events: none;
+}
+
+.silly-os-locale select {
+  inline-size: 104px;
+  max-inline-size: 30vw;
+  block-size: 100%;
+  padding-block: 0;
+  padding-inline: 6px 25px;
   border: 0;
-  border-radius: 999px;
+  border-radius: inherit;
+  appearance: none;
+  color: inherit;
   background: transparent;
+  cursor: pointer;
+  font: inherit;
   font-weight: 650;
 }
 
-.silly-os-locale button.is-active {
-  color: var(--sos-ink);
-  background: var(--sos-surface-muted);
+.silly-os-locale__chevron {
+  position: absolute;
+  inset-inline-end: 7px;
+  pointer-events: none;
 }
 
 /* Creator Home */
@@ -4053,8 +4066,7 @@ body,
     padding-block: 0;
   }
 
-  .silly-os-settings__topbar .silly-os-locale button {
-    min-inline-size: 44px;
+  .silly-os-settings__topbar .silly-os-locale select {
     min-block-size: 44px;
   }
 
@@ -4101,6 +4113,14 @@ body,
     margin-block-start: 22px;
     padding: 14px;
     flex-direction: column;
+  }
+
+  .silly-os-settings__preference-card .silly-os-locale {
+    block-size: 44px;
+  }
+
+  .silly-os-settings__preference-card .silly-os-locale select {
+    min-block-size: 44px;
   }
 
   .provider-settings {
@@ -4266,7 +4286,7 @@ body,
 
   .program-workspace__topbar .silly-os-brand__name,
   .program-workspace__crumb,
-  .program-workspace__topbar .silly-os-locale > svg {
+  .program-workspace__topbar .silly-os-locale__globe {
     display: none;
   }
 
@@ -4488,8 +4508,8 @@ body,
     gap: 5px;
   }
 
-  .creator-home__topbar .silly-os-locale {
-    padding-inline-start: 5px;
+  .creator-home__topbar .silly-os-locale__globe {
+    margin-inline-start: 6px;
   }
 
   .creator-composer__resource-button {

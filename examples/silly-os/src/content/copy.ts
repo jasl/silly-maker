@@ -1,6 +1,25 @@
 // SPDX-License-Identifier: MIT
 
-export type SillyOsLocaleV1 = "en" | "zh-CN";
+export const sillyOsLocaleRegistryV1 = Object.freeze(
+  [
+    {
+      value: "en",
+      label: "English",
+      queryAliases: Object.freeze([]),
+      navigatorPrefixes: Object.freeze(["en"]),
+    },
+    {
+      value: "zh-CN",
+      label: "简体中文",
+      queryAliases: Object.freeze(["zh"]),
+      navigatorPrefixes: Object.freeze(["zh"]),
+    },
+  ] as const,
+);
+
+export type SillyOsLocaleV1 = (typeof sillyOsLocaleRegistryV1)[number]["value"];
+
+const defaultSillyOsLocaleV1: SillyOsLocaleV1 = "en";
 
 export interface SillyOsCopyV1 {
   readonly locale: SillyOsLocaleV1;
@@ -725,18 +744,34 @@ const chineseV1: SillyOsCopyV1 = {
   ],
 };
 
+const copyByLocaleV1: Readonly<Record<SillyOsLocaleV1, SillyOsCopyV1>> = Object.freeze({
+  en: englishV1,
+  "zh-CN": chineseV1,
+});
+
 export function getSillyOsCopyV1(locale: SillyOsLocaleV1): SillyOsCopyV1 {
-  return locale === "zh-CN" ? chineseV1 : englishV1;
+  return copyByLocaleV1[locale];
+}
+
+function localeFromQueryV1(value: string | null): SillyOsLocaleV1 | null {
+  if (value === null) return null;
+  return sillyOsLocaleRegistryV1.find((locale) =>
+    locale.value === value || locale.queryAliases.some((alias) => alias === value)
+  )?.value ?? null;
 }
 
 /** Site-style locale selection without creating another runtime i18n authority. */
 export function resolveSillyOsCopyV1(): SillyOsCopyV1 {
   if (typeof location !== "undefined") {
-    const locale = new URLSearchParams(location.search).get("locale");
-    if (locale === "zh" || locale === "zh-CN") return getSillyOsCopyV1("zh-CN");
-    if (locale === "en") return getSillyOsCopyV1("en");
+    const locale = localeFromQueryV1(new URLSearchParams(location.search).get("locale"));
+    if (locale !== null) return getSillyOsCopyV1(locale);
   }
-  return typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh")
-    ? getSillyOsCopyV1("zh-CN")
-    : getSillyOsCopyV1("en");
+  if (typeof navigator !== "undefined") {
+    const browserLocale = navigator.language.toLowerCase();
+    const locale = sillyOsLocaleRegistryV1.find((candidate) =>
+      candidate.navigatorPrefixes.some((prefix) => browserLocale.startsWith(prefix))
+    )?.value;
+    if (locale !== undefined) return getSillyOsCopyV1(locale);
+  }
+  return getSillyOsCopyV1(defaultSillyOsLocaleV1);
 }

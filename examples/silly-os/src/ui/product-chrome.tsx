@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
-import { Globe2 } from "lucide-react";
+import { ChevronDown, Globe2 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
-import { SillyButtonV1 as Button } from "./controls.tsx";
+import {
+  type SillyOsCopyV1,
+  type SillyOsLocaleV1,
+  sillyOsLocaleRegistryV1,
+} from "../content/copy.ts";
 
 export function SillyOsMarkV1(): ReactNode {
   return (
@@ -23,7 +26,7 @@ export function SillyOsBrandV1({ copy }: { readonly copy: SillyOsCopyV1 }): Reac
   );
 }
 
-export function LocaleSwitchV1({
+export function LocaleSelectV1({
   copy,
   onChange,
 }: {
@@ -31,26 +34,24 @@ export function LocaleSwitchV1({
   readonly onChange: (locale: SillyOsLocaleV1) => void;
 }): ReactNode {
   return (
-    <div className="silly-os-locale" aria-label="Language">
-      <Globe2 size={16} aria-hidden="true" />
-      <Button
-        className={copy.locale === "en" ? "is-active" : ""}
-        size="sm"
-        variant="ghost"
-        aria-pressed={copy.locale === "en"}
-        onClick={() => onChange("en")}
+    <label className="silly-os-locale">
+      <Globe2 className="silly-os-locale__globe" size={15} aria-hidden="true" />
+      <span className="silly-os-visually-hidden">{copy.settingsLanguage}</span>
+      <select
+        aria-label={copy.settingsLanguage}
+        value={copy.locale}
+        onChange={(event) => {
+          const selected = sillyOsLocaleRegistryV1.find((locale) =>
+            locale.value === event.currentTarget.value
+          );
+          if (selected !== undefined) onChange(selected.value);
+        }}
       >
-        EN
-      </Button>
-      <Button
-        className={copy.locale === "zh-CN" ? "is-active" : ""}
-        size="sm"
-        variant="ghost"
-        aria-pressed={copy.locale === "zh-CN"}
-        onClick={() => onChange("zh-CN")}
-      >
-        中文
-      </Button>
-    </div>
+        {sillyOsLocaleRegistryV1.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+      <ChevronDown className="silly-os-locale__chevron" size={14} aria-hidden="true" />
+    </label>
   );
 }

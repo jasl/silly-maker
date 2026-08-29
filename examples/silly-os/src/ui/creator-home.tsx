@@ -17,7 +17,7 @@ import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
 import type { PreviewProgramKindV1, ProgramProposalStatusV1 } from "../product/contracts.ts";
 import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
 import { SillyButtonV1 as Button } from "./controls.tsx";
-import { LocaleSwitchV1, SillyOsBrandV1 } from "./product-chrome.tsx";
+import { LocaleSelectV1, SillyOsBrandV1 } from "./product-chrome.tsx";
 
 const promptIconsV1 = [Languages, PenTool, Drama] as const;
 
@@ -103,7 +103,7 @@ export function CreatorHomeV1({
       <header className="silly-os-topbar creator-home__topbar">
         <SillyOsBrandV1 copy={copy} />
         <div className="creator-home__topbar-actions">
-          <LocaleSwitchV1 copy={copy} onChange={onLocaleChange} />
+          <LocaleSelectV1 copy={copy} onChange={onLocaleChange} />
           {onOpenSettings !== undefined && (
             <Button
               variant="ghost"

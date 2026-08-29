@@ -55,6 +55,7 @@ import {
   type ProviderSettingsCatalogV1,
   type ProviderSettingsConnectionTestV1,
   type ProviderSettingsCredentialOperationV1,
+  type ProviderSettingsCredentialReceiptV1,
   type ProviderSettingsCustomProfileDraftV1,
   type ProviderSettingsCustomProfileV1,
   type ProviderSettingsSectionV1,
@@ -389,6 +390,7 @@ export function workspaceArchiveFileNameV1(programName: string): string {
 }
 
 const workspaceDownloadHandoffMillisecondsV1 = 1_000;
+const credentialSaveReceiptMillisecondsV1 = 2_400;
 
 /** Retains the Sandbox-owned archive through the browser download handoff. */
 async function commitWorkspaceDownloadV1(
@@ -445,10 +447,22 @@ export function SillyOsAppV1({
   const [credentialOperation, setCredentialOperation] = useState<
     ProviderSettingsCredentialOperationV1
   >({ phase: "idle", target: null });
+  const [credentialReceipt, setCredentialReceipt] = useState<
+    ProviderSettingsCredentialReceiptV1 | null
+  >(null);
   const [connectionTest, setConnectionTest] = useState<ProviderSettingsConnectionTestV1>({
     phase: "disconnected",
     active: null,
   });
+
+  useEffect(() => {
+    const receipt = credentialReceipt;
+    if (receipt === null) return undefined;
+    const timeout = setTimeout(() => {
+      setCredentialReceipt((current) => current === receipt ? null : current);
+    }, credentialSaveReceiptMillisecondsV1);
+    return () => clearTimeout(timeout);
+  }, [credentialReceipt]);
   const [settingsInitialSection, setSettingsInitialSection] = useState<ProviderSettingsSectionV1>(
     "general",
   );
@@ -882,6 +896,7 @@ export function SillyOsAppV1({
   };
 
   const closeSettingsV1 = (): void => {
+    setCredentialReceipt(null);
     setSettingsOpen(false);
     const returnTarget = settingsReturnTargetRef.current;
     const returnSelector = returnTarget === "home-models" || returnTarget === "workspace-models"
@@ -1306,6 +1321,7 @@ export function SillyOsAppV1({
 
   const testProviderConnectionV1 = (selection: ProviderSettingsSelectionV1): void => {
     const piSelection: BrowserPiModelSelectionV1 = selection;
+    setCredentialReceipt(null);
     let binding: CredentialVaultBindingV2;
     try {
       binding = credentialVaultBindingForSelectionV2(piSelection);
@@ -1410,6 +1426,7 @@ export function SillyOsAppV1({
     connectionTestEpochRef.current += 1;
     setConnectionTest({ phase: "disconnected", active: null });
     if (replacesActiveCredential) forgetPiAgentV1();
+    setCredentialReceipt(null);
     setCredentialOperation({ phase: "saving", target: operationTarget });
     let credential = suppliedCredential;
     const settlement = (async (): Promise<void> => {
@@ -1436,6 +1453,7 @@ export function SillyOsAppV1({
         credentialVaultStateRef.current = nextVault;
         setCredentialVault(nextVault);
         setCredentialOperation({ phase: "idle", target: null });
+        setCredentialReceipt({ kind: "saved", target: operationTarget });
         const availableChoices = creatorProviderModelChoicesV1(
           providerCatalog,
           providerSettingsSnapshot.customProfiles,
@@ -1518,6 +1536,7 @@ export function SillyOsAppV1({
       };
     const workerEpoch = credentialVaultEpochRef.current;
     const operationEpoch = ++credentialVaultOperationEpochRef.current;
+    setCredentialReceipt(null);
     setCredentialOperation({ phase: "forgetting", target });
     const settlement = (async (): Promise<void> => {
       try {
@@ -1989,6 +2008,7 @@ export function SillyOsAppV1({
               : null}
             connectionTest={connectionTest}
             credentialOperation={credentialOperation}
+            credentialReceipt={credentialReceipt}
             initialSection={settingsInitialSection}
             onBack={closeSettingsV1}
             onLocaleChange={changeLocaleV1}

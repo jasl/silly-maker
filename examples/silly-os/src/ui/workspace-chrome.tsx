@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
 import { SillyButtonV1 as Button } from "./controls.tsx";
-import { LocaleSwitchV1, SillyOsBrandV1 } from "./product-chrome.tsx";
+import { LocaleSelectV1, SillyOsBrandV1 } from "./product-chrome.tsx";
 
 export type WorkspaceMobilePaneV1 = "chat" | "preview" | "activity";
 
@@ -40,7 +40,7 @@ export function ProgramWorkspaceTopbarV1({
         <span className="program-workspace__title">{workspaceTitle}</span>
       </div>
       <div className="program-workspace__topbar-actions">
-        <LocaleSwitchV1 copy={copy} onChange={onLocaleChange} />
+        <LocaleSelectV1 copy={copy} onChange={onLocaleChange} />
         {onOpenSettings !== undefined && (
           <Button
             variant="ghost"

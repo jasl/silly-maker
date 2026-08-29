@@ -30,7 +30,7 @@ import {
   type CredentialVaultConnectionIdentityV2,
 } from "../credential/provider-credential-binding.ts";
 import { SillyButtonV1 as Button } from "./controls.tsx";
-import { LocaleSwitchV1, SillyOsBrandV1 } from "./product-chrome.tsx";
+import { LocaleSelectV1, SillyOsBrandV1 } from "./product-chrome.tsx";
 
 export type ProviderSettingsAvailabilityV1 =
   | { readonly status: "available" }
@@ -183,6 +183,11 @@ export type ProviderSettingsCredentialOperationV1 =
     readonly diagnosticCode: string;
   };
 
+export interface ProviderSettingsCredentialReceiptV1 {
+  readonly kind: "saved";
+  readonly target: CredentialVaultConnectionIdentityV2;
+}
+
 export interface ProviderSettingsPropsV1 {
   readonly copy: SillyOsCopyV1;
   readonly catalog: ProviderSettingsCatalogV1;
@@ -191,6 +196,7 @@ export interface ProviderSettingsPropsV1 {
   readonly preferredBuiltinModel: ProviderSettingsBuiltinModelRefV1 | null;
   readonly connectionTest: ProviderSettingsConnectionTestV1;
   readonly credentialOperation: ProviderSettingsCredentialOperationV1;
+  readonly credentialReceipt: ProviderSettingsCredentialReceiptV1 | null;
   readonly vault: ProviderSettingsVaultV1;
   readonly initialSection?: ProviderSettingsSectionV1;
   readonly onBack: () => void;
@@ -400,7 +406,7 @@ function SettingsTopbarV1({
           {copy.settings}
         </span>
       </div>
-      <LocaleSwitchV1 copy={copy} onChange={onLocaleChange} />
+      <LocaleSelectV1 copy={copy} onChange={onLocaleChange} />
     </header>
   );
 }
@@ -475,7 +481,7 @@ function GeneralSettingsV1({
           <strong>{copy.settingsLanguage}</strong>
           <p>{copy.settingsLanguageDescription}</p>
         </div>
-        <LocaleSwitchV1 copy={copy} onChange={onLocaleChange} />
+        <LocaleSelectV1 copy={copy} onChange={onLocaleChange} />
       </section>
     </div>
   );
@@ -799,7 +805,6 @@ interface ProviderConnectionTargetV1 {
   readonly connection: CredentialVaultConnectionIdentityV2 | null;
   readonly saveTargets: readonly CredentialVaultConnectionIdentityV2[];
   readonly testSelection: ProviderSettingsSelectionV1 | null;
-  readonly providerName: string;
   readonly endpoints: readonly string[];
   readonly testModels: readonly ProviderSettingsModelV1[];
   readonly configurable: boolean;
@@ -838,6 +843,7 @@ function ProviderConnectionSectionV1({
   target,
   connectionTest,
   credentialOperation,
+  credentialReceipt,
   vault,
   onSelectTestModel,
   onSaveCredential,
@@ -849,6 +855,7 @@ function ProviderConnectionSectionV1({
   readonly target: ProviderConnectionTargetV1;
   readonly connectionTest: ProviderSettingsConnectionTestV1;
   readonly credentialOperation: ProviderSettingsCredentialOperationV1;
+  readonly credentialReceipt: ProviderSettingsCredentialReceiptV1 | null;
   readonly vault: ProviderSettingsVaultV1;
   readonly onSelectTestModel: (modelId: string) => void;
   readonly onSaveCredential: ProviderSettingsPropsV1["onSaveCredential"];
@@ -881,6 +888,10 @@ function ProviderConnectionSectionV1({
   const ready = connectionTest.phase === "ready" && testMatches;
   const testFailed = connectionTest.phase === "test_failed" && testMatches;
   const testWorkerFailed = connectionTest.phase === "failed" && testMatches;
+  const hasCredentialSaveReceipt = credentialReceipt !== null &&
+    target.saveTargets.some((connection) =>
+      sameConnectionIdentityV1(credentialReceipt.target, connection)
+    );
   const mutationPending = saving || forgetting;
 
   const submitV1 = (event: FormEvent<HTMLFormElement>): void => {
@@ -909,9 +920,16 @@ function ProviderConnectionSectionV1({
     ? copy.providerConnectionFailed
     : testWorkerFailed
     ? copy.providerWorkerUnavailable
-    : hasStoredBinding
+    : hasCredentialSaveReceipt
     ? copy.providerCredentialSaved
     : null;
+  const statusModelId = testing || ready || testFailed || testWorkerFailed
+    ? target.testSelection?.kind === "builtin"
+      ? target.testSelection.modelId
+      : target.testSelection?.profile.modelId ?? null
+    : null;
+  const showingCredentialReceipt = hasCredentialSaveReceipt && !saving && !forgetting &&
+    !credentialFailed && !testing && !ready && !testFailed && !testWorkerFailed;
 
   return (
     <section
@@ -993,6 +1011,7 @@ function ProviderConnectionSectionV1({
                     : connectionTest.phase === "failed"
                     ? connectionTest.diagnosticCode
                     : undefined}
+                  data-credential-receipt={showingCredentialReceipt ? "saved" : undefined}
                   role={testFailed || credentialFailed || testWorkerFailed ? "alert" : "status"}
                 >
                   {saving || testing || forgetting
@@ -1002,16 +1021,7 @@ function ProviderConnectionSectionV1({
                     : <Check size={17} aria-hidden="true" />}
                   <span>
                     <strong>{statusCopy}</strong>
-                    <small>
-                      {target.providerName}
-                      {target.testSelection === null
-                        ? ""
-                        : ` · ${
-                          target.testSelection.kind === "builtin"
-                            ? target.testSelection.modelId
-                            : target.testSelection.profile.modelId
-                        }`}
-                    </small>
+                    {statusModelId === null ? null : <small>{statusModelId}</small>}
                   </span>
                 </div>
               )
@@ -1232,6 +1242,7 @@ export function ProviderSettingsV1({
   preferredBuiltinModel,
   connectionTest,
   credentialOperation,
+  credentialReceipt,
   vault,
   initialSection = "general",
   onBack,
@@ -1422,7 +1433,6 @@ export function ProviderSettingsV1({
     connection: credentialConnection,
     saveTargets,
     testSelection,
-    providerName: inspectedCustomProfile?.displayName ?? inspectedProvider?.name ?? "",
     endpoints: Object.freeze(saveTargets.map((connection) => connection.baseUrl)),
     testModels: inspectedCustomProfile === null ? testModels : [],
     configurable: saveTargets.length > 0,
@@ -1708,6 +1718,7 @@ export function ProviderSettingsV1({
                                   target={connectionTarget}
                                   connectionTest={connectionTest}
                                   credentialOperation={credentialOperation}
+                                  credentialReceipt={credentialReceipt}
                                   vault={vault}
                                   onSelectTestModel={setConnectionModelId}
                                   onSaveCredential={onSaveCredential}
@@ -1861,6 +1872,7 @@ export function ProviderSettingsV1({
                                   target={connectionTarget}
                                   connectionTest={connectionTest}
                                   credentialOperation={credentialOperation}
+                                  credentialReceipt={credentialReceipt}
                                   vault={vault}
                                   onSelectTestModel={setConnectionModelId}
                                   onSaveCredential={onSaveCredential}
