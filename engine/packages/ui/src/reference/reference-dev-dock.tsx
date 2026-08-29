@@ -420,6 +420,7 @@ export function ReferenceDevDockV1(props: ReferenceDevDockPropsV1): ReactElement
         ? (
           <div
             className={styles["reference-dev-dock__load-failure"]}
+            data-silly-tool-surface="true"
             data-devdock-position={props.position ?? "top_right"}
             data-dev-dock-load-failure={devDockLoadFailureDiagnosticV1}
             role="alert"

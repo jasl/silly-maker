@@ -176,6 +176,12 @@ describe("MotionWorkbenchLauncherV1", () => {
       />,
     );
 
+    expect(
+      container.querySelector('[data-motion-workbench-launcher="empty"]')?.getAttribute(
+        "data-silly-tool-surface",
+      ),
+    ).toBe("true");
+
     const caseButton = container.querySelector('[data-motion-workbench-case="case.test.enter"]');
     if (!(caseButton instanceof HTMLElement)) throw new Error("case button missing");
     fireEvent.click(caseButton);
@@ -186,6 +192,11 @@ describe("MotionWorkbenchLauncherV1", () => {
         .querySelector("[data-motion-workbench-context]")
         ?.getAttribute("data-motion-workbench-context"),
     ).toBe("case.test.enter");
+    expect(
+      container.querySelector("[data-motion-workbench-context]")?.getAttribute(
+        "data-silly-tool-surface",
+      ),
+    ).toBe("true");
     expect(mainEntryTransformV1(container)).toContain("translate3d(580px");
 
     const close = container.querySelector("[data-motion-workbench-close]");

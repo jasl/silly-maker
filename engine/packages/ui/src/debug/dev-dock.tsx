@@ -333,6 +333,7 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
   return createPortal(
     <div
       className={styles["dev-dock"]}
+      data-silly-tool-surface="true"
       data-devdock-surface={surface}
       data-devdock-position={position}
       data-devdock-open="true"

@@ -101,6 +101,7 @@ export function EmbeddedAuthoringSurfaceInternalV1(
 
   return (
     <div
+      data-silly-tool-surface="true"
       data-embedded-authoring-shell="true"
       data-application-focus-owner="authoring"
       data-native-menu="true"

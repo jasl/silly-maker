@@ -232,6 +232,7 @@ export function InspectorHostSurfaceInternalV1(
     <div
       ref={elementRef}
       className={styles.host}
+      data-silly-tool-surface="true"
       data-inspector-root="true"
       data-authoring-host={String(hostSnapshot.identity)}
       data-authoring-host-ready={hostSnapshot.connected ? "connected" : "layout"}

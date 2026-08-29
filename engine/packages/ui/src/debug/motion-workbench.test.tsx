@@ -167,6 +167,10 @@ describe("MotionWorkbenchV1", () => {
   it("scrubs the detached canvas deterministically over the settled placement", () => {
     const { container } = fixtureV1();
 
+    expect(
+      container.querySelector("[data-motion-workbench]")?.getAttribute("data-silly-tool-surface"),
+    ).toBe("true");
+
     // t=0 sits inside the delay hold: first keyframes over placement (200+120, opacity 0).
     expect(mainEntryV1(container).style.transform).toContain("translate3d(320px");
     expect(mainEntryV1(container).style.opacity).toBe("0");

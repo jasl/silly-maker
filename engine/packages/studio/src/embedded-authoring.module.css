@@ -5,9 +5,6 @@
   inset: 0.5rem;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-
-  --silly-control-min-size: var(--silly-control-min-size-compact);
-
   overflow: hidden;
   box-sizing: border-box;
   border: 1px solid var(--silly-color-border);
@@ -15,9 +12,6 @@
   box-shadow: 0 1rem 4rem rgb(0 0 0 / 55%);
   background: var(--silly-color-surface);
   color: var(--silly-color-text);
-  font-family: var(--silly-debug-font-family);
-  font-size: var(--silly-text-size-compact);
-  line-height: var(--silly-line-height-compact);
 }
 
 .embedded-panel[hidden] {

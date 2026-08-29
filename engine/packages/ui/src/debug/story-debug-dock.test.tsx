@@ -108,6 +108,8 @@ describe("StoryDebugDockV1", () => {
       capabilities: fakeCapabilitiesV1({ setEnabled }),
       control,
     });
+    expect(document.querySelector("[data-story-debug-dock]"))
+      .toHaveAttribute("data-silly-tool-surface", "true");
     const user = userEvent.setup();
     await user.click(screen.getByText("调试"));
     expect(
@@ -179,6 +181,8 @@ describe("StoryDebugDockV1", () => {
     await user.click(screen.getByRole("button", { name: "清空存储" }));
     expect(clearAllSaves).not.toHaveBeenCalled();
     expect(screen.getByRole("alertdialog", { name: "清空全部本地存储？" })).toBeVisible();
+    expect(document.querySelector("[data-debug-dock-wipe-dialog]"))
+      .toHaveAttribute("data-silly-tool-surface", "true");
     expect(screen.getByRole("button", { name: "取消清空存储" })).toBeVisible();
     expect(screen.getAllByRole("button", { name: "取消" })).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "确认清空" }));
@@ -497,15 +501,6 @@ describe("StoryDebugDockV1", () => {
       /\[data-blocking-focus-scope\]\)\s*>\s*:global\(\[data-development-tool-launcher\]\)\s+\.story-debug-dock__panel\s*\{[^}]*overflow:\s*auto;[^}]*background:\s*var\(--silly-color-surface\);/su,
     );
 
-    // Debug chrome keeps the devtools font: the rail and the sibling
-    // confirm layer rebind --silly-font-family to the debug token so a
-    // Story's game font never restyles them.
-    expect(launcherCss).toMatch(
-      /\.development-tool-launcher\s*\{[^}]*--silly-font-family:\s*var\(--silly-debug-font-family\);/su,
-    );
-    expect(css).toMatch(
-      /\.story-debug-dock__wipe\s*\{[^}]*--silly-font-family:\s*var\(--silly-debug-font-family\);/su,
-    );
     const windowsCss = await readFile(
       resolve(import.meta.dirname, "dev-dock.module.css"),
       "utf8",
@@ -520,9 +515,6 @@ describe("StoryDebugDockV1", () => {
     );
     expect(windowsCss).toMatch(
       /data-devdock-window-front="true"[^}]*z-index:\s*var\(--silly-surface-z-active\);/su,
-    );
-    expect(windowsCss).toMatch(
-      /\.dev-dock\s*\{[^}]*--silly-font-family:\s*var\(--silly-debug-font-family\);/su,
     );
   });
 });

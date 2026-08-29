@@ -32,6 +32,10 @@ export function mountGameApplicationV1(
   container: Element,
   application: ReactNode,
 ): MountedGameApplicationV1 {
+  // This low-level synchronous mount provides Host document geometry only.
+  // Consumers that want SillyMaker's visual baseline explicitly select
+  // @sillymaker/ui/styles.css; the standard Game and GUI entries do so after
+  // their startup boundary has been admitted and before mounting React.
   return mountGameApplicationInternalV1(container, application, {});
 }
 

@@ -277,6 +277,7 @@ function StoryDebugDockConfirmDialogV1(props: {
   return (
     <div
       className={styles["story-debug-dock__wipe"]}
+      data-silly-tool-surface="true"
       data-debug-dock-confirm-dialog={kind}
       {...(kind === "wipe" ? { "data-debug-dock-wipe-dialog": "true" } : {})}
     >

@@ -63,6 +63,7 @@ export function DevelopmentToolLauncherInternalV1(
       <div
         ref={movable ? drag.containerRef : undefined}
         className={styles["development-tool-launcher"]}
+        data-silly-tool-surface="true"
         data-development-tool-launcher="true"
         data-development-tool-panel="true"
         data-debug-dock={props.debugAction === undefined ? undefined : "true"}

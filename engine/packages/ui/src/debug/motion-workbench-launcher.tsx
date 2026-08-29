@@ -282,7 +282,7 @@ export function MotionWorkbenchLauncherV1(props: MotionWorkbenchLauncherPropsV1)
 
   if (selection === null) {
     return (
-      <div data-motion-workbench-launcher="empty">
+      <div data-motion-workbench-launcher="empty" data-silly-tool-surface="true">
         <p>从舞台溯源的 "编辑 Motion" 进入，或从下面打开：</p>
         {props.cases === undefined || props.cases.length === 0
           ? null
@@ -326,6 +326,7 @@ export function MotionWorkbenchLauncherV1(props: MotionWorkbenchLauncherPropsV1)
       data-motion-workbench-launcher={selection.source.motionId}
       data-motion-workbench-context={selection.caseId ??
         (selection.capture === null ? "fallback" : "capture")}
+      data-silly-tool-surface="true"
     >
       <button type="button" data-motion-workbench-close="true" onClick={requestClose}>
         关闭

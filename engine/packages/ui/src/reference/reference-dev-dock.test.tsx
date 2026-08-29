@@ -360,6 +360,7 @@ describe("ReferenceDevDockV1 progressive host", () => {
     await act(async () => await capabilities.setEnabled("debug_tools", true));
     await userEvent.setup().click(screen.getByRole("button", { name: "调试" }));
     const failure = await screen.findByRole("alert");
+    expect(failure).toHaveAttribute("data-silly-tool-surface", "true");
     expect(failure).toHaveTextContent("ui.devdock_contribution_load_failed");
     expect(failure).not.toHaveTextContent("private loader detail");
     expect(control.panels.getCurrent().map(({ id }) => id)).toEqual(["static.panel"]);

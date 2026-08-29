@@ -36,6 +36,8 @@ export function vnReferenceTourTargetUrlV1(query = ""): string {
 interface PageDiagnosticsV1 {
   readonly pageErrors: readonly string[];
   readonly consoleErrors: readonly string[];
+  /** Removes one exact, deliberately exercised uncaught page error. */
+  consumeExpectedPageError(message: string): void;
   /** Removes one exact, deliberately exercised console error; every other error still fails. */
   consumeExpectedConsoleError(message: string): void;
 }
@@ -55,6 +57,17 @@ export const test = base.extend<{ pageDiagnostics: PageDiagnosticsV1 }>({
       await use({
         pageErrors,
         consoleErrors,
+        consumeExpectedPageError(message: string): void {
+          const matchingIndexes = pageErrors.flatMap((candidate, index) =>
+            candidate === message ? [index] : []
+          );
+          if (matchingIndexes.length !== 1 || matchingIndexes[0] === undefined) {
+            throw new Error(
+              `expected one exact page error to consume, found ${String(matchingIndexes.length)}`,
+            );
+          }
+          pageErrors.splice(matchingIndexes[0], 1);
+        },
         consumeExpectedConsoleError(message: string): void {
           const matchingIndexes = consoleErrors.flatMap((candidate, index) =>
             candidate === message ? [index] : []

@@ -7,9 +7,6 @@
 
 .app {
   container: silly-inspector / inline-size;
-
-  --silly-control-min-size: var(--silly-control-min-size-compact);
-
   display: flex;
   flex-direction: column;
   inline-size: 100%;
@@ -20,9 +17,6 @@
   padding: var(--silly-space-2);
   background: var(--silly-color-canvas);
   color: var(--silly-color-text);
-  font-family: var(--silly-debug-font-family);
-  font-size: var(--silly-text-size-compact);
-  line-height: var(--silly-line-height-compact);
 }
 
 .host[data-authoring-host-mode="embedded"],

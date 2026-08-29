@@ -68,6 +68,7 @@ async function expectInteractiveSurfaceFitsV1(
       ...interactiveSurface.querySelectorAll<HTMLElement>("button:not(:disabled)"),
     ]
       .filter((element) => {
+        if (element.closest('[data-silly-tool-surface="true"]') !== null) return false;
         const rect = element.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0;
       })
@@ -863,13 +864,13 @@ test("embedded authoring inherits the shared UI baseline and stays bounded", asy
     await page.setViewportSize(viewport);
     await page.goto(vnReferenceTourTargetUrlV1());
     if (viewport.width === 1_280) {
-      await page.locator("html").evaluate((root) => {
-        root.style.setProperty("--silly-text-size-base", "16px");
-        root.style.setProperty("--silly-text-size-compact", "13px");
-        root.style.setProperty("--silly-control-min-size", "32px");
-        root.style.setProperty("--silly-control-min-size-compact", "28px");
-        root.style.setProperty("--silly-color-text", "rgb(17, 34, 51)");
-        root.style.setProperty("--silly-debug-font-family", "monospace");
+      await page.locator("[data-application-id]").evaluate((application) => {
+        application.style.setProperty("--silly-text-size-base", "16px");
+        application.style.setProperty("--silly-text-size-compact", "13px");
+        application.style.setProperty("--silly-control-min-size", "32px");
+        application.style.setProperty("--silly-control-min-size-compact", "28px");
+        application.style.setProperty("--silly-color-text", "rgb(17, 34, 51)");
+        application.style.setProperty("--silly-font-family", '"Courier New", serif');
       });
     }
     const developmentPanel = page.locator("[data-development-tool-panel]");
@@ -893,7 +894,7 @@ test("embedded authoring inherits the shared UI baseline and stays bounded", asy
       }));
       expect(sharedScale.titleFontSize).toBe(16);
       expect(sharedScale.devDockFontSize).toBe(12);
-      expect((await authorLauncher.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
+      expect((await authorLauncher.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(28);
     }
     await authorLauncher.click();
 
@@ -977,20 +978,33 @@ test("embedded authoring inherits the shared UI baseline and stays bounded", asy
 
     if (viewport.width === 1_280) {
       const inherited = await inspector.evaluate((root) => {
-        const documentStyle = getComputedStyle(document.documentElement);
+        const application = document.querySelector<HTMLElement>("[data-application-id]");
+        const nestedButton = root.querySelector<HTMLElement>("button");
+        const nestedInput = root.querySelector<HTMLElement>("input");
+        if (application === null || nestedButton === null || nestedInput === null) {
+          throw new TypeError("tool theme font fixtures missing");
+        }
+        const applicationStyle = getComputedStyle(application);
         const rootStyle = getComputedStyle(root);
         return {
-          documentFontSize: Number.parseFloat(documentStyle.fontSize),
+          applicationFontSize: Number.parseFloat(applicationStyle.fontSize),
+          applicationColor: applicationStyle.color,
+          applicationFontFamily: applicationStyle.fontFamily,
           rootFontSize: Number.parseFloat(rootStyle.fontSize),
-          documentColor: documentStyle.color,
           rootColor: rootStyle.color,
           rootFontFamily: rootStyle.fontFamily,
+          buttonFontFamily: getComputedStyle(nestedButton).fontFamily,
+          inputFontFamily: getComputedStyle(nestedInput).fontFamily,
         };
       });
-      expect(inherited.documentFontSize).toBe(16);
-      expect(inherited.rootFontSize).toBe(13);
-      expect(inherited.rootColor).toBe(inherited.documentColor);
-      expect(inherited.rootFontFamily).toContain("monospace");
+      expect(inherited.applicationFontSize).toBe(16);
+      expect(inherited.applicationColor).toBe("rgb(17, 34, 51)");
+      expect(inherited.applicationFontFamily).toContain("Courier New");
+      expect(inherited.rootFontSize).toBe(14);
+      expect(inherited.rootColor).not.toBe(inherited.applicationColor);
+      expect(inherited.rootFontFamily).not.toContain("Courier New");
+      expect(inherited.buttonFontFamily).toBe(inherited.rootFontFamily);
+      expect(inherited.inputFontFamily).toBe(inherited.rootFontFamily);
       const closeBounds = await close.boundingBox();
       expect(closeBounds?.height ?? 0).toBeGreaterThanOrEqual(28);
 

@@ -8,7 +8,7 @@ const automationKeyV1 = "__SILLYMAKER_AUTOMATION_V1__";
 async function advanceSayV1(page: Page): Promise<void> {
   const dialogue = page.locator("[data-dialogue='say']");
   await expect(dialogue).toHaveAttribute("data-dialogue-reveal", "complete");
-  await page.locator("[data-dialogue-advance]").click({ position: { x: 8, y: 8 } });
+  await page.locator("[data-dialogue-advance]").click();
 }
 
 test("Template uses the production Narrative renderer through completion", async ({ page }) => {
@@ -23,6 +23,10 @@ test("Template uses the production Narrative renderer through completion", async
   });
 
   await page.goto(templateTargetUrlV1());
+  await expect(page.locator("#sillymaker-embedded-author-root")).toHaveAttribute(
+    "data-silly-tool-surface",
+    "true",
+  );
   await page.getByRole("button", { name: "新游戏" }).click();
   await page.getByRole("button", { name: "开始故事" }).click();
   await expect(page.locator("[data-dialogue='say']")).toContainText(
@@ -65,6 +69,34 @@ test("Template uses the production Narrative renderer through completion", async
   await expect(page.locator("[data-template-narrative='completed']")).toContainText(
     "本段落已结束",
   );
+});
+
+test("Template early startup failure keeps the embedded Authoring fallback themed", async ({ page, pageDiagnostics }) => {
+  await page.addInitScript(() => {
+    const querySelectorV1 = Document.prototype.querySelector;
+    Document.prototype.querySelector = function (
+      this: Document,
+      selectors: string,
+    ): Element | null {
+      if (selectors === "#root") return null;
+      return querySelectorV1.call(this, selectors);
+    } as typeof Document.prototype.querySelector;
+  });
+
+  await page.goto(templateTargetUrlV1());
+  const shell = page.locator("[data-sillymaker-startup-state]");
+  await expect(shell).toHaveAttribute("data-sillymaker-startup-state", "failed");
+
+  const launcher = page.getByRole("button", { name: "打开内嵌制作" });
+  await expect(launcher).toBeVisible();
+  await expect(launcher).toHaveCSS("min-height", "28px");
+  await expect.poll(() =>
+    launcher.evaluate((element) =>
+      getComputedStyle(element).getPropertyValue("--silly-control-min-size").trim()
+    )
+  ).toBe("28px");
+
+  pageDiagnostics.consumeExpectedPageError("web.application_root_missing");
 });
 
 test("Template automation dispatch prepares the selected content pack", async ({ page }) => {

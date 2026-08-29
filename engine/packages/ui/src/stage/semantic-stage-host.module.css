@@ -118,7 +118,7 @@
   padding: 0 4px;
   background: rgb(13 148 136 / 85%);
   color: rgb(240 253 250);
-  font-family: var(--silly-debug-font-family, monospace);
+  font-family: var(--silly-tool-font-family, monospace);
   font-size: 0.625rem;
   line-height: 1.6;
   white-space: nowrap;

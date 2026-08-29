@@ -129,6 +129,11 @@ Browser 与 Deno Desktop 的 Game/GUI 文档，以及独立 Inspector 文档，�
 canvas/body 默认颜色、原生表单与基础按钮样式、focus ring 和 reduced-motion。package 或组件样式
 不得另建平行 reset、root font scale、默认 palette 或表单 recipe。
 
+低层 `mountGameApplicationV1` 保持同步且只附带 Host document geometry；它不暗中维护精简版主题。
+直接使用该入口并选择引擎默认视觉的应用显式加载同一个 `@sillymaker/ui/styles.css`。标准 Game/GUI
+入口仍在 startup admission 后、React mount 前加载该 stylesheet，因此没有第二个字体、palette、control
+或 focus authority，也不为样式去重改变启动时序。
+
 `--silly-text-size-base` 是 15–16px 的正常 document `rem` 基线，不因大显示器继续增长；
 `--silly-text-size-compact` 与 `--silly-control-min-size-compact` 是 Inspector、DevDock 等高信息密度工具的
 共享派生档，而不是第二套 viewport scale。全局 UI 使用紧凑行高；正文、对白和说明在自身作用域显式使用
@@ -142,6 +147,19 @@ readable line height。常驻 HUD 使用正常基线但约束自身占比，Titl
 某个 surface 或组件也可以在更窄作用域覆盖相同 token，或使用其已有的 component-specific token。
 普通主题化与局部定制都通过 CSS cascade 完成，不要求 Theme Provider、JavaScript scale service、
 组件 fork 或新的 UI runtime。
+
+`[data-application-id]` 是产品主题边界。游戏或 GUI 应用的字体、palette、表单 recipe 与第三方 CSS 只能
+在该根或更窄的产品根下激活；不得用 `:root`、`html`、`body`、裸元素或无作用域的 universal selector
+把产品视觉主题变成整个 Host 文档的默认值。Application-owned Host 仍可在 `html` / `body` / `#root`
+声明尺寸、margin、overflow 等文档几何，并在应用独占文档时选择 `color-scheme`；这些规则不得携带产品
+字体、palette 或组件样式进入 sibling engine tools。`@font-face` 可以注册产品字体，但 family 名必须产品
+命名空间化，并且只在产品根应用。Tailwind 等产品自选构建工具不得把 Preflight 或组件 reset 泄漏到文档根。
+
+Inspector、DevDock、Embedded Authoring 与相关 portal 标记为 Tool Theme surface。它们在同一全局基线内
+把普通 token 重绑定到 `--silly-tool-*` 的紧凑、中性工具规格，因此不会继承所在游戏的字体、palette、
+spacing、radius、control density 或 focus 颜色。游戏专属 Inspector/编辑器扩展在该 Tool Theme 根内渲染，
+可以使用语义组件和局部样式，但不建立第二套 document reset。这里不使用 Shadow DOM、iframe、
+`!important` 字体墙或 hostile-CSS 防御；可信产品代码遵守上述作用域合同。
 
 ### 4.2 UI chrome assets
 

@@ -515,7 +515,11 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
   };
 
   return (
-    <div className={styles.workbench} data-motion-workbench={source.motionId}>
+    <div
+      className={styles.workbench}
+      data-motion-workbench={source.motionId}
+      data-silly-tool-surface="true"
+    >
       <header className={styles.header}>
         <strong>{viewedDocument.label}</strong>
         <span className={styles.path}>{source.path}</span>

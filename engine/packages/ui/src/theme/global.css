@@ -15,6 +15,54 @@
   text-rendering: optimizelegibility;
 }
 
+/* `data-application-id` is the product theme boundary. Applications set
+   ordinary --silly-* overrides here, never on the document root, so their
+   typography and palette do not become defaults for sibling engine tools. */
+:where([data-application-id]) {
+  color: var(--silly-color-text);
+  font-family: var(--silly-font-family);
+  font-size: var(--silly-text-size-base);
+  line-height: var(--silly-line-height-ui);
+}
+
+/* Inspector, DevDock, embedded authoring, and their portals use one engine-
+   owned Tool Theme. Rebinding at the surface root keeps application themes
+   replaceable without maintaining a second reset or a Theme Provider. */
+:where([data-silly-tool-surface="true"]) {
+  --silly-font-family: var(--silly-tool-font-family);
+  --silly-text-size-base: var(--silly-tool-text-size);
+  --silly-text-size-compact: var(--silly-tool-text-size);
+  --silly-line-height-ui: var(--silly-tool-line-height);
+  --silly-line-height-compact: var(--silly-tool-line-height);
+  --silly-control-min-size: var(--silly-tool-control-min-size);
+  --silly-control-min-size-compact: var(--silly-tool-control-min-size);
+  --silly-space-1: var(--silly-tool-space-1);
+  --silly-space-2: var(--silly-tool-space-2);
+  --silly-space-3: var(--silly-tool-space-3);
+  --silly-space-4: var(--silly-tool-space-4);
+  --silly-radius-control: var(--silly-tool-radius-control);
+  --silly-radius-card: var(--silly-tool-radius-card);
+  --silly-color-canvas: var(--silly-tool-color-canvas);
+  --silly-color-surface: var(--silly-tool-color-surface);
+  --silly-color-surface-translucent: var(--silly-tool-color-surface-translucent);
+  --silly-color-text: var(--silly-tool-color-text);
+  --silly-color-text-muted: var(--silly-tool-color-text-muted);
+  --silly-color-border: var(--silly-tool-color-border);
+  --silly-color-control: var(--silly-tool-color-control);
+  --silly-color-control-hover: var(--silly-tool-color-control-hover);
+  --silly-color-accent: var(--silly-tool-color-accent);
+  --silly-color-accent-text: var(--silly-tool-color-accent-text);
+  --silly-color-danger: var(--silly-tool-color-danger);
+  --silly-focus-ring-inner: var(--silly-tool-focus-ring-inner);
+  --silly-focus-ring-outer: var(--silly-tool-focus-ring-outer);
+
+  color: var(--silly-color-text);
+  color-scheme: dark;
+  font-family: var(--silly-font-family);
+  font-size: var(--silly-text-size-base);
+  line-height: var(--silly-line-height-ui);
+}
+
 body {
   inline-size: 100%;
   max-inline-size: 100%;
@@ -91,7 +139,7 @@ body {
   min-block-size: var(--silly-control-min-size);
   padding-block: var(--silly-space-1);
   padding-inline: var(--silly-space-2);
-  font-family: var(--silly-debug-font-family);
+  font-family: var(--silly-tool-font-family);
   font-size: 0.75rem;
   line-height: 1.25;
 }

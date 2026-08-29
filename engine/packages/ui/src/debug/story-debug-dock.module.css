@@ -152,12 +152,6 @@
   inset: 0;
   z-index: var(--silly-surface-z-confirm);
   pointer-events: auto;
-
-  /* The confirm layer is a portal sibling of the dock root: rebind the
-     devtools font here too. */
-  --silly-font-family: var(--silly-debug-font-family);
-
-  font-family: var(--silly-font-family);
 }
 
 .story-debug-dock__wipe-backdrop {

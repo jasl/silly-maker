@@ -764,6 +764,19 @@ documented migration path.
   authentication, mandatory Shadow DOM, or a fake side-effect sandbox. A real
   untrusted-code requirement needs a separately accepted iframe/Worker/process
   isolation boundary.
+- Product CSS activates fonts, palette, control recipes, and third-party styles
+  only under `[data-application-id]` or a narrower product root; it does not
+  theme `:root`, `html`, `body`, bare controls, or an unscoped universal
+  selector. An application-owned Host may still set document geometry
+  (`html`/`body`/`#root` size, margin, and overflow) and whole-document
+  `color-scheme`; those rules must not carry the product font, palette, or
+  component styling into sibling engine tools.
+  Product `@font-face` families are namespaced and activated only in that root.
+  Inspector, DevDock, Embedded Authoring, and game-specific tool extensions use
+  the engine-owned `--silly-tool-*` Tool Theme and must not inherit product
+  theme tokens. Tailwind/daisyUI remain optional application-owned build tools;
+  their Preflight/reset and theme classes never become an engine or document
+  global contract.
 - Do not infer that a component needs Worker/iframe/process isolation from its
   size, package origin, or third-party status. Event-loop, heap, and startup
   changes require raw benchmark/profiler evidence and confirmation in a real
