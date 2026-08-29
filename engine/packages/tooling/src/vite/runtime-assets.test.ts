@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -108,6 +108,23 @@ describe("runtime asset path resolution", () => {
     await expect(
       copyRuntimeAssetsV1(linkedRoot, join(fixture.root, "dist-linked")),
     ).rejects.toThrow("runtime asset root must be a real directory");
+  });
+
+  it("drops Finder/Explorer metadata from the production copy", async () => {
+    const fixture = await fixtureV1();
+    await writeFile(join(fixture.assets, ".DS_Store"), "finder", "utf8");
+    await writeFile(join(fixture.assets, "images", "Thumbs.db"), "explorer", "utf8");
+    await writeFile(join(fixture.assets, "images", "._cover.webp"), "appledouble", "utf8");
+    const output = join(fixture.root, "dist-assets");
+    await copyRuntimeAssetsV1(fixture.assets, output);
+    await expect(access(join(output, "images", "cover.webp"))).resolves.toBeUndefined();
+    await expect(access(join(output, ".DS_Store"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(access(join(output, "images", "Thumbs.db"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(access(join(output, "images", "._cover.webp"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("maps common runtime media types without trusting the request header", () => {
