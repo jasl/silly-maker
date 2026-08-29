@@ -10,7 +10,12 @@ import type {
   DefaultGameRootSlotsV1,
   SemanticStageEntryRendererV1,
 } from "@sillymaker/ui";
-import { Button, SemanticStageV1, useNarrativeAsideV1 } from "@sillymaker/ui";
+import {
+  Button,
+  ChromeWidgetSurfaceV1,
+  SemanticStageV1,
+  useNarrativeAsideV1,
+} from "@sillymaker/ui";
 
 import { labStageInspectControllerV1 } from "./stage-inspect.ts";
 
@@ -18,6 +23,7 @@ import type { LabActionIdV1 } from "./semantic.ts";
 import type { LabApplicationInstanceV1 } from "./core-definition.ts";
 import type { LabUiOverlayIdV1, LabUiPublicationV1 } from "./composition.tsx";
 import { labUiTextV1 } from "./ui-text.ts";
+import { labDrillChromeLayoutV1, labDrillEngageIntentIdV1 } from "../chrome/index.ts";
 import { labDrillTripwireChoiceIdV1 } from "../gameplay/narrative.ts";
 import {
   labBeaconPulseCueIdV1,
@@ -171,6 +177,16 @@ export function LabHudV1(props: {
   readonly semantic: LabSemanticPortV1;
 }): ReactElement {
   const monitors = props.publication.semantic.game.monitors;
+  // The chrome M3 conformance: the layout Document declares the widgets;
+  // this port is the whole Story side — availability from the published
+  // projection, activation mapped onto the occurrence-fenced collector
+  // write (the mid-hold-input command). Widgets never route; the hold's
+  // own `when` arm reads the committed write at the next settlement's t=0.
+  const pending = props.publication.semantic.narrative.pending;
+  const sharedHold = pending !== null && pending.kind === "hold" && pending.stageInput === "shared"
+    ? pending
+    : null;
+  const anyHold = pending !== null && pending.kind === "hold" ? pending : null;
   return (
     <div data-lab-hud="true">
       <p>
@@ -205,6 +221,38 @@ export function LabHudV1(props: {
             {labUiTextV1(labActionTextIdsV1[action.actionId])}
           </Button>
         ))}
+      </div>
+      <div data-lab-chrome-widgets="true" style={{ position: "relative" }}>
+        <ChromeWidgetSurfaceV1
+          layout={labDrillChromeLayoutV1}
+          intents={{
+            stateOf: (intentId) => {
+              if (intentId !== labDrillEngageIntentIdV1 || sharedHold === null) {
+                return Object.freeze({ status: "hidden" as const });
+              }
+              return monitors.collectorEngaged
+                ? Object.freeze({
+                  status: "disabled" as const,
+                  reasonTextIds: Object.freeze(["text.e2e.lab.chrome.engaged"]),
+                })
+                : Object.freeze({ status: "enabled" as const });
+            },
+            onActivate: (intentId) => {
+              if (intentId !== labDrillEngageIntentIdV1 || sharedHold === null) return;
+              void props.semantic.dispatch(
+                Object.freeze({
+                  kind: "hold_write" as const,
+                  actionId: "lab.engage_collector" as const,
+                  expectedHoldOccurrenceId: sharedHold.occurrenceId,
+                }),
+              );
+            },
+          }}
+          holdProgress={anyHold === null
+            ? null
+            : { remainingMs: anyHold.remainingMs, totalMs: anyHold.totalMs }}
+          resolveText={labUiTextV1}
+        />
       </div>
     </div>
   );

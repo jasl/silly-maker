@@ -1,0 +1,30 @@
+{
+  "format": "sillymaker.chrome-layout",
+  "version": 1,
+  "layoutId": "layout.e2e.drill",
+  "label": "演习 chrome widget 布局",
+  "canvas": { "width": 1600, "height": 1000 },
+  "boxes": {
+    "drill.engage": { "x": 1240, "y": 840, "width": 240, "height": 56 },
+    "drill.progress": { "x": 1240, "y": 780, "width": 240, "height": 24 }
+  },
+  "anchors": {},
+  "offsets": {},
+  "widgets": {
+    "drill.engage": {
+      "kind": "intent",
+      "box": "drill.engage",
+      "intentId": "lab.intent.engage_collector",
+      "labelTextId": "text.e2e.lab.chrome.engage"
+    },
+    "drill.progress": {
+      "kind": "hold_progress",
+      "box": "drill.progress",
+      "labelTextId": "text.e2e.lab.chrome.progress"
+    }
+  },
+  "authoring": {
+    "status": "human_tuned",
+    "notes": "chrome M3 一致性演习：意图 widget（围栏收集器写）+ hold 进度 meter 的声明位。"
+  }
+}

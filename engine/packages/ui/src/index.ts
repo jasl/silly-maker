@@ -30,6 +30,14 @@ export type {
   PanelPropsV1,
   ProgressMeterPropsV1,
 } from "./primitives/index.ts";
+export { ChromeWidgetSurfaceV1 } from "./chrome/chrome-widget-surface.tsx";
+export type {
+  ChromeHoldProgressViewV1,
+  ChromeIntentWidgetStateV1,
+  ChromeIntentWidgetStatusV1,
+  ChromeWidgetIntentPortV1,
+  ChromeWidgetSurfacePropsV1,
+} from "./chrome/chrome-widget-surface.tsx";
 export { createUiContributionRegistryV1 } from "./contributions/registry.ts";
 export type {
   GameRendererContextV1,

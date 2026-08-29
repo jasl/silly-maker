@@ -15,6 +15,15 @@ import { dataFailure, readExactRecord } from "./presentation-data.ts";
  * `boxes` are placed rectangles (position + size), `anchors` are
  * position-only points for self-sizing elements, and `offsets` are named
  * integer scalars (font-metric compensation and similar).
+ *
+ * The optional `widgets` section (M3, intent-binding widgets, accepted
+ * 2026-08-29) declares icon-button chrome as data: each widget is the
+ * "canvas box + asset + intent id" triple from the proposal, rendered by a
+ * generic chrome host. A widget only ever reports "intent id activated";
+ * routing power and legality stay in Story rules (the same boundary as
+ * `regions never gain routing power`). The `hold_progress` kind places a
+ * read-only progress meter for the currently pending authoritative hold.
+ * Documents without `widgets` parse byte-identically to before.
  */
 
 export type ChromeLayoutAuthoringStatusV1 = "generated" | "human_tuned";
@@ -47,6 +56,36 @@ export interface ChromeLayoutAnchorV1 {
   readonly y: number;
 }
 
+export type ChromeLayoutWidgetKindV1 = "intent" | "hold_progress";
+
+/**
+ * An intent-binding icon button: geometry via a named `boxes` entry, an
+ * optional icon asset id, a required label text id (the accessible name),
+ * and the stable intent id the Story maps to a semantic invocation.
+ */
+export interface ChromeLayoutIntentWidgetV1 {
+  readonly kind: "intent";
+  /** Name of the `boxes` entry the widget occupies (admission-checked). */
+  readonly box: string;
+  readonly intentId: string;
+  readonly labelTextId: string;
+  readonly assetId?: string;
+}
+
+/**
+ * A read-only progress meter for the currently pending authoritative hold
+ * (fill fraction from committed `remainingMs`/`totalMs`); hidden while no
+ * hold is pending. Cosmetic bar styling beyond the meter stays in Story
+ * renderers.
+ */
+export interface ChromeLayoutHoldProgressWidgetV1 {
+  readonly kind: "hold_progress";
+  readonly box: string;
+  readonly labelTextId: string;
+}
+
+export type ChromeLayoutWidgetV1 = ChromeLayoutIntentWidgetV1 | ChromeLayoutHoldProgressWidgetV1;
+
 export interface ChromeLayoutDocumentV1 {
   readonly format: "sillymaker.chrome-layout";
   readonly version: 1;
@@ -58,6 +97,8 @@ export interface ChromeLayoutDocumentV1 {
   readonly boxes: Readonly<Record<string, ChromeLayoutBoxV1>>;
   readonly anchors: Readonly<Record<string, ChromeLayoutAnchorV1>>;
   readonly offsets: Readonly<Record<string, number>>;
+  /** Optional intent-binding widget declarations (M3); absent when unused. */
+  readonly widgets?: Readonly<Record<string, ChromeLayoutWidgetV1>>;
   readonly authoring?: ChromeLayoutAuthoringV1;
 }
 
@@ -187,6 +228,79 @@ function parseChromeLayoutSectionV1<TEntry>(
   );
 }
 
+function requireChromeLayoutIdV1(value: unknown, path: string): string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > chromeLayoutMaxEntryNameLengthV1 ||
+    value.trim().length === 0
+  ) {
+    return dataFailure(path, "chrome_layout_widget_invalid");
+  }
+  return value;
+}
+
+function parseChromeLayoutWidgetV1(
+  value: unknown,
+  path: string,
+  boxes: Readonly<Record<string, ChromeLayoutBoxV1>>,
+): ChromeLayoutWidgetV1 {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Object.prototype
+  ) {
+    return dataFailure(path, "chrome_layout_widget_invalid");
+  }
+  const kind: unknown = Reflect.get(value, "kind");
+  if (kind !== "intent" && kind !== "hold_progress") {
+    return dataFailure(`${path}/kind`, "chrome_layout_widget_kind_invalid");
+  }
+  const parsedKind: ChromeLayoutWidgetKindV1 = kind;
+  switch (parsedKind) {
+    case "intent": {
+      const hasAsset = Object.hasOwn(value, "assetId");
+      const record = readExactRecord(
+        value,
+        hasAsset
+          ? ["kind", "box", "intentId", "labelTextId", "assetId"]
+          : ["kind", "box", "intentId", "labelTextId"],
+        path,
+      );
+      const box = requireChromeLayoutIdV1(record.box, `${path}/box`);
+      if (boxes[box] === undefined) {
+        return dataFailure(`${path}/box`, "chrome_layout_widget_box_unknown");
+      }
+      return Object.freeze({
+        kind: "intent" as const,
+        box,
+        intentId: requireChromeLayoutIdV1(record.intentId, `${path}/intentId`),
+        labelTextId: requireChromeLayoutIdV1(record.labelTextId, `${path}/labelTextId`),
+        ...(hasAsset
+          ? { assetId: requireChromeLayoutIdV1(record.assetId, `${path}/assetId`) }
+          : {}),
+      });
+    }
+    case "hold_progress": {
+      const record = readExactRecord(value, ["kind", "box", "labelTextId"], path);
+      const box = requireChromeLayoutIdV1(record.box, `${path}/box`);
+      if (boxes[box] === undefined) {
+        return dataFailure(`${path}/box`, "chrome_layout_widget_box_unknown");
+      }
+      return Object.freeze({
+        kind: "hold_progress" as const,
+        box,
+        labelTextId: requireChromeLayoutIdV1(record.labelTextId, `${path}/labelTextId`),
+      });
+    }
+    default: {
+      const unreachable: never = parsedKind;
+      throw new TypeError(`chrome_layout_widget_kind_unreachable:${String(unreachable)}`);
+    }
+  }
+}
+
 function parseChromeLayoutAuthoringV1(value: unknown, path: string): ChromeLayoutAuthoringV1 {
   if (
     value === null ||
@@ -241,6 +355,8 @@ function parseChromeLayoutAuthoringV1(value: unknown, path: string): ChromeLayou
 export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLayoutDocumentV1 {
   const hasAuthoring = value !== null && typeof value === "object" &&
     Object.hasOwn(value, "authoring");
+  const hasWidgets = value !== null && typeof value === "object" &&
+    Object.hasOwn(value, "widgets");
   const baseKeys = [
     "format",
     "version",
@@ -250,6 +366,7 @@ export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLa
     "boxes",
     "anchors",
     "offsets",
+    ...(hasWidgets ? ["widgets"] : []),
   ];
   const record = readExactRecord(value, hasAuthoring ? [...baseKeys, "authoring"] : baseKeys, path);
   if (record.format !== chromeLayoutDocumentFormatV1) {
@@ -307,8 +424,15 @@ export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLa
         "chrome_layout_offset_invalid",
       ),
   );
+  const widgets = hasWidgets
+    ? parseChromeLayoutSectionV1(
+      record.widgets,
+      `${path}/widgets`,
+      (entryValue, entryPath) => parseChromeLayoutWidgetV1(entryValue, entryPath, boxes),
+    )
+    : undefined;
   const entryCount = Object.keys(boxes).length + Object.keys(anchors).length +
-    Object.keys(offsets).length;
+    Object.keys(offsets).length + (widgets === undefined ? 0 : Object.keys(widgets).length);
   if (entryCount > chromeLayoutMaxEntriesV1) {
     return dataFailure(path, "chrome_layout_entries_count_invalid");
   }
@@ -324,6 +448,7 @@ export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLa
     boxes,
     anchors,
     offsets,
+    ...(widgets === undefined ? {} : { widgets }),
     ...(authoring === undefined ? {} : { authoring }),
   });
 }

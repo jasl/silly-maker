@@ -101,6 +101,47 @@ describe("chrome-edit", () => {
     expect(edited.offsets["anything"]).toBeUndefined();
   });
 
+  it("keeps widget box references valid across box renames and removals", () => {
+    const withWidgets = parseChromeLayoutDocumentV1({
+      format: "sillymaker.chrome-layout",
+      version: 1,
+      layoutId: "layout.test.widgets",
+      label: "widget 保全",
+      canvas: { width: 640, height: 360 },
+      boxes: {
+        chip: { x: 40, y: 30, width: 120, height: 48 },
+        bar: { x: 40, y: 90, width: 200, height: 20 },
+      },
+      anchors: {},
+      offsets: {},
+      widgets: {
+        "chip.press": {
+          kind: "intent",
+          box: "chip",
+          intentId: "app.chip.press",
+          labelTextId: "text.chip.press",
+        },
+        "bar.meter": { kind: "hold_progress", box: "bar", labelTextId: "text.bar.meter" },
+      },
+    });
+
+    // A rename rewrites the reference; the draft stays admissible.
+    const renamed = editChromeLayoutDocumentV1(withWidgets, (plain) => {
+      renameEntryV1(plain, "boxes", "chip", "chip-main");
+    });
+    expect(renamed.widgets?.["chip.press"]?.box).toBe("chip-main");
+    expect(chromeLayoutDraftBlockingIssueV1(renamed)).toBeNull();
+
+    // Removing a box removes the widgets anchored to it — never a wedged
+    // draft the workspace cannot save.
+    const removed = editChromeLayoutDocumentV1(withWidgets, (plain) => {
+      removeEntryV1(plain, "boxes", "bar");
+    });
+    expect(removed.widgets?.["bar.meter"]).toBeUndefined();
+    expect(removed.widgets?.["chip.press"]).toBeDefined();
+    expect(chromeLayoutDraftBlockingIssueV1(removed)).toBeNull();
+  });
+
   it("flags drafts that fail admission and infers the id prefix", () => {
     const broken = editChromeLayoutDocumentV1(documentV1(), (plain) => {
       renameEntryV1(plain, "boxes", "chip", "x".repeat(97));

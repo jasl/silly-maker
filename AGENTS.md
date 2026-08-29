@@ -128,9 +128,20 @@ Read only the documents relevant to the change:
   consumers (the template HUD status strip reads its placement from
   `src/chrome/hud.chrome-layout.json` at runtime with browser acceptance;
   the external experiment repo HUD migrated off its M0 story-local parser
-  onto the engine family). The M3 intent-binding widget layer stays behind
-  its own evidence gate. Layout documents stay zero-authority
-  presentation data; behavior booleans and legality stay in Story code.
+  onto the engine family). The M3 intent-binding widget layer passed its
+  evidence gate and was delivered 2026-08-29 (the external golden-baseline
+  audit supplied both real consumers: a choice-over-hold timed-menu button
+  group and a hold-progress HUD bar family): the optional `widgets`
+  section (`intent` and `hold_progress` kinds, box references validated at
+  admission, shared entry budget), the generic `ChromeWidgetSurfaceV1`
+  host in `@sillymaker/ui` (Story supplies the availability projection and
+  maps activation onto semantic commands — widgets never gain routing
+  power; hold progress reads only committed `remainingMs/totalMs`), the
+  Engine Lab chrome-widgets conformance (fenced write over the shared
+  tripwire hold), and Studio geometry edits that keep widget box
+  references valid (rename rewrites, removal reaps). Layout documents stay
+  zero-authority presentation data; behavior booleans and legality stay in
+  Story code.
   The shared-stage-input lane (accepted and delivered 2026-08-26,
   owner-ruled q1 full value set on `say`/`choice`/`hold`/`custom`,
   q2/q3 per recommendation) completed M0–M3 the same day:

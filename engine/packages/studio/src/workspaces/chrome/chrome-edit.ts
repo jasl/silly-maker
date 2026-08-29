@@ -24,6 +24,19 @@ export interface ChromeLayoutPlainAnchorV1 {
   y: number;
 }
 
+/**
+ * The workspace edits geometry only; widgets ride along as opaque data.
+ * The one invariant the editor keeps for them is the box reference, so a
+ * box rename or removal can never wedge the draft against admission.
+ */
+export interface ChromeLayoutPlainWidgetV1 {
+  kind: "intent" | "hold_progress";
+  box: string;
+  labelTextId: string;
+  intentId?: string;
+  assetId?: string;
+}
+
 export interface ChromeLayoutPlainDocumentV1 {
   format: "sillymaker.chrome-layout";
   version: 1;
@@ -33,6 +46,7 @@ export interface ChromeLayoutPlainDocumentV1 {
   boxes: Record<string, ChromeLayoutPlainBoxV1>;
   anchors: Record<string, ChromeLayoutPlainAnchorV1>;
   offsets: Record<string, number>;
+  widgets?: Record<string, ChromeLayoutPlainWidgetV1>;
   authoring?: { status?: "generated" | "human_tuned"; locked?: boolean; notes?: string };
 }
 
@@ -121,7 +135,7 @@ export function chromeLayoutDraftBlockingIssueV1(draft: ChromeLayoutDocumentV1):
 
 function totalEntriesV1(plain: ChromeLayoutPlainDocumentV1): number {
   return Object.keys(plain.boxes).length + Object.keys(plain.anchors).length +
-    Object.keys(plain.offsets).length;
+    Object.keys(plain.offsets).length + Object.keys(plain.widgets ?? {}).length;
 }
 
 function entryNameTakenV1(plain: ChromeLayoutPlainDocumentV1, name: string): boolean {
@@ -180,6 +194,11 @@ export function removeEntryV1(
   switch (section) {
     case "boxes":
       delete plain.boxes[name];
+      // Widgets anchored to the removed box go with it — admission
+      // requires the reference, so keeping them would wedge the draft.
+      for (const [widgetName, widget] of Object.entries(plain.widgets ?? {})) {
+        if (widget.box === name) delete plain.widgets?.[widgetName];
+      }
       return;
     case "anchors":
       delete plain.anchors[name];
@@ -217,6 +236,10 @@ export function renameEntryV1(
     case "boxes":
       if (!Object.hasOwn(plain.boxes, from)) return;
       plain.boxes = renameIn(plain.boxes);
+      // Widget box references follow the rename so the draft stays valid.
+      for (const widget of Object.values(plain.widgets ?? {})) {
+        if (widget.box === from) widget.box = to;
+      }
       return;
     case "anchors":
       if (!Object.hasOwn(plain.anchors, from)) return;

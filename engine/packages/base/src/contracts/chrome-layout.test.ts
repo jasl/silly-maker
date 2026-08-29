@@ -180,4 +180,120 @@ describe("parseChromeLayoutDocumentV1", () => {
     delete missingSection.offsets;
     expect(() => parseChromeLayoutDocumentV1(missingSection)).toThrowError(/object_keys/u);
   });
+
+  it("parses intent and hold_progress widgets and freezes them", () => {
+    const parsed = parseChromeLayoutDocumentV1({
+      ...validDocumentV1(),
+      widgets: {
+        "route.inside": {
+          kind: "intent",
+          box: "board.item.tab.peek",
+          intentId: "app.insert2.inside",
+          labelTextId: "text.app.insert2.inside",
+          assetId: "asset.app.button.inside",
+        },
+        "window.bar": {
+          kind: "hold_progress",
+          box: "board.parked",
+          labelTextId: "text.app.window.bar",
+        },
+      },
+    });
+    expect(parsed.widgets?.["route.inside"]).toEqual({
+      kind: "intent",
+      box: "board.item.tab.peek",
+      intentId: "app.insert2.inside",
+      labelTextId: "text.app.insert2.inside",
+      assetId: "asset.app.button.inside",
+    });
+    expect(parsed.widgets?.["window.bar"]).toEqual({
+      kind: "hold_progress",
+      box: "board.parked",
+      labelTextId: "text.app.window.bar",
+    });
+    expect(Object.isFrozen(parsed.widgets)).toBe(true);
+    expect(Object.isFrozen(parsed.widgets?.["route.inside"])).toBe(true);
+  });
+
+  it("keeps documents without widgets shaped exactly as before", () => {
+    const parsed = parseChromeLayoutDocumentV1(validDocumentV1());
+    expect(Object.hasOwn(parsed, "widgets")).toBe(false);
+  });
+
+  it("rejects malformed widgets with structured paths", () => {
+    expect(() =>
+      parseChromeLayoutDocumentV1({
+        ...validDocumentV1(),
+        widgets: { bad: { kind: "toggle", box: "board.parked", labelTextId: "text.x" } },
+      })
+    ).toThrowError(/chrome_layout_widget_kind_invalid at \/widgets\/bad\/kind/u);
+    expect(() =>
+      parseChromeLayoutDocumentV1({
+        ...validDocumentV1(),
+        widgets: {
+          bad: {
+            kind: "intent",
+            box: "board.missing",
+            intentId: "app.x",
+            labelTextId: "text.x",
+          },
+        },
+      })
+    ).toThrowError(/chrome_layout_widget_box_unknown at \/widgets\/bad\/box/u);
+    expect(() =>
+      parseChromeLayoutDocumentV1({
+        ...validDocumentV1(),
+        widgets: {
+          bad: { kind: "intent", box: "board.parked", intentId: "", labelTextId: "text.x" },
+        },
+      })
+    ).toThrowError(/chrome_layout_widget_invalid at \/widgets\/bad\/intentId/u);
+    expect(() =>
+      parseChromeLayoutDocumentV1({
+        ...validDocumentV1(),
+        widgets: {
+          bad: {
+            kind: "hold_progress",
+            box: "board.parked",
+            labelTextId: "text.x",
+            intentId: "app.x",
+          },
+        },
+      })
+    ).toThrowError(/object_keys at \/widgets\/bad/u);
+    expect(() =>
+      parseChromeLayoutDocumentV1({
+        ...validDocumentV1(),
+        widgets: { bad: "intent" },
+      })
+    ).toThrowError(/chrome_layout_widget_invalid at \/widgets\/bad/u);
+  });
+
+  it("counts widgets into the shared entry cap", () => {
+    const oversized = validDocumentV1();
+    const offsets: Record<string, number> = {};
+    for (let index = 0; index < 251; index += 1) offsets[`offset.${String(index)}`] = index;
+    oversized.offsets = offsets;
+    // 2 boxes + 1 anchor + 251 offsets = 254; two widgets overflow 256.
+    oversized.widgets = {
+      "widget.a": {
+        kind: "hold_progress",
+        box: "board.parked",
+        labelTextId: "text.a",
+      },
+      "widget.b": {
+        kind: "hold_progress",
+        box: "board.parked",
+        labelTextId: "text.b",
+      },
+      "widget.c": {
+        kind: "hold_progress",
+        box: "board.parked",
+        labelTextId: "text.c",
+      },
+    };
+    expect(() => parseChromeLayoutDocumentV1(oversized)).toThrowError(
+      /chrome_layout_entries_count_invalid/u,
+    );
+  });
 });
