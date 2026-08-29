@@ -183,8 +183,25 @@ Read only the documents relevant to the change:
   closed). The pending slot, hold arithmetic, resolution legality, and
   stage-input policy are untouched; asides never enter
   State/Save/digest/replay/History.
-  There is no active lane (narrative-aside closed 2026-08-27;
-  awaiting the owner's next order).
+  The external golden-baseline seal audit (2026-08-29) closed its
+  remaining engine-capability list on main the same day, all
+  evidence-gated by that audit: the chrome-layout M3 widget delivery
+  (recorded above), the serializable presentation RNG
+  (`docs/engine/proposals/presentation-rng.md` — ui-package
+  `derivePresentationSeedV1` + `createPresentationRngStreamV1`,
+  xorshift32 with plain-data snapshots, seeds from committed facts only;
+  zero-authority: never enters State/Save/digest/replay, and
+  authoritative code keeps drawing through `RuleRngV1`), and the
+  conditional-overlay ruling
+  (`docs/engine/proposals/conditional-overlay-binding.md` — no new
+  primitive: `setAppearance` + the stage owner's domain-event fold +
+  appearance-keyed `resolveContent` is the sanctioned composition for
+  state-conditional art, pinned by the Engine Lab mid-hold-input
+  crate-latch conformance; the declarative variant-table family stays
+  deferred pending a real consumer).
+  There is no active lane (the seal-audit closures on 2026-08-29 were
+  evidence-gated deliveries, not a new lane; awaiting the owner's next
+  order).
   Desktop persistence remains an independent promotion gate while the
   adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
