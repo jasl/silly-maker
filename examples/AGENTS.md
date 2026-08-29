@@ -4,10 +4,95 @@ This directory collects independent application packages. A completed example
 must be cohesive and publishable; an active WIP must label its incomplete
 denominator explicitly:
 
-| Package                | Showcases                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | License           |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| `silly-os/`            | GUI-only Creator Preview: Creator Home opens a Program Workspace where the one built-in Agent Creator produces an exact proposal/review flow. The opt-in `?agent=pi-test` B0a route proves deterministic pinned-Pi Worker wiring; `?agent=pi-openai` B0b uses the same typed path with one fixed, qualified live OpenAI profile. P2 adds a Worker-owned Browser Program catalog, exact durable revisions/terminal receipts, and reload/reopen. P3c-B0 checkpoints 1–3 replace P3a's disposable byte owner with an OPFS Workspace Host and exact continuation manifest, prove recovery/contention/storage policy at a `21,897,216`-byte cold-reopened corpus in Chromium and persistent WebKit, and download that exact workspace as a canonical bounded ZIP without sending volume bytes to React. P3a-B1 binds fixed Pi's native `edit` and `bash` to that same volume; Browser Local implements only the bounded terminal-aggregate shell through exact `just-bash@3.4.2` in the Host Worker. No Mod activation, general Provider surface, import, snapshot publication, Wasm/Linux/container/sandbox claim, Git, or Desktop companion is active. Design contract in `silly-os/DESIGN.md`. | Code and text MIT |
-| `vn-last-sound-check/` | **One Last Sound Check**, the maintained flagship product. Its independent package, 110-unique / 82-per-route story, two Authoring Scenes, engine-maintained default VN Player, final media/audio, Back/Forward, responsive/accessibility matrix, system menu and Save surfaces, persistent settings/live locale, layered recovery, Agent/participant authoring handoff, and independent product/engine reviews are complete. Browser forced close restores the last durable autosave rather than promising a last-moment async flush. On 2026-08-29 the owner removed representative real current-low-end qualification from this product's completion gates because no suitable device was available; it was not run or passed, and the product makes no corresponding low-end claim. M4 closed on that reduced evidence scope and M5 completed the flagship cutover. | MIT               |
+| Package     | Showcases                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | License                             |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `silly-os/` | GUI-only Creator Preview: Creator Home opens a Program Workspace where the one built-in Agent Creator produces an exact proposal/review flow. The ordinary route reads the fixed runtime's Provider/model catalog but presents product-owned Providers, model preferences, durable API-key Save, reasoning effort, and optional connection testing without exposing the underlying runtime brand. Settings has separate General, Providers, and Credential Vault categories. Fresh Vaults use automatic device-key unlock; users may instead select Password mode with explicit Lock/Unlock. Provider keys persist until Forget or site-data clearing; Save/Test/model visibility/preferred selection/reasoning remain orthogonal. P2 owns the Browser Program catalog and exact durable revisions/terminal receipts. P3c owns the independent-origin OPFS Workspace authority, continuation, recovery/contention/scale, canonical bounded ZIP, immutable accepted snapshots, and accepted/reviewed/mutable-head currentness. S1b binds live and deterministic fixed Pi runs to native `read`/`write`/`edit`/`bash` plus one fixed structured `grep` AgentTool. Closed S2-Q1 adds one fixed synchronous QuickJS command only below Pi native `bash`; the follow-on file-operation slice adds bounded `mkdir`/`touch`/`cp`/`mv`/`rm` behavior through the same shell and durable Workspace authority. Closed S2-N3 clean-replaces N0/N1 approvals/grants with one default-off durable Program network switch; N2 retains the fixed streamed `download` tool whose bytes move directly from the keyless Broker to Workspace Host staging. The current exact-identity `a17c3490` Cloudflare release carries S3-R1, N3, D1 data management, reasoning effort, and the preceding Sandbox/QJS/network substrate. One public ephemeral-profile Chromium Anthropic journey proves a bounded real Pi `write`/`write`/`bash-qjs` loop and exact relational Sandbox output; it does not prove public WebKit, cross-reload durable-key reuse, broader Providers, live reasoning, real-model `read`/`edit`/`grep`/network tools, or general scripting capability. No search, authenticated/guest network, public-origin ingress claim, Mod activation, protocol guessing, arbitrary headers, HTTP endpoint, import, Python product runtime, broader Wasm/Linux/container claim, Git, or Desktop companion is active. Design contract in `silly-os/DESIGN.md` | Code and text MIT                   |
+| `vn-last-sound-check/` | **One Last Sound Check**, the maintained flagship product. Its independent package, 110-unique / 82-per-route story, two Authoring Scenes, engine-maintained default VN Player, final media/audio, Back/Forward, responsive/accessibility matrix, system menu and Save surfaces, persistent settings/live locale, layered recovery, Agent/participant authoring handoff, and independent product/engine reviews are complete. Browser forced close restores the last durable autosave rather than promising a last-moment async flush. On 2026-08-29 the owner removed representative real current-low-end qualification from this product's completion gates because no suitable device was available; it was not run or passed, and the product makes no corresponding low-end claim. M4 closed on that reduced evidence scope and M5 completed the flagship cutover. | MIT                                 |
+
+Current SillyOS checkpoint (2026-08-29), overriding the dated table summary:
+S1a has replaced the ordinary byte owner with the independent-origin Workspace
+Sandbox and is closed locally. S1b-1 has separately re-qualified fixed Pi's
+native `edit`, and S1b-2 fixed Pi 0.84.3's native `createBashTool`, for the
+deterministic fixture through that Sandbox in Chromium and persistent-profile
+WebKit. Both are closed locally. S1b-3 is also closed locally and gives live and
+deterministic fixed Pi runs the same native `read`/`write`/`edit`/`bash` list
+plus one fixed, read-only structured `grep` Pi `AgentTool`. A real
+Chromium Anthropic `claude-sonnet-4-5` journey proves an exact `write` mutation,
+the resulting Sandbox bytes, cancellation/currentness, no key in the inspected
+control-origin durable projection, and Forget. A later opt-in journey observes two native `write`
+receipts and one native `bash` receipt reaching fixed QJS, exact relational
+output, generation/proposal currentness, Sandbox-only QJS assets, and output
+retained in the same volume after Forget. `read`, `edit`, and `grep` are admitted to
+the live route but have not been observably exercised by the real model. S2-Q1 is
+closed locally on 2026-08-29: fixed synchronous `qjs` sits only below Pi
+native `bash`, uses a fresh Worker and explicit text staging, and has focused
+plus Chromium/WebKit harness evidence. The exact 10-file Sandbox graph, lazy
+load after `bash true`, fresh Host/dedicated Pi-harness Worker cold reopen, and control-build
+QuickJS/Wasm exclusion gate also pass. Admitted common source-evaluation errors
+may return one single-line, 512-byte guest diagnostic through the same Pi
+`bash` path; no dedicated filename/stack field or Host exception is forwarded.
+The follow-on namespace/file slice keeps Pi's native tool set unchanged while
+the shell facade admits fixed `mkdir`, `rm`, `cp`, and `mv` plus a narrow
+product `touch`; every changed entry publishes one durable generation and
+compound operations are bounded best effort rather than atomic transactions.
+Python, broader Wasm, BYO Sandbox, and editor integration remain inactive.
+N1/N2/Credential Vault are closed and deployed together from exact commit
+`ca4104b68312e115c698b9e0d5caeb7cdaf67789`. UI framework work belongs to the
+main engine lane and is intentionally out of scope here. S2-N0 remains part of
+that public release. Its
+deliberately bounded slice is only a product-fixed
+`fetch_url` Pi `AgentTool`, a third stable-origin keyless Network Broker, typed
+terminal approval/currentness handling, and session-only exact **Allow once**.
+Focused contracts and controlled Chromium/persistent-WebKit evidence prove the
+named CORS HTTPS text path without a Provider key, arbitrary header/body, or
+guest network authority. Physical redirect and missing-CORS target behavior is
+not claimed because Playwright fulfillment bypasses those Browser checks; no
+test-only TLS harness is added for N0. N1 durable Program grants and N2
+`download` are now present in the public artifact; search and real-model
+network use remain inactive, and artifact availability does not itself prove a
+public-origin ingress or real-model network-tool journey.
+
+S3-R1 is closed and deployed in current source after its focused contracts and
+combined local Chromium/WebKit Provider/Vault journeys passed. Exact public
+commit `a17c3490` carries the replacement; one ephemeral-profile Anthropic
+Chromium QJS journey passes, while public cross-reload durable-key reuse,
+public WebKit, and broader Providers remain unproved.
+
+P1-B1d reasoning effort is delivered and deployed. The shared Home/workspace
+**Reasoning effort** control maps directly to fixed Pi `thinkingLevel`, projects
+only Pi's exact per-model supported levels, persists one ordinary device-local
+preference defaulting to `medium`, and shows Pi's clamped effective value for
+the current built-in route. Custom endpoints remain fixed to `off` until an
+explicit capability schema exists. Credentials, Test Connection,
+enabled/preferred models, and Program state stay orthogonal. This is an
+`examples/silly-os` product capability and adds no SillyMaker engine API.
+
+The closed and deployed S2-N3 clean replacement removes N0/N1's per-call, exact-URL,
+and per-origin approval model. Each Program owns one non-secret **Allow network
+access** boolean in Product Repository V7. It defaults to `false`; disabled
+`fetch_url`/`download` calls return `network_disabled` before the keyless Broker
+receives a request. When enabled, both fixed Pi tools may use any admitted HTTPS
+URL without another approval prompt. There is no Allow-once, retry, grant list,
+or tool-approval framework. Provider egress remains a separate credential-plane
+capability and is unaffected. The V6→V7 upgrade discards old grant rows rather
+than silently broadening them, so every upgraded Program starts network-off.
+Focused contracts pass with the complete 521-test SillyOS suite; controlled
+Chromium and persistent-WebKit each pass the default-off/cold-reopen
+`fetch_url` journey and the exact `32 MiB` `download` journey. The three
+production build-boundary checks also pass. Public real-model network-tool use
+remains unqualified.
+
+Browser and Desktop share product semantics, not one physical execution
+runtime. Keep Program/volume identity, logical `/workspace`, Pi tool meaning,
+lifecycle/generation/currentness/cancel, bounded results, receipts, snapshots,
+and capability truth aligned. Browser remains the constrained independent-
+origin/OPFS/just-bash/Worker route. A later Desktop adapter may use a fuller
+native process sandbox and separately admit shell, Git, Tar, Python, QuickJS,
+process trees, or PTYs without routing them through just-bash or waiting for
+Browser parity. It still must not inherit credentials, Pi auth storage, Product
+Repository handles, ambient companion environment, network, or host paths
+without an explicit capability. Evidence on one target never promotes the
+other target's capability.
 
 SillyOS is a GUI-only Creator product lane. Preserve its current public
 journey—Creator Home → Program Workspace—and label the default deterministic
@@ -23,13 +108,123 @@ P2 persists product-owned Program facts plus the small continuation anchor
 through its own repository Worker; it never stores credentials, raw Pi/provider
 records, Pi session data, workspace bytes, or a fictional capability result.
 
-P3c-B0 and P3a are closed. P3a-B1 delivered fixed Pi 0.84.3's native `edit`
-and `bash` over the same OPFS volume and passed independent review on
-2026-08-27. Pi retains schema/algorithm/update/result authority; the Host owns
-the exact `just-bash@3.4.2` Browser Local implementation, the single persistent
-volume, bounded terminal aggregate, generation, and session-local mutation
-receipt. The shell profile is deliberately small and is not Linux, a container,
-or a sandbox. P3c-B1 checkpoint 1 delivered the Host/OPFS prepare, exact query,
+The controlling Browser trust model is:
+
+```text
+SillyOS UI / Product Core
+  -> typed Agent RPC
+fixed product-pinned Pi Agent / Credential plane
+  +-> typed WorkspaceExecutionPort
+  |     -> independent-origin Workspace Execution Sandbox
+  |          -> current Program's exclusive VFS volume
+  +-> typed NetworkCapabilityPort
+        -> independent-origin Network Broker
+             -> bounded Browser fetch
+```
+
+SillyOS is the trusted control plane and may execute only product-shipped,
+lockfile/build-identified code. It never evaluates user-, Agent-, project-,
+import-, or model-generated code, injects generated HTML, or exposes product
+storage, credentials, cookies, DOM, or ambient browser APIs to workspace code.
+Pi remains the only Agent/provider/model/tool/plugin authority. The present
+OPFS Host and bounded shell are inside the independent Sandbox origin. The old
+same-origin just-bash result is only historical conformance evidence; current
+authority comes from the separate S1b-2 Sandbox evidence and still is not a
+Linux/container/general-sandbox claim.
+
+The Network Broker is an orthogonal product capability, not ambient guest
+network. It receives no Provider key, product-added authentication, repository
+handle, general VFS authority, guest code, arbitrary headers, or request body.
+The Workspace Sandbox and QJS/just-bash retain `connect-src 'none'` and no
+`curl`. Only the current Program's persisted network boolean may enable the
+fixed Pi `fetch_url` and `download` tools; unchecked sends no Broker request,
+and checked requires no per-tool approval. Each admitted submit replaces the
+Program/workspace-bound Agent Worker boolean before Pi tool execution. The
+product intentionally does not deny private/LAN hostnames, promise DNS pinning,
+bypass CORS, or claim that a failed CORS read prevented the request from leaving
+the Browser.
+
+Product Repository, Credential Vault, and Workspace Volume Repository are
+distinct authorities. The Vault owns a separate IndexedDB database and Worker,
+which separates product ownership and prevents ordinary Program/VFS export from
+including credentials; because it remains under the control origin, different
+database names are not physical same-origin permission separation. Every Save
+persists until Forget or site-data clearing. A fresh Vault creates a random
+non-extractable device key and uses Automatic unlock; the user may switch the
+whole Vault to Password mode for explicit Lock/Unlock. Every ciphertext remains
+bound to the exact normalized immutable Provider/profile endpoint. The UI and
+typed worker path provide Lock, Unlock, Forget, and Update through exact upsert,
+and one exact-binding handoff to a fresh Agent Worker. The Vault Worker has
+`connect-src 'none'`; selected Provider fetch also rejects redirects and
+cross-origin responses. B1c-S0, S1a, S1b-1, and S1b-2 are closed locally. The
+Vault asset is present in the current public release with its exact network-off
+response policy. One separately qualified public Chromium Anthropic QJS loop
+promotes only its exact `write`/`write`/`bash-qjs` behavior; broader tools are
+not inferred from the artifact receipt. The exact origin
+boundary has additional Chromium/WebKit regression evidence: the Sandbox cannot read the control
+document or same-named control IndexedDB/OPFS sentinels, and its control-origin
+fetch is blocked before a request leaves the frame. This proves only the named
+origin/storage/network boundary, not resistance to control-plane XSS, malicious
+extensions, device malware, supply-chain compromise, or misuse while the Vault
+is unlocked; nor is it permission to expose Sandbox-origin ambient storage to
+guest code.
+
+B1b remains historical evidence for five exact live Provider journeys and the
+then-disabled OpenRouter profile. Current S3-R1 replaces that product overlay:
+Settings has separate General, Providers, and Credential Vault categories.
+Available-model checkboxes persist the exact built-in models shown in Creator,
+while a separate preferred model owns the current execution target. A small
+maintained family list seeds only fresh checked-model preferences by intersecting
+the current fixed catalog; it does not invent identities or qualify quality.
+Built-in details show every fixed credential endpoint scope read-only, use an
+uncontrolled API-key input, and keep **Save** request-free and independent
+from model visibility or testing. Save always upserts the encrypted exact
+binding set; the UI never reads the stored key back. The separate, repeatable
+**Test connection** action can select any technically callable model and performs
+only an optional current-time Provider diagnostic without changing checkboxes,
+preferred selection, or Provider status. A failed test retains the saved key for
+retry or replacement. Custom Endpoints persist a non-secret HTTPS profile selecting one
+of `openai-completions`, `openai-responses`, `anthropic-messages`, or
+`google-generative-ai`; a complete admitted profile displays Available, while
+its key is separate durable Connection state. Test state remains transient.
+Creator Home shows a keyboard-reachable warning only while no checked model has
+an unlocked exact Vault binding; otherwise it shows the reusable model picker.
+Cloudflare's product Worker may give only the selected built-in or custom Agent
+Worker its exact canonical endpoint origin in `connect-src`; the ordinary
+document and catalog Worker retain the complete self-only S0 policy, and no
+response is widened to `connect-src https:`. The policy must also retain the
+explicit `default-src`, `script-src`, `style-src`, self-only `style-src-elem`,
+`style-src-attr 'none'`, `worker-src`, `object-src`,
+`base-uri`, `frame-src`, `frame-ancestors`, and `form-action` constraints plus Trusted Types
+Report-Only and the remaining response headers named in DESIGN. CSP permission
+does not imply Provider CORS, and no custom Provider route is called deployed or
+qualified before its own public-origin evidence passes.
+
+The neutral SillyMaker Vite version-stamp gap has been repaired in the engine
+lane and consumed here: production HTML loads a same-origin external stamp
+before the application module, and the strict-CSP artifact check passes. Do not
+weaken `script-src`, add a product-specific nonce/hash workaround, or copy the
+general build pipeline in SillyOS. The matching WebKit production-response
+smoke has passed and S0 is closed; later harness work must retain that floor.
+
+P3c-B0 and P3a are historically closed. Their old same-origin `edit` and
+`bash` receipts do not authorize the new Sandbox. S1b-1 has now re-qualified
+fixed Pi 0.84.3's native `edit` with the independent OPFS owner, exact
+generation/receipt/final bytes, and cold reopen in both engines. Pi retains
+schema/algorithm/update/result authority. `just-bash@3.4.2` now contributes the
+bounded 29-command built-in facade, with product-fixed `qjs` and narrow `touch`
+as the only custom commands. It is neither Linux, a container, nor a general
+sandbox; a live model may reach it only through Pi native `bash` and the current
+Program-bound Workspace authority. Its boundary relies on no fetch/network
+injection plus Sandbox `connect-src 'none'`, not on absence of optional/vendor
+dependencies or unused unregistered implementations in the built shell chunk.
+The structured `grep` tool bypasses shell parsing, invokes fixed `rg` with an
+argument array, is read-only, and cannot advance generation or emit a mutation
+receipt. Its current bounds are a 4 KiB pattern, 1 KiB path, 512-byte glob,
+100 matches, 50 KiB serialized result, 500 code points per matched line, and a
+5-second deadline. This is one fixed product capability, not a generic command
+or plugin dispatcher.
+P3c-B1 checkpoint 1 delivered the Host/OPFS prepare, exact query,
 explicit discard, and cold-reopen contract for one bounded immutable snapshot
 candidate on 2026-08-27. Checkpoint 2's C2a Host publication lifecycle has
 since delivered. C2b Repository V3/physical V4 and C2c's single shared

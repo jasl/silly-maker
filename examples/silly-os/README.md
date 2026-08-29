@@ -31,16 +31,16 @@ Provider/Endpoint scope 则从 Vault 做新的精确 typed handoff。只有用�
 preferred；保存 Key 与连接测试都不会修改 checked/preferred 模型。
 
 可用 built-in 的详情会在 Connection 区域只读展示产品目录给出的一个或多个固定 Endpoint
-scope；同一 Provider 的 **Save key** 会把所给 Key 分别绑定到这些完整 normalized scopes。
+scope；同一 Provider 的 **Save** 会把所给 Key 分别绑定到这些完整 normalized scopes。
 Custom Endpoint 只保存其自身 profile 与 exact endpoint binding。Save 总是把 Key 加密持久化到
 Credential Vault，输入框随后清空；保存本身不请求 Provider，也不需要先测试具体模型。在同一
-scope 再次 **Replace key** 会替换旧密文。完整 Key 不回读到 UI、普通产品状态或 Workspace。
+scope 再次 **Update** 会替换旧密文。完整 Key 不回读到 UI、普通产品状态或 Workspace。
 
 全新 Vault 默认使用 **Automatic**：Vault IndexedDB 保存一个不可导出的设备 AES-GCM key，新的
 Vault Worker 会自动验证并解锁，因此刷新或冷启动后可以直接把精确 binding 交给 Agent Worker。
 用户也可以在独立 Credential Vault 设置中切换到 **Password**，把现有全部凭据原子 rewrap 到
 密码派生 key；Password 模式支持显式 Lock、Unlock 和修改密码，也可以再切回 Automatic。
-**Forget API key** 删除对应 exact binding，并在它正被 Agent 使用时撤销该 Worker 的凭据。
+Connection 的删除图标会删除对应 exact binding，并在它正被 Agent 使用时撤销该 Worker 的凭据。
 Key 会一直保存到用户 Forget 或清除此站点数据。
 
 独立的 **Test connection** 只是可选、可重复的时间点诊断。用户可以从该 Provider 所有技术上
@@ -71,9 +71,9 @@ Host 准备好私有 staging 后才开始 GET，每次最多转交一个等待 A
 current 的 2xx 响应才会通过原有 journal 发布到 Program volume。Chromium 与 WebKit 已各自
 验证 `32 MiB` 二进制、SHA-256、generation/receipt 和冷重开；这仍不等于任意站点 CORS、线上
 ingress、搜索、解压、认证下载或真实模型调用已经通过。Provider 请求是独立的凭据面能力，不受
-Program 网络开关控制。S2-N3 已在本地通过完整 521 项 SillyOS 单元套件、Chromium/WebKit 的
-开关/冷重开/`fetch_url`/`32 MiB download` 路径及三份生产构建边界检查。N1/N2/S3 已随历史三
-origin artifact 部署；S2-N3 的布尔开关替换尚未部署，artifact availability 不提升上述行为资格。
+Program 网络开关控制。S2-N3 已通过完整 521 项 SillyOS 单元套件、Chromium/WebKit 的
+开关/冷重开/`fetch_url`/`32 MiB download` 路径及三份生产构建边界检查，并已进入当前
+`a17c3490` 三 origin artifact；artifact availability 不提升上述行为资格。
 
 另有一个只在 `?agent=pi-test` 出现的 B0a 验证入口：它会把产品 lockfile 固定的
 `pi-agent-core` / `pi-ai` 0.84.3 懒加载进 Dedicated Worker，通过 typed RPC 运行真实
@@ -202,9 +202,10 @@ checkpoint 2 已在 Chromium 与持久 WebKit 中自动写入并冷重开 `1,000
 `read` 的 `256 KiB` wire 上限只限制一次工具调用，并不是 OPFS 卷上限。
 
 `navigator.storage.estimate()` 只描述调用方 origin，不存在跨浏览器、设备统一的固定 quota。
-S1a-1 后 Workspace bytes 属于 Sandbox origin，因此控制面暂时移除了原有 estimate/persist UI，
-避免把 Product Repository 所在 control origin 的读数冒充成 volume 状态。未来若恢复这项 UI，
-必须先由 Sandbox 通过 typed status 提供自己的建议性读数；当前不声称已申请持久化 storage。
+General 的 Data management 分开显示 control origin 与 Sandbox typed status 提供的建议性用量，
+并只给出近似总使用量；它不把 origin-wide 数字冒充成某个 volume/store 的精确计量，也不相加
+两个 quota。Clear All 通过各自 owner 清理 Product、Provider 设置、Vault 和 Sandbox product root，
+是可重试的 best-effort 跨边界操作，不是原子事务；D2 全量导出/恢复仍未实现。
 
 在已打开的持久 Agent workspace 右侧点击“下载工作区 ZIP”，可以下载当前 durable head 的
 VFS 文件与根目录 `sillyos-workspace.json`。生成阶段会显示文件/字节进度并可取消；进入
@@ -423,18 +424,24 @@ Worker，并在得到目录后立即终止它。
 Providers 后在 **Available models** 勾选希望出现在 Creator 选择器中的一个或多个兼容模型。
 fresh 设置会先勾选产品维护的推荐 family 与实际 Pi 目录的精确交集，但这只是可编辑的初始值。
 在 Connection 中选择可选的测试模型、确认只读 endpoint scopes，输入该 Provider 的 key，再点击
-**Save key**。Fresh Vault 已处于 Automatic unlocked；Save 会把 Key 加密保存到每个展示的 exact
+**Save**。Fresh Vault 已处于 Automatic unlocked；Save 会把 Key 加密保存到每个展示的 exact
 scope，但不会请求 Provider，也不会改变 checked/preferred。按 preferred 或首个可用模型完成
 Vault-to-Agent handoff 后，Agent Creator 的 Provider/proposal 路线和当前 Program-bound workspace
 工具立即可用，Home warning 消失。网页不会读取开发机 `.env`；Key 输入会立即清空，完整 Key
 不会回显。
 
+Home 与 Program workspace 的模型选择器共用一个 **Reasoning effort** 控件。可选值完全来自
+固定 Pi 对当前 built-in 模型声明的能力；产品偏好默认 `medium`，实际执行使用 Pi clamp 后的
+effective level。切换模型不会改写全局偏好，custom endpoint 在显式 schema 之前固定为 `off`。
+该设置与 Key、Test、模型 checkbox 及 Program 数据相互独立；当前公网 artifact 已包含这条路径，
+但尚没有 public live-Provider reasoning 资格回执。
+
 **Test connection** 是独立、可选、可重复的时间点诊断；只有点击它才会针对“Test with model”
 当前选择发出一次很小但可能计费的请求，成功或失败都不会改变 Key、checked/preferred 或可用性。
-失败后仍可继续实际调用、重新测试或 **Replace key**；实际调用若遇到无效 Key、模型、Endpoint
+失败后仍可继续实际调用、重新测试或 **Update**；实际调用若遇到无效 Key、模型、Endpoint
 或网络错误，会通过正常 Agent 失败路径报告。模型偏好和加密 Key 都能跨刷新保留，测试结果不
 保留。需要显式 locked-at-rest 行为时，进入独立 **Credential Vault** 设置切换到 Password 模式；
-之后可以 Lock/Unlock、修改密码或切回 Automatic。**Forget API key** 删除精确 binding，并终止
+之后可以 Lock/Unlock、修改密码或切回 Automatic。Connection 的删除图标会删除精确 binding，并终止
 正在使用它的 Agent Worker。Save 与 Test connection 始终是两个独立按钮。
 
 需要兼容 endpoint 时，在 **Custom Endpoints** 中新增 HTTPS profile，显式选择四种 Pi API
@@ -460,9 +467,25 @@ HTTP 200；源码身份、三 origin CSP 分权与 Vault network-off 响应策�
 这份 artifact/response 回执不自动证明 public-origin 真实模型工具调用、remembered-key
 真实 Provider journey、任意站点 CORS、线上 ingress 或 search。
 
-以上 commit/version/smoke 是 2026-08-29 的 **S3/V1 已部署历史**，不会被当前本地 Vault V2
-实现追溯改写。当前本地 source 已淘汰 session-only/Remember 流程并采用 Automatic/Password
-Vault V2；在本轮重新部署前，公网 UI 与行为仍应按上述 dated artifact 如实理解。
+以上 commit/version/smoke 是 2026-08-29 的 **S3/V1 已部署历史**，不会被后续 Vault V2
+实现追溯改写。当前公开 release 已由下面的 R1 回执取代。
+
+2026-08-30 从干净 commit
+`a17c3490c9940bb43fc8718df485322c2dee1052` 按 Sandbox、Network Broker、control/Vault 的顺序
+发布：Cloudflare version 分别是 `fb703131-3e37-4e7d-95f4-5b7afa9160cd`、
+`07720852-ac1f-462b-8098-086410906839` 和
+`e0b61061-1a07-4e64-a963-74a0a7ee6420`。三个入口均返回 HTTP 200 与同一 source identity；
+control 只连接自身并只嵌入两个固定 origin，Sandbox `connect-src 'none'`，只有不持有 Key 的
+Broker 允许 `connect-src https:`，固定 Vault Worker 仍为 network-off。公开页面无 error-level
+console 记录；无 Key 时 Home 只显示 warning，General 能读取两个 origin 的建议性用量，Providers
+与 Credential Vault 可达。
+
+同一公开 release 还通过一次临时 Chromium profile 的真实 Anthropic
+`claude-sonnet-4-5` QJS loop：无效 Key 401、有效 Test 200、取消/currentness、四次成功完成请求、
+精确 `write`/`write`/`bash-qjs` receipts、Sandbox-origin QJS assets 和 VFS bytes 均匹配；检查的
+control-origin durable projection 不含 Key 明文，结束时删除 Key 并终止 Worker，Workspace output
+仍保留。该回执不证明 public WebKit、跨刷新 durable-key reuse、其他 Provider、live reasoning、
+`read`/`edit`/`grep`/网络工具、任意站点 CORS 或 search。
 
 开发资格检查会按精确 profile 从本目录的 `.env` 读取对应 Provider key，依次启动普通
 Chromium context 与运行后删除的一次性持久 WebKit profile，

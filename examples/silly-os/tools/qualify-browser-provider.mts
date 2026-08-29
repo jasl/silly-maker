@@ -567,7 +567,7 @@ async function openProviderSelectionV1(
 async function saveProviderCredentialV1(page: Page, credential: string): Promise<void> {
   const keyInput = page.getByLabel("API key", { exact: true });
   await keyInput.fill(credential);
-  await page.getByRole("button", { name: "Save key" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.locator(
     '.provider-settings__credential-form[data-key-saved="true"]',
   ).waitFor();
@@ -757,7 +757,7 @@ async function qualifyBrowserV1(
         "invalid_connection_credential_plaintext_persisted",
       );
       requestPhase = null;
-      await page.getByRole("button", { name: "Forget API key", exact: true }).click();
+      await page.getByRole("button", { name: "Delete saved API key", exact: true }).click();
       await waitForPiWorkerCountV1(page, 0);
       await page.getByRole("button", { name: "Back to Agent Creator" }).click();
       await page.locator('[data-silly-os-view="home"]').waitFor();
@@ -1052,7 +1052,10 @@ async function qualifyBrowserV1(
 
       phase = "forget";
       await openProviderSelectionV1(page, profile);
-      const forgetButton = page.getByRole("button", { name: "Forget API key", exact: true });
+      const forgetButton = page.getByRole("button", {
+        name: "Delete saved API key",
+        exact: true,
+      });
       await forgetButton.click();
       await waitForPiWorkerCountV1(page, 0);
       await forgetButton.waitFor({ state: "detached" });
