@@ -2,97 +2,113 @@
 /// <reference lib="dom" />
 
 import {
-  admitCredentialVaultBindingV1,
-  credentialVaultApiKeyMaximumUtf8BytesV1,
-  credentialVaultKdfIterationsV1,
-  credentialVaultPassphraseMaximumUtf8BytesV1,
-  credentialVaultRevisionV1,
-  isCredentialVaultBoundedTextV1,
-  type CredentialVaultBindingV1,
+  admitCredentialVaultBindingV2,
+  credentialVaultApiKeyMaximumUtf8BytesV2,
+  credentialVaultKdfIterationsV2,
+  credentialVaultPassphraseMaximumUtf8BytesV2,
+  credentialVaultRevisionV2,
+  isCredentialVaultBoundedTextV2,
+  type CredentialVaultBindingV2,
 } from "./credential-vault-contracts.ts";
 
-export const credentialVaultSaltBytesV1 = 32;
-export const credentialVaultAesGcmIvBytesV1 = 12;
-export const credentialVaultAesGcmTagBytesV1 = 16;
+export const credentialVaultSaltBytesV2 = 32;
+export const credentialVaultAesGcmIvBytesV2 = 12;
+export const credentialVaultAesGcmTagBytesV2 = 16;
+export const credentialVaultGenerationTokenBytesV2 = 16;
 
-const verifierPlaintextV1 = new TextEncoder().encode("sillyos.credential-vault.verifier.v1");
+const verifierPlaintextV2 = new TextEncoder().encode("sillyos.credential-vault.verifier.v2");
 
-export interface CredentialVaultEncryptedPayloadV1 {
+export interface CredentialVaultEncryptedPayloadV2 {
   readonly iv: ArrayBuffer;
   readonly ciphertext: ArrayBuffer;
 }
 
-export interface CredentialVaultCryptoV1 {
+export interface CredentialVaultCryptoV2 {
   randomSalt(): ArrayBuffer;
+  randomGenerationToken(): string;
+  generateDeviceKey(): Promise<CryptoKey>;
   deriveKey(passphrase: string, salt: ArrayBuffer): Promise<CryptoKey>;
-  encryptVerifier(key: CryptoKey): Promise<CredentialVaultEncryptedPayloadV1>;
-  verifyKey(key: CryptoKey, payload: CredentialVaultEncryptedPayloadV1): Promise<boolean>;
+  encryptVerifier(key: CryptoKey): Promise<CredentialVaultEncryptedPayloadV2>;
+  verifyKey(key: CryptoKey, payload: CredentialVaultEncryptedPayloadV2): Promise<boolean>;
   encryptCredential(
     key: CryptoKey,
-    binding: CredentialVaultBindingV1,
+    binding: CredentialVaultBindingV2,
     value: string,
-  ): Promise<CredentialVaultEncryptedPayloadV1>;
+  ): Promise<CredentialVaultEncryptedPayloadV2>;
   decryptCredential(
     key: CryptoKey,
-    binding: CredentialVaultBindingV1,
-    payload: CredentialVaultEncryptedPayloadV1,
+    binding: CredentialVaultBindingV2,
+    payload: CredentialVaultEncryptedPayloadV2,
   ): Promise<string>;
 }
 
-function exactArrayBufferV1(value: ArrayBuffer): ArrayBuffer {
+function exactArrayBufferV2(value: ArrayBuffer): ArrayBuffer {
   if (!(value instanceof ArrayBuffer)) {
     throw new TypeError("sillyos.credential_vault.buffer_invalid");
   }
   return value.slice(0);
 }
 
-function bindingAadV1(binding: CredentialVaultBindingV1): Uint8Array<ArrayBuffer> {
-  const admitted = admitCredentialVaultBindingV1(binding);
+export function isCredentialVaultDeviceKeyV2(value: unknown): value is CryptoKey {
+  if (value === null || typeof value !== "object") return false;
+  try {
+    const key = value as CryptoKey;
+    const algorithm = key.algorithm as Readonly<AesKeyAlgorithm>;
+    return key.type === "secret" && !key.extractable &&
+      algorithm?.name === "AES-GCM" && algorithm.length === 256 &&
+      key.usages.length === 2 && key.usages.includes("encrypt") && key.usages.includes("decrypt");
+  } catch {
+    return false;
+  }
+}
+
+function bindingAadV2(binding: CredentialVaultBindingV2): Uint8Array<ArrayBuffer> {
+  const admitted = admitCredentialVaultBindingV2(binding);
   if (admitted.kind === "rejected") {
     throw new TypeError(`sillyos.credential_vault.binding_invalid${admitted.path}`);
   }
   return new TextEncoder().encode(JSON.stringify([
     "sillyos.credential-vault.binding",
-    credentialVaultRevisionV1,
+    credentialVaultRevisionV2,
     admitted.value.bindingId,
     admitted.value.credentialKind,
     admitted.value.baseUrl,
   ]));
 }
 
-function verifierAadV1(): Uint8Array<ArrayBuffer> {
+function verifierAadV2(): Uint8Array<ArrayBuffer> {
   return new TextEncoder().encode(JSON.stringify([
     "sillyos.credential-vault.verifier",
-    credentialVaultRevisionV1,
+    credentialVaultRevisionV2,
   ]));
 }
 
-function admitPayloadV1(payload: CredentialVaultEncryptedPayloadV1): {
+function admitPayloadV2(payload: CredentialVaultEncryptedPayloadV2): {
   readonly iv: ArrayBuffer;
   readonly ciphertext: ArrayBuffer;
 } {
-  const iv = exactArrayBufferV1(payload.iv);
-  const ciphertext = exactArrayBufferV1(payload.ciphertext);
+  const iv = exactArrayBufferV2(payload.iv);
+  const ciphertext = exactArrayBufferV2(payload.ciphertext);
   if (
-    iv.byteLength !== credentialVaultAesGcmIvBytesV1 ||
-    ciphertext.byteLength < credentialVaultAesGcmTagBytesV1
+    iv.byteLength !== credentialVaultAesGcmIvBytesV2 ||
+    ciphertext.byteLength < credentialVaultAesGcmTagBytesV2
   ) throw new TypeError("sillyos.credential_vault.payload_invalid");
   return { iv, ciphertext };
 }
 
-export function createCredentialVaultCryptoV1(cryptoApi: Crypto): CredentialVaultCryptoV1 {
-  const randomBytesV1 = (length: number): Uint8Array<ArrayBuffer> => {
+export function createCredentialVaultCryptoV2(cryptoApi: Crypto): CredentialVaultCryptoV2 {
+  const randomBytesV2 = (length: number): Uint8Array<ArrayBuffer> => {
     const value = new Uint8Array(new ArrayBuffer(length));
     cryptoApi.getRandomValues(value);
     return value;
   };
 
-  const encryptV1 = async (
+  const encryptV2 = async (
     key: CryptoKey,
     plaintext: Uint8Array<ArrayBuffer>,
     additionalData: Uint8Array<ArrayBuffer>,
-  ): Promise<CredentialVaultEncryptedPayloadV1> => {
-    const iv = randomBytesV1(credentialVaultAesGcmIvBytesV1);
+  ): Promise<CredentialVaultEncryptedPayloadV2> => {
+    const iv = randomBytesV2(credentialVaultAesGcmIvBytesV2);
     const ciphertext = await cryptoApi.subtle.encrypt(
       { name: "AES-GCM", iv, additionalData, tagLength: 128 },
       key,
@@ -101,12 +117,12 @@ export function createCredentialVaultCryptoV1(cryptoApi: Crypto): CredentialVaul
     return { iv: iv.buffer, ciphertext };
   };
 
-  const decryptV1 = async (
+  const decryptV2 = async (
     key: CryptoKey,
-    payload: CredentialVaultEncryptedPayloadV1,
+    payload: CredentialVaultEncryptedPayloadV2,
     additionalData: Uint8Array<ArrayBuffer>,
   ): Promise<ArrayBuffer> => {
-    const admitted = admitPayloadV1(payload);
+    const admitted = admitPayloadV2(payload);
     return await cryptoApi.subtle.decrypt(
       {
         name: "AES-GCM",
@@ -121,17 +137,33 @@ export function createCredentialVaultCryptoV1(cryptoApi: Crypto): CredentialVaul
 
   return Object.freeze({
     randomSalt(): ArrayBuffer {
-      return randomBytesV1(credentialVaultSaltBytesV1).buffer;
+      return randomBytesV2(credentialVaultSaltBytesV2).buffer;
+    },
+    randomGenerationToken(): string {
+      return [...randomBytesV2(credentialVaultGenerationTokenBytesV2)]
+        .map((value) => value.toString(16).padStart(2, "0"))
+        .join("");
+    },
+    async generateDeviceKey(): Promise<CryptoKey> {
+      const key = await cryptoApi.subtle.generateKey(
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"],
+      );
+      if (!isCredentialVaultDeviceKeyV2(key)) {
+        throw new TypeError("sillyos.credential_vault.device_key_invalid");
+      }
+      return key;
     },
     async deriveKey(passphrase: string, salt: ArrayBuffer): Promise<CryptoKey> {
       if (
-        !isCredentialVaultBoundedTextV1(
+        !isCredentialVaultBoundedTextV2(
           passphrase,
-          credentialVaultPassphraseMaximumUtf8BytesV1,
+          credentialVaultPassphraseMaximumUtf8BytesV2,
         )
       ) throw new TypeError("sillyos.credential_vault.passphrase_invalid");
-      const saltCopy = exactArrayBufferV1(salt);
-      if (saltCopy.byteLength !== credentialVaultSaltBytesV1) {
+      const saltCopy = exactArrayBufferV2(salt);
+      if (saltCopy.byteLength !== credentialVaultSaltBytesV2) {
         throw new TypeError("sillyos.credential_vault.salt_invalid");
       }
       const passphraseBytes = new TextEncoder().encode(passphrase);
@@ -147,7 +179,7 @@ export function createCredentialVaultCryptoV1(cryptoApi: Crypto): CredentialVaul
           {
             name: "PBKDF2",
             salt: new Uint8Array(saltCopy),
-            iterations: credentialVaultKdfIterationsV1,
+            iterations: credentialVaultKdfIterationsV2,
             hash: "SHA-256",
           },
           material,
@@ -159,22 +191,22 @@ export function createCredentialVaultCryptoV1(cryptoApi: Crypto): CredentialVaul
         passphraseBytes.fill(0);
       }
     },
-    async encryptVerifier(key: CryptoKey): Promise<CredentialVaultEncryptedPayloadV1> {
-      return await encryptV1(key, verifierPlaintextV1, verifierAadV1());
+    async encryptVerifier(key: CryptoKey): Promise<CredentialVaultEncryptedPayloadV2> {
+      return await encryptV2(key, verifierPlaintextV2, verifierAadV2());
     },
     async verifyKey(
       key: CryptoKey,
-      payload: CredentialVaultEncryptedPayloadV1,
+      payload: CredentialVaultEncryptedPayloadV2,
     ): Promise<boolean> {
       try {
-        const plaintext = new Uint8Array(await decryptV1(key, payload, verifierAadV1()));
-        if (plaintext.byteLength !== verifierPlaintextV1.byteLength) {
+        const plaintext = new Uint8Array(await decryptV2(key, payload, verifierAadV2()));
+        if (plaintext.byteLength !== verifierPlaintextV2.byteLength) {
           plaintext.fill(0);
           return false;
         }
         let different = 0;
         for (let index = 0; index < plaintext.byteLength; index += 1) {
-          different |= (plaintext[index] ?? 0) ^ (verifierPlaintextV1[index] ?? 0);
+          different |= (plaintext[index] ?? 0) ^ (verifierPlaintextV2[index] ?? 0);
         }
         plaintext.fill(0);
         return different === 0;
@@ -184,28 +216,28 @@ export function createCredentialVaultCryptoV1(cryptoApi: Crypto): CredentialVaul
     },
     async encryptCredential(
       key: CryptoKey,
-      binding: CredentialVaultBindingV1,
+      binding: CredentialVaultBindingV2,
       value: string,
-    ): Promise<CredentialVaultEncryptedPayloadV1> {
-      if (!isCredentialVaultBoundedTextV1(value, credentialVaultApiKeyMaximumUtf8BytesV1)) {
+    ): Promise<CredentialVaultEncryptedPayloadV2> {
+      if (!isCredentialVaultBoundedTextV2(value, credentialVaultApiKeyMaximumUtf8BytesV2)) {
         throw new TypeError("sillyos.credential_vault.credential_invalid");
       }
       const plaintext = new TextEncoder().encode(value);
       try {
-        return await encryptV1(key, plaintext, bindingAadV1(binding));
+        return await encryptV2(key, plaintext, bindingAadV2(binding));
       } finally {
         plaintext.fill(0);
       }
     },
     async decryptCredential(
       key: CryptoKey,
-      binding: CredentialVaultBindingV1,
-      payload: CredentialVaultEncryptedPayloadV1,
+      binding: CredentialVaultBindingV2,
+      payload: CredentialVaultEncryptedPayloadV2,
     ): Promise<string> {
-      const plaintext = new Uint8Array(await decryptV1(key, payload, bindingAadV1(binding)));
+      const plaintext = new Uint8Array(await decryptV2(key, payload, bindingAadV2(binding)));
       try {
         const value = new TextDecoder("utf-8", { fatal: true }).decode(plaintext);
-        if (!isCredentialVaultBoundedTextV1(value, credentialVaultApiKeyMaximumUtf8BytesV1)) {
+        if (!isCredentialVaultBoundedTextV2(value, credentialVaultApiKeyMaximumUtf8BytesV2)) {
           throw new TypeError("sillyos.credential_vault.credential_invalid");
         }
         return value;

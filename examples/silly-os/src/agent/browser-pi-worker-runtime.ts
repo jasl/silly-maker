@@ -46,11 +46,11 @@ import {
   type BrowserPiWorkspaceSnapshotWireV1,
 } from "./browser-pi-worker-protocol.ts";
 import {
-  admitCredentialVaultHandoffDeliveryV1,
-  createCredentialVaultHandoffReadyV1,
+  admitCredentialVaultHandoffDeliveryV2,
+  createCredentialVaultHandoffReadyV2,
 } from "../credential/credential-vault-protocol.ts";
-import { credentialVaultBindingsEqualV1 } from "../credential/credential-vault-contracts.ts";
-import { credentialVaultBindingForSelectionV1 } from "../credential/provider-credential-binding.ts";
+import { credentialVaultBindingsEqualV2 } from "../credential/credential-vault-contracts.ts";
+import { credentialVaultBindingForSelectionV2 } from "../credential/provider-credential-binding.ts";
 import type { BrowserPiProviderFetchV1 } from "./browser-pi-provider-fetch-guard.ts";
 import {
   bindPiWorkspaceBashToolV1,
@@ -973,9 +973,9 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     const selection = message.selection;
     if (
       message.runtime !== "pi_provider" || selection === null ||
-      !credentialVaultBindingsEqualV1(
+      !credentialVaultBindingsEqualV2(
         message.credential.binding,
-        credentialVaultBindingForSelectionV1(selection),
+        credentialVaultBindingForSelectionV2(selection),
       )
     ) {
       brokerClient.close();
@@ -1022,10 +1022,10 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         settleFailureV1(true);
         return;
       }
-      const delivery = admitCredentialVaultHandoffDeliveryV1(event.data);
+      const delivery = admitCredentialVaultHandoffDeliveryV2(event.data);
       if (
         delivery === null || delivery.handoffId !== message.credential.handoffId ||
-        !credentialVaultBindingsEqualV1(delivery.binding, message.credential.binding)
+        !credentialVaultBindingsEqualV2(delivery.binding, message.credential.binding)
       ) {
         settleFailureV1(true);
         return;
@@ -1052,7 +1052,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       credentialHandoffDeadlineMilliseconds,
     );
     try {
-      const ready = createCredentialVaultHandoffReadyV1(
+      const ready = createCredentialVaultHandoffReadyV2(
         message.credential.handoffId,
         message.credential.binding,
       );
@@ -1206,7 +1206,8 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         return;
       }
       const runtime = configuredRuntime;
-      const selection = configuredSelection;
+      const configured = configuredSelection;
+      const selection = message.selection;
       const credential = credentialKey;
       if (runtime === null || credential === null) {
         post(Object.freeze({
@@ -1222,6 +1223,15 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         return;
       }
       if (runtime === "deterministic_test") {
+        if (selection !== null) {
+          post(Object.freeze({
+            revision: 1,
+            kind: "connection_test_failure",
+            requestId: message.requestId,
+            code: "connection_failed",
+          }));
+          return;
+        }
         connectionReady = true;
         post(Object.freeze({
           revision: 1,
@@ -1233,7 +1243,12 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         }));
         return;
       }
-      if (selection === null) {
+      if (
+        configured === null || selection === null ||
+        !selectionsShareCredentialScopeV1(configured, selection) ||
+        !isBrowserPiSelectionAvailableV1(selection) ||
+        browserPiSelectionEndpointOriginV1(selection) !== input.expectedEndpointOrigin
+      ) {
         post(Object.freeze({
           revision: 1,
           kind: "connection_test_failure",

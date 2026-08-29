@@ -510,13 +510,15 @@ async function providerFailureDetailsV1(
     observations.map(({ responseBodySettlement }) => responseBodySettlement ?? Promise.resolve()),
   );
   const run = page.locator("[data-pi-agent-run-status]");
-  const connection = page.locator("[data-connection-phase]").first();
+  const connection = page.locator(".provider-settings__credential-form").first();
+  const connectionStatus = page.locator(".provider-settings__connection-status").first();
   const providerWarning = page.locator('[data-pi-agent-runtime="pi_provider"]');
   return Object.freeze({
     runStatus: await run.getAttribute("data-pi-agent-run-status").catch(() => null),
     diagnostic: await run.getAttribute("data-pi-agent-diagnostic").catch(() => null),
-    connectionPhase: await connection.getAttribute("data-connection-phase").catch(() => null),
-    connectionDiagnostic: await connection.getAttribute("data-diagnostic-code").catch(
+    credentialSaved: await connection.getAttribute("data-key-saved").catch(() => null),
+    connectionStatusClass: await connectionStatus.getAttribute("class").catch(() => null),
+    connectionDiagnostic: await connectionStatus.getAttribute("data-diagnostic-code").catch(
       () => null,
     ),
     providerWarningStatus: await providerWarning.getAttribute("data-pi-agent-status").catch(
@@ -554,16 +556,20 @@ async function openProviderSelectionV1(
 ): Promise<void> {
   await page.getByRole("button", { name: "Settings" }).first().click();
   await page.locator('[data-silly-os-view="settings"]').waitFor();
+  await page.getByRole("button", { name: "Providers", exact: true }).click();
+  await page.locator('[data-settings-section="providers"]').waitFor();
   await page.locator(`[data-provider-id="${profile.providerId}"]`).click();
   await page.locator(`[data-model-id="${profile.modelId}"] input`).check();
+  await page.getByLabel("Test with model").selectOption(profile.modelId);
+  await page.getByLabel("API key", { exact: true }).waitFor();
 }
 
 async function saveProviderCredentialV1(page: Page, credential: string): Promise<void> {
-  const keyInput = page.getByLabel("API key (memory only)");
+  const keyInput = page.getByLabel("API key", { exact: true });
   await keyInput.fill(credential);
   await page.getByRole("button", { name: "Save key" }).click();
   await page.locator(
-    '.provider-settings__credential-form[data-connection-phase="credential_saved"]',
+    '.provider-settings__credential-form[data-key-saved="true"]',
   ).waitFor();
   requireV1(await keyInput.inputValue() === "", "credential_input_not_cleared");
 }
@@ -572,26 +578,13 @@ async function testProviderConnectionV1(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Test connection" }).click();
 }
 
-async function configureProviderCredentialV1(
+async function saveProviderCredentialAndReturnHomeV1(
   page: Page,
   profile: ProviderQualificationProfileV1,
   credential: string,
 ): Promise<void> {
   await openProviderSelectionV1(page, profile);
   await saveProviderCredentialV1(page, credential);
-  await page.getByRole("button", { name: "Back to Agent Creator" }).click();
-  await page.locator('[data-silly-os-view="home"]').waitFor();
-  await page.locator('[data-pi-agent-runtime="pi_provider"]').waitFor({ state: "detached" });
-  await waitForPiWorkerCountV1(page, 1);
-
-  await openProviderSelectionV1(page, profile);
-  await testProviderConnectionV1(page);
-  const settledConnection = page.locator(
-    '[data-connection-phase="ready"], [data-connection-phase="failed"]',
-  ).first();
-  await settledConnection.waitFor();
-  const connectionOutcome = await settledConnection.getAttribute("data-connection-phase");
-  requireV1(connectionOutcome === "ready", "valid_connection_rejected");
   await page.getByRole("button", { name: "Back to Agent Creator" }).click();
   await page.locator('[data-silly-os-view="home"]').waitFor();
   await page.locator('[data-pi-agent-runtime="pi_provider"]').waitFor({ state: "detached" });
@@ -733,9 +726,14 @@ async function qualifyBrowserV1(
       requestPhase = "connection_invalid";
       await testProviderConnectionV1(page);
       const failedConnection = page.locator(
-        '.provider-settings__credential-form[data-connection-phase="test_failed"]',
+        ".provider-settings__connection-status.is-failed",
       );
       await failedConnection.waitFor({ state: "visible" });
+      requireV1(
+        (await failedConnection.textContent())?.includes("optional connection test failed") ===
+          true,
+        "invalid_connection_error_mapping_invalid",
+      );
       const invalidConnectionObservations = observationsForPhaseV1(
         providerRequests,
         "connection_invalid",
@@ -750,20 +748,16 @@ async function qualifyBrowserV1(
         ),
         "invalid_connection_provider_status_invalid",
       );
-      const invalidKeyInput = page.getByLabel("API key (memory only)");
+      const invalidKeyInput = page.getByLabel("API key", { exact: true });
       requireV1(await invalidKeyInput.inputValue() === "", "invalid_credential_input_not_cleared");
       const invalidConnectionProjection = await durableProjectionV1(page);
       requireV1(
-        invalidConnectionProjection.includes("test_failed"),
-        "invalid_connection_error_mapping_invalid",
-      );
-      requireV1(
         !invalidConnectionProjection.includes(apiKey) &&
           !invalidConnectionProjection.includes(invalidCredential),
-        "invalid_connection_credential_persisted",
+        "invalid_connection_credential_plaintext_persisted",
       );
       requestPhase = null;
-      await page.getByRole("button", { name: "Forget key" }).click();
+      await page.getByRole("button", { name: "Forget API key", exact: true }).click();
       await waitForPiWorkerCountV1(page, 0);
       await page.getByRole("button", { name: "Back to Agent Creator" }).click();
       await page.locator('[data-silly-os-view="home"]').waitFor();
@@ -771,7 +765,17 @@ async function qualifyBrowserV1(
 
       phase = "connection_valid";
       requestPhase = "connection_valid";
-      await configureProviderCredentialV1(page, profile, apiKey);
+      await saveProviderCredentialAndReturnHomeV1(page, profile, apiKey);
+      await openProviderSelectionV1(page, profile);
+      await testProviderConnectionV1(page);
+      const readyConnection = page.locator(
+        ".provider-settings__connection-status.is-ready",
+      ).first();
+      await readyConnection.waitFor();
+      requireV1(
+        (await readyConnection.textContent())?.includes("Last connection test passed") === true,
+        "valid_connection_rejected",
+      );
       const validConnectionObservations = observationsForPhaseV1(
         providerRequests,
         "connection_valid",
@@ -785,6 +789,10 @@ async function qualifyBrowserV1(
         "valid_connection_provider_status_invalid",
       );
       requestPhase = null;
+      await page.getByRole("button", { name: "Back to Agent Creator" }).click();
+      await page.locator('[data-silly-os-view="home"]').waitFor();
+      await page.locator('[data-pi-agent-runtime="pi_provider"]').waitFor({ state: "detached" });
+      await waitForPiWorkerCountV1(page, 1);
 
       phase = "create";
       await page.getByRole("textbox", { name: "What would you like to make?" }).fill(
@@ -1040,11 +1048,11 @@ async function qualifyBrowserV1(
 
       phase = "durable_projection";
       const durableProjection = await durableProjectionV1(page);
-      requireV1(!durableProjection.includes(apiKey), "credential_persisted");
+      requireV1(!durableProjection.includes(apiKey), "credential_plaintext_persisted");
 
       phase = "forget";
       await openProviderSelectionV1(page, profile);
-      const forgetButton = page.getByRole("button", { name: "Forget key" });
+      const forgetButton = page.getByRole("button", { name: "Forget API key", exact: true });
       await forgetButton.click();
       await waitForPiWorkerCountV1(page, 0);
       await forgetButton.waitFor({ state: "detached" });
@@ -1074,7 +1082,7 @@ async function qualifyBrowserV1(
             status
           ),
           invalidConnectionErrorMapping: "test_failed",
-          invalidCredentialAbsent: true,
+          invalidCredentialPlaintextAbsent: true,
           invalidWorkerReleased: true,
           validConnectionProviderStatuses: validConnectionObservations.map(({ status }) => status),
           homeWarningCleared: true,
@@ -1102,7 +1110,7 @@ async function qualifyBrowserV1(
           workspaceInputUtf8Bytes: quickJsInputUtf8Bytes,
           quickJsAssetsVerified: true,
           quickJsAssetRequests,
-          controlOriginDurableProjectionCredentialAbsent: true,
+          controlOriginDurableProjectionCredentialPlaintextAbsent: true,
           workerForgotten: true,
           workspaceOutputRetainedAfterForget: true,
         });
@@ -1119,7 +1127,7 @@ async function qualifyBrowserV1(
           status
         ),
         invalidConnectionErrorMapping: "test_failed",
-        invalidCredentialAbsent: true,
+        invalidCredentialPlaintextAbsent: true,
         invalidWorkerReleased: true,
         validConnectionProviderStatuses: validConnectionObservations.map(({ status }) => status),
         homeWarningCleared: true,
@@ -1132,7 +1140,7 @@ async function qualifyBrowserV1(
         workspaceTool: "write",
         workspaceGeneration,
         workspaceBytesVerified: true,
-        durableCredentialAbsent: true,
+        durableCredentialPlaintextAbsent: true,
         workerForgotten: true,
       });
     } catch (error) {

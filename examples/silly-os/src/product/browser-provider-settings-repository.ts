@@ -5,7 +5,7 @@ export const browserProviderSettingsStorageKeyV2 =
   "sillymaker.example-silly-os.provider-settings.v2";
 export const browserProviderSettingsRevisionV2 = 2 as const;
 export const browserProviderSettingsMaximumProfilesV1 = 16;
-export const browserProviderSettingsMaximumBuiltinModelsV1 = 128;
+export const browserProviderSettingsMaximumBuiltinModelsV1 = 256;
 export const browserProviderSettingsMaximumSerializedUtf8BytesV1 = 65_536;
 export const browserProviderProfileIdMaximumUtf8BytesV1 = 64;
 export const browserProviderIdMaximumUtf8BytesV1 = 128;
@@ -60,6 +60,11 @@ export interface BrowserProviderSettingsSnapshotV1 {
   readonly preferredModel: BrowserProviderPreferredModelRefV1 | null;
 }
 
+export interface BrowserProviderBuiltinModelDefaultsInitializationV1 {
+  readonly initialized: boolean;
+  readonly snapshot: BrowserProviderSettingsSnapshotV1;
+}
+
 export type BrowserProviderCustomProfileAdmissionV1 =
   | { readonly kind: "admitted"; readonly value: BrowserProviderCustomProfileV1 }
   | { readonly kind: "rejected"; readonly path: string };
@@ -69,6 +74,7 @@ export type BrowserProviderSettingsRepositoryOperationV1 =
   | "list"
   | "add"
   | "remove"
+  | "initialize_builtin_model_defaults"
   | "set_builtin_model_enabled"
   | "set_preferred_model";
 
@@ -100,6 +106,9 @@ export class BrowserProviderSettingsRepositoryErrorV1 extends Error {
 export interface BrowserProviderSettingsRepositoryV1 {
   read(): BrowserProviderSettingsSnapshotV1;
   list(): readonly BrowserProviderCustomProfileV1[];
+  initializeBuiltinModelDefaults(
+    value: unknown,
+  ): BrowserProviderBuiltinModelDefaultsInitializationV1;
   add(value: unknown): BrowserProviderCustomProfileV1;
   remove(profileId: string): boolean;
   setBuiltinModelEnabled(value: unknown, enabled: boolean): boolean;
@@ -507,16 +516,10 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
 }): BrowserProviderSettingsRepositoryV1 {
   const storageKey = input.storageKey ?? browserProviderSettingsStorageKeyV2;
 
-  const loadV1 = (
+  const decodeV1 = (
+    serialized: string,
     operation: BrowserProviderSettingsRepositoryOperationV1,
   ): BrowserProviderSettingsSnapshotV1 => {
-    let serialized: string | null;
-    try {
-      serialized = input.storage.getItem(storageKey);
-    } catch {
-      throw storageFailureV1(operation);
-    }
-    if (serialized === null) return emptySettingsV1();
     const byteLength = utf8ByteLengthV1(serialized);
     if (
       byteLength === null ||
@@ -537,6 +540,19 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
     return admitted;
   };
 
+  const loadV1 = (
+    operation: BrowserProviderSettingsRepositoryOperationV1,
+  ): BrowserProviderSettingsSnapshotV1 => {
+    let serialized: string | null;
+    try {
+      serialized = input.storage.getItem(storageKey);
+    } catch {
+      throw storageFailureV1(operation);
+    }
+    if (serialized === null) return emptySettingsV1();
+    return decodeV1(serialized, operation);
+  };
+
   const persistV1 = (
     settings: BrowserProviderSettingsSnapshotV1,
     operation: BrowserProviderSettingsRepositoryOperationV1,
@@ -550,11 +566,7 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
       throw new BrowserProviderSettingsRepositoryErrorV1("schema_invalid", operation);
     }
     try {
-      if (
-        settings.customProfiles.length === 0 && settings.enabledBuiltinModels.length === 0 &&
-        settings.preferredModel === null
-      ) input.storage.removeItem(storageKey);
-      else input.storage.setItem(storageKey, serialized);
+      input.storage.setItem(storageKey, serialized);
     } catch {
       throw storageFailureV1(operation);
     }
@@ -567,6 +579,60 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
 
     list(): readonly BrowserProviderCustomProfileV1[] {
       return cloneProfilesV1(loadV1("list").customProfiles);
+    },
+
+    initializeBuiltinModelDefaults(
+      value: unknown,
+    ): BrowserProviderBuiltinModelDefaultsInitializationV1 {
+      const operation = "initialize_builtin_model_defaults";
+      let serialized: string | null;
+      try {
+        serialized = input.storage.getItem(storageKey);
+      } catch {
+        throw storageFailureV1(operation);
+      }
+      if (serialized !== null) {
+        return Object.freeze({ initialized: false, snapshot: decodeV1(serialized, operation) });
+      }
+
+      let exceedsLimit = false;
+      try {
+        exceedsLimit = Array.isArray(value) &&
+          value.length > browserProviderSettingsMaximumBuiltinModelsV1;
+      } catch {
+        // The strict array admission below reports this as an invalid model ref.
+      }
+      if (exceedsLimit) {
+        throw new BrowserProviderSettingsRepositoryErrorV1("model_limit", operation);
+      }
+      const rawRefs = exactArrayV1(value, browserProviderSettingsMaximumBuiltinModelsV1);
+      if (rawRefs === null) {
+        throw new BrowserProviderSettingsRepositoryErrorV1("invalid_model_ref", operation);
+      }
+      const enabledBuiltinModels: BrowserProviderBuiltinModelRefV1[] = [];
+      for (const rawRef of rawRefs) {
+        const ref = normalizeBuiltinModelRefV1(rawRef);
+        if (ref === null) {
+          throw new BrowserProviderSettingsRepositoryErrorV1("invalid_model_ref", operation);
+        }
+        enabledBuiltinModels.push(ref);
+      }
+      enabledBuiltinModels.sort(compareBuiltinModelRefsV1);
+      for (let index = 1; index < enabledBuiltinModels.length; index += 1) {
+        if (
+          builtinModelRefsEqualV1(enabledBuiltinModels[index - 1]!, enabledBuiltinModels[index]!)
+        ) {
+          throw new BrowserProviderSettingsRepositoryErrorV1("invalid_model_ref", operation);
+        }
+      }
+      const snapshot = freezeSettingsV1({
+        revision: browserProviderSettingsRevisionV2,
+        customProfiles: [],
+        enabledBuiltinModels,
+        preferredModel: null,
+      });
+      persistV1(snapshot, operation);
+      return Object.freeze({ initialized: true, snapshot });
     },
 
     add(value: unknown): BrowserProviderCustomProfileV1 {

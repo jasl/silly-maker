@@ -3,50 +3,50 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  admitCredentialVaultBindingV1,
-  admitCredentialVaultListV1,
-  createCredentialVaultListV1,
-  credentialVaultMaximumBindingsV1,
-  type CredentialVaultBindingV1,
+  admitCredentialVaultBindingV2,
+  admitCredentialVaultListV2,
+  createCredentialVaultListV2,
+  credentialVaultMaximumBindingsV2,
+  type CredentialVaultBindingV2,
 } from "../credential/credential-vault-contracts.ts";
 import {
-  admitCredentialVaultHandoffDeliveryV1,
-  admitCredentialVaultHandoffReadyV1,
-  admitCredentialVaultWorkerRequestEnvelopeV1,
-  admitCredentialVaultWorkerResponseEnvelopeV1,
-  createCredentialVaultHandoffDeliveryV1,
-  createCredentialVaultHandoffReadyV1,
-  createCredentialVaultWorkerRequestEnvelopeV1,
-  createCredentialVaultWorkerResponseEnvelopeV1,
+  admitCredentialVaultHandoffDeliveryV2,
+  admitCredentialVaultHandoffReadyV2,
+  admitCredentialVaultWorkerRequestEnvelopeV2,
+  admitCredentialVaultWorkerResponseEnvelopeV2,
+  createCredentialVaultHandoffDeliveryV2,
+  createCredentialVaultHandoffReadyV2,
+  createCredentialVaultWorkerRequestEnvelopeV2,
+  createCredentialVaultWorkerResponseEnvelopeV2,
 } from "../credential/credential-vault-protocol.ts";
 
-const bindingV1: CredentialVaultBindingV1 = {
+const bindingV2: CredentialVaultBindingV2 = {
   bindingId: "builtin.anthropic",
   credentialKind: "api_key",
   baseUrl: "https://api.anthropic.com/v1",
 };
 
-describe("Credential Vault contracts V1", () => {
+describe("Credential Vault contracts V2", () => {
   it("admits only exact canonical endpoint-bound metadata", () => {
-    expect(admitCredentialVaultBindingV1(bindingV1)).toEqual({
+    expect(admitCredentialVaultBindingV2(bindingV2)).toEqual({
       kind: "admitted",
-      value: bindingV1,
+      value: bindingV2,
     });
     for (
       const candidate of [
-        { ...bindingV1, baseUrl: "https://api.anthropic.com/v1/" },
-        { ...bindingV1, baseUrl: "http://api.anthropic.com/v1" },
-        { ...bindingV1, baseUrl: "https://api.anthropic.com/v1?key=secret" },
-        { ...bindingV1, credentialKind: "oauth" },
-        { ...bindingV1, apiKey: "must-not-enter-metadata" },
+        { ...bindingV2, baseUrl: "https://api.anthropic.com/v1/" },
+        { ...bindingV2, baseUrl: "http://api.anthropic.com/v1" },
+        { ...bindingV2, baseUrl: "https://api.anthropic.com/v1?key=secret" },
+        { ...bindingV2, credentialKind: "oauth" },
+        { ...bindingV2, apiKey: "must-not-enter-metadata" },
       ]
-    ) expect(admitCredentialVaultBindingV1(candidate).kind).toBe("rejected");
+    ) expect(admitCredentialVaultBindingV2(candidate).kind).toBe("rejected");
   });
 
   it("keeps bounded sorted multi-binding metadata without a credential field", () => {
-    const snapshot = createCredentialVaultListV1("locked", [
-      { ...bindingV1, bindingId: "custom.z" },
-      { ...bindingV1, bindingId: "builtin.a" },
+    const snapshot = createCredentialVaultListV2("password", "locked", [
+      { ...bindingV2, bindingId: "custom.z" },
+      { ...bindingV2, bindingId: "builtin.a" },
     ]);
     expect(snapshot.bindings.map((binding) => binding.bindingId)).toEqual([
       "builtin.a",
@@ -54,11 +54,12 @@ describe("Credential Vault contracts V1", () => {
     ]);
     expect(JSON.stringify(snapshot)).not.toContain("apiKey");
     expect(
-      admitCredentialVaultListV1({
-        revision: 1,
+      admitCredentialVaultListV2({
+        revision: 2,
+        protection: "password",
         state: "locked",
-        bindings: Array.from({ length: credentialVaultMaximumBindingsV1 + 1 }, (_, index) => ({
-          ...bindingV1,
+        bindings: Array.from({ length: credentialVaultMaximumBindingsV2 + 1 }, (_, index) => ({
+          ...bindingV2,
           bindingId: `binding.${String(index).padStart(3, "0")}`,
         })),
       }).kind,
@@ -66,25 +67,25 @@ describe("Credential Vault contracts V1", () => {
   });
 });
 
-describe("Credential Vault Worker protocol V1", () => {
+describe("Credential Vault Worker protocol V2", () => {
   it("strictly admits each explicit request and rejects secret-bearing extras", () => {
-    const create = createCredentialVaultWorkerRequestEnvelopeV1("request.create", {
-      method: "create",
+    const setPassword = createCredentialVaultWorkerRequestEnvelopeV2("request.set-password", {
+      method: "set_password",
       passphrase: "correct horse battery staple",
     });
-    expect(admitCredentialVaultWorkerRequestEnvelopeV1(create)).toEqual(create);
-    const upsert = createCredentialVaultWorkerRequestEnvelopeV1("request.upsert", {
+    expect(admitCredentialVaultWorkerRequestEnvelopeV2(setPassword)).toEqual(setPassword);
+    const upsert = createCredentialVaultWorkerRequestEnvelopeV2("request.upsert", {
       method: "upsert",
-      binding: bindingV1,
+      binding: bindingV2,
       credential: { kind: "api_key", value: "provider-secret" },
     });
-    expect(admitCredentialVaultWorkerRequestEnvelopeV1(upsert)).toEqual(upsert);
-    expect(admitCredentialVaultWorkerRequestEnvelopeV1({
+    expect(admitCredentialVaultWorkerRequestEnvelopeV2(upsert)).toEqual(upsert);
+    expect(admitCredentialVaultWorkerRequestEnvelopeV2({
       ...upsert,
       record: { ...upsert.record, endpointOverride: "https://evil.example" },
     })).toBeNull();
-    expect(admitCredentialVaultWorkerRequestEnvelopeV1({
-      revision: 1,
+    expect(admitCredentialVaultWorkerRequestEnvelopeV2({
+      revision: 2,
       kind: "credential_vault_request",
       requestId: "request.list",
       record: { method: "list", credential: "secret" },
@@ -99,8 +100,8 @@ describe("Credential Vault Worker protocol V1", () => {
         return "list";
       },
     });
-    expect(admitCredentialVaultWorkerRequestEnvelopeV1({
-      revision: 1,
+    expect(admitCredentialVaultWorkerRequestEnvelopeV2({
+      revision: 2,
       kind: "credential_vault_request",
       requestId: "request.hostile",
       record: hostile,
@@ -109,34 +110,34 @@ describe("Credential Vault Worker protocol V1", () => {
   });
 
   it("keeps ordinary responses metadata-only", () => {
-    const response = createCredentialVaultWorkerResponseEnvelopeV1("request.upsert", {
+    const response = createCredentialVaultWorkerResponseEnvelopeV2("request.upsert", {
       kind: "success",
       method: "upsert",
-      value: { disposition: "created", binding: bindingV1 },
+      value: { disposition: "created", binding: bindingV2 },
     });
-    expect(admitCredentialVaultWorkerResponseEnvelopeV1(response, "upsert")).toEqual(response);
+    expect(admitCredentialVaultWorkerResponseEnvelopeV2(response, "upsert")).toEqual(response);
     expect(JSON.stringify(response)).not.toContain("provider-secret");
-    expect(admitCredentialVaultWorkerResponseEnvelopeV1({
+    expect(admitCredentialVaultWorkerResponseEnvelopeV2({
       ...response,
       record: {
         ...response.record,
-        value: { disposition: "created", binding: bindingV1, credential: "secret" },
+        value: { disposition: "created", binding: bindingV2, credential: "secret" },
       },
     }, "upsert")).toBeNull();
   });
 
   it("uses a separate exact ready/delivery protocol for the one-time Agent port", () => {
-    const ready = createCredentialVaultHandoffReadyV1("handoff.1", bindingV1);
-    expect(admitCredentialVaultHandoffReadyV1(ready)).toEqual(ready);
-    const delivery = createCredentialVaultHandoffDeliveryV1(
+    const ready = createCredentialVaultHandoffReadyV2("handoff.1", bindingV2);
+    expect(admitCredentialVaultHandoffReadyV2(ready)).toEqual(ready);
+    const delivery = createCredentialVaultHandoffDeliveryV2(
       "handoff.1",
-      bindingV1,
+      bindingV2,
       "provider-secret",
     );
-    expect(admitCredentialVaultHandoffDeliveryV1(delivery)).toEqual(delivery);
-    expect(admitCredentialVaultHandoffReadyV1({ ...ready, binding: { ...bindingV1, apiKey: "x" } }))
+    expect(admitCredentialVaultHandoffDeliveryV2(delivery)).toEqual(delivery);
+    expect(admitCredentialVaultHandoffReadyV2({ ...ready, binding: { ...bindingV2, apiKey: "x" } }))
       .toBeNull();
-    expect(admitCredentialVaultHandoffDeliveryV1({
+    expect(admitCredentialVaultHandoffDeliveryV2({
       ...delivery,
       genericHeaders: { Authorization: "Bearer x" },
     })).toBeNull();

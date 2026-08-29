@@ -644,6 +644,7 @@ async function routeSuccessfulOpenAIResponsesProbeV1(
 
 test("ordinary Browser Settings verifies a built-in Pi connection and preserves mobile navigation", async ({ durableProgramPage: page }) => {
   const sentinel = "sillyos-provider-settings-session-key";
+  const vaultPassword = "sillyos-browser-vault-password";
   const observedNetwork: string[] = [];
   const observedConsole: string[] = [];
   const providerProbeRequests = await routeSuccessfulOpenAIResponsesProbeV1(page);
@@ -663,12 +664,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(providerWarning).toContainText("API key required");
   await expect(providerWarning).toContainText("Settings");
   const homeModelControl = page.locator('[data-creator-model-selector="true"]');
-  const homeModelSelector = homeModelControl.getByRole("combobox", {
-    name: "Agent Creator model",
-  });
-  await expect(homeModelControl).toHaveAttribute("data-model-state", "required");
-  await expect(homeModelSelector).toBeEnabled();
-  await expect(homeModelSelector).toHaveAttribute("data-selected-value", "");
+  await expect(homeModelControl).toHaveCount(0);
   const providerWarningBox = await providerWarning.boundingBox();
   const creatorComposerBox = await page.locator(".creator-composer").boundingBox();
   expect(
@@ -679,38 +675,43 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
     ".creator-composer textarea, .creator-composer__actions .silly-button",
   ).evaluateAll((elements) => elements.map((element) => getComputedStyle(element).borderRadius));
   expect(new Set(composerControlRadii)).toEqual(new Set(["12px"]));
-  await homeModelSelector.click();
-  const emptyModelListbox = page.getByRole("listbox", { name: "Agent Creator model" });
-  await expect(emptyModelListbox.getByRole("option")).toHaveCount(0);
-  await expect(
-    page.getByText("No enabled model is available to the current key in this browser session."),
-  ).toBeVisible();
-  const modelSettingsAction = page.getByRole("button", { name: "Model settings" });
-  await homeModelSelector.press("Tab");
-  await expect(modelSettingsAction).toBeFocused();
-  await modelSettingsAction.press("Enter");
+  await providerWarning.click();
 
   const settings = page.locator('[data-silly-os-view="settings"]');
   const globalBack = page.getByRole("button", { name: "Back to Agent Creator" });
   await expect(settings).toBeVisible();
   await expect(globalBack).toBeFocused();
+  const settingsGeneral = page.getByRole("button", { name: "General", exact: true });
+  const settingsProviders = page.getByRole("button", { name: "Providers", exact: true });
+  const settingsVault = page.getByRole("button", { name: "Credential Vault", exact: true });
+  await expect(settingsProviders).toHaveAttribute("aria-current", "page");
+  await settingsGeneral.click();
+  await expect(page.locator('[data-settings-section="general"]')).toBeVisible();
+  await expect(page.getByRole("heading", { name: "General", level: 1 })).toBeVisible();
+  await settingsVault.click();
+  const vaultPanel = page.locator('[data-vault-phase="unlocked"]');
+  await expect(vaultPanel).toBeVisible();
+  await expect(page.locator('[data-vault-mode="device"]')).toContainText("Automatic");
+  await expect(page.getByText("No Provider API key is saved.", { exact: true })).toBeVisible();
+  await settingsProviders.click();
+  await expect(page.locator('[data-settings-section="providers"]')).toBeVisible();
   await expect(page.locator('[data-provider-id="openai"]')).toHaveAttribute(
-    "data-availability",
-    "available",
+    "data-credential-status",
+    "unset",
   );
   await expect(page.locator('[data-provider-id="anthropic"]')).toHaveAttribute(
-    "data-availability",
-    "available",
+    "data-credential-status",
+    "unset",
   );
   for (const providerId of ["google", "deepseek", "xai"]) {
     await expect(page.locator(`[data-provider-id="${providerId}"]`)).toHaveAttribute(
-      "data-availability",
-      "available",
+      "data-credential-status",
+      "unset",
     );
   }
   await expect(page.locator('[data-provider-id="openrouter"]')).toHaveAttribute(
-    "data-availability",
-    "available",
+    "data-credential-status",
+    "unset",
   );
   const globalBackBox = await globalBack.boundingBox();
   expect(globalBackBox?.width ?? 0).toBeGreaterThanOrEqual(44);
@@ -729,8 +730,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   const anthropicAliasRow = page.locator('[data-model-id="claude-sonnet-4-5"]');
   const anthropicAlias = anthropicAliasRow.locator("input");
   await expect(anthropicAlias).toBeEnabled();
-  await expect(anthropicAlias).not.toBeChecked();
-  await anthropicAliasRow.click();
+  if (!await anthropicAlias.isChecked()) await anthropicAliasRow.click();
   await expect(anthropicAlias).toBeChecked();
   await page.getByRole("button", { name: "Back to Providers" }).click();
 
@@ -739,8 +739,9 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
     page.locator('[data-model-id="google/gemini-2.5-flash"] input'),
   ).toBeEnabled();
   const connectionModelSelect = page.locator(".provider-settings__connection-model select");
-  await expect(connectionModelSelect).toBeDisabled();
-  await expect(connectionModelSelect).toContainText("Choose a model in Available models first");
+  await expect(connectionModelSelect).toBeEnabled();
+  await expect(connectionModelSelect.locator('option[value="google/gemini-2.5-flash"]'))
+    .toHaveCount(1);
   await page.getByRole("button", { name: "Back to Providers" }).click();
 
   await page.locator('[data-provider-id="openai"]').click();
@@ -748,23 +749,20 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   const selectedModel = page.locator('[data-model-id="gpt-5.3-chat-latest"] input');
   const fallbackModel = page.locator('[data-model-id="gpt-4.1-mini"] input');
   const siblingModel = page.locator('[data-model-id="gpt-4.1-nano"] input');
-  await expect(selectedModel).not.toBeChecked();
-  await expect(fallbackModel).not.toBeChecked();
-  await expect(siblingModel).not.toBeChecked();
-  await selectedModel.check();
-  await fallbackModel.check();
-  await siblingModel.check();
+  if (!await selectedModel.isChecked()) await selectedModel.check();
+  if (!await fallbackModel.isChecked()) await fallbackModel.check();
+  if (!await siblingModel.isChecked()) await siblingModel.check();
   await expect(selectedModel).toBeChecked();
   await expect(fallbackModel).toBeChecked();
   await expect(siblingModel).toBeChecked();
-  const endpoint = page.locator(
-    '.provider-settings__endpoint input[aria-label="Endpoint"]',
-  );
+  const endpoint = page.locator(".provider-settings__endpoint input").first();
   await expect(endpoint).toHaveValue("https://api.openai.com/v1");
   await expect(endpoint).toHaveAttribute("data-endpoint-editable", "false");
   await expect(endpoint).not.toBeEditable();
   expect(
-    await page.locator('[data-connection-target="builtin:openai:gpt-5.3-chat-latest"]').evaluate(
+    await page.locator(
+      '[data-connection-target="builtin:openai:https://api.openai.com/v1"]',
+    ).evaluate(
       (connection) => {
         const models = document.querySelector("#models-title")?.closest("section");
         return models !== null && models !== undefined &&
@@ -772,7 +770,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
       },
     ),
   ).toBe(true);
-  const keyInput = page.getByLabel("API key (memory only)");
+  const keyInput = page.getByLabel("API key", { exact: true });
   await expect(keyInput).toHaveAttribute("type", "password");
   await page.getByRole("button", { name: "Show API key" }).click();
   await expect(keyInput).toHaveAttribute("type", "text");
@@ -781,54 +779,24 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(page.getByRole("button", { name: "Test connection" })).toBeDisabled();
   await page.getByRole("button", { name: "Save key" }).click();
   await expect(keyInput).toHaveValue("");
-  await expect(page.getByText("API key saved in Agent Worker memory", { exact: true }))
+  await expect(page.getByText("API key saved until you Forget it", { exact: true }))
     .toBeVisible();
   expect(providerProbeRequests).toHaveLength(0);
   await globalBack.click();
-  await expect(homeModelSelector).toBeFocused();
   await expect(providerWarning).toHaveCount(0);
+  const homeModelSelector = homeModelControl.getByRole("combobox", {
+    name: "Agent Creator model",
+  });
   await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
-  await expect(homeModelSelector).toHaveAttribute(
-    "data-selected-value",
-    JSON.stringify(["builtin", "openai", "gpt-5.3-chat-latest"]),
-  );
   await homeModelSelector.click();
   await expect(homeModelSelector).toHaveAttribute("aria-expanded", "true");
   const readyModelListbox = page.getByRole("listbox", { name: "Agent Creator model" });
   await expect(readyModelListbox).toBeVisible();
-  await expect(readyModelListbox.getByRole("option")).toHaveCount(3);
-  await expect(readyModelListbox.getByRole("option", { name: /GPT-5\.3 Chat/u })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expect(readyModelListbox.getByRole("option", { name: /GPT-5\.3 Chat/u })).toBeVisible();
   const fallbackModelOption = readyModelListbox.getByRole("option", { name: /GPT-4\.1 mini/u });
   const siblingModelOption = readyModelListbox.getByRole("option", { name: /GPT-4\.1 nano/u });
-  await expect(fallbackModelOption).toHaveAttribute("aria-selected", "false");
-  await expect(siblingModelOption).toHaveAttribute("aria-selected", "false");
-  await expect(readyModelListbox.getByRole("option", { name: /Anthropic/u })).toHaveCount(0);
-  await expect(modelSettingsAction).toBeVisible();
-
-  await modelSettingsAction.dispatchEvent("click");
-  await expect(settings).toBeVisible();
-  await page.locator('[data-provider-id="openai"]').click();
-  await expect(page.getByText("API key saved in Agent Worker memory", { exact: true }))
-    .toBeVisible();
-  await selectedModel.uncheck();
-  await expect(selectedModel).not.toBeChecked();
-  await expect(page.getByText("API key saved in Agent Worker memory", { exact: true }))
-    .toBeVisible();
-  await globalBack.click();
-  await expect(providerWarning).toHaveCount(0);
-  await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
-  await expect(homeModelSelector).toHaveAttribute(
-    "data-selected-value",
-    JSON.stringify(["builtin", "openai", "gpt-4.1-mini"]),
-  );
-  await homeModelSelector.click();
-  await expect(readyModelListbox.getByRole("option")).toHaveCount(2);
-  await expect(readyModelListbox.getByRole("option", { name: /GPT-5\.3 Chat/u })).toHaveCount(0);
-  await expect(fallbackModelOption).toHaveAttribute("aria-selected", "true");
-  await expect(siblingModelOption).toHaveAttribute("aria-selected", "false");
+  await expect(fallbackModelOption).toBeVisible();
+  await expect(siblingModelOption).toBeVisible();
   await expect(readyModelListbox.getByRole("option", { name: /Anthropic/u })).toHaveCount(0);
   await siblingModelOption.dispatchEvent("click");
   await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
@@ -836,25 +804,19 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
     "data-selected-value",
     JSON.stringify(["builtin", "openai", "gpt-4.1-nano"]),
   );
+  const modelSettingsAction = homeModelControl.getByRole("button", { name: "Model settings" });
 
-  const creatorIntent = page.getByRole("textbox", { name: "What would you like to make?" });
-  const createProgramButton = page.getByRole("button", { name: "Create program" });
-  await expect(createProgramButton).toBeDisabled();
-  await creatorIntent.fill(translationIntentV1);
-  await expect(createProgramButton).toBeEnabled();
-  expect(providerProbeRequests).toHaveLength(0);
-
-  await expect(homeModelSelector).toHaveAttribute("aria-expanded", "false");
   await homeModelSelector.click();
-  await expect(homeModelSelector).toHaveAttribute("aria-expanded", "true");
+  await expect(modelSettingsAction).toBeVisible();
   await homeModelSelector.press("Tab");
   await expect(modelSettingsAction).toBeFocused();
   await modelSettingsAction.press("Enter");
   await expect(settings).toBeVisible();
   await expect(globalBack).toBeFocused();
   await page.locator('[data-provider-id="openai"]').click();
-  await expect(page.getByText("API key saved in Agent Worker memory", { exact: true }))
+  await expect(page.getByText("API key saved until you Forget it", { exact: true }))
     .toBeVisible();
+  await connectionModelSelect.selectOption("gpt-4.1-nano");
   const testConnectionButton = page.getByRole("button", { name: "Test connection" });
   await expect(testConnectionButton).toBeEnabled();
   await testConnectionButton.click();
@@ -878,16 +840,60 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   });
   expect(probeBody.tool_choice).toBeUndefined();
   expect(JSON.stringify(probeBody.input)).toContain("Reply with OK.");
+
+  await settingsVault.click();
+  await expect(page.locator('[data-vault-phase="unlocked"]')).toBeVisible();
+  await expect(page.locator('[data-vault-mode="device"]')).toContainText("Automatic");
+  await expect(page.getByText("builtin:openai", { exact: true }).first()).toBeVisible();
+  await page.getByLabel("Vault password", { exact: true }).fill(vaultPassword);
+  await page.getByLabel("Confirm password", { exact: true }).fill(vaultPassword);
+  await page.getByRole("button", { name: "Use Password mode" }).click();
+  await expect(page.locator('[data-vault-mode="password"]')).toContainText("Password");
+  await expect(page.getByRole("button", { name: "Change password" })).toBeVisible();
+  const lockVaultButton = page.getByRole("button", { name: "Lock", exact: true });
+  await lockVaultButton.click();
+  await expect(page.locator('[data-vault-phase="locked"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "Unlock", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Forget builtin:openai" }).first())
+    .toBeDisabled();
+  await page.getByLabel("Vault password", { exact: true }).fill(vaultPassword);
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(page.locator('[data-vault-phase="unlocked"]')).toBeVisible();
+
+  await page.reload();
+  await expectProgramStorageReadyV1(page);
+  await expect(providerWarning).toBeVisible();
+  await expect(homeModelControl).toHaveCount(0);
+  await page.locator('[data-open-settings="home"]').click();
+  await expect(page.locator('[data-settings-section="general"]')).toBeVisible();
+  await page.getByRole("button", { name: "Credential Vault", exact: true }).click();
+  await expect(page.locator('[data-vault-phase="locked"]')).toBeVisible();
+  await expect(page.locator('[data-vault-mode="password"]')).toContainText("Password");
+  await expect(page.getByText("builtin:openai", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("https://api.openai.com/v1", { exact: true }).first())
+    .toBeVisible();
+  await page.getByLabel("Vault password", { exact: true }).fill(vaultPassword);
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(page.locator('[data-vault-phase="unlocked"]')).toBeVisible();
+  await page.getByRole("button", { name: "Providers", exact: true }).click();
+  await page.locator('[data-provider-id="openai"]').click();
+  await expect(page.locator('.provider-settings__credential-form[data-key-saved="true"]'))
+    .toBeVisible();
+  await expect(page.getByRole("button", { name: "Replace key" })).toBeVisible();
   await globalBack.click();
-  await expect(homeModelSelector).toBeFocused();
   await expect(providerWarning).toHaveCount(0);
   await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
   await expect(homeModelSelector).toHaveAttribute(
     "data-selected-value",
     JSON.stringify(["builtin", "openai", "gpt-4.1-nano"]),
   );
+
+  const creatorIntent = page.getByRole("textbox", { name: "What would you like to make?" });
+  const createProgramButton = page.getByRole("button", { name: "Create program" });
+  await expect(createProgramButton).toBeDisabled();
   await creatorIntent.fill(translationIntentV1);
   await expect(createProgramButton).toBeEnabled();
+  expect(providerProbeRequests).toHaveLength(1);
 
   const modelSelectorBox = await homeModelSelector.boundingBox();
   const createProgramBox = await createProgramButton.boundingBox();
@@ -995,7 +1001,10 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await workspaceModelSelector.click();
   const workspaceModelListbox = page.getByRole("listbox", { name: "Agent Creator model" });
   await expect(workspaceModelListbox).toBeVisible();
-  await expect(workspaceModelListbox.getByRole("option")).toHaveCount(2);
+  await expect(workspaceModelListbox.getByRole("option", { name: /GPT-5\.3 Chat/u })).toBeVisible();
+  await expect(workspaceModelListbox.getByRole("option", { name: /GPT-4\.1 mini/u })).toBeVisible();
+  await expect(workspaceModelListbox.getByRole("option", { name: /GPT-4\.1 nano/u }))
+    .toHaveAttribute("aria-selected", "true");
   const workspaceModelSettingsAction = workspaceModelControl.getByRole("button", {
     name: "Model settings",
   });
@@ -1065,32 +1074,35 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(workspaceSettings).toBeFocused();
 
   await workspaceSettings.click();
+  await page.getByRole("button", { name: "Providers", exact: true }).click();
   await page.locator('[data-provider-id="openai"]').click();
-  await expect(page.getByText("Last connection test passed", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Forget key" }).click();
-  await expect(page.getByLabel("API key (memory only)")).toBeVisible();
+  await expect(page.getByText("API key saved until you Forget it", { exact: true }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "Forget API key" }).click();
+  await expect(page.getByLabel("API key", { exact: true })).toBeVisible();
+  await expect(page.locator('.provider-settings__credential-form[data-key-saved="false"]'))
+    .toBeVisible();
+  await settingsVault.click();
+  await expect(page.getByText("No Provider API key is saved.", { exact: true })).toBeVisible();
+  await settingsProviders.click();
+  await expect(page.locator('[data-provider-id="openai"]')).toHaveAttribute(
+    "data-credential-status",
+    "unset",
+  );
   await globalBack.click();
   await expect(workspaceSettings).toBeFocused();
   await page.getByRole("button", { name: "Creator home" }).click();
   await expect(providerWarning).toHaveAttribute("data-pi-agent-status", "available");
   await expect(providerWarning).toContainText("API key required");
-  await expect(homeModelControl).toHaveAttribute("data-model-state", "required");
-  await expect(homeModelSelector).toHaveAttribute(
-    "data-selected-value",
-    "",
-  );
-  await homeModelSelector.click();
-  await expect(page.getByRole("listbox", { name: "Agent Creator model" }).getByRole("option"))
-    .toHaveCount(0);
-  await expect(
-    page.getByText("No enabled model is available to the current key in this browser session."),
-  ).toBeVisible();
-  await homeModelSelector.press("Escape");
+  await expect(homeModelControl).toHaveCount(0);
   await expectNoPageOverflowV1(page);
 
   expect(observedNetwork.join("\n")).not.toContain(sentinel);
   expect(observedConsole.join("\n")).not.toContain(sentinel);
   expect(await page.content()).not.toContain(sentinel);
+  expect(observedNetwork.join("\n")).not.toContain(vaultPassword);
+  expect(observedConsole.join("\n")).not.toContain(vaultPassword);
+  expect(await page.content()).not.toContain(vaultPassword);
   const persistentBrowserState = await page.evaluate(() => {
     const entries: [string, string | null][] = [];
     for (let index = 0; index < localStorage.length; index += 1) {
@@ -1100,6 +1112,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
     return entries;
   });
   expect(JSON.stringify(persistentBrowserState)).not.toContain(sentinel);
+  expect(JSON.stringify(persistentBrowserState)).not.toContain(vaultPassword);
 });
 
 test("ordinary Browser Settings adds, reloads, and removes a non-secret custom endpoint profile", async ({ durableProgramPage: page }) => {
@@ -1121,7 +1134,7 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
   await page.locator('[data-add-custom-endpoint="true"]').click();
 
   await page.getByLabel("Name").fill(customName);
-  await page.getByLabel("Pi API family").selectOption("openai-responses");
+  await page.getByLabel("API format").selectOption("openai-responses");
   await page.locator('.provider-settings__custom-form input[name="baseUrl"]').fill(
     `${customEndpoint}/`,
   );
@@ -1133,7 +1146,7 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
   const customProfile = page.locator("[data-custom-profile-id]");
   await expect(customProfile).toHaveCount(1);
   await expect(customProfile).toContainText(customName);
-  await expect(customProfile).toHaveAttribute("data-connection-status", "untested");
+  await expect(customProfile).toHaveAttribute("data-connection-status", "available");
   await expect(page.getByRole("heading", { name: customName })).toBeVisible();
   const savedEndpoint = page.locator(
     '.provider-settings__endpoint input[aria-label="Endpoint"]',
@@ -1146,19 +1159,23 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
   await expect(savedEndpoint).not.toBeEditable();
   await expect(page.getByText(customModel, { exact: true }).first()).toBeVisible();
 
-  const customKeyInput = page.getByLabel("API key (memory only)");
+  const customKeyInput = page.getByLabel("API key", { exact: true });
   await customKeyInput.fill(customSentinel);
   await page.getByRole("button", { name: "Save key" }).click();
   await expect(customKeyInput).toHaveValue("");
+  await expect(page.getByText("API key saved until you Forget it", { exact: true }))
+    .toBeVisible();
+  await expect(page.locator('.provider-settings__credential-form[data-key-saved="true"]'))
+    .toBeVisible();
   expect(customProbeRequests).toHaveLength(0);
   await page.getByRole("button", { name: "Test connection" }).click();
   await expect(customKeyInput).toHaveValue("");
   const customConnection = page.locator(
-    `.provider-settings__credential-form[data-connection-phase="ready"]`,
+    `.provider-settings__credential-form[data-key-saved="true"]`,
   );
   await expect(customConnection).toContainText("Last connection test passed");
   await expect(customConnection).toContainText(`${customName} · ${customModel}`);
-  await expect(customProfile).toHaveAttribute("data-connection-status", "verified");
+  await expect(customProfile).toHaveAttribute("data-connection-status", "available");
   expect(customProbeRequests).toHaveLength(1);
   expect(customProbeRequests[0]?.method).toBe("POST");
   expect(customProbeRequests[0]?.headers.authorization).toBe(`Bearer ${customSentinel}`);
@@ -1187,42 +1204,56 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
       contextWindow: 131_072,
       maxTokens: 8_192,
     }],
-    enabledBuiltinModels: [],
-    preferredModel: {
-      kind: "custom",
-    },
+    preferredModel: null,
   });
   expect(JSON.stringify(savedProfile).toLocaleLowerCase()).not.toContain("api_key");
   expect(JSON.stringify(savedProfile).toLocaleLowerCase()).not.toContain("apikey");
   expect(JSON.stringify(savedProfile)).not.toContain(customSentinel);
   expect(await page.content()).not.toContain(customSentinel);
 
-  await page.getByRole("button", { name: "Forget key" }).click();
-  await expect(page.getByLabel("API key (memory only)")).toBeVisible();
-  await expect(customProfile).toHaveAttribute("data-connection-status", "untested");
-
   await page.reload();
   await expectProgramStorageReadyV1(page);
-  await expect(providerWarning).toHaveAttribute("data-pi-agent-status", "available");
-  await providerWarning.click();
+  await expect(providerWarning).toHaveCount(0);
+  await expect(page.locator('[data-creator-model-selector="true"]')).toHaveAttribute(
+    "data-model-state",
+    "ready",
+  );
+  await page.locator('[data-open-settings="home"]').click();
+  await expect(page.locator('[data-settings-section="general"]')).toBeVisible();
+  await page.getByRole("button", { name: "Providers", exact: true }).click();
   const reloadedProfile = page.locator("[data-custom-profile-id]");
   await expect(reloadedProfile).toHaveCount(1);
   await expect(reloadedProfile).toContainText(customName);
+  await expect(reloadedProfile).toHaveAttribute("data-connection-status", "available");
   await reloadedProfile.click();
   await expect(
     page.locator('.provider-settings__endpoint input[aria-label="Endpoint"]'),
   ).toHaveValue(customEndpoint);
   await expect(page.getByText("131,072", { exact: true })).toBeVisible();
   await expect(page.getByText("8,192", { exact: true })).toBeVisible();
+  await expect(page.locator('.provider-settings__credential-form[data-key-saved="true"]'))
+    .toBeVisible();
+  await expect(page.getByRole("button", { name: "Replace key" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Forget API key" }).click();
+  await expect(page.locator('.provider-settings__credential-form[data-key-saved="false"]'))
+    .toBeVisible();
+  await expect(reloadedProfile).toHaveAttribute("data-connection-status", "available");
 
   await page.getByRole("button", { name: "Remove" }).click();
   await expect(reloadedProfile).toHaveCount(0);
   expect(
-    await page.evaluate(
-      (storageKey) => localStorage.getItem(storageKey),
-      browserProviderSettingsStorageKeyV2,
+    JSON.parse(
+      await page.evaluate(
+        (storageKey) => localStorage.getItem(storageKey) ?? "null",
+        browserProviderSettingsStorageKeyV2,
+      ),
     ),
-  ).toBeNull();
+  ).toMatchObject({
+    revision: 2,
+    customProfiles: [],
+    preferredModel: null,
+  });
 
   await page.reload();
   await expectProgramStorageReadyV1(page);

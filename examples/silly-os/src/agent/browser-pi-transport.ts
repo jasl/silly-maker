@@ -17,11 +17,11 @@ import type { ProgramNetworkGrantV1 } from "../product/program-network-grants.ts
 import type { BrowserWorkspaceHostSnapshotWireV1 } from "../workspace/browser-workspace-host-protocol.ts";
 import type { BrowserNetworkBrokerLeaseV1 } from "../network/browser-network-broker-frame-transport.ts";
 import {
-  credentialVaultBindingsEqualV1,
-  normalizeCredentialVaultBindingV1,
-  type CredentialVaultBindingV1,
+  credentialVaultBindingsEqualV2,
+  normalizeCredentialVaultBindingV2,
+  type CredentialVaultBindingV2,
 } from "../credential/credential-vault-contracts.ts";
-import { credentialVaultBindingForSelectionV1 } from "../credential/provider-credential-binding.ts";
+import { credentialVaultBindingForSelectionV2 } from "../credential/provider-credential-binding.ts";
 import {
   admitBrowserPiEngineRequestV1,
   admitBrowserPiWorkerAnyOutboundMessageV1,
@@ -55,7 +55,7 @@ export type BrowserPiWorkerFactoryV1 = (input: {
 export type BrowserPiOpenNetworkBrokerV1 = () => Promise<BrowserNetworkBrokerLeaseV1>;
 
 export type BrowserPiCredentialHandoffV1 = (
-  binding: CredentialVaultBindingV1,
+  binding: CredentialVaultBindingV2,
   handoffId: string,
   deliveryPort: MessagePort,
 ) => Promise<void>;
@@ -81,12 +81,12 @@ export interface BrowserPiWorkerRawTransportV1 extends AgentRpcRawTransportInter
     { readonly kind: "configured" } | { readonly kind: "unavailable"; readonly reason: "failed" }
   >;
   configureCredentialHandoff(input: {
-    readonly binding: CredentialVaultBindingV1;
+    readonly binding: CredentialVaultBindingV2;
     readonly handoff: BrowserPiCredentialHandoffV1;
   }): Promise<
     { readonly kind: "configured" } | { readonly kind: "unavailable"; readonly reason: "failed" }
   >;
-  testConnection(): Promise<
+  testConnection(selection?: BrowserPiModelSelectionV1 | null): Promise<
     { readonly kind: "ready" } | { readonly kind: "unavailable"; readonly reason: "failed" }
   >;
   selectModel(selection: BrowserPiModelSelectionV1): Promise<BrowserPiWorkerSelectModelResultV1>;
@@ -160,8 +160,14 @@ interface ConnectionStateV1 {
   onRecord: ((record: unknown) => void) | null;
   setup:
     | {
-      readonly kind: "configure" | "test_connection";
+      readonly kind: "configure";
       readonly requestId: number;
+      readonly resolve: (accepted: boolean) => void;
+    }
+    | {
+      readonly kind: "test_connection";
+      readonly requestId: number;
+      readonly selection: BrowserPiModelSelectionV1 | null;
       readonly resolve: (accepted: boolean) => void;
     }
     | {
@@ -306,7 +312,7 @@ export function createBrowserPiWorkerRawTransportV1({
   const selectionHasValidEndpoint = selection === null || endpointOrigin !== null;
   const expectedCredentialBinding = selection === null
     ? null
-    : credentialVaultBindingForSelectionV1(selection);
+    : credentialVaultBindingForSelectionV2(selection);
   let activeState: ConnectionStateV1 | null = null;
   let credentialRevoked = false;
   let workspaceEnvironmentDetachSettlement = Promise.resolve();
@@ -433,6 +439,7 @@ export function createBrowserPiWorkerRawTransportV1({
     state: ConnectionStateV1,
     kind: "configure" | "test_connection",
     postRequest: (requestId: number) => void,
+    testedSelection: BrowserPiModelSelectionV1 | null = state.activeSelection,
   ): Promise<boolean> => {
     if (state.closed || state.setup !== null) return Promise.resolve(false);
     const requestId = state.nextCallId++;
@@ -440,7 +447,14 @@ export function createBrowserPiWorkerRawTransportV1({
     const result = new Promise<boolean>((resolve) => {
       resolveSetup = resolve;
     });
-    state.setup = { kind, requestId, resolve: resolveSetup };
+    state.setup = kind === "test_connection"
+      ? {
+        kind,
+        requestId,
+        selection: testedSelection === null ? null : copySelectionV1(testedSelection),
+        resolve: resolveSetup,
+      }
+      : { kind, requestId, resolve: resolveSetup };
     const timer = setTimeout(
       () => closeState(state, `${kind}_timeout`),
       readyTimeoutMillisecondsV1,
@@ -631,7 +645,7 @@ export function createBrowserPiWorkerRawTransportV1({
         }
         if (
           setup.kind !== "test_connection" || message.runtime !== runtime ||
-          !selectionsEqualV1(message.selection, state.activeSelection)
+          !selectionsEqualV1(message.selection, setup.selection)
         ) {
           closeState(state, "ready_invalid");
           return;
@@ -863,13 +877,13 @@ export function createBrowserPiWorkerRawTransportV1({
         expectedCredentialBinding === null || !selectionHasValidEndpoint ||
         typeof input.handoff !== "function"
       ) return { kind: "unavailable", reason: "failed" };
-      let binding: CredentialVaultBindingV1;
+      let binding: CredentialVaultBindingV2;
       try {
-        binding = normalizeCredentialVaultBindingV1(input.binding);
+        binding = normalizeCredentialVaultBindingV2(input.binding);
       } catch {
         return { kind: "unavailable", reason: "failed" };
       }
-      if (!credentialVaultBindingsEqualV1(binding, expectedCredentialBinding)) {
+      if (!credentialVaultBindingsEqualV2(binding, expectedCredentialBinding)) {
         return { kind: "unavailable", reason: "failed" };
       }
       let handoffId: string;
@@ -950,21 +964,25 @@ export function createBrowserPiWorkerRawTransportV1({
       }
       return { kind: "configured" };
     },
-    async testConnection() {
+    async testConnection(requestedSelection = activeState?.activeSelection ?? null) {
       const state = activeState;
       if (
         state === null || state.closed || !state.credentialAccepted || state.setup !== null
       ) return { kind: "unavailable", reason: "failed" };
+      const testedSelection = requestedSelection === null ? null : copySelectionV1(
+        requestedSelection,
+      );
       const ready = await beginSetupV1(state, "test_connection", (requestId) => {
         const request = Object.freeze({
           revision: 1,
           kind: "test_connection",
           requestId,
+          selection: testedSelection,
         });
         // Worker.postMessage has no targetOrigin parameter.
         // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
         state.worker.postMessage(request);
-      });
+      }, testedSelection);
       return ready && !state.closed ? { kind: "ready" } : { kind: "unavailable", reason: "failed" };
     },
     selectModel(requestedSelection) {

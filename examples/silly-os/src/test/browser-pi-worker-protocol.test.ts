@@ -165,7 +165,7 @@ describe("Browser Pi Worker protocol", () => {
         kind: "vault_handoff",
         handoffId: "credential.handoff.1",
         binding: {
-          bindingId: "builtin.openai",
+          bindingId: "builtin:openai",
           credentialKind: "api_key",
           baseUrl: "https://api.openai.com/v1",
         },
@@ -253,7 +253,13 @@ describe("Browser Pi Worker protocol", () => {
       revision: 1,
       kind: "test_connection",
       requestId: 3,
-    })).toEqual({ revision: 1, kind: "test_connection", requestId: 3 });
+      selection: live.selection,
+    })).toEqual({
+      revision: 1,
+      kind: "test_connection",
+      requestId: 3,
+      selection: live.selection,
+    });
     expect(admitBrowserPiWorkerInboundMessageV1({
       revision: 1,
       kind: "test_connection",

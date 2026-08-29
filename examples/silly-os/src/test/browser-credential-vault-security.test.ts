@@ -8,9 +8,12 @@ import { browserPermissionsPolicyV1 } from "../deployment/browser-control-plane-
 import {
   applyBrowserCredentialVaultWorkerSecurityHeadersV1,
   browserCredentialVaultWorkerContentSecurityPolicyV1,
+  browserCredentialVaultWorkerDevelopmentContentSecurityPolicyV1,
   browserCredentialVaultWorkerDevelopmentPathV1,
+  classifyBrowserCredentialVaultDevelopmentRequestV1,
   isBrowserCredentialVaultWorkerAssetPathV1,
   isExactBrowserCredentialVaultDevelopmentRequestV1,
+  isExactBrowserCredentialVaultDevelopmentModuleRequestV1,
 } from "../deployment/browser-credential-vault-security.ts";
 import {
   type SillyOsStaticAssetsBindingV1,
@@ -54,7 +57,7 @@ class RecordingAssetsV1 implements SillyOsStaticAssetsBindingV1 {
 }
 
 describe("Browser Credential Vault Worker security boundary", () => {
-  it("defines an exact network-off Worker policy", () => {
+  it("keeps production closed while admitting only WebKit's development module imports", () => {
     expect(directivesV1(browserCredentialVaultWorkerContentSecurityPolicyV1)).toEqual({
       "default-src": "'none'",
       "script-src": "'self'",
@@ -67,8 +70,21 @@ describe("Browser Credential Vault Worker security boundary", () => {
       "form-action": "'none'",
     });
     expect(browserCredentialVaultWorkerContentSecurityPolicyV1).not.toContain("https:");
+    expect(browserCredentialVaultWorkerContentSecurityPolicyV1).not.toContain("blob:");
+    expect(browserCredentialVaultWorkerContentSecurityPolicyV1).not.toContain("data:");
     expect(browserCredentialVaultWorkerContentSecurityPolicyV1).not.toContain("*");
     expect(browserCredentialVaultWorkerContentSecurityPolicyV1).not.toContain("unsafe-");
+
+    expect(directivesV1(browserCredentialVaultWorkerDevelopmentContentSecurityPolicyV1)).toEqual({
+      ...directivesV1(browserCredentialVaultWorkerContentSecurityPolicyV1),
+      "worker-src": "'self'",
+    });
+    expect(browserCredentialVaultWorkerDevelopmentContentSecurityPolicyV1).not.toContain(
+      "https:",
+    );
+    expect(browserCredentialVaultWorkerDevelopmentContentSecurityPolicyV1).not.toContain("blob:");
+    expect(browserCredentialVaultWorkerDevelopmentContentSecurityPolicyV1).not.toContain("data:");
+    expect(browserCredentialVaultWorkerDevelopmentContentSecurityPolicyV1).not.toContain("*");
 
     const headers = new Headers({
       "Content-Security-Policy-Report-Only": "connect-src https:",
@@ -84,24 +100,39 @@ describe("Browser Credential Vault Worker security boundary", () => {
     expect(headers.get("X-Frame-Options")).toBe("DENY");
   });
 
-  it("admits only Vite's exact fixed development module Worker request", () => {
-    expect(isExactBrowserCredentialVaultDevelopmentRequestV1(
-      new URL(
-        `${deploymentOriginV1}${browserCredentialVaultWorkerDevelopmentPathV1}?worker_file&type=module`,
-      ),
-    )).toBe(true);
+  it("separates Vite's exact module resolution from the final privileged Worker response", () => {
+    const moduleResolution = `${browserCredentialVaultWorkerDevelopmentPathV1}?worker&url`;
+    const workerAsset = `${browserCredentialVaultWorkerDevelopmentPathV1}?worker_file&type=module`;
+    expect(isExactBrowserCredentialVaultDevelopmentModuleRequestV1(moduleResolution)).toBe(true);
+    expect(isExactBrowserCredentialVaultDevelopmentRequestV1(moduleResolution)).toBe(false);
+    expect(classifyBrowserCredentialVaultDevelopmentRequestV1(moduleResolution)).toBe(
+      "module_resolution",
+    );
+    expect(isExactBrowserCredentialVaultDevelopmentRequestV1(workerAsset)).toBe(true);
+    expect(isExactBrowserCredentialVaultDevelopmentModuleRequestV1(workerAsset)).toBe(false);
+    expect(classifyBrowserCredentialVaultDevelopmentRequestV1(workerAsset)).toBe("worker_asset");
 
     for (
       const url of [
-        `${deploymentOriginV1}${browserCredentialVaultWorkerDevelopmentPathV1}`,
-        `${deploymentOriginV1}${browserCredentialVaultWorkerDevelopmentPathV1}?worker_file&type=classic`,
-        `${deploymentOriginV1}${browserCredentialVaultWorkerDevelopmentPathV1}?worker_file&type=module&endpoint-origin=https%3A%2F%2Fprovider.example`,
-        `${deploymentOriginV1}${browserCredentialVaultWorkerDevelopmentPathV1}?worker_file&worker_file&type=module`,
-        `${deploymentOriginV1}/src/credential/other.worker.ts?worker_file&type=module`,
+        browserCredentialVaultWorkerDevelopmentPathV1,
+        `${browserCredentialVaultWorkerDevelopmentPathV1}?url&worker`,
+        `${browserCredentialVaultWorkerDevelopmentPathV1}?worker=&url`,
+        `${browserCredentialVaultWorkerDevelopmentPathV1}?worker&url&other=value`,
+        `${browserCredentialVaultWorkerDevelopmentPathV1}?worker_file&type=classic`,
+        `${browserCredentialVaultWorkerDevelopmentPathV1}?type=module&worker_file`,
+        `${browserCredentialVaultWorkerDevelopmentPathV1}?worker_file&type=module&endpoint-origin=https%3A%2F%2Fprovider.example`,
+        `${browserCredentialVaultWorkerDevelopmentPathV1}?worker_file&worker_file&type=module`,
+        "/src/credential/browser-credential-vault.worker%2Ets?worker_file&type=module",
+        "/src/credential/./browser-credential-vault.worker.ts?worker&url",
+        "/src/credential/x/../browser-credential-vault.worker.ts?worker&url",
+        "/src//credential/browser-credential-vault.worker.ts?worker&url",
       ]
     ) {
-      expect(isExactBrowserCredentialVaultDevelopmentRequestV1(new URL(url))).toBe(false);
+      expect(classifyBrowserCredentialVaultDevelopmentRequestV1(url)).toBe("rejected");
     }
+    expect(classifyBrowserCredentialVaultDevelopmentRequestV1(
+      "/src/credential/other.worker.ts?worker_file&type=module",
+    )).toBe("unrelated");
   });
 
   it("recognizes only one hashed production Vault Worker asset shape", () => {

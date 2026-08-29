@@ -14,9 +14,9 @@ import {
 import {
   applyBrowserCredentialVaultWorkerSecurityHeadersV1,
   browserCredentialVaultWorkerContentSecurityPolicyV1,
-  browserCredentialVaultWorkerDevelopmentPathV1,
+  browserCredentialVaultWorkerDevelopmentContentSecurityPolicyV1,
+  classifyBrowserCredentialVaultDevelopmentRequestV1,
   isBrowserCredentialVaultWorkerAssetPathV1,
-  isExactBrowserCredentialVaultDevelopmentRequestV1,
 } from "./src/deployment/browser-credential-vault-security.ts";
 import { parseCanonicalEndpointOriginV1 } from "./src/deployment/cloudflare-selected-origin-worker.ts";
 import { browserWorkspaceSandboxDevelopmentOriginV1 } from "./src/workspace/browser-workspace-sandbox-origins.ts";
@@ -77,16 +77,19 @@ function createSelectedOriginAgentWorkerDevelopmentPluginV1(): Plugin {
 }
 
 function createCredentialVaultWorkerSecurityPluginV1(): Plugin {
-  const applyResponsePolicyV1 = (response: {
-    setHeader(name: string, value: string): void;
-    removeHeader(name: string): void;
-    writeHead: (...args: never[]) => unknown;
-  }): void => {
+  const applyResponsePolicyV1 = (
+    response: {
+      setHeader(name: string, value: string): void;
+      removeHeader(name: string): void;
+      writeHead: (...args: never[]) => unknown;
+    },
+    contentSecurityPolicy: string,
+  ): void => {
     const writeHead = response.writeHead.bind(response);
     response.writeHead = ((...args: never[]) => {
       response.setHeader(
         "Content-Security-Policy",
-        browserCredentialVaultWorkerContentSecurityPolicyV1,
+        contentSecurityPolicy,
       );
       response.removeHeader("Content-Security-Policy-Report-Only");
       response.setHeader("Permissions-Policy", browserPermissionsPolicyV1);
@@ -114,16 +117,21 @@ function createCredentialVaultWorkerSecurityPluginV1(): Plugin {
     apply: "serve",
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
-        const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
-        if (requestUrl.pathname !== browserCredentialVaultWorkerDevelopmentPathV1) {
+        const disposition = classifyBrowserCredentialVaultDevelopmentRequestV1(
+          request.url ?? "/",
+        );
+        if (disposition === "unrelated" || disposition === "module_resolution") {
           next();
           return;
         }
-        if (!isExactBrowserCredentialVaultDevelopmentRequestV1(requestUrl)) {
+        if (disposition === "rejected") {
           rejectV1(response);
           return;
         }
-        applyResponsePolicyV1(response);
+        applyResponsePolicyV1(
+          response,
+          browserCredentialVaultWorkerDevelopmentContentSecurityPolicyV1,
+        );
         next();
       });
     },
@@ -138,7 +146,7 @@ function createCredentialVaultWorkerSecurityPluginV1(): Plugin {
           rejectV1(response);
           return;
         }
-        applyResponsePolicyV1(response);
+        applyResponsePolicyV1(response, browserCredentialVaultWorkerContentSecurityPolicyV1);
         next();
       });
     },

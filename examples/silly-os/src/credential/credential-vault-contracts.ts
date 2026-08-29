@@ -1,46 +1,48 @@
 // SPDX-License-Identifier: MIT
 /// <reference lib="dom" />
 
-export const credentialVaultRevisionV1 = 1 as const;
-export const credentialVaultKdfIterationsV1 = 600_000;
-export const credentialVaultMaximumBindingsV1 = 32;
-export const credentialVaultPassphraseMaximumUtf8BytesV1 = 4 * 1024;
-export const credentialVaultApiKeyMaximumUtf8BytesV1 = 64 * 1024;
-export const credentialVaultBindingIdMaximumUtf8BytesV1 = 256;
-export const credentialVaultBaseUrlMaximumUtf8BytesV1 = 2_048;
+export const credentialVaultRevisionV2 = 2 as const;
+export const credentialVaultKdfIterationsV2 = 600_000;
+export const credentialVaultMaximumBindingsV2 = 32;
+export const credentialVaultPassphraseMaximumUtf8BytesV2 = 4 * 1024;
+export const credentialVaultApiKeyMaximumUtf8BytesV2 = 64 * 1024;
+export const credentialVaultBindingIdMaximumUtf8BytesV2 = 256;
+export const credentialVaultBaseUrlMaximumUtf8BytesV2 = 2_048;
 
-const bindingIdPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,255}$/u;
+const bindingIdPatternV2 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,255}$/u;
 
-export type CredentialVaultCredentialKindV1 = "api_key";
+export type CredentialVaultCredentialKindV2 = "api_key";
+export type CredentialVaultProtectionV2 = "device" | "password";
+export type CredentialVaultStateV2 = "locked" | "unlocked";
 
 /**
- * Non-secret identity shown by Vault list operations. The complete canonical
- * base URL is part of the identity; changing it is never an implicit rebind.
+ * Non-secret connection identity shown by Vault list operations. A binding is
+ * the pair `(bindingId, baseUrl)`, so one Provider may own multiple immutable
+ * endpoint credentials without either endpoint being silently rebound.
  */
-export interface CredentialVaultBindingV1 {
+export interface CredentialVaultBindingV2 {
   readonly bindingId: string;
-  readonly credentialKind: CredentialVaultCredentialKindV1;
+  readonly credentialKind: CredentialVaultCredentialKindV2;
   readonly baseUrl: string;
 }
 
-export type CredentialVaultStateV1 = "absent" | "locked" | "unlocked";
-
-export interface CredentialVaultListV1 {
-  readonly revision: 1;
-  readonly state: CredentialVaultStateV1;
-  readonly bindings: readonly CredentialVaultBindingV1[];
+export interface CredentialVaultListV2 {
+  readonly revision: 2;
+  readonly protection: CredentialVaultProtectionV2;
+  readonly state: CredentialVaultStateV2;
+  readonly bindings: readonly CredentialVaultBindingV2[];
 }
 
-export type CredentialVaultAdmissionV1<TValue> =
+export type CredentialVaultAdmissionV2<TValue> =
   | { readonly kind: "admitted"; readonly value: TValue }
   | { readonly kind: "rejected"; readonly path: string };
 
-type ExactRecordV1 = Readonly<Record<string, unknown>>;
+type ExactRecordV2 = Readonly<Record<string, unknown>>;
 
-export function credentialVaultExactRecordV1(
+export function credentialVaultExactRecordV2(
   value: unknown,
   keys: readonly string[],
-): ExactRecordV1 | null {
+): ExactRecordV2 | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
   try {
     const prototype = Object.getPrototypeOf(value);
@@ -64,22 +66,22 @@ export function credentialVaultExactRecordV1(
   }
 }
 
-export function credentialVaultUtf8ByteLengthV1(value: string): number {
+export function credentialVaultUtf8ByteLengthV2(value: string): number {
   return new TextEncoder().encode(value).byteLength;
 }
 
-export function isCredentialVaultBoundedTextV1(
+export function isCredentialVaultBoundedTextV2(
   value: unknown,
   maximumUtf8Bytes: number,
 ): value is string {
   return typeof value === "string" && value.length > 0 &&
-    credentialVaultUtf8ByteLengthV1(value) <= maximumUtf8Bytes;
+    credentialVaultUtf8ByteLengthV2(value) <= maximumUtf8Bytes;
 }
 
 /** Canonical complete HTTPS endpoint used by both storage identity and AAD. */
-export function canonicalizeCredentialVaultBaseUrlV1(value: unknown): string | null {
+export function canonicalizeCredentialVaultBaseUrlV2(value: unknown): string | null {
   if (
-    !isCredentialVaultBoundedTextV1(value, credentialVaultBaseUrlMaximumUtf8BytesV1) ||
+    !isCredentialVaultBoundedTextV2(value, credentialVaultBaseUrlMaximumUtf8BytesV2) ||
     value.includes("?") || value.includes("#")
   ) return null;
   let url: URL;
@@ -100,31 +102,31 @@ export function canonicalizeCredentialVaultBaseUrlV1(value: unknown): string | n
   if (authority.includes("@")) return null;
   const path = url.pathname === "/" ? "" : url.pathname.replace(/\/+$/u, "");
   const canonical = `${url.origin}${path}`;
-  return credentialVaultUtf8ByteLengthV1(canonical) <=
-      credentialVaultBaseUrlMaximumUtf8BytesV1
+  return credentialVaultUtf8ByteLengthV2(canonical) <=
+      credentialVaultBaseUrlMaximumUtf8BytesV2
     ? canonical
     : null;
 }
 
-export function admitCredentialVaultBindingV1(
+export function admitCredentialVaultBindingV2(
   value: unknown,
-): CredentialVaultAdmissionV1<CredentialVaultBindingV1> {
-  const record = credentialVaultExactRecordV1(value, [
+): CredentialVaultAdmissionV2<CredentialVaultBindingV2> {
+  const record = credentialVaultExactRecordV2(value, [
     "bindingId",
     "credentialKind",
     "baseUrl",
   ]);
   if (record === null) return { kind: "rejected", path: "/" };
   if (
-    !isCredentialVaultBoundedTextV1(
+    !isCredentialVaultBoundedTextV2(
       record.bindingId,
-      credentialVaultBindingIdMaximumUtf8BytesV1,
-    ) || !bindingIdPatternV1.test(record.bindingId)
+      credentialVaultBindingIdMaximumUtf8BytesV2,
+    ) || !bindingIdPatternV2.test(record.bindingId)
   ) return { kind: "rejected", path: "/bindingId" };
   if (record.credentialKind !== "api_key") {
     return { kind: "rejected", path: "/credentialKind" };
   }
-  const baseUrl = canonicalizeCredentialVaultBaseUrlV1(record.baseUrl);
+  const baseUrl = canonicalizeCredentialVaultBaseUrlV2(record.baseUrl);
   if (baseUrl === null || baseUrl !== record.baseUrl) {
     return { kind: "rejected", path: "/baseUrl" };
   }
@@ -138,76 +140,100 @@ export function admitCredentialVaultBindingV1(
   };
 }
 
-export function normalizeCredentialVaultBindingV1(
-  value: CredentialVaultBindingV1,
-): CredentialVaultBindingV1 {
-  const admitted = admitCredentialVaultBindingV1(value);
+export function normalizeCredentialVaultBindingV2(
+  value: CredentialVaultBindingV2,
+): CredentialVaultBindingV2 {
+  const admitted = admitCredentialVaultBindingV2(value);
   if (admitted.kind === "rejected") {
     throw new TypeError(`sillyos.credential_vault.binding_invalid${admitted.path}`);
   }
   return Object.freeze(admitted.value);
 }
 
-export function credentialVaultBindingsEqualV1(
-  left: CredentialVaultBindingV1,
-  right: CredentialVaultBindingV1,
+export function credentialVaultBindingsEqualV2(
+  left: CredentialVaultBindingV2,
+  right: CredentialVaultBindingV2,
 ): boolean {
   return left.bindingId === right.bindingId && left.credentialKind === right.credentialKind &&
     left.baseUrl === right.baseUrl;
 }
 
-export function compareCredentialVaultBindingsV1(
-  left: CredentialVaultBindingV1,
-  right: CredentialVaultBindingV1,
-): number {
-  return left.bindingId < right.bindingId ? -1 : left.bindingId > right.bindingId ? 1 : 0;
+export function credentialVaultBindingStorageKeyV2(binding: CredentialVaultBindingV2): string {
+  const exact = normalizeCredentialVaultBindingV2(binding);
+  return JSON.stringify([exact.bindingId, exact.credentialKind, exact.baseUrl]);
 }
 
-export function admitCredentialVaultListV1(
+export function compareCredentialVaultBindingsV2(
+  left: CredentialVaultBindingV2,
+  right: CredentialVaultBindingV2,
+): number {
+  const leftKey = credentialVaultBindingStorageKeyV2(left);
+  const rightKey = credentialVaultBindingStorageKeyV2(right);
+  return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+}
+
+export function admitCredentialVaultListV2(
   value: unknown,
-): CredentialVaultAdmissionV1<CredentialVaultListV1> {
-  const record = credentialVaultExactRecordV1(value, ["revision", "state", "bindings"]);
+): CredentialVaultAdmissionV2<CredentialVaultListV2> {
+  const record = credentialVaultExactRecordV2(value, [
+    "revision",
+    "protection",
+    "state",
+    "bindings",
+  ]);
   if (record === null) return { kind: "rejected", path: "/" };
-  if (record.revision !== credentialVaultRevisionV1) {
+  if (record.revision !== credentialVaultRevisionV2) {
     return { kind: "rejected", path: "/revision" };
   }
-  if (record.state !== "absent" && record.state !== "locked" && record.state !== "unlocked") {
+  if (record.protection !== "device" && record.protection !== "password") {
+    return { kind: "rejected", path: "/protection" };
+  }
+  if (record.state !== "locked" && record.state !== "unlocked") {
+    return { kind: "rejected", path: "/state" };
+  }
+  if (record.protection === "device" && record.state !== "unlocked") {
     return { kind: "rejected", path: "/state" };
   }
   if (
-    !Array.isArray(record.bindings) ||
-    record.bindings.length > credentialVaultMaximumBindingsV1
-  ) return { kind: "rejected", path: "/bindings" };
-  const bindings: CredentialVaultBindingV1[] = [];
-  let previousBindingId: string | null = null;
+    !Array.isArray(record.bindings) || record.bindings.length > credentialVaultMaximumBindingsV2
+  ) {
+    return { kind: "rejected", path: "/bindings" };
+  }
+  const bindings: CredentialVaultBindingV2[] = [];
+  let previousStorageKey: string | null = null;
   for (let index = 0; index < record.bindings.length; index += 1) {
-    const admitted = admitCredentialVaultBindingV1(record.bindings[index]);
+    const admitted = admitCredentialVaultBindingV2(record.bindings[index]);
     if (admitted.kind === "rejected") {
       return { kind: "rejected", path: `/bindings/${String(index)}${admitted.path}` };
     }
-    if (previousBindingId !== null && admitted.value.bindingId <= previousBindingId) {
+    const storageKey = credentialVaultBindingStorageKeyV2(admitted.value);
+    if (previousStorageKey !== null && storageKey <= previousStorageKey) {
       return { kind: "rejected", path: `/bindings/${String(index)}` };
     }
     bindings.push(admitted.value);
-    previousBindingId = admitted.value.bindingId;
-  }
-  if (record.state === "absent" && bindings.length !== 0) {
-    return { kind: "rejected", path: "/bindings" };
+    previousStorageKey = storageKey;
   }
   return {
     kind: "admitted",
-    value: { revision: 1, state: record.state, bindings },
+    value: {
+      revision: 2,
+      protection: record.protection,
+      state: record.state,
+      bindings,
+    },
   };
 }
 
-export function createCredentialVaultListV1(
-  state: CredentialVaultStateV1,
-  bindings: readonly CredentialVaultBindingV1[],
-): CredentialVaultListV1 {
-  const admitted = admitCredentialVaultListV1({
-    revision: 1,
+export function createCredentialVaultListV2(
+  protection: CredentialVaultProtectionV2,
+  state: CredentialVaultStateV2,
+  bindings: readonly CredentialVaultBindingV2[],
+): CredentialVaultListV2 {
+  const admitted = admitCredentialVaultListV2({
+    revision: 2,
+    protection,
     state,
-    bindings: bindings.toSorted(compareCredentialVaultBindingsV1),
+    bindings: bindings.toSorted(compareCredentialVaultBindingsV2),
   });
   if (admitted.kind === "rejected") {
     throw new TypeError(`sillyos.credential_vault.list_invalid${admitted.path}`);

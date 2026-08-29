@@ -20,6 +20,7 @@ import {
 
 class MemoryStorageV1 implements Storage {
   readonly values = new Map<string, string>();
+  setCalls = 0;
 
   get length(): number {
     return this.values.size;
@@ -42,6 +43,7 @@ class MemoryStorageV1 implements Storage {
   }
 
   setItem(key: string, value: string): void {
+    this.setCalls += 1;
     this.values.set(key, value);
   }
 }
@@ -246,6 +248,99 @@ describe("Browser Provider Settings repository", () => {
     expect(Object.isFrozen(snapshot.preferredModel)).toBe(true);
   });
 
+  it("atomically initializes sorted builtin defaults only on fresh storage", () => {
+    const storage = new MemoryStorageV1();
+    const repository = createBrowserProviderSettingsRepositoryV1({ storage });
+    const initialization = repository.initializeBuiltinModelDefaults([
+      builtinModelRefV1("z-provider", "z-model"),
+      builtinModelRefV1("a-provider", "z-model"),
+      builtinModelRefV1("a-provider", "a-model"),
+    ]);
+
+    expect(initialization).toEqual({
+      initialized: true,
+      snapshot: {
+        revision: browserProviderSettingsRevisionV2,
+        customProfiles: [],
+        enabledBuiltinModels: [
+          builtinModelRefV1("a-provider", "a-model"),
+          builtinModelRefV1("a-provider", "z-model"),
+          builtinModelRefV1("z-provider", "z-model"),
+        ],
+        preferredModel: null,
+      },
+    });
+    expect(Object.isFrozen(initialization)).toBe(true);
+    expect(Object.isFrozen(initialization.snapshot.enabledBuiltinModels)).toBe(true);
+    expect(storage.setCalls).toBe(1);
+
+    const second = repository.initializeBuiltinModelDefaults([
+      builtinModelRefV1("other-provider", "other-model"),
+    ]);
+    expect(second.initialized).toBe(false);
+    expect(second.snapshot).toEqual(initialization.snapshot);
+    expect(storage.setCalls).toBe(1);
+  });
+
+  it("keeps an explicit all-unchecked envelope instead of reseeding defaults", () => {
+    const storage = new MemoryStorageV1();
+    const repository = createBrowserProviderSettingsRepositoryV1({ storage });
+    const initial = builtinModelRefV1("provider", "initial-model");
+    repository.initializeBuiltinModelDefaults([initial]);
+    expect(repository.setBuiltinModelEnabled(initial, false)).toBe(true);
+    expect(JSON.parse(storage.getItem(browserProviderSettingsStorageKeyV2) ?? "null")).toEqual({
+      revision: browserProviderSettingsRevisionV2,
+      customProfiles: [],
+      enabledBuiltinModels: [],
+      preferredModel: null,
+    });
+
+    const second = repository.initializeBuiltinModelDefaults([
+      builtinModelRefV1("provider", "new-default"),
+    ]);
+    expect(second).toEqual({
+      initialized: false,
+      snapshot: {
+        revision: browserProviderSettingsRevisionV2,
+        customProfiles: [],
+        enabledBuiltinModels: [],
+        preferredModel: null,
+      },
+    });
+  });
+
+  it("rejects malformed, duplicate, and over-limit defaults without a partial write", () => {
+    const invalidCases = [
+      {
+        value: [builtinModelRefV1(), builtinModelRefV1()],
+        code: "invalid_model_ref",
+      },
+      {
+        value: [{ ...builtinModelRefV1(), apiKey: "must-never-persist" }],
+        code: "invalid_model_ref",
+      },
+      {
+        value: Array.from(
+          { length: browserProviderSettingsMaximumBuiltinModelsV1 + 1 },
+          (_, index) => builtinModelRefV1("provider", `model-${String(index)}`),
+        ),
+        code: "model_limit",
+      },
+    ] as const;
+    for (const invalid of invalidCases) {
+      const storage = new MemoryStorageV1();
+      const repository = createBrowserProviderSettingsRepositoryV1({ storage });
+      expect(() => repository.initializeBuiltinModelDefaults(invalid.value)).toThrowError(
+        expect.objectContaining({
+          code: invalid.code,
+          operation: "initialize_builtin_model_defaults",
+        }),
+      );
+      expect(storage.getItem(browserProviderSettingsStorageKeyV2)).toBeNull();
+      expect(storage.setCalls).toBe(0);
+    }
+  });
+
   it("rejects duplicate profile ids and applies the profile count limit atomically", () => {
     const storage = new MemoryStorageV1();
     const repository = createBrowserProviderSettingsRepositoryV1({ storage });
@@ -308,7 +403,12 @@ describe("Browser Provider Settings repository", () => {
       enabledBuiltinModels: [],
       preferredModel: null,
     });
-    expect(storage.getItem(browserProviderSettingsStorageKeyV2)).toBeNull();
+    expect(JSON.parse(storage.getItem(browserProviderSettingsStorageKeyV2) ?? "null")).toEqual({
+      revision: browserProviderSettingsRevisionV2,
+      customProfiles: [],
+      enabledBuiltinModels: [],
+      preferredModel: null,
+    });
   });
 
   it("requires preferred targets to exist and clears an explicit preferred target", () => {
@@ -336,7 +436,7 @@ describe("Browser Provider Settings repository", () => {
     expect(repository.read().preferredModel).toBeNull();
   });
 
-  it("keeps the envelope until every non-secret setting is empty", () => {
+  it("keeps the empty envelope after every non-secret setting is removed", () => {
     const storage = new MemoryStorageV1();
     const repository = createBrowserProviderSettingsRepositoryV1({ storage });
     const builtin = builtinModelRefV1();
@@ -345,7 +445,12 @@ describe("Browser Provider Settings repository", () => {
     expect(repository.remove("custom.openai")).toBe(true);
     expect(storage.getItem(browserProviderSettingsStorageKeyV2)).not.toBeNull();
     expect(repository.setBuiltinModelEnabled(builtin, false)).toBe(true);
-    expect(storage.getItem(browserProviderSettingsStorageKeyV2)).toBeNull();
+    expect(JSON.parse(storage.getItem(browserProviderSettingsStorageKeyV2) ?? "null")).toEqual({
+      revision: browserProviderSettingsRevisionV2,
+      customProfiles: [],
+      enabledBuiltinModels: [],
+      preferredModel: null,
+    });
   });
 
   it("rejects malformed, dangling, unsorted, duplicate, and secret-bearing stored records", () => {

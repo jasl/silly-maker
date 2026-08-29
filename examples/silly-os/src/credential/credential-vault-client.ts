@@ -2,237 +2,247 @@
 /// <reference lib="dom" />
 
 import {
-  normalizeCredentialVaultBindingV1,
-  type CredentialVaultBindingV1,
-  type CredentialVaultListV1,
+  normalizeCredentialVaultBindingV2,
+  type CredentialVaultBindingV2,
+  type CredentialVaultListV2,
 } from "./credential-vault-contracts.ts";
 import {
-  admitCredentialVaultWorkerResponseEnvelopeV1,
-  createCredentialVaultWorkerRequestEnvelopeV1,
-  type CredentialVaultFailureCodeV1,
-  type CredentialVaultWorkerMethodV1,
-  type CredentialVaultWorkerRequestRecordV1,
-  type CredentialVaultWorkerSuccessRecordV1,
+  admitCredentialVaultWorkerResponseEnvelopeV2,
+  createCredentialVaultWorkerRequestEnvelopeV2,
+  type CredentialVaultFailureCodeV2,
+  type CredentialVaultWorkerMethodV2,
+  type CredentialVaultWorkerRequestRecordV2,
+  type CredentialVaultWorkerSuccessRecordV2,
 } from "./credential-vault-protocol.ts";
 
-export const credentialVaultClientDeadlineMillisecondsV1 = 30_000;
+export const credentialVaultClientDeadlineMillisecondsV2 = 30_000;
 
-export interface CredentialVaultWorkerPortV1 extends EventTarget {
+export interface CredentialVaultWorkerPortV2 extends EventTarget {
   postMessage(message: unknown, transfer?: Transferable[]): void;
 }
 
-export class CredentialVaultClientErrorV1 extends Error {
+export class CredentialVaultClientErrorV2 extends Error {
   constructor(
-    readonly code: CredentialVaultFailureCodeV1,
-    readonly method: CredentialVaultWorkerMethodV1,
+    readonly code: CredentialVaultFailureCodeV2,
+    readonly method: CredentialVaultWorkerMethodV2,
   ) {
     super(`sillyos.credential_vault.client.${method}.${code}`);
-    this.name = "CredentialVaultClientErrorV1";
+    this.name = "CredentialVaultClientErrorV2";
   }
 }
 
-export interface CredentialVaultClientV1 {
-  create(passphrase: string): Promise<CredentialVaultListV1>;
-  unlock(passphrase: string): Promise<CredentialVaultListV1>;
-  lock(): Promise<void>;
-  list(): Promise<CredentialVaultListV1>;
+export interface CredentialVaultClientV2 {
+  initialize(): Promise<CredentialVaultListV2>;
+  list(): Promise<CredentialVaultListV2>;
+  setPassword(passphrase: string): Promise<CredentialVaultListV2>;
+  useDevice(): Promise<CredentialVaultListV2>;
+  unlock(passphrase: string): Promise<CredentialVaultListV2>;
+  lock(): Promise<CredentialVaultListV2>;
   upsert(
-    binding: CredentialVaultBindingV1,
+    binding: CredentialVaultBindingV2,
     apiKey: string,
-  ): Promise<
-    { readonly disposition: "created" | "replaced"; readonly binding: CredentialVaultBindingV1 }
-  >;
-  forget(binding: CredentialVaultBindingV1): Promise<boolean>;
+  ): Promise<{
+    readonly disposition: "created" | "replaced";
+    readonly binding: CredentialVaultBindingV2;
+  }>;
+  forget(binding: CredentialVaultBindingV2): Promise<boolean>;
   handoff(
-    binding: CredentialVaultBindingV1,
+    binding: CredentialVaultBindingV2,
     handoffId: string,
     deliveryPort: MessagePort,
   ): Promise<void>;
   close(): void;
 }
 
-export interface CreateCredentialVaultClientOptionsV1 {
+export interface CreateCredentialVaultClientOptionsV2 {
   readonly createRequestId?: () => string;
   readonly deadlineMilliseconds?: number;
 }
 
-interface PendingV1 {
-  readonly method: CredentialVaultWorkerMethodV1;
-  readonly resolve: (record: CredentialVaultWorkerSuccessRecordV1) => void;
-  readonly reject: (error: CredentialVaultClientErrorV1) => void;
+interface PendingV2 {
+  readonly method: CredentialVaultWorkerMethodV2;
+  readonly resolve: (record: CredentialVaultWorkerSuccessRecordV2) => void;
+  readonly reject: (error: CredentialVaultClientErrorV2) => void;
   readonly deadline: ReturnType<typeof setTimeout>;
 }
 
-export function createCredentialVaultClientV1(
-  port: CredentialVaultWorkerPortV1,
-  options: CreateCredentialVaultClientOptionsV1 = {},
-): CredentialVaultClientV1 {
+export function createCredentialVaultClientV2(
+  port: CredentialVaultWorkerPortV2,
+  options: CreateCredentialVaultClientOptionsV2 = {},
+): CredentialVaultClientV2 {
   const deadlineMilliseconds = options.deadlineMilliseconds ??
-    credentialVaultClientDeadlineMillisecondsV1;
+    credentialVaultClientDeadlineMillisecondsV2;
   if (
     !Number.isSafeInteger(deadlineMilliseconds) || deadlineMilliseconds <= 0 ||
     deadlineMilliseconds > 60_000
   ) throw new TypeError("sillyos.credential_vault.client_deadline_invalid");
 
-  const pendingV1 = new Map<string, PendingV1>();
-  let closedV1 = false;
+  const pendingV2 = new Map<string, PendingV2>();
+  let closedV2 = false;
 
-  const closeV1 = (): void => {
-    if (closedV1) return;
-    closedV1 = true;
-    port.removeEventListener("message", onMessageV1 as EventListener);
-    port.removeEventListener("messageerror", onMessageErrorV1 as EventListener);
+  const closeV2 = (): void => {
+    if (closedV2) return;
+    closedV2 = true;
+    port.removeEventListener("message", onMessageV2 as EventListener);
+    port.removeEventListener("messageerror", onMessageErrorV2 as EventListener);
     if ("close" in port && typeof port.close === "function") port.close();
-    for (const pending of pendingV1.values()) {
+    for (const pending of pendingV2.values()) {
       clearTimeout(pending.deadline);
-      pending.reject(new CredentialVaultClientErrorV1("storage_unavailable", pending.method));
+      pending.reject(new CredentialVaultClientErrorV2("storage_unavailable", pending.method));
     }
-    pendingV1.clear();
+    pendingV2.clear();
   };
 
-  function onMessageErrorV1(): void {
-    closeV1();
+  function onMessageErrorV2(): void {
+    closeV2();
   }
 
-  function onMessageV1(event: MessageEvent<unknown>): void {
+  function onMessageV2(event: MessageEvent<unknown>): void {
     if (event.ports.length !== 0) {
       for (const transferred of event.ports) transferred.close();
-      closeV1();
+      closeV2();
       return;
     }
     if (
       event.data === null || typeof event.data !== "object" ||
       !("requestId" in event.data) || typeof event.data.requestId !== "string"
     ) {
-      closeV1();
+      closeV2();
       return;
     }
-    const pending = pendingV1.get(event.data.requestId);
+    const pending = pendingV2.get(event.data.requestId);
     if (pending === undefined) return;
-    const response = admitCredentialVaultWorkerResponseEnvelopeV1(event.data, pending.method);
+    const response = admitCredentialVaultWorkerResponseEnvelopeV2(event.data, pending.method);
     if (response === null) {
-      closeV1();
+      closeV2();
       return;
     }
-    pendingV1.delete(response.requestId);
+    pendingV2.delete(response.requestId);
     clearTimeout(pending.deadline);
     if (response.record.kind === "failure") {
-      pending.reject(new CredentialVaultClientErrorV1(response.record.code, pending.method));
+      pending.reject(new CredentialVaultClientErrorV2(response.record.code, pending.method));
       return;
     }
     pending.resolve(response.record);
   }
 
-  port.addEventListener("message", onMessageV1 as EventListener);
-  port.addEventListener("messageerror", onMessageErrorV1 as EventListener);
+  port.addEventListener("message", onMessageV2 as EventListener);
+  port.addEventListener("messageerror", onMessageErrorV2 as EventListener);
   if ("start" in port && typeof port.start === "function") port.start();
 
-  const callV1 = async (
-    record: CredentialVaultWorkerRequestRecordV1,
+  const callV2 = async (
+    record: CredentialVaultWorkerRequestRecordV2,
     transfer: readonly Transferable[] = [],
-  ): Promise<CredentialVaultWorkerSuccessRecordV1> => {
-    if (closedV1) throw new CredentialVaultClientErrorV1("storage_unavailable", record.method);
+  ): Promise<CredentialVaultWorkerSuccessRecordV2> => {
+    if (closedV2) throw new CredentialVaultClientErrorV2("storage_unavailable", record.method);
     const requestId = options.createRequestId?.() ?? `credential.request.${crypto.randomUUID()}`;
     let message;
     try {
-      message = createCredentialVaultWorkerRequestEnvelopeV1(requestId, record);
+      message = createCredentialVaultWorkerRequestEnvelopeV2(requestId, record);
     } catch {
       for (const transferable of transfer) {
         if (transferable instanceof MessagePort) transferable.close();
       }
-      throw new CredentialVaultClientErrorV1("wire_invalid", record.method);
+      throw new CredentialVaultClientErrorV2("wire_invalid", record.method);
     }
-    if (pendingV1.has(requestId)) {
-      closeV1();
-      throw new CredentialVaultClientErrorV1("wire_invalid", record.method);
+    if (pendingV2.has(requestId)) {
+      closeV2();
+      throw new CredentialVaultClientErrorV2("wire_invalid", record.method);
     }
     return await new Promise((resolve, reject) => {
       const deadline = setTimeout(() => {
-        const pending = pendingV1.get(requestId);
+        const pending = pendingV2.get(requestId);
         if (pending === undefined) return;
-        pendingV1.delete(requestId);
-        pending.reject(new CredentialVaultClientErrorV1("storage_unavailable", record.method));
+        pendingV2.delete(requestId);
+        pending.reject(new CredentialVaultClientErrorV2("storage_unavailable", record.method));
       }, deadlineMilliseconds);
-      pendingV1.set(requestId, { method: record.method, resolve, reject, deadline });
+      pendingV2.set(requestId, { method: record.method, resolve, reject, deadline });
       try {
         port.postMessage(message, [...transfer]);
       } catch {
-        pendingV1.delete(requestId);
+        pendingV2.delete(requestId);
         clearTimeout(deadline);
         for (const transferable of transfer) {
           if (transferable instanceof MessagePort) transferable.close();
         }
-        reject(new CredentialVaultClientErrorV1("storage_unavailable", record.method));
+        reject(new CredentialVaultClientErrorV2("storage_unavailable", record.method));
       }
     });
   };
 
+  const listResultV2 = async (
+    record: Extract<CredentialVaultWorkerRequestRecordV2, {
+      readonly method: "initialize" | "list" | "set_password" | "use_device" | "unlock" | "lock";
+    }>,
+  ): Promise<CredentialVaultListV2> => {
+    const result = await callV2(record);
+    if (result.method !== record.method) {
+      throw new CredentialVaultClientErrorV2("wire_invalid", record.method);
+    }
+    return result.value;
+  };
+
   return Object.freeze({
-    async create(passphrase: string): Promise<CredentialVaultListV1> {
-      const result = await callV1({ method: "create", passphrase });
-      if (result.method !== "create") {
-        throw new CredentialVaultClientErrorV1("wire_invalid", "create");
-      }
-      return result.value;
+    async initialize(): Promise<CredentialVaultListV2> {
+      return await listResultV2({ method: "initialize" });
     },
-    async unlock(passphrase: string): Promise<CredentialVaultListV1> {
-      const result = await callV1({ method: "unlock", passphrase });
-      if (result.method !== "unlock") {
-        throw new CredentialVaultClientErrorV1("wire_invalid", "unlock");
-      }
-      return result.value;
+    async list(): Promise<CredentialVaultListV2> {
+      return await listResultV2({ method: "list" });
     },
-    async lock(): Promise<void> {
-      const result = await callV1({ method: "lock" });
-      if (result.method !== "lock") throw new CredentialVaultClientErrorV1("wire_invalid", "lock");
+    async setPassword(passphrase: string): Promise<CredentialVaultListV2> {
+      return await listResultV2({ method: "set_password", passphrase });
     },
-    async list(): Promise<CredentialVaultListV1> {
-      const result = await callV1({ method: "list" });
-      if (result.method !== "list") throw new CredentialVaultClientErrorV1("wire_invalid", "list");
-      return result.value;
+    async useDevice(): Promise<CredentialVaultListV2> {
+      return await listResultV2({ method: "use_device" });
     },
-    async upsert(binding: CredentialVaultBindingV1, apiKey: string) {
+    async unlock(passphrase: string): Promise<CredentialVaultListV2> {
+      return await listResultV2({ method: "unlock", passphrase });
+    },
+    async lock(): Promise<CredentialVaultListV2> {
+      return await listResultV2({ method: "lock" });
+    },
+    async upsert(binding: CredentialVaultBindingV2, apiKey: string) {
       let credential = apiKey;
       try {
-        const pending = callV1({
+        const pending = callV2({
           method: "upsert",
-          binding: normalizeCredentialVaultBindingV1(binding),
+          binding: normalizeCredentialVaultBindingV2(binding),
           credential: { kind: "api_key", value: credential },
         });
         credential = "";
         const result = await pending;
         if (result.method !== "upsert") {
-          throw new CredentialVaultClientErrorV1("wire_invalid", "upsert");
+          throw new CredentialVaultClientErrorV2("wire_invalid", "upsert");
         }
         return result.value;
       } finally {
         credential = "";
       }
     },
-    async forget(binding: CredentialVaultBindingV1): Promise<boolean> {
-      const result = await callV1({
+    async forget(binding: CredentialVaultBindingV2): Promise<boolean> {
+      const result = await callV2({
         method: "forget",
-        binding: normalizeCredentialVaultBindingV1(binding),
+        binding: normalizeCredentialVaultBindingV2(binding),
       });
       if (result.method !== "forget") {
-        throw new CredentialVaultClientErrorV1("wire_invalid", "forget");
+        throw new CredentialVaultClientErrorV2("wire_invalid", "forget");
       }
       return result.value.forgotten;
     },
     async handoff(
-      binding: CredentialVaultBindingV1,
+      binding: CredentialVaultBindingV2,
       handoffId: string,
       deliveryPort: MessagePort,
     ): Promise<void> {
-      const result = await callV1({
+      const result = await callV2({
         method: "handoff",
         handoffId,
-        binding: normalizeCredentialVaultBindingV1(binding),
+        binding: normalizeCredentialVaultBindingV2(binding),
       }, [deliveryPort]);
       if (result.method !== "handoff") {
-        throw new CredentialVaultClientErrorV1("wire_invalid", "handoff");
+        throw new CredentialVaultClientErrorV2("wire_invalid", "handoff");
       }
     },
-    close: closeV1,
+    close: closeV2,
   });
 }

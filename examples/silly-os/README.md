@@ -14,47 +14,39 @@ Creator 是唯一内置的用户程序；生成的 Program 是工程、Agent har
 
 ## 目前能体验什么
 
-普通入口现在提供 Browser Provider 设置。当前 Agent Worker 没有持有可用 Provider key
-与精确模型选择时，Creator Home 会显示一张可用键盘整体打开的警告卡片；用户需要先进入
-Providers。Settings 中的模型不再按 SillyOS 自定义的 Qualified/Candidate 质量分级：Provider
-只要具备当前
-Browser 已实现的单 Key 凭据形状、API 协议适配器和 canonical HTTPS Endpoint，其目录模型就可供
-用户选择。这只是 Browser 技术兼容边界，不声称 SillyOS 逐个调用、评测或批准过每个模型。
+普通入口现在提供 Browser Provider 设置。Settings 明确分为 **General**、**Providers** 和
+**Credential Vault** 三类；Creator Home 的 Provider warning 会直接进入 Providers。Provider
+只要具备当前 Browser 已实现的单 Key 凭据形状、API 协议适配器和 canonical HTTPS Endpoint，
+其目录模型就可以供用户勾选。这只是 Browser 技术兼容边界，不声称 SillyOS 逐个调用、评测或
+批准过每个模型。
 
-模型行是多选 checkbox，用于指定哪些模型可以出现在 Agent Creator；另一个 preferred model
-是当前执行目标。Creator Home 与 Program workspace 的输入框复用同一个模型选择组件，不会把
-这些非秘密偏好冒充成可用凭据：built-in 下拉是 enabled models 与当前 Worker 凭据作用域的
-交集，作用域要求相同 `providerId` 与 canonical `baseUrl`；custom Endpoint 只匹配自身精确
-profile。底部“模型设置”返回 Provider 设置页，并在返回后把焦点交还原输入框。Home 的 API-key
-warning 只在 Worker 尚未持有凭据时出现；已经持有 key 但没有 enabled 作用域模型时，下拉保持
-required/空状态并提供“模型设置”，不会谎称需要重新保存 key。取消勾选 active model 时也不会
-Forget：若同作用域还有模型，Worker 会先切换到其中一个；否则必须重新选择模型才能继续创建或
-发送。切换中保留旧选择、禁用下拉并显示进度，不闪回 warning。稳定的 Provider/Key 状态与
-Forget 只属于 Settings，不作为
-工作区聊天卡片重复展示；Chat 只保留临时运行反馈和 Cancel。刷新或 Forget 后即使偏好仍在，
-两个输入框也不会继续显示它。非秘密的勾选、preferred model 和自定义 Endpoint 会持久化；
-固定目录升级后不再存在的引用会被删除，不会猜测替代模型。SillyOS 不合成 `latest` 别名，
-也不比较无关模型的版本高低；如果 Pi 在同一 API/Endpoint 路径中同时提供非日期 stable alias
-和对应的 `-YYYYMMDD` 快照，选择页只展示 stable alias。不存在这个精确 alias 时，日期版本仍会
-如实保留。连接模型会优先使用该 Provider 已启用的 preferred model，而不是目录中的任意首项。
+模型行是多选 checkbox，用于指定哪些模型出现在 Agent Creator；另一个 preferred model 是当前
+默认执行目标。全新非秘密设置会从产品维护的推荐 model family 与当前 Pi 目录的精确交集初始化
+一组 checked models，用户可以随时增删；推荐不构成质量准入。Creator Home 与 Program
+workspace 的输入框复用同一个模型选择组件。可用选项是 checked models 与**已解锁 Vault 中精确
+Provider/Endpoint binding** 的交集，不再依赖某个 Agent Worker 此刻是否已持有 Key。没有可用
+选项时 Home 只显示 warning；有可用选项时只显示模型选择器，并按 preferred 或首个可用模型向
+新 Agent Worker 懒交付对应 Key。同一 credential scope 内切换模型复用当前 Worker；跨
+Provider/Endpoint scope 则从 Vault 做新的精确 typed handoff。只有用户模型切换成功后才更新
+preferred；保存 Key 与连接测试都不会修改 checked/preferred 模型。
 
-可用 built-in 的详情把初始连接模型的 preset endpoint 只读展示在 Connection 区域。API Key
-从 uncontrolled password input 通过 **Save key** 进入凭据流程；保存本身不请求 Provider。
-**Remember on this device** 默认不勾选，因此普通 Save 仍只把 Key 交给当前 Agent Worker
-会话。只有用户先用密码创建并解锁 Credential Vault、再显式勾选该项时，产品才会把 Key
-加密后写入 Vault，并通过一次性 typed handoff 配置新的 Agent Worker。Worker 接受 Key 并完成
-本地 Agent session 初始化后，同一 Provider/Endpoint 作用域内所有 enabled models 立即可用，
-Home 的 API-key warning 同时消失；不需要先请求或测试 Provider。用户在
-下拉中切换时，Worker 先原子选择新模型；只有成功后 UI 才同时更新 active 与 preferred，失败则
-保留旧模型。独立的 **Test connection** 只是可选、可重复的时间点诊断，会对当前模型发送一次
-很小但可能计费的真实请求。成功或失败都不改变已保存 key、Agent session 或作用域内模型的
-可用性，也不认证其他模型；错误的 key、模型名、Endpoint 或网络条件会在测试或后续真实 Agent
-调用中如实失败。输入框会立即清空，测试结果始终只属于当前 Worker/浏览器会话。session-only
-Key 在跨 Provider/Endpoint、Forget、关闭页面或刷新后需要重新保存；记住的 Key 在刷新后仍保持
-加密锁定，用户解锁 Vault 后可明确点击 **Use remembered key**，不需要读取或回显完整 Key。
-**Lock** 会清除解锁能力并终止当前持 Key 的 Agent Worker；**Forget session key** 只结束当前
-会话；**Forget remembered key** 删除精确持久绑定，若它正被使用也会结束当前 Agent Worker。
-在同一精确绑定上再次勾选 Remember 并 Save 新 Key 即为 Replace。
+可用 built-in 的详情会在 Connection 区域只读展示产品目录给出的一个或多个固定 Endpoint
+scope；同一 Provider 的 **Save key** 会把所给 Key 分别绑定到这些完整 normalized scopes。
+Custom Endpoint 只保存其自身 profile 与 exact endpoint binding。Save 总是把 Key 加密持久化到
+Credential Vault，输入框随后清空；保存本身不请求 Provider，也不需要先测试具体模型。在同一
+scope 再次 **Replace key** 会替换旧密文。完整 Key 不回读到 UI、普通产品状态或 Workspace。
+
+全新 Vault 默认使用 **Automatic**：Vault IndexedDB 保存一个不可导出的设备 AES-GCM key，新的
+Vault Worker 会自动验证并解锁，因此刷新或冷启动后可以直接把精确 binding 交给 Agent Worker。
+用户也可以在独立 Credential Vault 设置中切换到 **Password**，把现有全部凭据原子 rewrap 到
+密码派生 key；Password 模式支持显式 Lock、Unlock 和修改密码，也可以再切回 Automatic。
+**Forget API key** 删除对应 exact binding，并在它正被 Agent 使用时撤销该 Worker 的凭据。
+Key 会一直保存到用户 Forget 或清除此站点数据。
+
+独立的 **Test connection** 只是可选、可重复的时间点诊断。用户可以从该 Provider 所有技术上
+可调用的模型中选择测试目标；这不受 checked models 限制，也不会改变 preferred 或可用性。
+测试会发出一次很小但可能计费的真实请求；错误的 Key、模型名、Endpoint 或网络条件会在测试
+或后续真实 Agent 调用中如实失败，测试成功也不认证其他模型。
 保存成功后可以体验：
 
 Bedrock 这类 ambient、OAuth、keyless 或多字段凭据 profile 仍可查看，但不会被压成一个假的
@@ -96,10 +88,10 @@ B1c 另外把 **Built-in Providers** 和 **Custom Endpoints** 分区。自定义
 HTTPS base URL、model id、显式 context/output 上限，以及 Pi 已提供的四种 API family：
 `openai-completions`、`openai-responses`、`anthropic-messages`、
 `google-generative-ai`；协议永远不从 URL 猜测。这个有界非秘密 profile 可以保存在产品自有
-Browser Settings repository 中。API Key 默认不持久化；只有显式启用 Remember 且 Vault 已
-解锁时，才会按该 profile 身份与完整 normalized HTTPS endpoint 的精确绑定加密保存。修改
-endpoint 不会隐式重绑旧 Key；需要新建/确认新绑定。最近一次测试状态不会持久化，一次会话
-测试成功也不会升级成 SillyOS 的 built-in 双浏览器资格结论。
+Browser Settings repository 中。API Key 总是由已解锁 Vault 按该 profile 身份与完整 normalized
+HTTPS endpoint 的精确 binding 加密持久化；修改 endpoint 不会隐式重绑旧 Key，需要保存新的
+binding，并可从独立 Vault 列表 Forget 已不再使用的旧 binding。最近一次测试状态不会持久化，
+一次测试成功也不会升级成 SillyOS 的 built-in 双浏览器资格结论。
 
 当前产品已经有由 Dedicated Worker 持有的 Browser IndexedDB Program repository；它只
 保存有界的产品 Program 投影与 Program 网络授权，不保存 API Key、Pi session、附件内容或
@@ -147,17 +139,24 @@ snapshot/export 与 volume 生命周期，旧控制-origin Host Worker 和 fallb
 Repository V6 在既有 stores 上增加 Program network grants；旧控制-origin OPFS bytes 可能仍由
 浏览器保留，但产品不再可达，也不会把它们作为迁移输入。
 
-Credential Vault 是可选能力，session-only 仍是默认。用户用密码创建/解锁后，Worker 通过
-WebCrypto 以 PBKDF2-SHA-256 派生不可导出 AES-GCM key，按完整 normalized HTTPS endpoint 与
-Provider/profile 身份作为精确绑定/AAD 加密 API Key。Vault 支持 Lock、Forget、Replace，以及
-只在解锁且绑定精确匹配时通过 transferred port 完成的一次 remembered handoff；完整 Key 不在
-UI 中回读。Vault Worker 的发布响应固定 `connect-src 'none'`。Agent Worker 的 Provider fetch
-另外固定 `credentials: "omit"`、`redirect: "error"`、`no-referrer`，并拒绝跨出选定 endpoint
-origin 的请求或响应；不会把 Authorization 能力跟随到另一 origin。
+Credential Vault V2 是 Provider Key 的唯一持久 owner。Fresh initialization 自动创建
+**Automatic** 模式，把不可导出的设备 AES-256-GCM `CryptoKey` 保存在 Vault IndexedDB，并在
+fresh Worker 中自动验证和解锁。可选 **Password** 模式通过 PBKDF2-SHA-256 派生不可导出的
+AES-GCM key；Automatic 与 Password 之间切换时，header 和最多 32 条现有密文会在同一事务内
+rewrap。每条 Key 都以完整 normalized HTTPS endpoint 与 Provider/profile identity 作为精确
+binding/AAD。Vault 支持 Password Lock/Unlock、Forget、Replace，以及只在 unlocked 且 binding
+精确匹配时通过 transferred port 完成的一次 handoff；完整 Key 不在 UI 中回读。旧 V1 Vault
+属于 pre-stable clean replacement，不迁移旧密文。Vault Worker 的发布响应固定
+`connect-src 'none'`；生产 hashed Worker 继续使用 `worker-src 'none'`，只有 Vite 的 exact final
+development module Worker 响应使用 `worker-src 'self'`，供 WebKit 加载产品固定的同源 dev imports。
+Vault 本身不暴露 nested Worker 或 fetch 接口。Agent Worker 的 Provider fetch 另外固定 `credentials: "omit"`、
+`redirect: "error"`、`no-referrer`，并拒绝跨出选定 endpoint origin 的请求或响应；不会把
+Authorization 能力跟随到另一 origin。
 
-这些边界只保护锁定状态下的本地密文，并把 Agent/项目生成代码与 SillyOS/API Key 隔离；它们
-不声称抵抗控制面 XSS、恶意浏览器扩展、设备恶意软件、供应链攻击，或控制面在 Vault 已解锁时
-滥用其能力。WebAuthn PRF/设备验证也尚未实现。
+Password 模式在锁定状态下保护本地密文；Automatic 模式的设备 key 与密文都可由这个浏览器的
+Vault authority 取得，因此不提供同等的 locked-at-rest 保证。两种模式都把 Agent/项目生成代码
+与 SillyOS/API Key 隔离，但不声称抵抗控制面 XSS、恶意浏览器扩展、设备恶意软件、供应链攻击，
+或控制面在 Vault 已解锁时滥用其能力。WebAuthn PRF/设备验证也尚未实现。
 
 P3c-B0 的三个历史检查点已经为 OPFS Workspace Host 闭合恢复、争用、规模和可携下载证据；
 S1a-1 再把 ordinary byte authority 移到独立 origin。
@@ -421,22 +420,27 @@ Worker，并在得到目录后立即终止它。
 
 要运行 live 路线，直接打开普通 URL。未配置时点击 Creator Home 的 Provider warning，进入
 Providers 后在 **Available models** 勾选希望出现在 Creator 选择器中的一个或多个兼容模型。
-在 Connection 中选择当前模型，确认只读 endpoint，输入该 Provider 的 key，再点击
-**Save key**。保存不会请求 Provider；Worker 接受 key 后 Agent Creator 的 Provider/proposal
-路线和当前 Program-bound workspace 工具立即可用，Home warning 消失，并且主页显示这个
-credential-bound 模型。**Test connection** 是可选、可重复的时间点诊断；只有点击它才会
-发出一次很小但可能计费的模型请求，成功或失败都不会改变当前模型的可用性。失败后 key 仍在
-Worker 内存中，可继续实际调用、重新测试或输入新 key 替换；实际调用若遇到无效 key、模型、
-Endpoint 或网络错误，会通过正常 Agent 失败路径报告。Key 输入会立即清空，Forget 会终止持有
-key 的 Worker。网页不会读取开发机 `.env`。勾选与 preferred model 在刷新后保留；测试结果
-不保留，Key 默认也不保留。若需要持久化，先在同页创建/解锁 Credential Vault，再显式勾选
-**Remember on this device** 后 Save；刷新后重新解锁并点击 **Use remembered key** 即可配置新的
-Agent Worker。Save 与 Test connection 始终是两个独立按钮。
+fresh 设置会先勾选产品维护的推荐 family 与实际 Pi 目录的精确交集，但这只是可编辑的初始值。
+在 Connection 中选择可选的测试模型、确认只读 endpoint scopes，输入该 Provider 的 key，再点击
+**Save key**。Fresh Vault 已处于 Automatic unlocked；Save 会把 Key 加密保存到每个展示的 exact
+scope，但不会请求 Provider，也不会改变 checked/preferred。按 preferred 或首个可用模型完成
+Vault-to-Agent handoff 后，Agent Creator 的 Provider/proposal 路线和当前 Program-bound workspace
+工具立即可用，Home warning 消失。网页不会读取开发机 `.env`；Key 输入会立即清空，完整 Key
+不会回显。
+
+**Test connection** 是独立、可选、可重复的时间点诊断；只有点击它才会针对“Test with model”
+当前选择发出一次很小但可能计费的请求，成功或失败都不会改变 Key、checked/preferred 或可用性。
+失败后仍可继续实际调用、重新测试或 **Replace key**；实际调用若遇到无效 Key、模型、Endpoint
+或网络错误，会通过正常 Agent 失败路径报告。模型偏好和加密 Key 都能跨刷新保留，测试结果不
+保留。需要显式 locked-at-rest 行为时，进入独立 **Credential Vault** 设置切换到 Password 模式；
+之后可以 Lock/Unlock、修改密码或切回 Automatic。**Forget API key** 删除精确 binding，并终止
+正在使用它的 Agent Worker。Save 与 Test connection 始终是两个独立按钮。
 
 需要兼容 endpoint 时，在 **Custom Endpoints** 中新增 HTTPS profile，显式选择四种 Pi API
 family 之一并填写 model/limits，再用同一个 Connection 流程保存 key；测试仍然可选。刷新后
-会恢复这个非秘密 profile；API Key 只有在显式 Remember 且 Vault 解锁时才以该 profile 与完整
-normalized endpoint 的精确绑定恢复为加密记录，测试状态不会恢复。一次测试成功只描述当前
+会恢复这个非秘密 profile；API Key 在 unlocked Vault 中按该 profile 与完整 normalized endpoint
+的精确 binding 恢复为加密记录，测试状态不会恢复。修改 profile endpoint 不会重绑旧 Key，旧
+binding 可在独立 Vault 列表中 Forget。一次测试成功只描述当前
 endpoint/key/model/API family 组合在本次浏览器会话中的那一次请求，不是使用前提。
 
 Cloudflare 入口是
@@ -455,11 +459,18 @@ HTTP 200；源码身份、三 origin CSP 分权与 Vault network-off 响应策�
 这份 artifact/response 回执不自动证明 public-origin 真实模型工具调用、remembered-key
 真实 Provider journey、任意站点 CORS、线上 ingress 或 search。
 
+以上 commit/version/smoke 是 2026-08-29 的 **S3/V1 已部署历史**，不会被当前本地 Vault V2
+实现追溯改写。当前本地 source 已淘汰 session-only/Remember 流程并采用 Automatic/Password
+Vault V2；在本轮重新部署前，公网 UI 与行为仍应按上述 dated artifact 如实理解。
+
 开发资格检查会按精确 profile 从本目录的 `.env` 读取对应 Provider key，依次启动普通
 Chromium context 与运行后删除的一次性持久 WebKit profile，
-先用明确无效的凭据证明 Provider 4xx 可读且产品只持久化有界 `run_failed`，再证明真实请求
-后的取消不会推进 v1、下一次运行形成精确 v2、测试的持久化投影不含 key，最后等待 Forget
-实际终止 Agent Worker。它不读取或打印 Provider 请求头、请求体或 key。资格检查沿用普通产品的
+先把明确无效的凭据保存到 Automatic Vault、证明 Provider 4xx 可读和可选测试的失败映射，再
+Forget 该 exact binding；随后保存外部真实测试 Key，并在 Home warning 已消失后独立执行连接
+测试。完整 Agent journey 继续证明取消不会推进 v1、下一次运行形成精确 v2、控制 origin 的
+持久化投影不含任何凭据明文，最后等待 Forget 实际终止 Agent Worker。它不读取或打印 Provider
+请求头、请求体或 Key；Save 本身不发送 Provider 请求，Test 也不是产品可用性的前置条件。
+资格检查沿用普通产品的
 三 origin：先分别启动固定 `41740` Sandbox、`41741` keyless Broker 和 `4173` control，再运行：
 
 ```sh
@@ -500,9 +511,11 @@ Provider 资格或 CSP。
 Browser 目标可作为 Cloudflare Workers Static Assets 发布的本地优先产品。部署方只
 提供静态应用；模型请求从浏览器 Agent Worker 直接到用户选择的 Provider，不经过
 SillyOS 官方代理。生产 UI 不得把明文 Key 写入 React state、URL、日志、Program 数据、Workspace
-OPFS、导出文件或保存非秘密 profile 的 `localStorage`。session-only Key 只进入 Agent Worker
-内存；显式 Remember 的 Key 只能进入专属 Vault Worker，由它加密后写入独立 Credential Vault
-IndexedDB。独立 database 是所有权分离，不是同源权限隔离。
+OPFS、导出文件或保存非秘密 profile 的 `localStorage`。Key 只能进入专属 Vault Worker，由它
+按 exact normalized endpoint binding 加密写入独立 Credential Vault IndexedDB；Agent Worker
+只通过一次性 transferred-port handoff 获得当前 scope 的明文能力。Automatic 模式还会在同一
+Vault database 保存不可导出的设备 `CryptoKey`，Password 模式则不持久化密码或派生 key。
+独立 database 是所有权分离，不是同源权限隔离。
 
 B1c-S0 为文档、静态资源和 selected Agent Worker 定义完整的无 wildcard CSP：显式设置
 `default-src`、`script-src`、`style-src`、`style-src-elem`、`style-src-attr`、
@@ -700,7 +713,7 @@ deno run -A npm:vitest run \
 后续 Agent loop、模型/provider、会话、tool dispatch 与 Agent 扩展统一由 Pi 负责。
 Browser Agent Worker 或 Desktop companion 只做目标适配、Program 数据所有权和 typed
 transport 投影；React 不接触 raw Pi RPC/provider records，也不读取或持久化完整 Provider Key。
-可选持久化只由专属 Credential Vault Worker 在 exact endpoint binding 下完成。
+持久化只由专属 Credential Vault Worker 在 exact endpoint binding 下完成。
 Agent 侧独特能力只实现一次 schema/prompt/handler 核心，Browser 薄适配为 Pi
 `AgentTool`，Desktop 薄适配为 Pi Extension tool。未来 OpenUI 数据映射到 SillyMaker
 的闭集 UI 组件与交互 intent；SillyMaker 不另建 Agent runtime，这些数据也不进入其

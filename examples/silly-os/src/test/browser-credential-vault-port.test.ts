@@ -3,28 +3,28 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  BrowserCredentialVaultPortErrorV1,
-  createBrowserCredentialVaultPortV1,
+  BrowserCredentialVaultPortErrorV2,
+  createBrowserCredentialVaultPortV2,
 } from "../credential/browser-credential-vault-port.ts";
 
-interface WorkerConstructionV1 {
+interface WorkerConstructionV2 {
   readonly url: URL;
   readonly options: WorkerOptions;
 }
 
-class CapturingWorkerV1 extends EventTarget {
-  static readonly constructions: WorkerConstructionV1[] = [];
-  static readonly instances: CapturingWorkerV1[] = [];
+class CapturingWorkerV2 extends EventTarget {
+  static readonly constructions: WorkerConstructionV2[] = [];
+  static readonly instances: CapturingWorkerV2[] = [];
 
   terminated = false;
 
   constructor(url: string | URL, options?: WorkerOptions) {
     super();
-    CapturingWorkerV1.constructions.push({
+    CapturingWorkerV2.constructions.push({
       url: new URL(url, import.meta.url),
       options: structuredClone(options ?? {}),
     });
-    CapturingWorkerV1.instances.push(this);
+    CapturingWorkerV2.instances.push(this);
   }
 
   postMessage(): void {}
@@ -36,17 +36,17 @@ class CapturingWorkerV1 extends EventTarget {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  CapturingWorkerV1.constructions.splice(0);
-  CapturingWorkerV1.instances.splice(0);
+  CapturingWorkerV2.constructions.splice(0);
+  CapturingWorkerV2.instances.splice(0);
 });
 
 describe("Browser Credential Vault fixed Worker port", () => {
   it("opens exactly one product-bundled module Worker without endpoint authority", () => {
-    vi.stubGlobal("Worker", CapturingWorkerV1);
+    vi.stubGlobal("Worker", CapturingWorkerV2);
 
-    const port = createBrowserCredentialVaultPortV1();
-    expect(CapturingWorkerV1.constructions).toHaveLength(1);
-    const construction = CapturingWorkerV1.constructions[0];
+    const port = createBrowserCredentialVaultPortV2();
+    expect(CapturingWorkerV2.constructions).toHaveLength(1);
+    const construction = CapturingWorkerV2.constructions[0];
     expect(construction?.url.pathname).toContain("browser-credential-vault.worker");
     expect(construction?.url.searchParams.has("endpoint-origin")).toBe(false);
     expect(construction?.url.searchParams.has("provider")).toBe(false);
@@ -57,13 +57,13 @@ describe("Browser Credential Vault fixed Worker port", () => {
 
     port.close();
     port.close();
-    expect(CapturingWorkerV1.instances[0]?.terminated).toBe(true);
+    expect(CapturingWorkerV2.instances[0]?.terminated).toBe(true);
   });
 
   it("terminates and closes the client when the fixed Worker fails", async () => {
-    vi.stubGlobal("Worker", CapturingWorkerV1);
-    const port = createBrowserCredentialVaultPortV1();
-    const worker = CapturingWorkerV1.instances[0];
+    vi.stubGlobal("Worker", CapturingWorkerV2);
+    const port = createBrowserCredentialVaultPortV2();
+    const worker = CapturingWorkerV2.instances[0];
     worker?.dispatchEvent(new Event("error"));
 
     expect(worker?.terminated).toBe(true);
@@ -74,21 +74,21 @@ describe("Browser Credential Vault fixed Worker port", () => {
   });
 
   it("fails explicitly when the bundled Worker cannot be constructed", () => {
-    function UnavailableWorkerV1(): never {
+    function UnavailableWorkerV2(): never {
       throw new Error("worker unavailable");
     }
-    vi.stubGlobal("Worker", UnavailableWorkerV1);
+    vi.stubGlobal("Worker", UnavailableWorkerV2);
 
-    expect(() => createBrowserCredentialVaultPortV1()).toThrowError(
-      new BrowserCredentialVaultPortErrorV1("worker_unavailable"),
+    expect(() => createBrowserCredentialVaultPortV2()).toThrowError(
+      new BrowserCredentialVaultPortErrorV2("worker_unavailable"),
     );
   });
 
   it("terminates the Worker when strict client construction rejects its options", () => {
-    vi.stubGlobal("Worker", CapturingWorkerV1);
-    expect(() => createBrowserCredentialVaultPortV1({ deadlineMilliseconds: 0 })).toThrowError(
-      new BrowserCredentialVaultPortErrorV1("worker_unavailable"),
+    vi.stubGlobal("Worker", CapturingWorkerV2);
+    expect(() => createBrowserCredentialVaultPortV2({ deadlineMilliseconds: 0 })).toThrowError(
+      new BrowserCredentialVaultPortErrorV2("worker_unavailable"),
     );
-    expect(CapturingWorkerV1.instances[0]?.terminated).toBe(true);
+    expect(CapturingWorkerV2.instances[0]?.terminated).toBe(true);
   });
 });

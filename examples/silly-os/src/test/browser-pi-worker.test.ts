@@ -57,10 +57,10 @@ import type {
 } from "../product/browser-program-workspace-authority.ts";
 import { serializeCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
 import {
-  admitCredentialVaultHandoffReadyV1,
-  createCredentialVaultHandoffDeliveryV1,
+  admitCredentialVaultHandoffReadyV2,
+  createCredentialVaultHandoffDeliveryV2,
 } from "../credential/credential-vault-protocol.ts";
-import type { CredentialVaultBindingV1 } from "../credential/credential-vault-contracts.ts";
+import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
 import type { CreatorAgentRunRequestV1, CreatorAgentSubmitV1 } from "../product/contracts.ts";
 import {
   applyProgramNetworkGrantMutationV1,
@@ -413,6 +413,13 @@ function workspaceRequestV1(
   record: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> {
   return { revision: 1, kind: "workspace_request", requestId, record };
+}
+
+function connectionTestRequestV1(
+  requestId: number,
+  selection: BrowserPiModelSelectionV1 | null,
+): Readonly<Record<string, unknown>> {
+  return { revision: 1, kind: "test_connection", requestId, selection };
 }
 
 function executionBindingV1(expectedGeneration = 1): BrowserPiWorkerExecutionBindingV1 {
@@ -1778,7 +1785,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const broker = createTestNetworkBrokerLeaseV1();
     const delivery = new MessageChannel();
-    const binding: CredentialVaultBindingV1 = {
+    const binding: CredentialVaultBindingV2 = {
       bindingId: "builtin:openai",
       credentialKind: "api_key",
       baseUrl: "https://api.openai.com/v1",
@@ -1805,14 +1812,14 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     }, [broker.agentPort, delivery.port1]);
 
     expect(await ready).toEqual({
-      revision: 1,
+      revision: 2,
       kind: "credential_vault_handoff_ready",
       handoffId: "credential.handoff.1",
       binding,
     });
     expect(messages).toEqual([]);
     delivery.port2.postMessage(
-      createCredentialVaultHandoffDeliveryV1(
+      createCredentialVaultHandoffDeliveryV2(
         "credential.handoff.1",
         binding,
         "recovered-provider-secret",
@@ -1834,7 +1841,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
   });
 
   it("fails closed on mismatched, extra-port, and expired Vault handoffs", async () => {
-    const binding: CredentialVaultBindingV1 = {
+    const binding: CredentialVaultBindingV2 = {
       bindingId: "builtin:openai",
       credentialKind: "api_key",
       baseUrl: "https://api.openai.com/v1",
@@ -1866,8 +1873,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       mismatchDelivery.port2.start();
     });
     mismatchRuntime.receive(configure, [mismatchBroker.agentPort, mismatchDelivery.port1]);
-    expect(admitCredentialVaultHandoffReadyV1(await ready)).not.toBeNull();
-    mismatchDelivery.port2.postMessage(createCredentialVaultHandoffDeliveryV1(
+    expect(admitCredentialVaultHandoffReadyV2(await ready)).not.toBeNull();
+    mismatchDelivery.port2.postMessage(createCredentialVaultHandoffDeliveryV2(
       "credential.handoff.other",
       binding,
       "must-not-be-accepted",
@@ -1957,7 +1964,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       }]);
       expect(probeInputs).toEqual([]);
 
-      runtime.receive({ revision: 1, kind: "test_connection", requestId: testRequestId });
+      runtime.receive(connectionTestRequestV1(testRequestId, selection));
       await waitUntilV1(() => messages.length === 2);
       expect(messages.at(-1)).toEqual({
         revision: 1,
@@ -2050,7 +2057,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       selection: copilotCompletionsSelectionV1,
     });
 
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 4 });
+    runtime.receive(connectionTestRequestV1(4, copilotCompletionsSelectionV1));
     await waitUntilV1(() => probeInputs.length === 1);
     expect(probeInputs).toEqual([{
       apiKey: "route-sentinel-key",
@@ -2113,7 +2120,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         (message.record as Readonly<Record<string, unknown>>).kind === "run_failed"
       )
     );
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 10 });
+    runtime.receive(connectionTestRequestV1(10, copilotCompletionsSelectionV1));
     await waitUntilV1(() => probeInputs.length === 2);
     expect(probeInputs.at(-1)).toEqual({
       apiKey: "route-sentinel-key",
@@ -2181,7 +2188,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 22,
       code: "credential_scope_mismatch",
     });
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 23 });
+    runtime.receive(connectionTestRequestV1(23, copilotAnthropicSelectionV1));
     await waitUntilV1(() => probeInputs.length === 1);
     expect(probeInputs).toEqual([{
       apiKey: "preserved-route-key",
@@ -2244,7 +2251,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requestId: 26,
       code: "credential_scope_mismatch",
     });
-    customRuntime.receive({ revision: 1, kind: "test_connection", requestId: 27 });
+    customRuntime.receive(connectionTestRequestV1(27, customSelectionV1));
     await waitUntilV1(() => customProbeInputs.length === 1);
     expect(customProbeInputs).toEqual([customSelectionV1]);
     expect(JSON.stringify(customMessages)).not.toContain("preserved-custom-key");
@@ -2273,7 +2280,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       selection: copilotAnthropicSelectionV1,
       credential: { kind: "api_key", value: "testing-sentinel-key" },
     });
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 31 });
+    runtime.receive(connectionTestRequestV1(31, copilotAnthropicSelectionV1));
     await waitUntilV1(() => probeHold.resolve !== null);
     runtime.receive({
       revision: 1,
@@ -2305,7 +2312,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     await waitUntilV1(() =>
       messages.some((message) => message.kind === "model_selected" && message.requestId === 33)
     );
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 34 });
+    runtime.receive(connectionTestRequestV1(34, copilotCompletionsSelectionV1));
     await waitUntilV1(() => probeSelections.length === 2);
     expect(probeSelections).toEqual([
       copilotAnthropicSelectionV1,
@@ -2344,7 +2351,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       selection: customSelectionV1,
       credential: { kind: "api_key", value: "second-key" },
     });
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 43 });
+    runtime.receive(connectionTestRequestV1(43, customSelectionV1));
 
     await waitUntilV1(() =>
       messages.some((message) =>
@@ -2385,7 +2392,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       ok: true,
       response: { kind: "started", sessionId: "sillyos.session.1" },
     });
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 45 });
+    runtime.receive(connectionTestRequestV1(45, customSelectionV1));
     await waitUntilV1(() => messages.some((message) => message.kind === "ready"));
     expect(messages.at(-1)).toMatchObject({
       kind: "ready",
@@ -2418,7 +2425,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     expect(messages.at(-1)?.kind).toBe("configured");
     messages.length = 0;
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 45 });
+    runtime.receive(connectionTestRequestV1(45, customSelectionV1));
     await waitUntilV1(() => probeState.signal !== null);
     runtime.dispose();
     await waitUntilV1(() => probeState.signal?.aborted === true);
@@ -2447,7 +2454,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     expect(messages.at(-1)?.kind).toBe("configured");
     messages.length = 0;
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 46 });
+    runtime.receive(connectionTestRequestV1(46, customSelectionV1));
     await Promise.resolve();
     await vi.advanceTimersByTimeAsync(30_000);
 
@@ -2524,7 +2531,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     expect(messages.at(-1)).toMatchObject({ kind: "configured", requestId: 8 });
     expect(JSON.stringify(messages)).not.toContain("available-sentinel-key");
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 9 });
+    runtime.receive(connectionTestRequestV1(9, selectedAnthropicModel));
     await waitUntilV1(() =>
       messages.some((message) => message.kind === "ready" && message.requestId === 9)
     );
@@ -2559,7 +2566,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       selection: null,
       credential: { kind: "api_key", value: "sentinel-browser-key" },
     });
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 99 });
+    runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
     runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
     await waitUntilV1(() =>
@@ -2703,7 +2710,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       selection: null,
       credential: { kind: "api_key", value: "sentinel-edit-key" },
     });
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 99 });
+    runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
     runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
     await waitUntilV1(() =>
@@ -2809,7 +2816,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       selection: null,
       credential: { kind: "api_key", value: "sentinel-bash-key" },
     });
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 99 });
+    runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
     runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
     await waitUntilV1(() =>
@@ -2934,7 +2941,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       selection: null,
       credential: { kind: "api_key", value: "sentinel-file-ops-key" },
     });
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 99 });
+    runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
     runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
     await waitUntilV1(() =>
@@ -3047,7 +3054,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       selection: null,
       credential: { kind: "api_key", value: "sentinel-grep-key" },
     });
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 99 });
+    runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
     runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
     await waitUntilV1(() =>
@@ -3128,7 +3135,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       selection: null,
       credential: { kind: "api_key", value: "key" },
     });
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 99 });
+    runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
     runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
     await waitUntilV1(() =>
@@ -3255,7 +3262,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       selection: null,
       credential: { kind: "api_key", value: "key" },
     });
-    runtime.receive({ revision: 1, kind: "test_connection", requestId: 99 });
+    runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
     runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
     await waitUntilV1(() =>
@@ -4653,7 +4660,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
         return worker;
       },
     });
-    const binding: CredentialVaultBindingV1 = {
+    const binding: CredentialVaultBindingV2 = {
       bindingId: "builtin:openai",
       credentialKind: "api_key",
       baseUrl: "https://api.openai.com/v1",
@@ -4668,12 +4675,12 @@ describe("SillyOS Browser Pi transport and product port", () => {
           deliveryPort.start();
         });
         expect(ready).toEqual({
-          revision: 1,
+          revision: 2,
           kind: "credential_vault_handoff_ready",
           handoffId,
           binding,
         });
-        const recovered = createCredentialVaultHandoffDeliveryV1(
+        const recovered = createCredentialVaultHandoffDeliveryV2(
           handoffId,
           receivedBinding,
           "vault-recovered-secret",

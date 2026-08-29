@@ -70,6 +70,8 @@ for (const [path, source] of credentialVaultWorkerSourceGraphV1) {
   for (
     const [label, pattern] of [
       ["fetch", /\bfetch\s*\(/u],
+      ["nested Worker", /\b(?:Shared)?Worker\s*\(/u],
+      ["importScripts", /\bimportScripts\s*\(/u],
       ["XMLHttpRequest", /\bXMLHttpRequest\b/u],
       ["WebSocket", /\bWebSocket\b/u],
       ["EventSource", /\bEventSource\b/u],

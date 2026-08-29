@@ -15,11 +15,19 @@ import type {
   BrowserPiWorkerRuntimeV1,
 } from "../agent/browser-pi-worker-protocol.ts";
 import {
-  credentialVaultBindingsEqualV1,
-  type CredentialVaultBindingV1,
-  type CredentialVaultListV1,
+  credentialVaultBindingsEqualV2,
+  type CredentialVaultBindingV2,
+  type CredentialVaultListV2,
 } from "../credential/credential-vault-contracts.ts";
-import { credentialVaultBindingForSelectionV1 } from "../credential/provider-credential-binding.ts";
+import {
+  credentialVaultBindingForConnectionV2,
+  credentialVaultBindingForSelectionV2,
+  type CredentialVaultConnectionIdentityV2,
+} from "../credential/provider-credential-binding.ts";
+import {
+  activeAgentUsesAnyCredentialBindingV1,
+  shouldRevokeAgentAfterBuiltinModelVisibilityChangeV1,
+} from "../credential/provider-credential-currentness.ts";
 import { getSillyOsCopyV1, resolveSillyOsCopyV1, type SillyOsLocaleV1 } from "../content/copy.ts";
 import type {
   CreatorControllerV1,
@@ -30,6 +38,7 @@ import type {
   ProgramNetworkGrantSetV1,
   ProgramNetworkGrantV1,
 } from "../product/program-network-grants.ts";
+import { recommendedBrowserProviderBuiltinModelRefsV1 } from "../product/browser-provider-model-recommendations.ts";
 import { browserWorkspaceDownloadFileNameMaximumUtf8BytesV1 } from "../workspace/browser-workspace-host-protocol.ts";
 import {
   browserProviderSettingsRevisionV2,
@@ -47,10 +56,11 @@ import { CreatorHomeV1 } from "./creator-home.tsx";
 import { ProgramWorkspaceV1 } from "./program-workspace.tsx";
 import {
   type ProviderSettingsCatalogV1,
-  type ProviderSettingsCredentialPersistenceV1,
+  type ProviderSettingsConnectionTestV1,
+  type ProviderSettingsCredentialOperationV1,
   type ProviderSettingsCustomProfileDraftV1,
   type ProviderSettingsCustomProfileV1,
-  type ProviderSettingsProfileV1,
+  type ProviderSettingsSectionV1,
   type ProviderSettingsSelectionV1,
   type ProviderSettingsVaultOperationV1,
   type ProviderSettingsVaultV1,
@@ -86,7 +96,7 @@ type BrowserCreatorAgentExportReadyV1 = Parameters<
   BrowserCreatorAgentExportInputV1["onReady"]
 >[0];
 type BrowserCredentialVaultPortV1 = ReturnType<
-  BrowserCredentialVaultModuleV1["createBrowserCredentialVaultPortV1"]
+  BrowserCredentialVaultModuleV1["createBrowserCredentialVaultPortV2"]
 >;
 type PiAgentSetupStatusV1 =
   | "loading"
@@ -114,10 +124,6 @@ function agentWorkerHoldsCredentialV1(status: PiAgentSetupStatusV1): boolean {
   }
   const exhaustive: never = status;
   return exhaustive;
-}
-
-export function providerApiKeyWarningRequiredV1(status: PiAgentSetupStatusV1): boolean {
-  return !agentWorkerHoldsCredentialV1(status);
 }
 
 function agentRuntimeUsableV1(
@@ -276,10 +282,12 @@ function emptyProviderSettingsSnapshotV1(): BrowserProviderSettingsSnapshotV1 {
 }
 
 function providerSettingsVaultFromListV1(
-  snapshot: CredentialVaultListV1,
+  snapshot: CredentialVaultListV2,
 ): ProviderSettingsVaultV1 {
   return Object.freeze({
     phase: snapshot.state,
+    protection: snapshot.protection,
+    state: snapshot.state,
     bindings: snapshot.bindings,
   });
 }
@@ -296,7 +304,13 @@ function providerSettingsVaultBusyV1(
   operation: ProviderSettingsVaultOperationV1,
   current: ProviderSettingsVaultV1,
 ): ProviderSettingsVaultV1 {
-  return Object.freeze({ phase: "busy", operation, bindings: current.bindings });
+  return Object.freeze({
+    phase: "busy",
+    operation,
+    protection: current.protection,
+    state: current.state,
+    bindings: current.bindings,
+  });
 }
 
 function providerSettingsVaultFailedV1(
@@ -308,6 +322,8 @@ function providerSettingsVaultFailedV1(
     phase: "failed",
     operation,
     diagnosticCode: credentialVaultDiagnosticCodeV1(error),
+    protection: current.protection,
+    state: current.state,
     bindings: current.bindings,
   });
 }
@@ -425,8 +441,20 @@ export function SillyOsAppV1({
   const [credentialVault, setCredentialVault] = useState<ProviderSettingsVaultV1>({
     phase: "unavailable",
     diagnosticCode: "initializing",
+    protection: null,
+    state: null,
     bindings: Object.freeze([]),
   });
+  const [credentialOperation, setCredentialOperation] = useState<
+    ProviderSettingsCredentialOperationV1
+  >({ phase: "idle", target: null });
+  const [connectionTest, setConnectionTest] = useState<ProviderSettingsConnectionTestV1>({
+    phase: "disconnected",
+    active: null,
+  });
+  const [settingsInitialSection, setSettingsInitialSection] = useState<ProviderSettingsSectionV1>(
+    "general",
+  );
   const customProviderProfiles = providerSettingsSnapshot.customProfiles;
   const [agentPort, setAgentPort] = useState<BrowserCreatorAgentPortV1 | null>(null);
   const [agentSnapshot, setAgentSnapshot] = useState<BrowserCreatorAgentSnapshotV1 | null>(null);
@@ -450,7 +478,13 @@ export function SillyOsAppV1({
   const credentialVaultOperationEpochRef = useRef(0);
   const credentialVaultSettlementRef = useRef<Promise<void>>(Promise.resolve());
   const agentPortRef = useRef<BrowserCreatorAgentPortV1 | null>(null);
+  const activeProviderSelectionRef = useRef<BrowserPiModelSelectionV1 | null>(
+    activeProviderSelection,
+  );
+  activeProviderSelectionRef.current = activeProviderSelection;
   const agentSetupEpochRef = useRef(0);
+  const agentConfigurationPendingRef = useRef(false);
+  const connectionTestEpochRef = useRef(0);
   const providerModelSelectionEpochRef = useRef(0);
   const providerModelSelectionPendingRef = useRef(false);
   const providerModelSelectionSettlementRef = useRef<Promise<void>>(Promise.resolve());
@@ -519,6 +553,8 @@ export function SillyOsAppV1({
 
   const drainAgentGraphV1 = useCallback(async (): Promise<void> => {
     agentSetupEpochRef.current += 1;
+    agentConfigurationPendingRef.current = false;
+    connectionTestEpochRef.current += 1;
     providerModelSelectionEpochRef.current += 1;
     providerModelSelectionPendingRef.current = false;
     providerCatalogEpochRef.current += 1;
@@ -527,6 +563,7 @@ export function SillyOsAppV1({
     workspaceExportAbortRef.current = null;
     claimedTerminalRunIdsRef.current.clear();
     credentialVaultEpochRef.current += 1;
+    credentialVaultOperationEpochRef.current += 1;
     const credentialVaultPort = credentialVaultPortRef.current;
     credentialVaultPortRef.current = null;
     credentialVaultPort?.close();
@@ -581,22 +618,26 @@ export function SillyOsAppV1({
     setCredentialVault({
       phase: "unavailable",
       diagnosticCode: "initializing",
+      protection: null,
+      state: null,
       bindings: Object.freeze([]),
     });
     const initialize = import("../credential/browser-credential-vault-port.ts").then(
-      async ({ createBrowserCredentialVaultPortV1 }) => {
+      async ({ createBrowserCredentialVaultPortV2 }) => {
         if (
           !current || credentialVaultEpochRef.current !== epoch ||
           !agentDrainRegistry.isAccepting()
         ) return;
-        const port = createBrowserCredentialVaultPortV1();
+        const port = createBrowserCredentialVaultPortV2();
         credentialVaultPortRef.current = port;
-        const vaultSnapshot = await port.client.list();
+        const vaultSnapshot = await port.client.initialize();
         if (
           !current || credentialVaultEpochRef.current !== epoch ||
           credentialVaultPortRef.current !== port || !agentDrainRegistry.isAccepting()
         ) return;
-        setCredentialVault(providerSettingsVaultFromListV1(vaultSnapshot));
+        const nextVault = providerSettingsVaultFromListV1(vaultSnapshot);
+        credentialVaultStateRef.current = nextVault;
+        setCredentialVault(nextVault);
       },
     ).catch((error: unknown) => {
       if (!current || credentialVaultEpochRef.current !== epoch) return;
@@ -605,6 +646,8 @@ export function SillyOsAppV1({
       setCredentialVault({
         phase: "unavailable",
         diagnosticCode: credentialVaultDiagnosticCodeV1(error),
+        protection: null,
+        state: null,
         bindings: Object.freeze([]),
       });
       reportFailureRef.current("silly_os.credential_vault_unavailable", error);
@@ -794,18 +837,21 @@ export function SillyOsAppV1({
           )
       ),
     );
-    const missing = providerSettingsSnapshot.enabledBuiltinModels.filter((model) =>
-      !availableBuiltinModelKeys.has(builtinModelRefKeyV1(model))
-    );
-    const preferred = providerSettingsSnapshot.preferredModel;
-    const preferredMissing = preferred?.kind === "builtin" &&
-      !availableBuiltinModelKeys.has(builtinModelRefKeyV1(preferred));
-    if (missing.length === 0 && !preferredMissing) return;
     try {
+      const initialization = providerSettingsRepository.initializeBuiltinModelDefaults(
+        recommendedBrowserProviderBuiltinModelRefsV1(providerCatalog.providers),
+      );
+      const missing = initialization.snapshot.enabledBuiltinModels.filter((model) =>
+        !availableBuiltinModelKeys.has(builtinModelRefKeyV1(model))
+      );
+      const preferred = initialization.snapshot.preferredModel;
+      const preferredMissing = preferred?.kind === "builtin" &&
+        !availableBuiltinModelKeys.has(builtinModelRefKeyV1(preferred));
       for (const model of missing) {
         providerSettingsRepository.setBuiltinModelEnabled(model, false);
       }
       if (preferredMissing) providerSettingsRepository.setPreferredModel(null);
+      if (!initialization.initialized && missing.length === 0 && !preferredMissing) return;
       setProviderSettingsSnapshot(providerSettingsRepository.read());
     } catch (error) {
       reportFailure("silly_os.provider_settings_save_failed", error);
@@ -820,12 +866,21 @@ export function SillyOsAppV1({
 
   const openSettingsV1 = (): void => {
     settingsReturnTargetRef.current = snapshot.route;
+    setSettingsInitialSection("general");
     setSettingsOpen(true);
     if (providerCatalog.phase === "loading") loadProviderCatalogV1();
   };
 
   const openModelSettingsV1 = (surface: "home" | "workspace"): void => {
     settingsReturnTargetRef.current = `${surface}-models`;
+    setSettingsInitialSection("providers");
+    setSettingsOpen(true);
+    if (providerCatalog.phase === "loading") loadProviderCatalogV1();
+  };
+
+  const openProviderSetupV1 = (): void => {
+    settingsReturnTargetRef.current = "home";
+    setSettingsInitialSection("providers");
     setSettingsOpen(true);
     if (providerCatalog.phase === "loading") loadProviderCatalogV1();
   };
@@ -853,74 +908,31 @@ export function SillyOsAppV1({
     }
   };
 
-  const selectProviderModelChoiceV1 = (choice: CreatorProviderModelChoiceV1): void => {
-    const port = agentPortRef.current;
-    if (
-      port === null || activeProviderSelection === null ||
-      providerModelSelectionPendingRef.current || !agentDrainRegistry.isAccepting()
-    ) return;
-    if (sameProviderSelectionV1(activeProviderSelection, choice.selection)) {
-      persistProviderPreferenceV1(choice.selection);
-      return;
-    }
-
-    const setupEpoch = agentSetupEpochRef.current;
-    const selectionEpoch = ++providerModelSelectionEpochRef.current;
-    providerModelSelectionPendingRef.current = true;
-    setProviderModelSelectionPending(true);
-    const selection = (async (): Promise<void> => {
-      try {
-        const result = await port.selectModel(choice.selection);
-        if (
-          providerModelSelectionEpochRef.current !== selectionEpoch ||
-          agentSetupEpochRef.current !== setupEpoch || agentPortRef.current !== port ||
-          !agentDrainRegistry.isAccepting()
-        ) return;
-        if (result.kind !== "selected") {
-          reportFailure("silly_os.browser_pi_model_select_failed", result.diagnostic);
-          return;
-        }
-        persistProviderPreferenceV1(choice.selection);
-        setActiveProviderSelection(choice.selection);
-      } catch (error) {
-        if (
-          providerModelSelectionEpochRef.current === selectionEpoch &&
-          agentSetupEpochRef.current === setupEpoch && agentPortRef.current === port &&
-          agentDrainRegistry.isAccepting()
-        ) reportFailure("silly_os.browser_pi_model_select_failed", error);
-      } finally {
-        if (providerModelSelectionEpochRef.current === selectionEpoch) {
-          providerModelSelectionPendingRef.current = false;
-          setProviderModelSelectionPending(false);
-        }
-      }
-    })();
-    providerModelSelectionSettlementRef.current = selection;
-  };
-
   const configurePiAgentCredentialV1 = (
     selection: BrowserPiModelSelectionV1 | null,
     configureCredential: (
       port: BrowserCreatorAgentPortV1,
     ) => ReturnType<BrowserCreatorAgentPortV1["configureCredential"]>,
-    testAfterSave = false,
-  ): void => {
+    options: {
+      readonly persistPreference?: boolean;
+      readonly onConfigured?: (port: BrowserCreatorAgentPortV1) => Promise<void> | void;
+    } = {},
+  ): Promise<boolean> => {
     providerModelSelectionEpochRef.current += 1;
     providerModelSelectionPendingRef.current = false;
     setProviderModelSelectionPending(false);
     const factory = agentFactoryRef.current;
     const networkBrokerFactory = networkBrokerFactoryRef.current;
-    if (selection !== null) persistProviderPreferenceV1(selection);
-    setActiveProviderSelection(piRuntime === "pi_provider" ? selection : null);
     if (
       !agentDrainRegistry.isAccepting() || factory === null || networkBrokerFactory === null ||
       (piRuntime === "pi_provider" && selection === null)
     ) {
       setPiAgentSetupStatus("failed");
       reportFailure("silly_os.browser_pi_adapter_unavailable", "factory_unavailable");
-      return;
+      return Promise.resolve(false);
     }
     const epoch = ++agentSetupEpochRef.current;
+    agentConfigurationPendingRef.current = true;
     setPiAgentSetupStatus("saving");
     let port!: BrowserCreatorAgentPortV1;
     const onConnectionLost = (): void => {
@@ -929,6 +941,8 @@ export function SillyOsAppV1({
         !agentDrainRegistry.isAccepting()
       ) return;
       agentSetupEpochRef.current += 1;
+      agentConfigurationPendingRef.current = false;
+      connectionTestEpochRef.current += 1;
       providerModelSelectionEpochRef.current += 1;
       providerModelSelectionPendingRef.current = false;
       setProviderModelSelectionPending(false);
@@ -939,6 +953,9 @@ export function SillyOsAppV1({
       agentPortRef.current = null;
       setAgentPort(null);
       setAgentSnapshot(null);
+      activeProviderSelectionRef.current = null;
+      setActiveProviderSelection(null);
+      setConnectionTest({ phase: "disconnected", active: null });
       claimedTerminalRunIdsRef.current.clear();
       setPiAgentSetupStatus("failed");
       reportFailure("silly_os.browser_pi_connection_lost", {
@@ -964,50 +981,63 @@ export function SillyOsAppV1({
     } catch (error) {
       setPiAgentSetupStatus("failed");
       reportFailure("silly_os.browser_pi_configure_failed", error);
-      return;
+      agentConfigurationPendingRef.current = false;
+      return Promise.resolve(false);
     }
     const predecessor = agentPortRef.current;
     agentPortRef.current = null;
     setAgentPort(null);
     setAgentSnapshot(null);
+    activeProviderSelectionRef.current = null;
+    setActiveProviderSelection(null);
     claimedTerminalRunIdsRef.current.clear();
     if (predecessor !== null) {
       void queueAgentPortTeardownV1(predecessor, "disposed");
     }
-    const setup = (async (): Promise<void> => {
-      await agentTeardownRef.current;
-      if (agentSetupEpochRef.current !== epoch || !agentDrainRegistry.isAccepting()) {
-        await port.forget().catch(() => undefined);
-        return;
+    const setup = (async (): Promise<boolean> => {
+      try {
+        await agentTeardownRef.current;
+        if (agentSetupEpochRef.current !== epoch || !agentDrainRegistry.isAccepting()) {
+          await port.forget().catch(() => undefined);
+          return false;
+        }
+        agentPortRef.current = port;
+        setAgentPort(port);
+        const configured = await configureCredential(port);
+        if (
+          agentSetupEpochRef.current !== epoch || agentPortRef.current !== port ||
+          !agentDrainRegistry.isAccepting()
+        ) return false;
+        if (configured.kind !== "configured") {
+          setPiAgentSetupStatus("failed");
+          reportFailure("silly_os.browser_pi_configure_failed", configured.diagnostic);
+          return false;
+        }
+        const configuredSelection = piRuntime === "pi_provider" ? selection : null;
+        activeProviderSelectionRef.current = configuredSelection;
+        setActiveProviderSelection(configuredSelection);
+        if (configuredSelection !== null && options.persistPreference === true) {
+          persistProviderPreferenceV1(configuredSelection);
+        }
+        setPiAgentSetupStatus("credential_saved");
+        await options.onConfigured?.(port);
+        return agentSetupEpochRef.current === epoch && agentPortRef.current === port &&
+          agentDrainRegistry.isAccepting();
+      } catch (error) {
+        if (
+          agentSetupEpochRef.current === epoch && agentPortRef.current === port &&
+          agentDrainRegistry.isAccepting()
+        ) {
+          setPiAgentSetupStatus("failed");
+          reportFailure("silly_os.browser_pi_configure_failed", error);
+        }
+        return false;
+      } finally {
+        if (agentSetupEpochRef.current === epoch) agentConfigurationPendingRef.current = false;
       }
-      agentPortRef.current = port;
-      setAgentPort(port);
-      const configured = await configureCredential(port);
-      if (
-        agentSetupEpochRef.current !== epoch || agentPortRef.current !== port ||
-        !agentDrainRegistry.isAccepting()
-      ) return;
-      if (configured.kind !== "configured") {
-        setPiAgentSetupStatus("failed");
-        reportFailure("silly_os.browser_pi_configure_failed", configured.diagnostic);
-        return;
-      }
-      setPiAgentSetupStatus("credential_saved");
-      if (!testAfterSave) return;
-      setPiAgentSetupStatus("testing");
-      const tested = await port.testConnection();
-      if (
-        agentSetupEpochRef.current !== epoch || agentPortRef.current !== port ||
-        !agentDrainRegistry.isAccepting()
-      ) return;
-      if (tested.kind === "ready") {
-        setPiAgentSetupStatus("ready");
-        return;
-      }
-      setPiAgentSetupStatus("test_failed");
-      reportFailure("silly_os.browser_pi_connection_test_failed", tested.diagnostic);
     })();
-    agentSetupSettlementRef.current = setup;
+    agentSetupSettlementRef.current = setup.then(() => undefined);
+    return setup;
   };
 
   const savePiAgentCredentialV1 = (
@@ -1021,47 +1051,34 @@ export function SillyOsAppV1({
       reportFailure("silly_os.browser_pi_configure_failed", "credential_required");
       return;
     }
-    configurePiAgentCredentialV1(
+    void configurePiAgentCredentialV1(
       selection,
       (port) => {
         const configuration = port.configureCredential(credential);
         credential = "";
         return configuration;
       },
-      testAfterSave,
+      testAfterSave
+        ? {
+          onConfigured: async (port): Promise<void> => {
+            setPiAgentSetupStatus("testing");
+            const tested = await port.testConnection();
+            if (tested.kind === "ready") {
+              setPiAgentSetupStatus("ready");
+              return;
+            }
+            setPiAgentSetupStatus("test_failed");
+            reportFailure("silly_os.browser_pi_connection_test_failed", tested.diagnostic);
+          },
+        }
+        : {},
     );
-  };
-
-  const testPiAgentConnectionV1 = (): void => {
-    const port = agentPortRef.current;
-    if (
-      port === null || !agentDrainRegistry.isAccepting() ||
-      (piAgentSetupStatus !== "credential_saved" && piAgentSetupStatus !== "ready" &&
-        piAgentSetupStatus !== "test_failed")
-    ) {
-      reportFailure("silly_os.browser_pi_connection_test_failed", "credential_not_saved");
-      return;
-    }
-    const epoch = agentSetupEpochRef.current;
-    setPiAgentSetupStatus("testing");
-    const test = (async (): Promise<void> => {
-      const result = await port.testConnection();
-      if (
-        agentSetupEpochRef.current !== epoch || agentPortRef.current !== port ||
-        !agentDrainRegistry.isAccepting()
-      ) return;
-      if (result.kind === "ready") {
-        setPiAgentSetupStatus("ready");
-        return;
-      }
-      setPiAgentSetupStatus("test_failed");
-      reportFailure("silly_os.browser_pi_connection_test_failed", result.diagnostic);
-    })();
-    agentSetupSettlementRef.current = test;
   };
 
   const forgetPiAgentV1 = (): void => {
     agentSetupEpochRef.current += 1;
+    agentConfigurationPendingRef.current = false;
+    connectionTestEpochRef.current += 1;
     providerModelSelectionEpochRef.current += 1;
     providerModelSelectionPendingRef.current = false;
     setProviderModelSelectionPending(false);
@@ -1073,7 +1090,9 @@ export function SillyOsAppV1({
     agentPortRef.current = null;
     setAgentPort(null);
     setAgentSnapshot(null);
+    activeProviderSelectionRef.current = null;
     setActiveProviderSelection(null);
+    setConnectionTest({ phase: "disconnected", active: null });
     claimedTerminalRunIdsRef.current.clear();
     setPiAgentSetupStatus(agentFactoryRef.current === null ? "loading" : "available");
     if (current !== null) {
@@ -1086,7 +1105,7 @@ export function SillyOsAppV1({
     operation: ProviderSettingsVaultOperationV1,
     execute: (
       port: BrowserCredentialVaultPortV1,
-    ) => Promise<CredentialVaultListV1>,
+    ) => Promise<CredentialVaultListV2>,
   ): void => {
     const port = credentialVaultPortRef.current;
     if (port === null || !agentDrainRegistry.isAccepting()) {
@@ -1094,6 +1113,8 @@ export function SillyOsAppV1({
       setCredentialVault({
         phase: "unavailable",
         diagnosticCode: credentialVaultDiagnosticCodeV1(error),
+        protection: null,
+        state: null,
         bindings: credentialVaultStateRef.current.bindings,
       });
       reportFailure("silly_os.credential_vault_unavailable", error);
@@ -1102,33 +1123,43 @@ export function SillyOsAppV1({
     const workerEpoch = credentialVaultEpochRef.current;
     const operationEpoch = ++credentialVaultOperationEpochRef.current;
     const previous = credentialVaultStateRef.current;
-    setCredentialVault(providerSettingsVaultBusyV1(operation, previous));
+    const busy = providerSettingsVaultBusyV1(operation, previous);
+    credentialVaultStateRef.current = busy;
+    setCredentialVault(busy);
     const settlement = execute(port).then((vaultSnapshot) => {
       if (
         credentialVaultEpochRef.current !== workerEpoch ||
         credentialVaultOperationEpochRef.current !== operationEpoch ||
         credentialVaultPortRef.current !== port || !agentDrainRegistry.isAccepting()
       ) return;
-      setCredentialVault(providerSettingsVaultFromListV1(vaultSnapshot));
+      const nextVault = providerSettingsVaultFromListV1(vaultSnapshot);
+      credentialVaultStateRef.current = nextVault;
+      setCredentialVault(nextVault);
     }).catch((error: unknown) => {
       if (
         credentialVaultEpochRef.current !== workerEpoch ||
         credentialVaultOperationEpochRef.current !== operationEpoch ||
         credentialVaultPortRef.current !== port
       ) return;
-      setCredentialVault(providerSettingsVaultFailedV1(operation, previous, error));
+      const failed = providerSettingsVaultFailedV1(operation, previous, error);
+      credentialVaultStateRef.current = failed;
+      setCredentialVault(failed);
       reportFailure(`silly_os.credential_vault_${operation}_failed`, error);
     });
     credentialVaultSettlementRef.current = settlement;
   };
 
-  const createCredentialVaultV1 = (suppliedPassphrase: string): void => {
+  const setCredentialVaultPasswordV1 = (suppliedPassphrase: string): void => {
     let passphrase = suppliedPassphrase;
-    runCredentialVaultStateOperationV1("create", (port) => {
-      const operation = port.client.create(passphrase);
+    runCredentialVaultStateOperationV1("set_password", (port) => {
+      const operation = port.client.setPassword(passphrase);
       passphrase = "";
       return operation;
     });
+  };
+
+  const useAutomaticCredentialVaultV1 = (): void => {
+    runCredentialVaultStateOperationV1("use_device", (port) => port.client.useDevice());
   };
 
   const unlockCredentialVaultV1 = (suppliedPassphrase: string): void => {
@@ -1142,20 +1173,17 @@ export function SillyOsAppV1({
 
   const lockCredentialVaultV1 = (): void => {
     forgetPiAgentV1();
-    runCredentialVaultStateOperationV1("lock", async (port) => {
-      await port.client.lock();
-      return await port.client.list();
-    });
+    runCredentialVaultStateOperationV1("lock", (port) => port.client.lock());
   };
 
   const createCredentialVaultHandoffV1 = (
     vaultPort: BrowserCredentialVaultPortV1,
-    binding: CredentialVaultBindingV1,
+    binding: CredentialVaultBindingV2,
     workerEpoch: number,
     operationEpoch: number,
   ) =>
   (
-    expectedBinding: CredentialVaultBindingV1,
+    expectedBinding: CredentialVaultBindingV2,
     handoffId: string,
     deliveryPort: MessagePort,
   ): Promise<void> => {
@@ -1164,7 +1192,7 @@ export function SillyOsAppV1({
       credentialVaultEpochRef.current !== workerEpoch ||
       credentialVaultOperationEpochRef.current !== operationEpoch ||
       credentialVaultStateRef.current.phase !== "unlocked" ||
-      !credentialVaultBindingsEqualV1(expectedBinding, binding)
+      !credentialVaultBindingsEqualV2(expectedBinding, binding)
     ) {
       deliveryPort.close();
       return Promise.reject(new TypeError("sillyos.credential_vault.handoff_stale"));
@@ -1172,53 +1200,198 @@ export function SillyOsAppV1({
     return vaultPort.client.handoff(expectedBinding, handoffId, deliveryPort);
   };
 
-  const useRememberedCredentialV1 = (selection: ProviderSettingsSelectionV1): void => {
+  const activateVaultSelectionV1 = (
+    selection: BrowserPiModelSelectionV1,
+    persistPreference: boolean,
+  ): Promise<boolean> => {
     const vaultPort = credentialVaultPortRef.current;
-    let binding: CredentialVaultBindingV1;
+    let binding: CredentialVaultBindingV2;
     try {
-      binding = credentialVaultBindingForSelectionV1(selection);
+      binding = credentialVaultBindingForSelectionV2(selection);
     } catch (error) {
       setPiAgentSetupStatus("failed");
       reportFailure("silly_os.credential_vault_binding_invalid", error);
-      return;
+      return Promise.resolve(false);
     }
     if (
       vaultPort === null || credentialVaultStateRef.current.phase !== "unlocked" ||
       !credentialVaultStateRef.current.bindings.some((candidate) =>
-        credentialVaultBindingsEqualV1(candidate, binding)
+        credentialVaultBindingsEqualV2(candidate, binding)
       )
     ) {
       setPiAgentSetupStatus("failed");
       reportFailure("silly_os.credential_vault_handoff_failed", "binding_unavailable");
-      return;
+      return Promise.resolve(false);
     }
     const workerEpoch = credentialVaultEpochRef.current;
     const operationEpoch = ++credentialVaultOperationEpochRef.current;
-    configurePiAgentCredentialV1(selection, (port) =>
-      port.configureCredentialHandoff({
-        binding,
-        handoff: createCredentialVaultHandoffV1(
-          vaultPort,
+    return configurePiAgentCredentialV1(
+      selection,
+      (port) =>
+        port.configureCredentialHandoff({
           binding,
-          workerEpoch,
-          operationEpoch,
-        ),
-      }));
+          handoff: createCredentialVaultHandoffV1(
+            vaultPort,
+            binding,
+            workerEpoch,
+            operationEpoch,
+          ),
+        }),
+      { persistPreference },
+    );
+  };
+
+  const selectConfiguredModelV1 = (
+    choice: CreatorProviderModelChoiceV1,
+    persistPreference: boolean,
+  ): Promise<boolean> => {
+    const port = agentPortRef.current;
+    const activeSelection = activeProviderSelectionRef.current;
+    if (
+      port === null || activeSelection === null ||
+      !agentWorkerHoldsCredentialV1(piAgentSetupStatus) ||
+      !selectionsShareCredentialScopeV1(activeSelection, choice.selection)
+    ) return Promise.resolve(false);
+    if (sameProviderSelectionV1(activeSelection, choice.selection)) {
+      if (persistPreference) persistProviderPreferenceV1(choice.selection);
+      return Promise.resolve(true);
+    }
+    const epoch = ++providerModelSelectionEpochRef.current;
+    providerModelSelectionPendingRef.current = true;
+    setProviderModelSelectionPending(true);
+    const settlement = (async (): Promise<boolean> => {
+      try {
+        const selected = await port.selectModel(choice.selection);
+        if (
+          providerModelSelectionEpochRef.current !== epoch ||
+          agentPortRef.current !== port || !agentDrainRegistry.isAccepting()
+        ) return false;
+        if (selected.kind !== "selected") {
+          reportFailure("silly_os.browser_pi_model_select_failed", selected.diagnostic);
+          return false;
+        }
+        activeProviderSelectionRef.current = selected.selection;
+        setActiveProviderSelection(selected.selection);
+        if (persistPreference) persistProviderPreferenceV1(selected.selection);
+        return true;
+      } catch (error) {
+        if (
+          providerModelSelectionEpochRef.current === epoch &&
+          agentPortRef.current === port && agentDrainRegistry.isAccepting()
+        ) reportFailure("silly_os.browser_pi_model_select_failed", error);
+        return false;
+      } finally {
+        if (providerModelSelectionEpochRef.current === epoch) {
+          providerModelSelectionPendingRef.current = false;
+          setProviderModelSelectionPending(false);
+        }
+      }
+    })();
+    providerModelSelectionSettlementRef.current = settlement.then(() => undefined);
+    return settlement;
+  };
+
+  const selectProviderModelChoiceV1 = (choice: CreatorProviderModelChoiceV1): void => {
+    if (
+      internalPiTest || agentConfigurationPendingRef.current ||
+      providerModelSelectionPendingRef.current
+    ) return;
+    const activeSelection = activeProviderSelectionRef.current;
+    if (
+      agentPortRef.current !== null && activeSelection !== null &&
+      agentWorkerHoldsCredentialV1(piAgentSetupStatus) &&
+      selectionsShareCredentialScopeV1(activeSelection, choice.selection)
+    ) {
+      void selectConfiguredModelV1(choice, true);
+      return;
+    }
+    void activateVaultSelectionV1(choice.selection, true);
+  };
+
+  const testProviderConnectionV1 = (selection: ProviderSettingsSelectionV1): void => {
+    const piSelection: BrowserPiModelSelectionV1 = selection;
+    let binding: CredentialVaultBindingV2;
+    try {
+      binding = credentialVaultBindingForSelectionV2(piSelection);
+    } catch (error) {
+      reportFailure("silly_os.credential_vault_binding_invalid", error);
+      return;
+    }
+    if (
+      credentialVaultStateRef.current.phase !== "unlocked" ||
+      !credentialVaultStateRef.current.bindings.some((candidate) =>
+        credentialVaultBindingsEqualV2(candidate, binding)
+      )
+    ) {
+      setConnectionTest({
+        phase: "failed",
+        active: selection,
+        diagnosticCode: "credential_unavailable",
+      });
+      return;
+    }
+    const epoch = ++connectionTestEpochRef.current;
+    setConnectionTest({ phase: "testing", active: selection });
+    const settlement = (async (): Promise<void> => {
+      try {
+        const activeSelection = activeProviderSelectionRef.current;
+        if (
+          agentPortRef.current === null || activeSelection === null ||
+          !agentWorkerHoldsCredentialV1(piAgentSetupStatus) ||
+          !selectionsShareCredentialScopeV1(activeSelection, piSelection)
+        ) {
+          if (!await activateVaultSelectionV1(piSelection, false)) {
+            if (connectionTestEpochRef.current === epoch) {
+              setConnectionTest({
+                phase: "failed",
+                active: selection,
+                diagnosticCode: "credential_handoff_failed",
+              });
+            }
+            return;
+          }
+        }
+        const port = agentPortRef.current;
+        if (
+          port === null || connectionTestEpochRef.current !== epoch ||
+          !agentDrainRegistry.isAccepting()
+        ) return;
+        const tested = await port.testConnection(piSelection);
+        if (
+          connectionTestEpochRef.current !== epoch || agentPortRef.current !== port ||
+          !agentDrainRegistry.isAccepting()
+        ) return;
+        if (tested.kind === "ready") {
+          setConnectionTest({ phase: "ready", active: selection });
+          return;
+        }
+        setConnectionTest({ phase: "test_failed", active: selection });
+        reportFailure("silly_os.browser_pi_connection_test_failed", tested.diagnostic);
+      } catch (error) {
+        if (connectionTestEpochRef.current !== epoch || !agentDrainRegistry.isAccepting()) return;
+        setConnectionTest({
+          phase: "failed",
+          active: selection,
+          diagnosticCode: credentialVaultDiagnosticCodeV1(error),
+        });
+        reportFailure("silly_os.browser_pi_connection_test_failed", error);
+      }
+    })();
+    agentSetupSettlementRef.current = settlement;
   };
 
   const saveProviderCredentialV1 = (
-    selection: ProviderSettingsSelectionV1,
+    connections: readonly CredentialVaultConnectionIdentityV2[],
     suppliedCredential: string,
-    persistence: ProviderSettingsCredentialPersistenceV1,
   ): void => {
-    if (persistence === "session_only") {
-      savePiAgentCredentialV1(selection, suppliedCredential);
-      return;
-    }
     const vaultPort = credentialVaultPortRef.current;
-    let binding: CredentialVaultBindingV1;
+    const operationTarget = connections[0];
+    let bindings: readonly CredentialVaultBindingV2[];
     try {
-      binding = credentialVaultBindingForSelectionV1(selection);
+      if (operationTarget === undefined) {
+        throw new TypeError("sillyos.credential_vault.binding_invalid/empty");
+      }
+      bindings = Object.freeze(connections.map(credentialVaultBindingForConnectionV2));
     } catch (error) {
       setPiAgentSetupStatus("failed");
       reportFailure("silly_os.credential_vault_binding_invalid", error);
@@ -1232,20 +1405,23 @@ export function SillyOsAppV1({
       reportFailure("silly_os.credential_vault_save_failed", "vault_locked");
       return;
     }
-    providerModelSelectionEpochRef.current += 1;
-    providerModelSelectionPendingRef.current = false;
-    setProviderModelSelectionPending(false);
-    persistProviderPreferenceV1(selection);
-    setActiveProviderSelection(selection);
-    setPiAgentSetupStatus("saving");
     const workerEpoch = credentialVaultEpochRef.current;
     const operationEpoch = ++credentialVaultOperationEpochRef.current;
+    const replacesActiveCredential = activeAgentUsesAnyCredentialBindingV1(
+      activeProviderSelectionRef.current,
+      bindings,
+    );
+    connectionTestEpochRef.current += 1;
+    setConnectionTest({ phase: "disconnected", active: null });
+    if (replacesActiveCredential) forgetPiAgentV1();
+    setCredentialOperation({ phase: "saving", target: operationTarget });
     let credential = suppliedCredential;
     const settlement = (async (): Promise<void> => {
       try {
-        const upsertSettlement = vaultPort.client.upsert(binding, credential);
+        for (const binding of bindings) {
+          await vaultPort.client.upsert(binding, credential);
+        }
         credential = "";
-        await upsertSettlement;
         if (
           credentialVaultPortRef.current !== vaultPort ||
           credentialVaultEpochRef.current !== workerEpoch ||
@@ -1260,24 +1436,42 @@ export function SillyOsAppV1({
           credentialVaultOperationEpochRef.current !== operationEpoch ||
           !agentDrainRegistry.isAccepting()
         ) return;
-        setCredentialVault(providerSettingsVaultFromListV1(vaultSnapshot));
-        configurePiAgentCredentialV1(selection, (port) =>
-          port.configureCredentialHandoff({
-            binding,
-            handoff: createCredentialVaultHandoffV1(
-              vaultPort,
-              binding,
-              workerEpoch,
-              operationEpoch,
-            ),
-          }));
+        const nextVault = providerSettingsVaultFromListV1(vaultSnapshot);
+        credentialVaultStateRef.current = nextVault;
+        setCredentialVault(nextVault);
+        setCredentialOperation({ phase: "idle", target: null });
+        const availableChoices = creatorProviderModelChoicesV1(
+          providerCatalog,
+          providerSettingsSnapshot.customProfiles,
+          providerSettingsSnapshot.enabledBuiltinModels,
+        ).filter((choice) => {
+          try {
+            const choiceBinding = credentialVaultBindingForSelectionV2(choice.selection);
+            return nextVault.bindings.some((candidate) =>
+              credentialVaultBindingsEqualV2(candidate, choiceBinding)
+            );
+          } catch {
+            return false;
+          }
+        });
+        const preferredValue = preferredModelValueV1(
+          providerSettingsSnapshot.preferredModel,
+          availableChoices,
+        );
+        const choice = availableChoices.find(({ value }) => value === preferredValue) ??
+          availableChoices[0];
+        if (choice !== undefined) void activateVaultSelectionV1(choice.selection, false);
       } catch (error) {
         if (
           credentialVaultPortRef.current === vaultPort &&
           credentialVaultEpochRef.current === workerEpoch &&
           credentialVaultOperationEpochRef.current === operationEpoch
         ) {
-          setPiAgentSetupStatus("failed");
+          setCredentialOperation({
+            phase: "failed",
+            target: operationTarget,
+            diagnosticCode: credentialVaultDiagnosticCodeV1(error),
+          });
           reportFailure("silly_os.credential_vault_save_failed", error);
         }
       } finally {
@@ -1287,36 +1481,90 @@ export function SillyOsAppV1({
     credentialVaultSettlementRef.current = settlement;
   };
 
-  const forgetRememberedCredentialV1 = (binding: CredentialVaultBindingV1): void => {
+  const forgetCredentialV1 = (bindings: readonly CredentialVaultBindingV2[]): void => {
+    const firstBinding = bindings[0];
+    if (firstBinding === undefined) {
+      reportFailure("silly_os.credential_vault_forget_failed", "binding_unavailable");
+      return;
+    }
+    const matchesAnyBindingV1 = (candidate: CredentialVaultBindingV2): boolean =>
+      bindings.some((binding) => credentialVaultBindingsEqualV2(candidate, binding));
+    const activeSelection = activeProviderSelectionRef.current;
+    const activeBinding = activeSelection === null
+      ? null
+      : credentialVaultBindingForSelectionV2(activeSelection);
+    if (activeBinding !== null && matchesAnyBindingV1(activeBinding)) forgetPiAgentV1();
+    const testedSelection = connectionTest.active;
+    if (
+      testedSelection !== null &&
+      matchesAnyBindingV1(credentialVaultBindingForSelectionV2(testedSelection))
+    ) {
+      connectionTestEpochRef.current += 1;
+      setConnectionTest({ phase: "disconnected", active: null });
+    }
     const vaultPort = credentialVaultPortRef.current;
     if (vaultPort === null) {
       reportFailure("silly_os.credential_vault_forget_failed", "vault_unavailable");
       return;
     }
-    const activeBinding = activeProviderSelection === null
-      ? null
-      : credentialVaultBindingForSelectionV1(activeProviderSelection);
-    if (activeBinding !== null && credentialVaultBindingsEqualV1(activeBinding, binding)) {
-      forgetPiAgentV1();
-    }
+    const target: CredentialVaultConnectionIdentityV2 = firstBinding.bindingId.startsWith(
+        "builtin:",
+      )
+      ? {
+        kind: "builtin",
+        providerId: firstBinding.bindingId.slice("builtin:".length),
+        baseUrl: firstBinding.baseUrl,
+      }
+      : {
+        kind: "custom",
+        profileId: firstBinding.bindingId.slice("custom:".length),
+        baseUrl: firstBinding.baseUrl,
+      };
     const workerEpoch = credentialVaultEpochRef.current;
     const operationEpoch = ++credentialVaultOperationEpochRef.current;
+    setCredentialOperation({ phase: "forgetting", target });
     const settlement = (async (): Promise<void> => {
       try {
-        await vaultPort.client.forget(binding);
+        let firstFailure: unknown = null;
+        for (const binding of bindings) {
+          try {
+            await vaultPort.client.forget(binding);
+          } catch (error) {
+            firstFailure ??= error;
+          }
+        }
         const vaultSnapshot = await vaultPort.client.list();
         if (
           credentialVaultPortRef.current !== vaultPort ||
           credentialVaultEpochRef.current !== workerEpoch ||
           credentialVaultOperationEpochRef.current !== operationEpoch
         ) return;
-        setCredentialVault(providerSettingsVaultFromListV1(vaultSnapshot));
+        const nextVault = providerSettingsVaultFromListV1(vaultSnapshot);
+        credentialVaultStateRef.current = nextVault;
+        setCredentialVault(nextVault);
+        if (firstFailure === null) {
+          setCredentialOperation({ phase: "idle", target: null });
+        } else {
+          setCredentialOperation({
+            phase: "failed",
+            target,
+            diagnosticCode: credentialVaultDiagnosticCodeV1(firstFailure),
+          });
+          reportFailure("silly_os.credential_vault_forget_failed", firstFailure);
+        }
       } catch (error) {
         if (
           credentialVaultPortRef.current === vaultPort &&
           credentialVaultEpochRef.current === workerEpoch &&
           credentialVaultOperationEpochRef.current === operationEpoch
-        ) reportFailure("silly_os.credential_vault_forget_failed", error);
+        ) {
+          setCredentialOperation({
+            phase: "failed",
+            target,
+            diagnosticCode: credentialVaultDiagnosticCodeV1(error),
+          });
+          reportFailure("silly_os.credential_vault_forget_failed", error);
+        }
       }
     })();
     credentialVaultSettlementRef.current = settlement;
@@ -1334,19 +1582,29 @@ export function SillyOsAppV1({
       providerSettingsRepository.setBuiltinModelEnabled(model, enabled);
       const nextSnapshot = providerSettingsRepository.read();
       setProviderSettingsSnapshot(nextSnapshot);
+      const activeSelection = activeProviderSelectionRef.current;
       if (
-        !enabled && activeProviderSelection?.kind === "builtin" &&
-        activeProviderSelection.providerId === model.providerId &&
-        activeProviderSelection.modelId === model.modelId
+        !enabled && activeSelection?.kind === "builtin" &&
+        activeSelection.providerId === model.providerId &&
+        activeSelection.modelId === model.modelId
       ) {
         const nextChoice = creatorProviderModelChoicesV1(
           providerCatalog,
           nextSnapshot.customProfiles,
           nextSnapshot.enabledBuiltinModels,
-        ).find((choice) =>
-          selectionsShareCredentialScopeV1(activeProviderSelection, choice.selection)
-        );
-        if (nextChoice !== undefined) selectProviderModelChoiceV1(nextChoice);
+        ).find((choice) => selectionsShareCredentialScopeV1(activeSelection, choice.selection));
+        if (nextChoice !== undefined) {
+          selectProviderModelChoiceV1(nextChoice);
+        } else if (
+          shouldRevokeAgentAfterBuiltinModelVisibilityChangeV1({
+            activeSelection,
+            changedModel: model,
+            enabled,
+            sameCredentialScopeReplacementAvailable: false,
+          })
+        ) {
+          forgetPiAgentV1();
+        }
       }
     } catch (error) {
       reportFailure("silly_os.provider_settings_save_failed", error);
@@ -1654,62 +1912,51 @@ export function SillyOsAppV1({
   const workspaceExportDisabled = durability.phase !== "ready" || agentMutationPending ||
     networkApprovalPending || agentWorkspaceLifecyclePending || !executionWorkspaceReady ||
     workspaceExportPending;
-  const providerSettingsProfile: ProviderSettingsProfileV1 = activeProviderSelection === null ||
-      internalPiTest
-    ? { phase: "disconnected", active: null }
-    : piAgentSetupStatus === "saving"
-    ? { phase: "saving", active: activeProviderSelection }
-    : piAgentSetupStatus === "credential_saved"
-    ? { phase: "credential_saved", active: activeProviderSelection }
-    : piAgentSetupStatus === "testing"
-    ? { phase: "testing", active: activeProviderSelection }
-    : piAgentSetupStatus === "ready"
-    ? { phase: "ready", active: activeProviderSelection }
-    : piAgentSetupStatus === "test_failed"
-    ? { phase: "test_failed", active: activeProviderSelection }
-    : piAgentSetupStatus === "failed"
-    ? {
-      phase: "failed",
-      active: activeProviderSelection,
-      diagnosticCode: agentSnapshot?.diagnostic?.code ?? "worker_unavailable",
-    }
-    : { phase: "disconnected", active: null };
   const creatorProviderModelChoices = creatorProviderModelChoicesV1(
     providerCatalog,
     customProviderProfiles,
     providerSettingsSnapshot.enabledBuiltinModels,
   );
-  const credentialBoundProviderModelChoices = activeProviderSelection !== null &&
-      agentWorkerHoldsCredentialV1(piAgentSetupStatus)
-    ? creatorProviderModelChoices.filter((choice) =>
-      selectionsShareCredentialScopeV1(activeProviderSelection, choice.selection)
-    )
+  const usableProviderModelChoices = credentialVault.phase === "unlocked"
+    ? creatorProviderModelChoices.filter((choice) => {
+      try {
+        const binding = credentialVaultBindingForSelectionV2(choice.selection);
+        return credentialVault.bindings.some((candidate) =>
+          credentialVaultBindingsEqualV2(candidate, binding)
+        );
+      } catch {
+        return false;
+      }
+    })
     : [];
   const creatorProviderModelValue = preferredModelValueV1(
     providerSettingsSnapshot.preferredModel,
-    credentialBoundProviderModelChoices,
-  );
-  const preferredProviderChoice = credentialBoundProviderModelChoices.find(
+    usableProviderModelChoices,
+  ) ?? usableProviderModelChoices[0]?.value ?? null;
+  const preferredProviderChoice = usableProviderModelChoices.find(
     ({ value }) => value === creatorProviderModelValue,
   ) ?? null;
   const preferredProviderIsActive = preferredProviderChoice !== null &&
+    agentPort !== null && agentWorkerHoldsCredentialV1(piAgentSetupStatus) &&
     sameProviderSelectionV1(activeProviderSelection, preferredProviderChoice.selection);
-  const creatorProviderModelStatus = providerModelSelectionPending
+  const creatorProviderModelStatus = usableProviderModelChoices.length === 0
+    ? "required" as const
+    : providerModelSelectionPending || agentConfigurationPendingRef.current
     ? "initializing" as const
-    : preferredProviderIsActive && agentWorkerHoldsCredentialV1(piAgentSetupStatus)
+    : preferredProviderIsActive
     ? "ready" as const
-    : "required" as const;
+    : piAgentSetupStatus === "failed"
+    ? "failed" as const
+    : "initializing" as const;
 
   const selectCreatorProviderModelV1 = (value: string): void => {
-    const choice = credentialBoundProviderModelChoices.find((candidate) =>
-      candidate.value === value
-    );
+    const choice = usableProviderModelChoices.find((candidate) => candidate.value === value);
     if (choice !== undefined) selectProviderModelChoiceV1(choice);
   };
   const creatorProviderModelV1 = (surface: "home" | "workspace") => ({
     status: creatorProviderModelStatus,
     selectedValue: creatorProviderModelValue,
-    options: credentialBoundProviderModelChoices.map((choice) => ({
+    options: usableProviderModelChoices.map((choice) => ({
       value: choice.value,
       modelName: choice.modelName,
       providerName: choice.providerName,
@@ -1717,6 +1964,49 @@ export function SillyOsAppV1({
     onSelect: selectCreatorProviderModelV1,
     onOpenSettings: () => openModelSettingsV1(surface),
   } as const);
+
+  const preferredProviderChoiceRef = useRef(preferredProviderChoice);
+  preferredProviderChoiceRef.current = preferredProviderChoice;
+  const selectConfiguredModelRef = useRef(selectConfiguredModelV1);
+  selectConfiguredModelRef.current = selectConfiguredModelV1;
+  const activateVaultSelectionRef = useRef(activateVaultSelectionV1);
+  activateVaultSelectionRef.current = activateVaultSelectionV1;
+
+  useEffect(() => {
+    const choice = preferredProviderChoiceRef.current;
+    if (
+      internalPiTest || choice === null || credentialVault.phase !== "unlocked" ||
+      credentialOperation.phase !== "idle" ||
+      connectionTest.phase === "testing" || piAgentSetupStatus === "failed" ||
+      agentFactoryRef.current === null || networkBrokerFactoryRef.current === null ||
+      agentConfigurationPendingRef.current || providerModelSelectionPendingRef.current ||
+      !agentDrainRegistry.isAccepting()
+    ) return;
+    const port = agentPortRef.current;
+    const activeSelection = activeProviderSelectionRef.current;
+    if (
+      port !== null && activeSelection !== null &&
+      agentWorkerHoldsCredentialV1(piAgentSetupStatus)
+    ) {
+      if (sameProviderSelectionV1(activeSelection, choice.selection)) return;
+      if (selectionsShareCredentialScopeV1(activeSelection, choice.selection)) {
+        void selectConfiguredModelRef.current(choice, false);
+        return;
+      }
+    }
+    void activateVaultSelectionRef.current(choice.selection, false);
+  }, [
+    activeProviderSelection,
+    agentDrainRegistry,
+    agentPort,
+    connectionTest.phase,
+    creatorProviderModelValue,
+    credentialOperation.phase,
+    credentialVault.phase,
+    internalPiTest,
+    piAgentSetupStatus,
+    providerModelSelectionPending,
+  ]);
 
   return (
     <div
@@ -1734,26 +2024,27 @@ export function SillyOsAppV1({
             copy={copy}
             catalog={providerCatalog}
             customProfiles={customProviderProfiles}
-            profile={providerSettingsProfile}
             preferredBuiltinModel={providerSettingsSnapshot.preferredModel?.kind === "builtin"
               ? providerSettingsSnapshot.preferredModel
               : null}
+            connectionTest={connectionTest}
+            credentialOperation={credentialOperation}
+            initialSection={settingsInitialSection}
             onBack={closeSettingsV1}
             onLocaleChange={changeLocaleV1}
             onRetryCatalog={loadProviderCatalogV1}
             enabledBuiltinModels={providerSettingsSnapshot.enabledBuiltinModels}
             onSetBuiltinModelEnabled={setBuiltinModelEnabledV1}
             vault={credentialVault}
-            onCreateVault={createCredentialVaultV1}
+            onSetVaultPassword={setCredentialVaultPasswordV1}
+            onUseAutomaticVault={useAutomaticCredentialVaultV1}
             onUnlockVault={unlockCredentialVaultV1}
             onLockVault={lockCredentialVaultV1}
             onSaveCredential={saveProviderCredentialV1}
-            onUseRemembered={useRememberedCredentialV1}
-            onForgetRemembered={forgetRememberedCredentialV1}
-            onTestConnection={testPiAgentConnectionV1}
+            onForgetCredential={forgetCredentialV1}
+            onTestConnection={testProviderConnectionV1}
             onCreateCustomProfile={createCustomProviderProfileV1}
             onRemoveCustomProfile={removeCustomProviderProfileV1}
-            onForget={forgetPiAgentV1}
           />
         )
         : snapshot.route === "home"
@@ -1799,12 +2090,14 @@ export function SillyOsAppV1({
               : {})}
             {...(internalPiTest ? {} : {
               onOpenSettings: openSettingsV1,
-              providerModel: creatorProviderModelV1("home"),
-              ...(providerApiKeyWarningRequiredV1(piAgentSetupStatus)
+              ...(usableProviderModelChoices.length > 0
+                ? { providerModel: creatorProviderModelV1("home") }
+                : {}),
+              ...(usableProviderModelChoices.length === 0
                 ? {
                   providerSetup: {
                     status: piAgentSetupStatus,
-                    onOpenSettings: openSettingsV1,
+                    onOpenSettings: openProviderSetupV1,
                   },
                 }
                 : {}),

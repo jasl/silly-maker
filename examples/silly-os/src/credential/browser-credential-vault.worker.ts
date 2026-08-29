@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: MIT
 /// <reference lib="webworker" />
 
-import { createCredentialVaultWorkerRuntimeV1 } from "./credential-vault-runtime.ts";
-import { createIndexedDbCredentialVaultV1 } from "./indexeddb-credential-vault.ts";
+import { createCredentialVaultWorkerRuntimeV2 } from "./credential-vault-runtime.ts";
+import { createIndexedDbCredentialVaultV2 } from "./indexeddb-credential-vault.ts";
 
-const workerScopeV1 = self as unknown as DedicatedWorkerGlobalScope;
-const runtimeV1 = createCredentialVaultWorkerRuntimeV1({
-  repository: createIndexedDbCredentialVaultV1({ indexedDB: workerScopeV1.indexedDB }),
-  cryptoApi: workerScopeV1.crypto,
+const workerScopeV2 = self as unknown as DedicatedWorkerGlobalScope;
+const runtimeV2 = createCredentialVaultWorkerRuntimeV2({
+  repository: createIndexedDbCredentialVaultV2({ indexedDB: workerScopeV2.indexedDB }),
+  cryptoApi: workerScopeV2.crypto,
   postMessage(message): void {
     // DedicatedWorkerGlobalScope.postMessage has no targetOrigin parameter.
     // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
-    workerScopeV1.postMessage(message);
+    workerScopeV2.postMessage(message);
   },
   onFatalError(): void {
-    workerScopeV1.close();
+    workerScopeV2.close();
   },
 });
 
-workerScopeV1.addEventListener("message", (event) => {
-  runtimeV1.receive(event.data, event.ports);
+workerScopeV2.addEventListener("message", (event) => {
+  runtimeV2.receive(event.data, event.ports);
 });
-workerScopeV1.addEventListener("messageerror", () => runtimeV1.dispose());
+workerScopeV2.addEventListener("messageerror", () => runtimeV2.dispose());

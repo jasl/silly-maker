@@ -7,8 +7,8 @@ import {
   type ProgramNetworkGrantV1,
 } from "../product/program-network-grants.ts";
 import { normalizeBrowserNetworkUrlV1 } from "../network/browser-network-url.ts";
-import { admitCredentialVaultHandoffReadyV1 } from "../credential/credential-vault-protocol.ts";
-import type { CredentialVaultBindingV1 } from "../credential/credential-vault-contracts.ts";
+import { admitCredentialVaultHandoffReadyV2 } from "../credential/credential-vault-protocol.ts";
+import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
 import { isBrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 import type { BrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 
@@ -95,7 +95,7 @@ export interface BrowserPiWorkerConfigureV1 {
     | {
       readonly kind: "vault_handoff";
       readonly handoffId: string;
-      readonly binding: CredentialVaultBindingV1;
+      readonly binding: CredentialVaultBindingV2;
     };
 }
 
@@ -113,6 +113,8 @@ export interface BrowserPiWorkerTestConnectionV1 {
   readonly revision: 1;
   readonly kind: "test_connection";
   readonly requestId: number;
+  /** Exact diagnostic target. Testing never changes the configured model. */
+  readonly selection: BrowserPiModelSelectionV1 | null;
 }
 
 export interface BrowserPiWorkerSelectModelV1 {
@@ -1113,7 +1115,16 @@ export function admitBrowserPiWorkerInboundMessageV1(
     return { revision: 1, kind: "catalog_request", requestId: discriminator.requestId };
   }
   if (discriminator.kind === "test_connection") {
-    return { revision: 1, kind: "test_connection", requestId: discriminator.requestId };
+    const selection = discriminator.selection === null
+      ? null
+      : admitBrowserPiModelSelectionV1(discriminator.selection);
+    if (discriminator.selection !== null && selection === null) return null;
+    return {
+      revision: 1,
+      kind: "test_connection",
+      requestId: discriminator.requestId,
+      selection,
+    };
   }
   if (discriminator.kind === "select_model") {
     const selection = admitBrowserPiModelSelectionV1(discriminator.selection);
@@ -1197,8 +1208,8 @@ export function admitBrowserPiWorkerInboundMessageV1(
     "binding",
   ]);
   const ready = handoffCredential?.kind === "vault_handoff"
-    ? admitCredentialVaultHandoffReadyV1({
-      revision: 1,
+    ? admitCredentialVaultHandoffReadyV2({
+      revision: 2,
       kind: "credential_vault_handoff_ready",
       handoffId: handoffCredential.handoffId,
       binding: handoffCredential.binding,

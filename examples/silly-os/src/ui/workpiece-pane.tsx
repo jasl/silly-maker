@@ -704,8 +704,8 @@ function ProgramCapabilitiesV1({
                 : "The pinned Agent runtime uses read/write/edit/bash and one bounded proposal tool over a persistent Program workspace in Browser Workers. Bash uses terminal-aggregate output from the Browser Local virtual shell; this is neither a Linux container nor a live LLM."
               : agentMode === "pi_provider"
               ? copy.locale === "zh-CN"
-                ? "固定版本 Agent runtime 正在 Browser Worker 中通过你选择的模型使用受限 proposal 工具。Key 仅在 Agent Worker 内存中；read/write/edit/bash 要等独立来源的 Workspace Sandbox 接通后才会开放。"
-                : "The pinned Agent runtime uses one bounded proposal tool with your selected model in a Browser Worker. The key stays in Agent Worker memory; read/write/edit/bash remain unavailable until the independent-origin Workspace Sandbox is connected."
+                ? "固定版本 Agent runtime 正在 Browser Worker 中通过你选择的模型使用受限 proposal 工具。保存的 Key 留在凭据保险库中，当前 Worker 只接收匹配 Provider 的一次性精确交接；read/write/edit/bash 要等独立来源的 Workspace Sandbox 接通后才会开放。"
+                : "The pinned Agent runtime uses one bounded proposal tool with your selected model in a Browser Worker. The saved key remains in the Credential Vault, and the current Worker receives only an exact one-time handoff for the matching Provider; read/write/edit/bash remain unavailable until the independent-origin Workspace Sandbox is connected."
               : copy.locale === "zh-CN"
               ? "模型、工具执行与数据库属于未来的 typed RPC companion。"
               : "Models, tool execution, and the database belong to a future typed RPC companion."}

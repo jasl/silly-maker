@@ -2,26 +2,52 @@
 
 import type { BrowserPiModelSelectionV1 } from "../agent/browser-pi-worker-protocol.ts";
 import {
-  canonicalizeCredentialVaultBaseUrlV1,
-  normalizeCredentialVaultBindingV1,
-  type CredentialVaultBindingV1,
+  canonicalizeCredentialVaultBaseUrlV2,
+  normalizeCredentialVaultBindingV2,
+  type CredentialVaultBindingV2,
 } from "./credential-vault-contracts.ts";
 
+export type CredentialVaultConnectionIdentityV2 =
+  | {
+    readonly kind: "builtin";
+    readonly providerId: string;
+    readonly baseUrl: string;
+  }
+  | {
+    readonly kind: "custom";
+    readonly profileId: string;
+    readonly baseUrl: string;
+  };
+
 /**
- * One Provider/custom profile owns one immutable credential endpoint. Model
- * changes inside the same built-in Provider scope do not create another key.
+ * Derives one exact endpoint credential binding without requiring or recording
+ * a model choice. Model preferences remain an independent product concern.
  */
-export function credentialVaultBindingForSelectionV1(
-  selection: BrowserPiModelSelectionV1,
-): CredentialVaultBindingV1 {
-  const inputBaseUrl = selection.kind === "builtin" ? selection.baseUrl : selection.profile.baseUrl;
-  const baseUrl = canonicalizeCredentialVaultBaseUrlV1(inputBaseUrl);
+export function credentialVaultBindingForConnectionV2(
+  connection: CredentialVaultConnectionIdentityV2,
+): CredentialVaultBindingV2 {
+  const baseUrl = canonicalizeCredentialVaultBaseUrlV2(connection.baseUrl);
   if (baseUrl === null) throw new TypeError("sillyos.credential_vault.binding_invalid/baseUrl");
-  return normalizeCredentialVaultBindingV1({
-    bindingId: selection.kind === "builtin"
-      ? `builtin:${selection.providerId}`
-      : `custom:${selection.profile.profileId}`,
+  return normalizeCredentialVaultBindingV2({
+    bindingId: connection.kind === "builtin"
+      ? `builtin:${connection.providerId}`
+      : `custom:${connection.profileId}`,
     credentialKind: "api_key",
     baseUrl,
   });
+}
+
+/** Transitional Agent transport wrapper; identity is still model-free. */
+export function credentialVaultBindingForSelectionV2(
+  selection: BrowserPiModelSelectionV1,
+): CredentialVaultBindingV2 {
+  return credentialVaultBindingForConnectionV2(
+    selection.kind === "builtin"
+      ? { kind: "builtin", providerId: selection.providerId, baseUrl: selection.baseUrl }
+      : {
+        kind: "custom",
+        profileId: selection.profile.profileId,
+        baseUrl: selection.profile.baseUrl,
+      },
+  );
 }

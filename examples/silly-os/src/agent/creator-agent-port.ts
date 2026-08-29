@@ -46,7 +46,7 @@ import {
   type BrowserPiWorkerFactoryV1,
   type BrowserPiWorkerRawTransportV1,
 } from "./browser-pi-transport.ts";
-import type { CredentialVaultBindingV1 } from "../credential/credential-vault-contracts.ts";
+import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
 import type {
   BrowserPiNetworkApprovalDecisionV1,
   BrowserPiNetworkApprovalRequestV1,
@@ -194,10 +194,12 @@ export interface CreatorAgentPortV1 {
   subscribe(listener: () => void): () => void;
   configureCredential(apiKey: string): Promise<CreatorAgentConfigureCredentialResultV1>;
   configureCredentialHandoff(input: {
-    readonly binding: CredentialVaultBindingV1;
+    readonly binding: CredentialVaultBindingV2;
     readonly handoff: BrowserPiCredentialHandoffV1;
   }): Promise<CreatorAgentConfigureCredentialResultV1>;
-  testConnection(): Promise<CreatorAgentTestConnectionResultV1>;
+  testConnection(
+    selection?: BrowserPiModelSelectionV1 | null,
+  ): Promise<CreatorAgentTestConnectionResultV1>;
   selectModel(selection: BrowserPiModelSelectionV1): Promise<CreatorAgentSelectModelResultV1>;
   openWorkspace(input: {
     readonly programId: string;
@@ -1252,12 +1254,14 @@ export function createBrowserCreatorAgentPortV1(
   };
 
   const configureCredentialHandoff = (handoffInput: {
-    readonly binding: CredentialVaultBindingV1;
+    readonly binding: CredentialVaultBindingV2;
     readonly handoff: BrowserPiCredentialHandoffV1;
   }): Promise<CreatorAgentConfigureCredentialResultV1> =>
     configureCredentialWithV1(() => transport.configureCredentialHandoff(handoffInput));
 
-  const testConnection = (): Promise<CreatorAgentTestConnectionResultV1> => {
+  const testConnection = (
+    selection?: BrowserPiModelSelectionV1 | null,
+  ): Promise<CreatorAgentTestConnectionResultV1> => {
     if (terminal || finishPromise !== null) {
       return Promise.resolve({ kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") });
     }
@@ -1281,7 +1285,7 @@ export function createBrowserCreatorAgentPortV1(
       publish();
     }
     const attempt = (async (): Promise<CreatorAgentTestConnectionResultV1> => {
-      const tested = await transport.testConnection();
+      const tested = await transport.testConnection(selection);
       if (terminal || lifecycleEpoch !== expectedEpoch) {
         return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
       }

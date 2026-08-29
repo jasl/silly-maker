@@ -132,6 +132,12 @@ the current Workspace, and S3 adds opt-in encrypted credential persistence.
 The build-matched control, Workspace Sandbox, Broker, and Vault release is
 recorded below; it does not activate search, authenticated network, or
 public-origin real-model/network-tool qualification.
+The owner then accepted S3-R1 as the next clean replacement. Its current local
+source now uses durable automatic device-key unlock by default, gives Password
+mode explicit Lock/Unlock, persists Provider keys until Forget/site-data
+clearing, and separates Settings/Provider/model/Test semantics. Its focused
+contracts and combined Chromium/WebKit product journeys now pass, so S3-R1 is
+closed locally. None of those changes is claimed by the current deployment.
 The raw launcher is not the typed product RPC; the live Browser route is a
 separate product path. This plan remains local to `examples/silly-os`; the
 neutral async GUI disposer was delivered separately by the engine task and is
@@ -182,14 +188,18 @@ the selected target adapters may combine TypeScript, Workers, Wasm payloads, or
 a native companion behind the same typed workspace boundary.
 
 At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
-S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2, and S3 are closed; the current
-build-matched three-origin artifact and fixed Vault Worker are deployed. The
+S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2, and the original S3 are closed;
+the current build-matched three-origin artifact and fixed Vault Worker are
+deployed. S3-R1 is closed locally after its focused contracts and combined
+Chromium/WebKit product journeys passed; it is not deployed. The
 post-Q1 Browser Workspace namespace/file slice is implemented and locally
 verified. N0 adds fixed `fetch_url` and exact session-only **Allow once**; N1
 adds explicit revocable Program grants, N2 adds bounded remote download, and S3
-adds opt-in encrypted credential persistence. None activates search or
-authenticated network. Deployment remains a separately recorded release
-operation. The opt-in real QJS Agent-loop
+records the dated delivered opt-in passphrase Vault. Current local S3-R1 source
+clean-replaces only those credential/Settings semantics; the S3/V1 behavior
+remains a historical deployment record rather than a compatibility path. R1
+does not activate search or authenticated network. Deployment remains a
+separately recorded release operation. The opt-in real QJS Agent-loop
 qualifier has passed once with Anthropic `claude-sonnet-4-5` in Chromium. A
 later phase may be refined before it
 starts, but it may not
@@ -670,8 +680,9 @@ attempt to parse arbitrary search-results HTML through `fetch_url`. Its concrete
 provider/adapter and any non-LLM credential ownership are selected only after
 the Broker boundary is proved; this follow-on does not block N0 or N2.
 
-Provider egress remains separate. Provider requests and the session-only API
-key stay in the selected fixed Pi Agent Worker. Product code never configures,
+Provider egress remains separate. Provider requests and each exact credential
+capability stay in the selected fixed Pi Agent Worker after one-time Vault
+handoff; the durable ciphertext remains in Credential Vault V2. Product code never configures,
 attaches, or derives a Provider key, Authorization header, or Cookie for a
 Broker request. The Broker receives no Product Repository, Credential Vault,
 general Workspace/VFS handle, or generic request headers/body; N2 may give one
@@ -927,9 +938,11 @@ the exact bytes but bypasses Browser CORS/redirect enforcement, so those claims
 remain absent. N1, N2, and S3 passed the combined release gates and are deployed
 together under the exact build identity recorded below.
 
-### S3 — optional Credential Vault
+### S3 — optional Credential Vault (historical; superseded by S3-R1)
 
-S3 delivered and deployed on 2026-08-29. Session-only remains the default. The
+S3 delivered and deployed on 2026-08-29. The following is its dated V1 receipt,
+not current local product semantics; S3-R1 clean-replaces it. Session-only was
+the default. The
 Provider form adds an explicit **Remember on this device** choice; it never
 silently promotes an ordinary Save. A user-created, passphrase-unlocked Vault
 derives a non-extractable AES-256-GCM key with PBKDF2-SHA-256 (`600,000`
@@ -995,6 +1008,95 @@ Vault create/unlock/encryption/cold reopen, a remembered-key handoff, a real
 Provider/model request, durable N1 behavior, N2 ingress, arbitrary-site CORS,
 or cross-browser runtime behavior.
 
+### S3-R1 — device-default Vault and Provider settings clean replacement (closed locally; deployment pending)
+
+S3-R1 is the current bounded Browser product slice. Current local source
+implements its clean replacement, and the combined Chromium/WebKit product gate
+passes; it is closed locally but not deployed. It supersedes the delivered
+session-only/**Remember on this device** product semantics without rewriting the
+dated S3/V1 delivery receipts above.
+
+The replacement has three implemented contract groups:
+
+1. **Vault mode and durable-Save contract.** On fresh install the fixed Vault
+   Worker creates and persists one random non-extractable device key within its
+   own boundary and selects **Automatic unlock**. Every Provider key Save is
+   durable until explicit Forget or site-data clearing; remove session-only and
+   per-key Remember inputs, wire values, branches, copy, and tests in the same
+   clean replacement. Add a whole-Vault **Password** mode using the existing
+   PBKDF2-SHA-256 (`600,000`) and AES-256-GCM path, with explicit Lock/Unlock.
+   Preserve exact endpoint binding, no full-key read, one-time direct Agent
+   Worker handoff, network-off Vault policy, synchronous credential-owner
+   revocation, and separation from Product Repository and Workspace storage.
+   Automatic mode must state that the durable device key provides no locked
+   at-rest protection; only password mode while locked has that claim. Do not add
+   WebAuthn, recovery, sync, a server secret, or a compatibility framework for
+   the pre-stable Vault schema.
+2. **Settings and Provider/model separation.** **General**, **Providers**, and
+   **Credential Vault** are the three first-level Settings categories rather
+   than repeating the complete Vault panel in each Provider detail. Provider
+   detail is identity -> Connection -> Available models. Connection owns
+   endpoint plus key Save/Replace/Forget and optional exact technical-model
+   Test; its Test selector is diagnostic and performs no preference mutation.
+   Available models owns only checked models; the reusable Agent Creator
+   composer picker owns the separate preferred/current model. A built-in Provider shows
+   **Available** only while its exact endpoint credential is configured and
+   otherwise shows no label. A complete admitted custom profile shows
+   **Available** while credential state remains a separate Connection fact.
+3. **First-install recommendations and diagnostics.** Add one small ordered,
+   product-maintained list of recommended model families. On a new non-secret
+   Settings repository, project exact current references from the pinned Pi
+   catalog and technical Browser route before seeding checked models only;
+   leave preferred unset and silently skip missing/ineligible references. This list is
+   only a first-install preference seed—Pi remains the Provider/model catalog,
+   schema, capability, and request authority. Keep Test optional and repeatable;
+   expose all technically callable models for the selected Provider in one
+   diagnostic selector, then test exactly the selected model through Pi. Test results never
+   alter checked models, preferred model, Provider labels, runtime admission, or
+   a qualification/allowlist record.
+
+Built-in Connection Save is model-independent. One Save projects the supplied
+key to the deduplicated fixed scope set formed from the Provider's own admitted
+`baseUrl`, when present, plus every exact endpoint used by its technically
+callable models in the current product-pinned Pi catalog. The Vault keeps each
+record under the complete `(bindingId, credentialKind, baseUrl)`
+identity, so this is neither a wildcard Provider credential nor endpoint
+rebinding. An exact Test selection requires the corresponding binding and may
+receive it only through the one-time handoff; no generic credential read API is
+introduced. Provider Connection Forget removes every stored binding in that
+fixed scope set; Credential Vault inventory still supports one-binding Forget.
+This multi-endpoint path is covered by focused projection/storage contracts and
+the same locally closed product gate. Public deployment and a real Provider
+request remain separate evidence.
+
+Local closure evidence is deliberately product-level and mutation-sensitive:
+
+- focused Vault protocol/crypto/storage tests prove fresh automatic creation,
+  non-extractable persisted device-key use after cold reopen, durable Replace and
+  Forget, password-mode conversion plus Lock/reload/Unlock, exact endpoint
+  binding, and absence of a generic plaintext read;
+- sentinel tests continue to find no key in Product Repository, Workspace
+  volume, logs, diagnostics, model preferences, network grants, or Broker wire;
+- Provider/settings tests prove that credential Save performs no Provider call,
+  persists without a Remember choice, survives reload through the Vault handoff,
+  and that Forget removes availability and revokes the active Agent Worker;
+- model tests prove first-install checked-only seed intersection,
+  missing-reference skip, independent checkbox/preferred behavior,
+  built-in/custom label rules, exact multi-endpoint binding projection, and
+  single-selection Test results that leave every preference and label unchanged;
+- Chromium and persistent-profile WebKit each cover fresh automatic setup,
+  reload reuse, Provider Forget, password Lock/Unlock, responsive category/
+  master-detail navigation, keyboard/focus return, and no fatal console error.
+  The two named journeys pass in both engines (`4/4` total); public-origin
+  deployment and a real durable-key Provider request remain separate release
+  evidence.
+
+Stop rather than broaden S3-R1 if it would require a generic credential API,
+Provider relay, arbitrary authentication fields/headers, WebAuthn/recovery,
+cross-device sync, model-quality scoring, a copied Pi catalog, or SillyMaker
+engine changes. A failure of one Provider/model Test is a diagnostic result, not
+permission to reintroduce qualification gating.
+
 ### S4 — persistent Agent state and closed generated UI
 
 Persist Pi-owned conversation/session state only through a proved Pi-compatible
@@ -1049,8 +1151,10 @@ an exact P0 successor candidate for atomic publication. B0b historically added
 a fixed query-gated OpenAI profile; B1a deleted that user-facing route and fixed
 binder. The ordinary route now opens the product-owned Settings surface over
 Pi's pinned catalog, persists compatible model checkboxes plus one preferred
-model, and supports session-only Save/Test/Forget for built-in or bounded custom
-HTTPS profiles. Creator Home still does not request the lazy Pi Worker chunks.
+model, and current local source separates General/Providers/Credential Vault,
+durable Save/Replace/Forget, optional exact-model Test, and automatic/password
+Vault modes for built-in or bounded custom HTTPS profiles. Creator Home still
+does not request the lazy Pi Worker chunks.
 The current live Provider route receives the bounded proposal tool, Pi-native
 `read`/`write`/`edit`/`bash`, and fixed structured `grep`. P2-B0 adds a bounded Browser-local Program
 database, durable exact Program revisions and decisions, and recent-Program
@@ -1062,8 +1166,11 @@ manifest and VFS files. P3c-B1 now publishes one exact reviewed head as an
 immutable accepted snapshot, keeps later mutable drafts independent, and shows
 accepted/reviewed/current identity without making React a byte owner. The
 product still has no persistent Pi session, import/restore, user-facing
-accepted-snapshot download, Python guest, Credential Vault, or broader
-execution profile. S1a-1 clean-replaces the ordinary same-origin Workspace
+accepted-snapshot download, Python guest, or broader execution profile. S3-R1's
+durable-by-default credential semantics, independent Vault Settings IA,
+Provider/model/Test separation, and first-install checked-model recommendation
+seeds are closed locally but are not claimed by the current deployment. S1a-1
+clean-replaces the ordinary same-origin Workspace
 owner with the independent-origin transport and physical Product Repository V5;
 S1b-3 is the live-tools consumer, and closed S2-Q1 adds only fixed
 synchronous QuickJS beneath Pi native `bash`.
@@ -1094,24 +1201,24 @@ promotion gate, not a prerequisite for the 2.9.5 companion preview path.
 
 ## Ownership decisions
 
-| Authority                                                                                                     | Owner                                        | Boundary                                                                                                                                                                                                   |
-| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Program identity, accepted revisions, proposals, decisions, and publication receipts                          | SillyOS product database                     | Product repository and typed product services                                                                                                                                                              |
-| Creator Chat, live Pi-session binding, and review coordination                                                | SillyOS Creator supervisor                   | Session-local control plane plus bounded durable references/receipts; conversation is not Program content                                                                                                  |
-| Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per Program             | A product-selected `WorkspaceRuntime`; accepted Program state names an exact immutable snapshot                                                                                                            |
-| Agent loop, session semantics, compaction, model/provider calls, tool dispatch, and Agent extension lifecycle | Pi                                           | Fixed `pi-agent-core`/`pi-ai` in Browser; complete fixed `pi-coding-agent` companion in Desktop; public Pi tool/extension contracts                                                                        |
-| `read`/`write`/`edit`/`bash` Agent schemas, validation, execution algorithms, updates, and results            | Pi                                           | Deterministic and live runs use all four shipped Pi tools through the independent-origin Sandbox                                                                                                           |
-| Structured `grep` schema, bounded result, and fixed Workspace adapter                                         | Pi plus pinned SillyOS capability adapter    | One fixed Browser `AgentTool` and explicit read-only `grep_workspace` operation; raw `rg` remains inside Pi `bash`, and no generic dispatcher is added                                                     |
-| Fixed `fetch_url`/`download` schemas and Agent lifecycle                                                      | Pi plus pinned SillyOS network adapters      | Product-shipped `AgentTool` values over one non-generic typed port; no `curl`, guest fetch, arbitrary headers/body, or Credential-plane integration                                                        |
-| Program network grants and Browser egress execution                                                           | SillyOS Program authority and keyless Broker | Non-secret normalized origin/operation decisions; product code derives no Broker request from Provider credentials, and the Broker receives no repository, general Workspace authority, or user/guest code |
-| Fixed Browser `qjs` command and child-runtime admission                                                       | SillyOS Browser execution adapter            | One product-shipped implementation below Pi native `bash`; fresh Worker, explicit text staging, no extra AgentTool/runtime RPC, and no Desktop parity claim                                                |
-| Presentation-facing Agent transport                                                                           | SillyOS target adapter                       | Browser Worker or Desktop companion projects only admitted commands/events; raw Pi/provider records never enter React state                                                                                |
-| Agent-side product functions                                                                                  | Pi plus pinned SillyOS capability adapters   | One shared schema/prompt/handler core, registered as a Browser `AgentTool` or Desktop `ExtensionAPI` tool; no parallel Agent/plugin runtime                                                                |
-| Workspace lifecycle, capabilities, generation, change journal, and terminal mutation receipts                 | SillyOS `WorkspaceRuntimePort`               | Product-private owner that supplies a stable Program-scoped Pi `ExecutionEnv`; it is not a second tool API                                                                                                 |
-| Workspace filesystem and shell effects                                                                        | Product-selected execution provider          | Browser VFS and bounded shell are independent-origin Sandbox capabilities; no control-origin or Host-filesystem fallback remains                                                                           |
-| Pi session and provider credentials                                                                           | Target-local Pi owners                       | Browser Agent Worker owns an ephemeral key/session initially; Desktop owns isolated Pi session/auth storage; Program data holds no secret                                                                  |
-| Responsive presentation and application mounting                                                              | SillyMaker GUI contracts                     | React/UI components, input, focus, accessibility, responsive layout, and admitted UI interaction                                                                                                           |
-| Human approval and publication                                                                                | SillyOS Program authority                    | Exact proposal, base accepted revision, and reviewed workspace generation are rechecked before snapshot publication                                                                                        |
+| Authority                                                                                                     | Owner                                        | Boundary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Program identity, accepted revisions, proposals, decisions, and publication receipts                          | SillyOS product database                     | Product repository and typed product services                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Creator Chat, live Pi-session binding, and review coordination                                                | SillyOS Creator supervisor                   | Session-local control plane plus bounded durable references/receipts; conversation is not Program content                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per Program             | A product-selected `WorkspaceRuntime`; accepted Program state names an exact immutable snapshot                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Agent loop, session semantics, compaction, model/provider calls, tool dispatch, and Agent extension lifecycle | Pi                                           | Fixed `pi-agent-core`/`pi-ai` in Browser; complete fixed `pi-coding-agent` companion in Desktop; public Pi tool/extension contracts                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `read`/`write`/`edit`/`bash` Agent schemas, validation, execution algorithms, updates, and results            | Pi                                           | Deterministic and live runs use all four shipped Pi tools through the independent-origin Sandbox                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Structured `grep` schema, bounded result, and fixed Workspace adapter                                         | Pi plus pinned SillyOS capability adapter    | One fixed Browser `AgentTool` and explicit read-only `grep_workspace` operation; raw `rg` remains inside Pi `bash`, and no generic dispatcher is added                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Fixed `fetch_url`/`download` schemas and Agent lifecycle                                                      | Pi plus pinned SillyOS network adapters      | Product-shipped `AgentTool` values over one non-generic typed port; no `curl`, guest fetch, arbitrary headers/body, or Credential-plane integration                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Program network grants and Browser egress execution                                                           | SillyOS Program authority and keyless Broker | Non-secret normalized origin/operation decisions; product code derives no Broker request from Provider credentials, and the Broker receives no repository, general Workspace authority, or user/guest code                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Fixed Browser `qjs` command and child-runtime admission                                                       | SillyOS Browser execution adapter            | One product-shipped implementation below Pi native `bash`; fresh Worker, explicit text staging, no extra AgentTool/runtime RPC, and no Desktop parity claim                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Presentation-facing Agent transport                                                                           | SillyOS target adapter                       | Browser Worker or Desktop companion projects only admitted commands/events; raw Pi/provider records never enter React state                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Agent-side product functions                                                                                  | Pi plus pinned SillyOS capability adapters   | One shared schema/prompt/handler core, registered as a Browser `AgentTool` or Desktop `ExtensionAPI` tool; no parallel Agent/plugin runtime                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Workspace lifecycle, capabilities, generation, change journal, and terminal mutation receipts                 | SillyOS `WorkspaceRuntimePort`               | Product-private owner that supplies a stable Program-scoped Pi `ExecutionEnv`; it is not a second tool API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Workspace filesystem and shell effects                                                                        | Product-selected execution provider          | Browser VFS and bounded shell are independent-origin Sandbox capabilities; no control-origin or Host-filesystem fallback remains                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Pi session and provider credentials                                                                           | Credential Vault plus target-local Pi owner  | Current Browser source uses Vault V2 automatic device-key persistence by default, optional Password Lock/Unlock, and direct one-time exact-binding handoff to the matching Agent Worker. A built-in Save projects only to the deduplicated fixed scopes formed from the Provider's admitted `baseUrl`, when present, plus exact technically callable model endpoints; Provider Connection Forget removes the stored scopes while Vault inventory may remove one binding. Test requires the corresponding selection binding and has no generic key read. The public deployment still carries historical S3/V1 semantics. Desktop may use isolated Pi/OS credential storage; Program data holds no secret |
+| Responsive presentation and application mounting                                                              | SillyMaker GUI contracts                     | React/UI components, input, focus, accessibility, responsive layout, and admitted UI interaction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Human approval and publication                                                                                | SillyOS Program authority                    | Exact proposal, base accepted revision, and reviewed workspace generation are rechecked before snapshot publication                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 Pi, product storage, workspace runtimes, and tool implementations are
 infrastructure for Programs that need them. They are not optional desktop
@@ -1334,6 +1441,17 @@ The accepted execution order is no longer the numeric subsection order:
     S5 BYO Sandbox/products, P1-D, and broader import/artifact work require their
     named predecessor and separate acceptance; none is retroactively part of the
     closed B1a/B1b/P3 checkpoints.
+14. **S3-R1 is closed locally and deployment-pending:** current source
+    clean-replaces the session-only/Remember product path with fresh-install
+    automatic device-key persistence plus user-selected Password Lock/Unlock;
+    provides General, Providers, and Credential Vault categories; separates
+    Connection/key state from model checkboxes, preferred model, and optional
+    exact single-model Test; and seeds only first-install checked models from a
+    small product list intersected with Pi's current technical catalog. Focused
+    contracts plus the combined Chromium/WebKit product journeys pass. Deploy
+    the build-matched R1 artifact before claiming these semantics on the public
+    origin; a real durable-key Provider request remains separate qualification.
+    S4, Python, BYO Sandbox, and broader product-family work remain later slices.
 
 This order replaces the earlier assumption that shell breadth or a shared
 Browser/Desktop provider winner must precede useful Browser persistence.
@@ -1426,10 +1544,12 @@ candidate before publication, so prompt compliance never owns currentness.
 The accepted Browser setup target is Bring Your Own Provider: the user supplies
 either a technically compatible built-in Pi profile or a bounded HTTPS custom
 endpoint. B0b deliberately implemented only fixed OpenAI Responses model
-`gpt-4.1-nano`; B1a/B1b produced dated qualification evidence, while the locally
-implemented B1c surface now projects compatibility and session-test results
-without a model-quality allowlist. Those test results are optional point-in-time
-diagnostics rather than an availability gate. Its custom profile is explicit rather than
+`gpt-4.1-nano`; B1a/B1b produced dated qualification evidence, while the current
+B1c surface projects compatibility and point-in-time Test results without a
+model-quality allowlist. Current local S3-R1 keeps Test optional and exposes all
+technically callable models for a Provider in one selector, while each invocation
+tests exactly one selected model without changing labels, checkboxes, preferred
+model, or runtime admission. Its custom profile is explicit rather than
 guessed and minimally contains:
 
 - Pi API family: `openai-completions`, `openai-responses`,
@@ -1437,11 +1557,12 @@ guessed and minimally contains:
 - HTTPS `baseUrl`;
 - `modelId`, context window, and output-token ceiling.
 
-The API key is not part of that persisted non-secret profile. Request-free Save
-uses the current Agent Worker for the default session-only path. S3 additionally
-allows the user to opt into a separate encrypted Credential Vault and then uses
-an exact one-time handoff from that Vault to a fresh Agent Worker. Neither path
-waits for a Provider diagnostic before the session becomes usable.
+The API key is not part of that persisted non-secret profile. Under current
+local S3-R1, request-free Save always persists the key in the separate Credential Vault
+until Forget/site-data clearing, then uses an exact one-time handoff from that
+Vault to a fresh Agent Worker. Fresh installs use automatic device-key unlock;
+users may switch the Vault to Password mode and explicit Lock/Unlock. Provider
+use never waits for a diagnostic.
 
 Pi still owns the actual provider stream. Browser compatibility is limited to
 the credential/API/HTTPS shapes the product implements; CORS, account/model
@@ -1451,19 +1572,20 @@ the current model availability list. Pi supporting a provider on Desktop does
 not by itself make that provider a Browser capability.
 
 The API key necessarily exists briefly in the page's uncontrolled password
-input and browser memory. By default it moves directly to the Agent Worker and
-does not enter React state, a URL, logs, telemetry, HTML bootstrap, the Program
-database, IndexedDB, OPFS, Cache API, exports, or downloads. When the user
-explicitly selects **Remember on this device**, S3 instead writes encrypted
-ciphertext and bounded endpoint-binding metadata to the separate Credential
-Vault, then performs a one-time transfer into a fresh Agent Worker. Plaintext is
-never exposed through a read API. Forgetting the active session terminates the
-Agent Worker; Lock also terminates it and discards the unlocked Vault key;
-Forget remembered deletes only the exact binding. These Workers reduce
-accidental propagation and isolate generated/workspace code, but are not a
-defense against compromised same-origin control code, a privileged extension,
-or a compromised device. The latest connection-test state still does not
-persist.
+input and browser memory. Save sends it to the separate Credential Vault as
+encrypted ciphertext plus bounded endpoint-binding metadata, then performs a
+one-time transfer into a fresh Agent Worker. It never enters React state, a URL,
+logs, telemetry, HTML bootstrap, Product Repository, Workspace OPFS, Cache API,
+exports, or downloads, and plaintext is never exposed through a read API.
+Provider Connection Forget terminates the active Agent Worker and deletes every
+stored fixed-scope binding for that Provider; Credential Vault inventory Forget
+deletes only the selected exact binding.
+Password Lock terminates the Agent Worker and discards the unlocked password-
+derived key. Automatic mode retains its non-extractable device key and therefore
+does not provide locked at-rest protection. These Workers reduce accidental
+propagation and isolate generated/workspace code, but are not a defense against
+compromised same-origin control code, a privileged extension, or a compromised
+device. Test results do not become preference or qualification state.
 
 The primary production route is a direct HTTPS request from the Agent Worker to
 the user-selected compatible Provider. A custom HTTPS endpoint is conditional on its CORS,
@@ -1476,7 +1598,7 @@ the canonical origin on the Agent Worker URL and gives only that Worker the one
 exact selected origin in `connect-src`; no response uses a global `https:` wildcard.
 This selected-origin response path is included in the current exact release;
 each real custom endpoint still needs its own public-origin behavior evidence
-before qualification. A user-deployed relay remains a later explicit product;
+before making a release support claim. A user-deployed relay remains a later explicit product;
 SillyOS does not operate a general Cloudflare relay, because that would make the
 product a key transit, SSRF, open-proxy, logging, and abuse boundary.
 
@@ -1597,6 +1719,10 @@ maintain a second Provider/model registry. B1a/B1b historically overlaid exact
 behavior: SillyOS now owns only technical compatibility, current profile,
 credential lifetime, endpoint admission, optional session-test diagnostics, and
 Settings presentation; it does not rank or approve model quality.
+S3-R1 is the locally closed, deployment-pending successor contract: it keeps
+that Pi authority, adds only a product-maintained first-install checked-model
+recommendation seed, and removes any
+qualification or Test result from runtime availability and preference state.
 
 The current pinned catalog contains forty runtime Providers and 1,312 static
 model records. That is discovery input, not forty Browser support
@@ -1607,41 +1733,58 @@ protocol SDKs remain build-known Pi imports in the lazy Agent Worker; bundle
 and chunk evidence must show that opening Creator Home alone still does not
 load Pi.
 
-The first Settings information architecture deliberately borrows only the
-useful shape of the read-only CherryStudio reference: Provider discovery and
-Provider-specific models are one master/detail task, while selection of the
-Creator supervisor's active model is a distinct setting. SillyOS keeps its own
+The current Settings information architecture deliberately borrows only the
+useful shape of the read-only CherryStudio reference. **General**,
+**Providers**, and **Credential Vault** are separate first-level categories.
+General is the default product Settings entry. Provider discovery
+and Provider-specific models remain one master/detail task; within a detail,
+Connection owns endpoint/key state plus an optional exact diagnostic-model
+selector, while Available models independently owns checkboxes and the reusable
+composer picker owns preferred/current selection. The Vault category owns automatic/password
+mode plus password Lock/Unlock and binding inventory. SillyOS keeps its own
 chrome, spacing, colors, controls, focus treatment, and responsive contract.
 Wide layouts may show navigation, Provider list, and details together; at
-`767px` and below the same task becomes sequential full-width views with
+`767px` and below category/list/detail become sequential full-width views with
 44-pixel targets, not a compressed Electron three-column layout. Loading,
-empty, failure, retry, candidate, key-saved, testing, ready, and forgotten
-states must be visible and keyboard reachable.
+empty, failure, retry, key-saved, testing, ready, locked, and forgotten states
+must be visible and keyboard reachable.
 
 Credential and profile ownership remain separate:
 
-- an API key is read from an uncontrolled password input, transferred directly
-  to the Agent Worker, cleared immediately, and held only in Worker memory;
-- Forget terminates that Worker and makes the profile visibly disconnected;
-  changing Provider or model also terminates it and requires the key to be
-  entered again, rather than returning a retained key to React for rebinding;
-- non-secret `(providerId, modelId)` and a later admitted endpoint profile may
-  be device-local Settings data, but are never Program data;
-- the first checkpoint may keep those non-secret choices session-local rather
-  than modifying the just-closed Program Repository schema;
+- a saved API key passes once from an uncontrolled password input into the
+  exact-endpoint Vault/Agent handoff path, is cleared from the UI boundary, and
+  persists in the Vault until Forget or site-data clearing;
+- one built-in Connection Save projects only to the deduplicated fixed scope set
+  formed from the Provider's admitted `baseUrl`, when present, plus its current
+  pinned Pi catalog's technically callable model endpoints; every Vault identity
+  includes exact `baseUrl`, and a Test selection must match one of those bindings
+  before direct handoff;
+- Provider Connection Forget terminates the credential-owning Agent Worker and
+  removes every stored binding in that fixed scope set; Vault inventory may
+  instead forget one exact binding. Model changes never require React to read or
+  rebind the key;
+- automatic unlock uses a Vault-generated persisted non-extractable device key
+  and makes no locked at-rest claim; Password mode alone provides explicit
+  Lock/Unlock and locked-ciphertext protection;
+- non-secret `(providerId, modelId)`, custom endpoint profiles, checked models,
+  preferred model, and first-install checked-model recommendation application may be
+  device-local Settings data, but are never Program or credential data;
 - keyless and multi-field Provider auth require their own admitted profile
   shape and are not forced through a fake non-empty API-key field.
 
 CSP and CORS are independent gates. CSP can permit a destination; only the
 Provider can permit the SillyOS origin to read its response. Pi has no Browser
-CORS capability flag and no relay. A Provider is promoted only after the
-deployed Cloudflare origin passes Chromium and persistent-profile WebKit for
-preflight, authentication failure, first stream data, complete settlement,
-the exact Pi tool call, cancellation/currentness, and bounded error mapping.
-`mode: no-cors`, a Service Worker, or relaxing CSP cannot repair a failed CORS
-response.
+CORS capability flag and no relay. Technical callability is derived from the
+pinned Pi adapter plus admitted canonical HTTPS route, not from a dated
+qualification tuple or Test result. A later request may still fail because of
+CORS, account permission, key expiry, model retirement, or Provider behavior;
+that failure is reported at the call site. Deployed Chromium/WebKit journeys
+remain release evidence only. `mode: no-cors`, a Service Worker, or relaxing CSP
+cannot repair a failed CORS response.
 
-The accepted checkpoint order is:
+The B1 checkpoint order below is a dated delivery record. S3-R1 supersedes its
+session-only, repeated-Vault-panel, empty-default, Connection-model, and
+qualification-label product semantics without rewriting those receipts:
 
 1. **B1a — catalog, Settings, and clean OpenAI replacement — delivered and
    closed 2026-08-28.** Add a typed
