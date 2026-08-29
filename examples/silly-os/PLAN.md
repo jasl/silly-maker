@@ -194,8 +194,9 @@ At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
 S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2/N3, the original S3, S3-R1,
 D1, P1-B1d reasoning effort, and E0 engine-baseline absorption are closed. The current
 local source is rebased onto engine baseline
-`31461f362129e6192f70553a261ada225c2abf8b`; no follow-on design-system or Mod
-phase is active. The current build-matched
+`31461f362129e6192f70553a261ada225c2abf8b`. DS1 is the current active product
+phase: DS1a and the bounded DS1b-1 checkpoint are delivered, while the rest of
+DS1b plus DS1c–DS1e remain active-plan work. No Mod phase is active. The current build-matched
 three-origin artifact and fixed Vault Worker are deployed from commit
 `a17c3490c9940bb43fc8718df485322c2dee1052` (Sandbox
 `fb703131-3e37-4e7d-95f4-5b7afa9160cd`, Broker
@@ -265,7 +266,7 @@ or deployed release. Its acceptance is the rebased product/unit/build/security
 gate plus a real computed-style Browser check for product-scope colors, normal
 and compact control geometry, focus tokens, and reduced motion.
 
-### DS1 — SillyOS component and pattern system (active; DS1a delivered 2026-08-30)
+### DS1 — SillyOS component and pattern system (active; DS1a and DS1b-1 delivered 2026-08-30)
 
 The owner has activated DS1 as a product lane. It inventories the real Creator,
 Settings, Workspace, Chat, review, progress, empty/error, and overlay states,
@@ -309,7 +310,18 @@ The active sequence is:
    the public SillyMaker physical primitives where their contract fits and use
    focused Radix behavior where an accessible composite interaction is needed;
    do not maintain parallel hand-written and shared implementations after a
-   consumer has migrated.
+   consumer has migrated. The deliberately bounded **DS1b-1** checkpoint is
+   delivered: product-owned Button/IconButton, Input/InputGroup, Field,
+   NativeSelect, Card, Badge, Status, and Tabs recipes now use one semantic
+   token/state vocabulary. Settings is their first complete stable consumer,
+   while all current product Button/IconButton consumers use the same physical
+   layer. The retired `controls.tsx` wrapper and superseded control selectors
+   are removed. Surface layout rules load after component recipes and retain
+   authority over responsive geometry, including the established mobile touch
+   targets. Textarea, Progress, and any remaining stable primitive convergence
+   stay in the rest of DS1b; navigation rows, Provider rows, and workflow
+   composition stay explicit for DS1c rather than becoming a generic Settings
+   framework.
 3. **DS1c — product patterns.** Converge the Creator composer, model/reasoning
    pickers, settings rows, Provider connection controls, proposal/review cards,
    navigation, workpiece, and empty/error/loading states. Product vocabulary
@@ -352,9 +364,20 @@ and the focused settings/theme/locale/menu/dialog suite in both Chromium and
 WebKit (10/10), including live `matchMedia` and cross-tab `storage` changes. A
 separate in-app Browser pass checked the dark Creator, General,
 unified menu, native modal backdrop/focus, and desktop layout. DS1 remains
-active: DS1b–DS1e still own complete primitive, pattern, surface, dead-style,
-and visual-fixture convergence, so DS1a does not claim that all product
-components have already migrated.
+active: the remainder of DS1b plus DS1c–DS1e still own complete primitive,
+pattern, surface, dead-style, and visual-fixture convergence, so neither DS1a
+nor DS1b-1 claims that all product components have already migrated.
+
+DS1b-1 delivered on 2026-08-30 without changing Settings information
+architecture, Provider/credential behavior, product flows, or an engine API.
+Its behavior contracts cover Button/IconButton semantics, explicit Field and
+Status accessibility, Tabs roving focus, unique Credential Vault destructive
+action names, and component/layout cascade order. The current combined evidence
+is 70 SillyOS unit files / 583 tests, root format/type-aware lint/Stylelint/
+typecheck, all three Browser artifact boundary builds, the focused theme/menu/
+Settings suite in Chromium and WebKit, and a real in-app Browser pass over
+General, Providers, Credential Vault, dark theme, and the narrow Provider
+master/detail flow. Layout and product-flow redesign remain later surface work.
 
 SillyMaker remains the home only for neutral primitives and interaction
 mechanics that can be reproduced without SillyOS vocabulary. A DS1 discovery

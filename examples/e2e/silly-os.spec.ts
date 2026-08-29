@@ -655,13 +655,15 @@ test("SillyOS binds the shared UI foundation without leaking into Tool Theme", a
     if (productSurface === null) throw new TypeError("SillyOS product surface is unavailable");
 
     const normalButton = document.createElement("button");
-    normalButton.className =
-      "silly-button silly-os-button silly-os-button--secondary silly-os-button--base";
+    normalButton.className = "silly-button sos-button";
+    normalButton.dataset.variant = "secondary";
+    normalButton.dataset.size = "base";
     normalButton.textContent = "Normal";
     productSurface.append(normalButton);
     const compactButton = document.createElement("button");
-    compactButton.className =
-      "silly-button silly-os-button silly-os-button--secondary silly-os-button--sm";
+    compactButton.className = "silly-button sos-button";
+    compactButton.dataset.variant = "secondary";
+    compactButton.dataset.size = "sm";
     compactButton.textContent = "Compact";
     productSurface.append(compactButton);
 
@@ -867,7 +869,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
       ((providerWarningBox?.y ?? 0) + (providerWarningBox?.height ?? 0)),
   ).toBeGreaterThanOrEqual(13);
   const composerControlRadii = await page.locator(
-    ".creator-composer textarea, .creator-composer__actions .silly-os-button",
+    ".creator-composer textarea, .creator-composer__actions .sos-button",
   ).evaluateAll((elements) => elements.map((element) => getComputedStyle(element).borderRadius));
   expect(new Set(composerControlRadii)).toEqual(new Set(["12px"]));
   await providerWarning.click();
@@ -893,6 +895,15 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
     name: "Clear all SillyOS data?",
   });
   await expect(clearAllDataDialog).toBeVisible();
+  const clearAllWarning = clearAllDataDialog.locator('[data-slot="status-title"]');
+  await expect(clearAllWarning).toBeVisible();
+  const clearAllWarningLayout = await clearAllWarning.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+    whiteSpace: getComputedStyle(element).whiteSpace,
+  }));
+  expect(clearAllWarningLayout.whiteSpace).not.toBe("nowrap");
+  expect(clearAllWarningLayout.scrollWidth).toBeLessThanOrEqual(clearAllWarningLayout.clientWidth);
   await expect(clearAllDataDialog.getByRole("button", { name: "Cancel" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(clearAllDataDialog).toHaveCount(0);

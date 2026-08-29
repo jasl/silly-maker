@@ -22,7 +22,7 @@ import type {
 } from "../product/contracts.ts";
 import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
 import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
-import { SillyButtonV1 as Button } from "./controls.tsx";
+import { ButtonV1 as Button, IconButtonV1 } from "./design-system/button.tsx";
 
 const pendingReviewStatusDescriptionIdV1 = "workspace-review-pending-status";
 
@@ -486,13 +486,12 @@ export function ChatPaneV1({
               event.currentTarget.value = "";
             }}
           />
-          <Button
+          <IconButtonV1
             type="button"
             variant="ghost"
-            shape="square"
             size="sm"
             icon={Paperclip}
-            aria-label={copy.addResource}
+            accessibleName={copy.addResource}
             disabled={interactionPending || providerModelUnavailable}
             onClick={() => resourceInputRef.current?.click()}
           />
@@ -505,13 +504,12 @@ export function ChatPaneV1({
                 {...providerModel}
               />
             )}
-            <Button
+            <IconButtonV1
               type="submit"
               variant="primary"
-              shape="square"
               size="sm"
               icon={ArrowUp}
-              aria-label={copy.send}
+              accessibleName={copy.send}
               disabled={interactionPending || providerModelUnavailable || draft.trim().length === 0}
             />
           </div>

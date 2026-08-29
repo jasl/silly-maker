@@ -1770,9 +1770,13 @@ The complete product design system has four layers:
 
 The E0 checkpoint had only the first bounded foundation mapping and the Button
 composition. DS1a has since delivered the theme/chrome foundation described
-below, while the large product stylesheet remains a migration source rather
-than proof that the component/pattern system is complete. DS1 remains active
-and is not complete until DS1b–DS1e and their evidence close. Product
+below. DS1b-1 then delivered the first bounded shared-control checkpoint:
+Button/IconButton, Input/InputGroup, Field, NativeSelect, Card, Badge, Status,
+and Tabs now have product-owned recipes over the neutral physical layer;
+Settings is their first complete stable consumer. The large product stylesheet
+remains a migration source rather than proof that the component/pattern system
+is complete. DS1 remains active and is not complete until the remainder of
+DS1b plus DS1c–DS1e and their evidence close. Product
 appearance and workflow stay in SillyOS; only use-case-neutral primitives or
 interaction mechanics with an independent second real consumer (or a proved
 engine-wide baseline need) may be proposed upstream.
@@ -1843,11 +1847,25 @@ patterns, and finally complete surfaces. Once a real consumer migrates, its
 superseded hand-written control and styles are removed rather than retained as
 a permanent compatibility layer.
 
+The delivered DS1b-1 slice converges stable Settings controls without freezing
+the current page layout or product flow. Component recipes own semantic state,
+tokens, accessible names, and intrinsic control geometry. Surface CSS loads
+after those recipes and retains authority over layout and responsive geometry;
+compact component variants therefore cannot suppress the established mobile
+touch targets. Settings navigation and Provider catalog rows remain explicit
+product patterns, not disguised generic Buttons or an abstract Settings
+framework. The slice also migrates every current product Button/IconButton
+consumer to one physical composition, deletes the retired parallel wrapper,
+and adds no engine dependency, API, theme authority, or public component ABI.
+
 DS1a is backed by focused preference/schema/cross-tab, navigation-only locale,
 pre-mount theme, menu/dialog/focus, Tailwind built-output, and token-containment
 tests; the existing product/build/security gates; and Chromium/WebKit rendered
 checks covering both themes, keyboard use, responsive layout, and English/
-Chinese switching. Later component and surface stages add their own long-
+Chinese switching. DS1b-1 adds behavior checks for shared controls, Field and
+Status semantics, Tabs roving focus, Credential Vault action identity, CSS
+cascade order, all three Browser artifact boundaries, and rendered desktop/
+narrow Settings checks. Later component and surface stages add their own long-
 content and visual fixtures before DS1 can be called complete.
 
 ## Responsive layout contract

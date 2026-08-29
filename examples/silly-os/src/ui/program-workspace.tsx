@@ -19,7 +19,7 @@ import type {
 } from "../product/contracts.ts";
 import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
 import { ChatPaneV1, type ChatPanePropsV1 } from "./chat-pane.tsx";
-import { SillyButtonV1 as Button } from "./controls.tsx";
+import { ButtonV1 as Button } from "./design-system/button.tsx";
 import {
   type WorkpieceBrowserStorageV1,
   type WorkpieceExecutionWorkspaceV1,

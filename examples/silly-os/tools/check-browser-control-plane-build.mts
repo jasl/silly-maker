@@ -51,24 +51,30 @@ for (
   }
 }
 
+const cssFilesV1 = filesV1.filter((candidate) => candidate.endsWith(".css"));
 const productDesignSystemCssFilesV1: string[] = [];
-for (const file of filesV1.filter((candidate) => candidate.endsWith(".css"))) {
+const tailwindUtilityCssFilesV1: string[] = [];
+for (const file of cssFilesV1) {
   const source = await Deno.readTextFile(new URL(file, buildDirectoryV1));
+  if (source.includes(".sos\\:")) tailwindUtilityCssFilesV1.push(file);
+  for (
+    const [label, pattern] of [
+      ["global Tailwind theme selector", /:root\s*,\s*:host/u],
+      [
+        "global Tailwind property fallback",
+        /\*\s*,\s*::?before\s*,\s*::?after\s*,\s*::backdrop/u,
+      ],
+      ["global Tailwind custom-property registration", /@property\s+--tw-/u],
+    ] as const
+  ) {
+    if (pattern.test(source)) failV1(`${file} contains ${label}`);
+  }
   if (source.includes("[data-slot=alert-dialog-content]")) {
     productDesignSystemCssFilesV1.push(file);
-    for (
-      const [label, pattern] of [
-        ["global Tailwind theme selector", /:root\s*,\s*:host/u],
-        [
-          "global Tailwind property fallback",
-          /\*\s*,\s*::?before\s*,\s*::?after\s*,\s*::backdrop/u,
-        ],
-        ["global Tailwind custom-property registration", /@property\s+--tw-/u],
-      ] as const
-    ) {
-      if (pattern.test(source)) failV1(`${file} contains ${label}`);
-    }
   }
+}
+if (tailwindUtilityCssFilesV1.length === 0) {
+  failV1("artifact omits product-prefixed Tailwind utilities");
 }
 if (productDesignSystemCssFilesV1.length !== 1) {
   failV1(

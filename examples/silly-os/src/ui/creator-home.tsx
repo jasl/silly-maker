@@ -16,7 +16,7 @@ import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
 import type { PreviewProgramKindV1, ProgramProposalStatusV1 } from "../product/contracts.ts";
 import type { SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
 import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
-import { SillyButtonV1 as Button } from "./controls.tsx";
+import { ButtonV1 as Button } from "./design-system/button.tsx";
 import { SillyOsBrandV1 } from "./product-chrome.tsx";
 import { ProductMenuV1 } from "./product-menu.tsx";
 

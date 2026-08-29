@@ -423,7 +423,9 @@ describe("SillyOS Credential Vault settings", () => {
     expect(onUseAutomaticVault).not.toHaveBeenCalled();
     expect(onLockVault).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: `Forget ${openAiBindingV2.bindingId}` }));
+    fireEvent.click(screen.getByRole("button", {
+      name: `Forget ${openAiBindingV2.bindingId} ${openAiBindingV2.baseUrl}`,
+    }));
     expect(onForgetCredential).toHaveBeenCalledWith([openAiBindingV2]);
     expect(onSetVaultPassword).toHaveBeenCalledOnce();
 
@@ -474,9 +476,29 @@ describe("SillyOS Credential Vault settings", () => {
     expect(onUnlockVault).toHaveBeenCalledWith("unlock-password");
     expect(unlockPassword).toHaveValue("");
     expect(screen.getByRole("button", {
-      name: `Forget ${openAiBindingV2.bindingId}`,
+      name: `Forget ${openAiBindingV2.bindingId} ${openAiBindingV2.baseUrl}`,
     })).toBeDisabled();
     expect(onForgetCredential).toHaveBeenCalledOnce();
+  });
+
+  it("gives same-binding endpoint rows distinct Forget names and exact callbacks", () => {
+    const onForgetCredential = vi.fn();
+    renderSettingsV1({
+      initialSection: "credential_vault",
+      vault: automaticVaultV1([openAiBindingV2, openAiAlternateBindingV2]),
+      onForgetCredential,
+    });
+
+    const primary = screen.getByRole("button", {
+      name: `Forget ${openAiBindingV2.bindingId} ${openAiBindingV2.baseUrl}`,
+    });
+    const alternate = screen.getByRole("button", {
+      name: `Forget ${openAiAlternateBindingV2.bindingId} ${openAiAlternateBindingV2.baseUrl}`,
+    });
+    expect(primary).not.toBe(alternate);
+
+    fireEvent.click(alternate);
+    expect(onForgetCredential).toHaveBeenCalledWith([openAiAlternateBindingV2]);
   });
 });
 

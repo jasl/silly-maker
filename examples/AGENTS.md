@@ -42,9 +42,12 @@ has since been absorbed through E0, and the owner activated DS1 on 2026-08-30
 as an `examples/silly-os` product lane. DS1a delivered that day and owns semantic
 light/dark tokens, device-local theme/locale preferences with cross-tab
 propagation, a product-local overlay host, and one accessible Theme/Language/
-Settings menu. Later DS1 slices converge every repeated product control,
-pattern, and surface; activation does not mean those migrations are already
-complete. Product-scoped Tailwind CSS 4 utilities run without Preflight or
+Settings menu. DS1b-1 then converged product Button/IconButton and the stable
+Settings Input/Field/NativeSelect/Card/Badge/Status/Tabs layer without changing
+Settings information architecture or an engine API. The remaining DS1 slices
+still own Textarea/Progress and other stable primitives, product patterns, full
+surface migration, dead styles, and visual fixtures. Product-scoped Tailwind
+CSS 4 utilities run without Preflight or
 global generated theme/property output. Shadcn-derived focused Radix
 compositions remain product implementation detail; native `dialog` owns modal
 confirmation because the evaluated Radix modal path violated the fixed CSP.

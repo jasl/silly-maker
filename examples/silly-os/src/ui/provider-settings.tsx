@@ -22,7 +22,7 @@ import {
   Trash2,
   TriangleAlert,
 } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import {
   sillyOsLocaleRegistryV1,
@@ -40,7 +40,7 @@ import {
   credentialVaultBindingForConnectionV2,
   type CredentialVaultConnectionIdentityV2,
 } from "../credential/provider-credential-binding.ts";
-import { SillyButtonV1 as Button } from "./controls.tsx";
+import { ButtonV1 as Button, IconButtonV1 } from "./design-system/button.tsx";
 import {
   AlertDialogActionV1,
   AlertDialogCancelV1,
@@ -50,7 +50,37 @@ import {
   AlertDialogTriggerV1,
   AlertDialogV1,
 } from "./design-system/alert-dialog.tsx";
+import { BadgeV1 } from "./design-system/badge.tsx";
+import {
+  CardContentV1,
+  CardDescriptionV1,
+  CardHeaderV1,
+  CardTitleV1,
+  CardV1,
+} from "./design-system/card.tsx";
 import { NativeSelectV1 } from "./design-system/native-select.tsx";
+import {
+  FieldDescriptionV1,
+  FieldErrorV1,
+  FieldGroupV1,
+  FieldLabelV1,
+  FieldLegendV1,
+  FieldSetV1,
+  FieldV1,
+} from "./design-system/field.tsx";
+import {
+  InputGroupAddonV1,
+  InputGroupInputV1,
+  InputGroupV1,
+  InputV1,
+} from "./design-system/input.tsx";
+import {
+  StatusActionV1,
+  StatusContentV1,
+  StatusDescriptionV1,
+  StatusTitleV1,
+  StatusV1,
+} from "./design-system/status.tsx";
 import { ToggleGroupItemV1, ToggleGroupV1 } from "./design-system/toggle-group.tsx";
 import { SillyOsBrandV1 } from "./product-chrome.tsx";
 import { ProductMenuV1 } from "./product-menu.tsx";
@@ -419,13 +449,14 @@ function AvailabilityChipV1({
   readonly availability: ProviderSettingsAvailabilityV1;
 }): ReactNode {
   return (
-    <span
+    <BadgeV1
       className="provider-settings__availability"
       data-availability={availability.status}
+      variant={availability.status === "available" ? "success" : "neutral"}
     >
       {availability.status === "available" ? <Check size={11} aria-hidden="true" /> : null}
       {availabilityLabelV1(copy, availability)}
-    </span>
+    </BadgeV1>
   );
 }
 
@@ -445,14 +476,13 @@ function SettingsTopbarV1({
   return (
     <header className="silly-os-topbar silly-os-settings__topbar">
       <div className="silly-os-settings__topbar-leading">
-        <Button
+        <IconButtonV1
           className="silly-os-settings__back"
           variant="ghost"
-          shape="square"
           size="sm"
           icon={ArrowLeft}
           autoFocus
-          aria-label={copy.settingsBack}
+          accessibleName={copy.settingsBack}
           onClick={onBack}
         />
         <SillyOsBrandV1 copy={copy} />
@@ -630,193 +660,207 @@ function GeneralSettingsV1({
           <p>{copy.settingsGeneralDescription}</p>
         </div>
       </header>
-      <section className="silly-os-settings__preference-card">
-        <div>
-          <strong>{copy.settingsTheme}</strong>
-          <p>{copy.settingsThemeDescription}</p>
-        </div>
-        <ToggleGroupV1
-          type="single"
-          value={theme}
-          aria-label={copy.settingsTheme}
-          onValueChange={(value) => {
-            if (value === "system" || value === "light" || value === "dark") {
-              onThemeChange(value);
-            }
-          }}
-        >
-          <ToggleGroupItemV1 value="system" aria-label={copy.themeSystem}>
-            <Laptop className="sos:size-4" aria-hidden="true" />
-            <span className="sos:hidden sos:sm:inline">{copy.themeSystem}</span>
-          </ToggleGroupItemV1>
-          <ToggleGroupItemV1 value="light" aria-label={copy.themeLight}>
-            <Sun className="sos:size-4" aria-hidden="true" />
-            <span className="sos:hidden sos:sm:inline">{copy.themeLight}</span>
-          </ToggleGroupItemV1>
-          <ToggleGroupItemV1 value="dark" aria-label={copy.themeDark}>
-            <Moon className="sos:size-4" aria-hidden="true" />
-            <span className="sos:hidden sos:sm:inline">{copy.themeDark}</span>
-          </ToggleGroupItemV1>
-        </ToggleGroupV1>
-      </section>
-      <section className="silly-os-settings__preference-card">
-        <div>
-          <strong>{copy.settingsLanguage}</strong>
-          <p>{copy.settingsLanguageDescription}</p>
-        </div>
-        <NativeSelectV1
-          aria-label={copy.settingsLanguage}
-          value={copy.locale}
-          onChange={(event) => onLocaleChange(event.currentTarget.value as SillyOsLocaleV1)}
-        >
-          {sillyOsLocaleRegistryV1.map((locale) => (
-            <option key={locale.value} value={locale.value}>{locale.label}</option>
-          ))}
-        </NativeSelectV1>
-      </section>
-      <section
+      <CardV1 className="silly-os-settings__preference-card">
+        <CardHeaderV1>
+          <CardTitleV1>{copy.settingsTheme}</CardTitleV1>
+          <CardDescriptionV1>{copy.settingsThemeDescription}</CardDescriptionV1>
+        </CardHeaderV1>
+        <CardContentV1>
+          <ToggleGroupV1
+            type="single"
+            value={theme}
+            aria-label={copy.settingsTheme}
+            onValueChange={(value) => {
+              if (value === "system" || value === "light" || value === "dark") {
+                onThemeChange(value);
+              }
+            }}
+          >
+            <ToggleGroupItemV1 value="system" aria-label={copy.themeSystem}>
+              <Laptop className="sos:size-4" aria-hidden="true" />
+              <span className="sos:hidden sos:sm:inline">{copy.themeSystem}</span>
+            </ToggleGroupItemV1>
+            <ToggleGroupItemV1 value="light" aria-label={copy.themeLight}>
+              <Sun className="sos:size-4" aria-hidden="true" />
+              <span className="sos:hidden sos:sm:inline">{copy.themeLight}</span>
+            </ToggleGroupItemV1>
+            <ToggleGroupItemV1 value="dark" aria-label={copy.themeDark}>
+              <Moon className="sos:size-4" aria-hidden="true" />
+              <span className="sos:hidden sos:sm:inline">{copy.themeDark}</span>
+            </ToggleGroupItemV1>
+          </ToggleGroupV1>
+        </CardContentV1>
+      </CardV1>
+      <CardV1 className="silly-os-settings__preference-card">
+        <CardHeaderV1>
+          <CardTitleV1>{copy.settingsLanguage}</CardTitleV1>
+          <CardDescriptionV1>{copy.settingsLanguageDescription}</CardDescriptionV1>
+        </CardHeaderV1>
+        <CardContentV1>
+          <NativeSelectV1
+            controlSize="large"
+            aria-label={copy.settingsLanguage}
+            value={copy.locale}
+            onChange={(event) => onLocaleChange(event.currentTarget.value as SillyOsLocaleV1)}
+          >
+            {sillyOsLocaleRegistryV1.map((locale) => (
+              <option key={locale.value} value={locale.value}>{locale.label}</option>
+            ))}
+          </NativeSelectV1>
+        </CardContentV1>
+      </CardV1>
+      <CardV1
         className="silly-os-settings__data-card"
         aria-labelledby="silly-os-data-management-title"
       >
-        <header className="silly-os-settings__data-heading">
+        <CardHeaderV1 className="silly-os-settings__data-heading">
           <span aria-hidden="true">
             <HardDrive size={19} />
           </span>
           <div>
-            <h2 id="silly-os-data-management-title">{copy.settingsDataManagement}</h2>
-            <p>{copy.settingsDataManagementDescription}</p>
+            <CardTitleV1 id="silly-os-data-management-title">
+              {copy.settingsDataManagement}
+            </CardTitleV1>
+            <CardDescriptionV1>{copy.settingsDataManagementDescription}</CardDescriptionV1>
           </div>
-        </header>
-        <div className="silly-os-settings__storage-grid" aria-live="polite">
-          <StorageEstimateV1
-            label={copy.settingsStorageSillyOsData}
-            description={copy.settingsStorageSillyOsDataDescription}
-            metric={controlMetric}
-          />
-          <StorageEstimateV1
-            label={copy.settingsStorageWorkspaceData}
-            description={copy.settingsStorageWorkspaceDataDescription}
-            metric={workspaceMetric}
-          />
-        </div>
-        <div className="silly-os-settings__storage-summary">
-          <div>
-            {reportedUsageTotal === null ? null : (
-              <p>
-                <span>{copy.settingsStorageReportedTotal}</span>
-                <strong>{formatStorageBytesV1(reportedUsageTotal, copy.locale)}</strong>
-              </p>
-            )}
-            <small>{copy.settingsStorageAdvisory}</small>
+        </CardHeaderV1>
+        <CardContentV1>
+          <div className="silly-os-settings__storage-grid" aria-live="polite">
+            <StorageEstimateV1
+              label={copy.settingsStorageSillyOsData}
+              description={copy.settingsStorageSillyOsDataDescription}
+              metric={controlMetric}
+            />
+            <StorageEstimateV1
+              label={copy.settingsStorageWorkspaceData}
+              description={copy.settingsStorageWorkspaceDataDescription}
+              metric={workspaceMetric}
+            />
           </div>
-          <Button
-            type="button"
-            variant="secondary"
-            icon={RefreshCcw}
-            disabled={storageChecking || clearBusy}
-            onClick={onRefreshStorageUsage}
-          >
-            {copy.settingsStorageRefresh}
-          </Button>
-        </div>
-        <AlertDialogV1
-          open={clearConfirmationOpen}
-          onOpenChange={(open) => {
-            if (!open && clearBusy) return;
-            clearSubmittedRef.current = false;
-            setClearSubmitted(false);
-            setClearConfirmationOpen(open);
-          }}
-        >
-          <div className="silly-os-settings__clear-row">
+          <div className="silly-os-settings__storage-summary">
             <div>
-              <strong>{copy.settingsClearAllTitle}</strong>
-              <p>{copy.settingsClearAllDescription}</p>
+              {reportedUsageTotal === null ? null : (
+                <p>
+                  <span>{copy.settingsStorageReportedTotal}</span>
+                  <strong>{formatStorageBytesV1(reportedUsageTotal, copy.locale)}</strong>
+                </p>
+              )}
+              <small>{copy.settingsStorageAdvisory}</small>
             </div>
-            <AlertDialogTriggerV1 asChild>
-              <Button
-                type="button"
-                className="silly-os-settings__danger-button"
-                variant="secondary"
-                icon={Trash2}
-                disabled={clearBusy}
-              >
-                {copy.settingsClearAllAction}
-              </Button>
-            </AlertDialogTriggerV1>
+            <Button
+              type="button"
+              variant="secondary"
+              icon={RefreshCcw}
+              disabled={storageChecking || clearBusy}
+              onClick={onRefreshStorageUsage}
+            >
+              {copy.settingsStorageRefresh}
+            </Button>
           </div>
-          <AlertDialogContentV1
-            className="silly-os-settings__clear-dialog"
-            aria-busy={clearBusy || undefined}
-            onEscapeKeyDown={(event) => {
-              if (clearBusy) event.preventDefault();
+          <AlertDialogV1
+            open={clearConfirmationOpen}
+            onOpenChange={(open) => {
+              if (!open && clearBusy) return;
+              clearSubmittedRef.current = false;
+              setClearSubmitted(false);
+              setClearConfirmationOpen(open);
             }}
           >
-            <span className="silly-os-settings__clear-dialog-mark" aria-hidden="true">
-              <Trash2 size={21} />
-            </span>
-            <div className="silly-os-settings__clear-dialog-copy">
-              <AlertDialogTitleV1>{copy.settingsClearAllConfirmTitle}</AlertDialogTitleV1>
-              <AlertDialogDescriptionV1>
-                {copy.settingsClearAllConfirmDescription}
-              </AlertDialogDescriptionV1>
-              <p>
-                <TriangleAlert size={15} aria-hidden="true" />
-                {copy.settingsClearAllConfirmWarning}
-              </p>
-              {clearAll.phase === "failed"
-                ? (
-                  <p
-                    className="silly-os-settings__clear-error"
-                    data-diagnostic-code={clearAll.diagnosticCode}
-                    role="alert"
-                  >
-                    {copy.settingsClearAllFailed}
-                  </p>
-                )
-                : null}
-            </div>
-            <div className="silly-os-settings__clear-dialog-actions">
-              <AlertDialogCancelV1 asChild>
-                <Button type="button" variant="secondary" disabled={clearBusy}>
-                  {copy.settingsClearAllCancel}
-                </Button>
-              </AlertDialogCancelV1>
-              <AlertDialogActionV1 asChild>
+            <div className="silly-os-settings__clear-row">
+              <div>
+                <strong>{copy.settingsClearAllTitle}</strong>
+                <p>{copy.settingsClearAllDescription}</p>
+              </div>
+              <AlertDialogTriggerV1 asChild>
                 <Button
                   type="button"
-                  className="silly-os-settings__danger-button is-confirm"
-                  variant="secondary"
-                  icon={clearBusy ? LoaderCircle : Trash2}
-                  aria-busy={clearBusy || undefined}
-                  disabled={clearBusy || clearSubmitted}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    if (clearSubmittedRef.current || clearBusy) return;
-                    clearSubmittedRef.current = true;
-                    setClearSubmitted(true);
-                    onClearAllData();
-                  }}
+                  variant="destructive"
+                  icon={Trash2}
+                  disabled={clearBusy}
                 >
-                  {clearBusy ? copy.settingsClearingAll : copy.settingsClearAllAction}
+                  {copy.settingsClearAllAction}
                 </Button>
-              </AlertDialogActionV1>
+              </AlertDialogTriggerV1>
             </div>
-          </AlertDialogContentV1>
-        </AlertDialogV1>
-        {clearAll.phase === "failed" && !clearConfirmationOpen
-          ? (
-            <p
-              className="silly-os-settings__clear-error"
-              data-diagnostic-code={clearAll.diagnosticCode}
-              role="alert"
+            <AlertDialogContentV1
+              className="silly-os-settings__clear-dialog"
+              aria-busy={clearBusy || undefined}
+              onEscapeKeyDown={(event) => {
+                if (clearBusy) event.preventDefault();
+              }}
             >
-              <TriangleAlert size={16} aria-hidden="true" />
-              {copy.settingsClearAllFailed}
-            </p>
-          )
-          : null}
-      </section>
+              <span className="silly-os-settings__clear-dialog-mark" aria-hidden="true">
+                <Trash2 size={21} />
+              </span>
+              <div className="silly-os-settings__clear-dialog-copy">
+                <AlertDialogTitleV1>{copy.settingsClearAllConfirmTitle}</AlertDialogTitleV1>
+                <AlertDialogDescriptionV1>
+                  {copy.settingsClearAllConfirmDescription}
+                </AlertDialogDescriptionV1>
+                <StatusV1 variant="warning" icon={TriangleAlert}>
+                  <StatusContentV1>
+                    <StatusTitleV1>{copy.settingsClearAllConfirmWarning}</StatusTitleV1>
+                  </StatusContentV1>
+                </StatusV1>
+                {clearAll.phase === "failed"
+                  ? (
+                    <StatusV1
+                      className="silly-os-settings__clear-error"
+                      variant="danger"
+                      data-diagnostic-code={clearAll.diagnosticCode}
+                      role="alert"
+                    >
+                      <StatusContentV1>
+                        <StatusTitleV1>{copy.settingsClearAllFailed}</StatusTitleV1>
+                      </StatusContentV1>
+                    </StatusV1>
+                  )
+                  : null}
+              </div>
+              <div className="silly-os-settings__clear-dialog-actions">
+                <AlertDialogCancelV1 asChild>
+                  <Button type="button" variant="secondary" disabled={clearBusy}>
+                    {copy.settingsClearAllCancel}
+                  </Button>
+                </AlertDialogCancelV1>
+                <AlertDialogActionV1 asChild>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    icon={clearBusy ? LoaderCircle : Trash2}
+                    aria-busy={clearBusy || undefined}
+                    disabled={clearBusy || clearSubmitted}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      if (clearSubmittedRef.current || clearBusy) return;
+                      clearSubmittedRef.current = true;
+                      setClearSubmitted(true);
+                      onClearAllData();
+                    }}
+                  >
+                    {clearBusy ? copy.settingsClearingAll : copy.settingsClearAllAction}
+                  </Button>
+                </AlertDialogActionV1>
+              </div>
+            </AlertDialogContentV1>
+          </AlertDialogV1>
+          {clearAll.phase === "failed" && !clearConfirmationOpen
+            ? (
+              <StatusV1
+                className="silly-os-settings__clear-error"
+                variant="danger"
+                icon={TriangleAlert}
+                data-diagnostic-code={clearAll.diagnosticCode}
+                role="alert"
+              >
+                <StatusContentV1>
+                  <StatusTitleV1>{copy.settingsClearAllFailed}</StatusTitleV1>
+                </StatusContentV1>
+              </StatusV1>
+            )
+            : null}
+        </CardContentV1>
+      </CardV1>
     </div>
   );
 }
@@ -901,6 +945,9 @@ function CredentialVaultPassphraseFormV1({
   const passphraseRef = useRef<HTMLInputElement>(null);
   const confirmationRef = useRef<HTMLInputElement>(null);
   const [mismatch, setMismatch] = useState(false);
+  const passphraseId = useId();
+  const confirmationId = useId();
+  const mismatchId = useId();
 
   const submitV1 = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -921,34 +968,45 @@ function CredentialVaultPassphraseFormV1({
 
   return (
     <form className="provider-settings__vault-form" onSubmit={submitV1}>
-      <label>
-        <span>{copy.credentialVaultPassphrase}</span>
-        <input
-          ref={passphraseRef}
-          type="password"
-          required
-          autoComplete={mode === "unlock" ? "current-password" : "new-password"}
-          disabled={disabled}
-          onInput={() => setMismatch(false)}
-        />
-      </label>
-      {mode !== "unlock"
-        ? (
-          <label>
-            <span>{copy.credentialVaultConfirmPassphrase}</span>
-            <input
-              ref={confirmationRef}
-              type="password"
-              required
-              autoComplete="new-password"
-              disabled={disabled}
-              aria-invalid={mismatch || undefined}
-              aria-describedby={mismatch ? "credential-vault-passphrase-error" : undefined}
-              onInput={() => setMismatch(false)}
-            />
-          </label>
-        )
-        : null}
+      <FieldGroupV1
+        className="provider-settings__vault-fields"
+        data-field-count={mode === "unlock" ? "one" : "two"}
+      >
+        <FieldV1>
+          <FieldLabelV1 htmlFor={passphraseId}>{copy.credentialVaultPassphrase}</FieldLabelV1>
+          <InputV1
+            id={passphraseId}
+            controlSize="sm"
+            ref={passphraseRef}
+            type="password"
+            required
+            autoComplete={mode === "unlock" ? "current-password" : "new-password"}
+            disabled={disabled}
+            onInput={() => setMismatch(false)}
+          />
+        </FieldV1>
+        {mode !== "unlock"
+          ? (
+            <FieldV1 data-invalid={mismatch || undefined}>
+              <FieldLabelV1 htmlFor={confirmationId}>
+                {copy.credentialVaultConfirmPassphrase}
+              </FieldLabelV1>
+              <InputV1
+                id={confirmationId}
+                controlSize="sm"
+                ref={confirmationRef}
+                type="password"
+                required
+                autoComplete="new-password"
+                disabled={disabled}
+                aria-invalid={mismatch || undefined}
+                aria-describedby={mismatch ? mismatchId : undefined}
+                onInput={() => setMismatch(false)}
+              />
+            </FieldV1>
+          )
+          : null}
+      </FieldGroupV1>
       <Button type="submit" variant="secondary" icon={LockKeyhole} disabled={disabled}>
         {mode === "set_password"
           ? copy.credentialVaultSwitchToPassword
@@ -958,9 +1016,9 @@ function CredentialVaultPassphraseFormV1({
       </Button>
       {mismatch
         ? (
-          <p id="credential-vault-passphrase-error" role="alert">
+          <FieldErrorV1 id={mismatchId}>
             {copy.credentialVaultPassphraseMismatch}
-          </p>
+          </FieldErrorV1>
         )
         : null}
     </form>
@@ -989,6 +1047,18 @@ function CredentialVaultPanelV1({
   const passwordMode = vault.protection === "password";
   const busy = vault.phase === "busy";
   const canForget = unlocked && !busy;
+  const statusIcon = busy
+    ? LoaderCircle
+    : vault.phase === "failed" || vault.phase === "unavailable"
+    ? TriangleAlert
+    : vault.phase === "unlocked"
+    ? ShieldCheck
+    : LockKeyhole;
+  const statusVariant = vault.phase === "failed" || vault.phase === "unavailable"
+    ? "danger" as const
+    : vault.phase === "unlocked"
+    ? "success" as const
+    : "info" as const;
 
   return (
     <section
@@ -1003,42 +1073,40 @@ function CredentialVaultPanelV1({
         </div>
         <ShieldCheck size={18} aria-hidden="true" />
       </div>
-      <div
+      <StatusV1
         className={`provider-settings__vault-status is-${vault.phase}`}
+        variant={statusVariant}
+        icon={statusIcon}
         role={vault.phase === "failed" || vault.phase === "unavailable"
           ? "alert"
           : vault.phase === "busy"
           ? "status"
           : undefined}
+        data-busy={busy || undefined}
         data-diagnostic-code={vault.phase === "failed" || vault.phase === "unavailable"
           ? vault.diagnosticCode
           : undefined}
       >
-        {vault.phase === "busy"
-          ? <LoaderCircle className="is-spinning" size={17} aria-hidden="true" />
-          : vault.phase === "failed" || vault.phase === "unavailable"
-          ? <TriangleAlert size={17} aria-hidden="true" />
-          : vault.phase === "unlocked"
-          ? <ShieldCheck size={17} aria-hidden="true" />
-          : <LockKeyhole size={17} aria-hidden="true" />}
-        <span>
-          <strong>{status.title}</strong>
-          <small>{status.description}</small>
-        </span>
+        <StatusContentV1>
+          <StatusTitleV1>{status.title}</StatusTitleV1>
+          <StatusDescriptionV1>{status.description}</StatusDescriptionV1>
+        </StatusContentV1>
         {passwordMode && unlocked
           ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              onClick={onLockVault}
-            >
-              {copy.credentialVaultLock}
-            </Button>
+            <StatusActionV1>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={onLockVault}
+              >
+                {copy.credentialVaultLock}
+              </Button>
+            </StatusActionV1>
           )
           : null}
-      </div>
+      </StatusV1>
       <div className="provider-settings__vault-mode">
         <div>
           <strong>{copy.credentialVaultModeTitle}</strong>
@@ -1120,7 +1188,7 @@ function CredentialVaultPanelV1({
                   variant="ghost"
                   size="sm"
                   disabled={!canForget}
-                  aria-label={`${copy.credentialVaultForgetBinding} ${binding.bindingId}`}
+                  aria-label={`${copy.credentialVaultForgetBinding} ${binding.bindingId} ${binding.baseUrl}`}
                   onClick={() =>
                     onForgetCredential(Object.freeze([binding]))}
                 >
@@ -1199,6 +1267,7 @@ function ProviderConnectionSectionV1({
 }): ReactNode {
   const [keyVisible, setKeyVisible] = useState(false);
   const keyInputRef = useRef<HTMLInputElement>(null);
+  const apiKeyId = useId();
   const storedBinding = credentialVaultBindingForConnectionOrNullV1(target.connection);
   const hasStoredBinding = storedBinding !== null &&
     vault.bindings.some((binding) => credentialVaultBindingsEqualV2(binding, storedBinding));
@@ -1264,6 +1333,16 @@ function ProviderConnectionSectionV1({
     : null;
   const showingCredentialReceipt = hasCredentialSaveReceipt && !saving && !forgetting &&
     !credentialFailed && !testing && !ready && !testFailed && !testWorkerFailed;
+  const statusIcon = saving || testing || forgetting
+    ? LoaderCircle
+    : testFailed || credentialFailed || testWorkerFailed
+    ? TriangleAlert
+    : Check;
+  const statusVariant = testFailed || credentialFailed || testWorkerFailed
+    ? "danger" as const
+    : ready
+    ? "success" as const
+    : "info" as const;
 
   return (
     <section
@@ -1293,8 +1372,9 @@ function ProviderConnectionSectionV1({
         {target.endpoints.length === 0
           ? <p>{copy.providerEndpointManaged}</p>
           : target.endpoints.map((endpoint, index) => (
-            <input
+            <InputV1
               key={endpoint}
+              controlSize="sm"
               aria-label={target.endpoints.length === 1
                 ? copy.providerEndpointLabel
                 : `${copy.providerEndpointLabel} ${String(index + 1)}`}
@@ -1332,7 +1412,7 @@ function ProviderConnectionSectionV1({
           >
             {statusCopy !== null
               ? (
-                <div
+                <StatusV1
                   className={`provider-settings__connection-status${
                     ready
                       ? " is-ready"
@@ -1340,6 +1420,9 @@ function ProviderConnectionSectionV1({
                       ? " is-failed"
                       : ""
                   }`}
+                  variant={statusVariant}
+                  icon={statusIcon}
+                  data-busy={saving || testing || forgetting || undefined}
                   data-diagnostic-code={credentialOperation.phase === "failed"
                     ? credentialOperation.diagnosticCode
                     : connectionTest.phase === "failed"
@@ -1348,24 +1431,22 @@ function ProviderConnectionSectionV1({
                   data-credential-receipt={showingCredentialReceipt ? "saved" : undefined}
                   role={testFailed || credentialFailed || testWorkerFailed ? "alert" : "status"}
                 >
-                  {saving || testing || forgetting
-                    ? <LoaderCircle className="is-spinning" size={17} aria-hidden="true" />
-                    : testFailed || credentialFailed || testWorkerFailed
-                    ? <TriangleAlert size={17} aria-hidden="true" />
-                    : <Check size={17} aria-hidden="true" />}
-                  <span>
-                    <strong>{statusCopy}</strong>
-                    {statusModelId === null ? null : <small>{statusModelId}</small>}
-                  </span>
-                </div>
+                  <StatusContentV1>
+                    <StatusTitleV1>{statusCopy}</StatusTitleV1>
+                    {statusModelId === null
+                      ? null
+                      : <StatusDescriptionV1>{statusModelId}</StatusDescriptionV1>}
+                  </StatusContentV1>
+                </StatusV1>
               )
               : null}
             <p>{copy.providerConnectionTestNotice}</p>
-            <label htmlFor="provider-api-key">{copy.providerKeyLabel}</label>
+            <FieldLabelV1 htmlFor={apiKeyId}>{copy.providerKeyLabel}</FieldLabelV1>
             <div className="provider-settings__credential-controls">
-              <span className="provider-settings__key-input">
-                <input
-                  id="provider-api-key"
+              <InputGroupV1 className="provider-settings__key-input">
+                <InputGroupInputV1
+                  id={apiKeyId}
+                  controlSize="sm"
                   ref={keyInputRef}
                   type={keyVisible ? "text" : "password"}
                   required
@@ -1376,16 +1457,17 @@ function ProviderConnectionSectionV1({
                     : copy.providerKeyPlaceholder}
                   disabled={mutationPending}
                 />
-                <button
-                  type="button"
-                  aria-label={keyVisible ? copy.providerHideKey : copy.providerShowKey}
-                  onClick={() => setKeyVisible((current) => !current)}
-                >
-                  {keyVisible
-                    ? <EyeOff size={16} aria-hidden="true" />
-                    : <Eye size={16} aria-hidden="true" />}
-                </button>
-              </span>
+                <InputGroupAddonV1>
+                  <IconButtonV1
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    accessibleName={keyVisible ? copy.providerHideKey : copy.providerShowKey}
+                    icon={keyVisible ? EyeOff : Eye}
+                    onClick={() => setKeyVisible((current) => !current)}
+                  />
+                </InputGroupAddonV1>
+              </InputGroupV1>
               <span className="provider-settings__credential-actions">
                 <Button type="submit" variant="primary" disabled={mutationPending}>
                   {saving
@@ -1396,13 +1478,11 @@ function ProviderConnectionSectionV1({
                 </Button>
                 {storedSaveTargetBindings.length > 0
                   ? (
-                    <Button
+                    <IconButtonV1
                       type="button"
-                      variant="ghost"
-                      shape="square"
+                      variant="destructive"
                       icon={Trash2}
-                      className="provider-settings__delete-credential"
-                      aria-label={copy.providerDeleteCredential}
+                      accessibleName={copy.providerDeleteCredential}
                       title={copy.providerDeleteCredential}
                       aria-busy={forgetting}
                       disabled={mutationPending}
@@ -1419,7 +1499,7 @@ function ProviderConnectionSectionV1({
                     <strong>{copy.providerConnectionModelLabel}</strong>
                     <small>{copy.providerConnectionModelDescription}</small>
                   </span>
-                  <select
+                  <NativeSelectV1
                     value={target.testSelection?.kind === "builtin"
                       ? target.testSelection.modelId
                       : ""}
@@ -1433,7 +1513,7 @@ function ProviderConnectionSectionV1({
                           {model.name} · {model.modelId}
                         </option>
                       ))}
-                  </select>
+                  </NativeSelectV1>
                 </label>
               )
               : null}
@@ -1470,6 +1550,8 @@ function CustomProfileFormV1({
   readonly failed: boolean;
   readonly onCreate: (draft: ProviderSettingsCustomProfileDraftV1) => void;
 }): ReactNode {
+  const fieldPrefix = useId();
+  const fieldIdV1 = (name: string): string => `${fieldPrefix}-${name}`;
   return (
     <form
       className="provider-settings__custom-form"
@@ -1499,29 +1581,46 @@ function CustomProfileFormV1({
       </header>
       {failed
         ? (
-          <p className="provider-settings__connection-error" role="alert">
-            <TriangleAlert size={16} aria-hidden="true" />
-            {copy.providerCustomSaveFailed}
-          </p>
+          <StatusV1
+            className="provider-settings__connection-error"
+            variant="danger"
+            icon={TriangleAlert}
+            role="alert"
+          >
+            <StatusContentV1>
+              <StatusTitleV1>{copy.providerCustomSaveFailed}</StatusTitleV1>
+            </StatusContentV1>
+          </StatusV1>
         )
         : null}
-      <div className="provider-settings__form-grid">
-        <label>
-          <span>{copy.providerCustomNameLabel}</span>
-          <input name="displayName" required maxLength={80} autoFocus />
-        </label>
-        <label>
-          <span>{copy.providerCustomApiLabel}</span>
-          <select name="api" defaultValue="openai-completions">
+      <FieldGroupV1 className="provider-settings__form-grid">
+        <FieldV1>
+          <FieldLabelV1 htmlFor={fieldIdV1("display-name")}>
+            {copy.providerCustomNameLabel}
+          </FieldLabelV1>
+          <InputV1
+            id={fieldIdV1("display-name")}
+            name="displayName"
+            required
+            maxLength={80}
+            autoFocus
+          />
+        </FieldV1>
+        <FieldV1>
+          <FieldLabelV1 htmlFor={fieldIdV1("api")}>{copy.providerCustomApiLabel}</FieldLabelV1>
+          <NativeSelectV1 id={fieldIdV1("api")} name="api" defaultValue="openai-completions">
             <option value="openai-completions">OpenAI Chat Completions</option>
             <option value="openai-responses">OpenAI Responses</option>
             <option value="anthropic-messages">Anthropic Messages</option>
             <option value="google-generative-ai">Google Generative AI</option>
-          </select>
-        </label>
-        <label className="is-wide">
-          <span>{copy.providerEndpointLabel}</span>
-          <input
+          </NativeSelectV1>
+        </FieldV1>
+        <FieldV1 className="is-wide">
+          <FieldLabelV1 htmlFor={fieldIdV1("base-url")}>
+            {copy.providerEndpointLabel}
+          </FieldLabelV1>
+          <InputV1
+            id={fieldIdV1("base-url")}
             name="baseUrl"
             type="url"
             required
@@ -1529,15 +1628,26 @@ function CustomProfileFormV1({
             placeholder="https://api.example.com/v1"
             spellCheck={false}
           />
-          <small>{copy.providerCustomEndpointHint}</small>
-        </label>
-        <label className="is-wide">
-          <span>{copy.providerCustomModelLabel}</span>
-          <input name="modelId" required maxLength={160} spellCheck={false} />
-        </label>
-        <label>
-          <span>{copy.providerContextWindowLabel}</span>
-          <input
+          <FieldDescriptionV1>{copy.providerCustomEndpointHint}</FieldDescriptionV1>
+        </FieldV1>
+        <FieldV1 className="is-wide">
+          <FieldLabelV1 htmlFor={fieldIdV1("model-id")}>
+            {copy.providerCustomModelLabel}
+          </FieldLabelV1>
+          <InputV1
+            id={fieldIdV1("model-id")}
+            name="modelId"
+            required
+            maxLength={160}
+            spellCheck={false}
+          />
+        </FieldV1>
+        <FieldV1>
+          <FieldLabelV1 htmlFor={fieldIdV1("context-window")}>
+            {copy.providerContextWindowLabel}
+          </FieldLabelV1>
+          <InputV1
+            id={fieldIdV1("context-window")}
             name="contextWindow"
             type="number"
             required
@@ -1545,10 +1655,13 @@ function CustomProfileFormV1({
             max={32_000_000}
             defaultValue={128_000}
           />
-        </label>
-        <label>
-          <span>{copy.providerMaxTokensLabel}</span>
-          <input
+        </FieldV1>
+        <FieldV1>
+          <FieldLabelV1 htmlFor={fieldIdV1("max-tokens")}>
+            {copy.providerMaxTokensLabel}
+          </FieldLabelV1>
+          <InputV1
+            id={fieldIdV1("max-tokens")}
             name="maxTokens"
             type="number"
             required
@@ -1556,8 +1669,8 @@ function CustomProfileFormV1({
             max={4_000_000}
             defaultValue={16_384}
           />
-        </label>
-      </div>
+        </FieldV1>
+      </FieldGroupV1>
       <p className="provider-settings__custom-disclosure">
         {copy.providerCustomPersistenceNotice}
       </p>
@@ -1865,7 +1978,8 @@ export function ProviderSettingsV1({
                     <label className="provider-settings__search">
                       <span className="silly-os-visually-hidden">{copy.providerSearchLabel}</span>
                       <Search size={15} aria-hidden="true" />
-                      <input
+                      <InputV1
+                        controlSize="sm"
                         type="search"
                         value={providerQuery}
                         placeholder={copy.providerSearchPlaceholder}
@@ -1990,9 +2104,12 @@ export function ProviderSettingsV1({
                                       <small>{custom.modelId}</small>
                                     </span>
                                     <span className="provider-settings__provider-meta">
-                                      <span className="provider-settings__custom-status">
+                                      <BadgeV1
+                                        className="provider-settings__custom-status"
+                                        variant="success"
+                                      >
                                         {copy.providerStatusAvailable}
-                                      </span>
+                                      </BadgeV1>
                                       <small>{custom.api}</small>
                                     </span>
                                   </button>
@@ -2093,7 +2210,7 @@ export function ProviderSettingsV1({
                                       <h3 id="models-title">{copy.providerModelsTitle}</h3>
                                       <p>{copy.providerModelsDescription}</p>
                                     </div>
-                                    <span className="provider-settings__model-count">
+                                    <BadgeV1 className="provider-settings__model-count">
                                       {String(
                                         enabledBuiltinModels.filter((model) =>
                                           model.providerId === inspectedProvider.providerId
@@ -2101,7 +2218,7 @@ export function ProviderSettingsV1({
                                       )} / {String(
                                         inspectedProvider.models.length,
                                       )}
-                                    </span>
+                                    </BadgeV1>
                                   </div>
                                   {inspectedProvider.models.length === 0
                                     ? (
@@ -2116,7 +2233,8 @@ export function ProviderSettingsV1({
                                             {copy.modelSearchLabel}
                                           </span>
                                           <Search size={15} aria-hidden="true" />
-                                          <input
+                                          <InputV1
+                                            controlSize="sm"
                                             type="search"
                                             value={modelQuery}
                                             placeholder={copy.modelSearchPlaceholder}
@@ -2131,10 +2249,10 @@ export function ProviderSettingsV1({
                                             </p>
                                           )
                                           : (
-                                            <fieldset className="provider-settings__model-list">
-                                              <legend className="silly-os-visually-hidden">
+                                            <FieldSetV1 className="provider-settings__model-list">
+                                              <FieldLegendV1 className="silly-os-visually-hidden">
                                                 {copy.creatorModelSelection}
-                                              </legend>
+                                              </FieldLegendV1>
                                               {filteredModels.map((model) => {
                                                 const available = model.availability.status ===
                                                   "available";
@@ -2186,7 +2304,7 @@ export function ProviderSettingsV1({
                                                   </label>
                                                 );
                                               })}
-                                            </fieldset>
+                                            </FieldSetV1>
                                           )}
                                       </>
                                     )}

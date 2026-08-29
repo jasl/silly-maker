@@ -24,7 +24,8 @@ import type {
   PreviewProgramV1,
   ProgramProposalV1,
 } from "../product/contracts.ts";
-import { SillyButtonV1 as Button, SillyTabsV1 as Tabs } from "./controls.tsx";
+import { ButtonV1 as Button, IconButtonV1 } from "./design-system/button.tsx";
+import { TabsV1 as Tabs } from "./design-system/tabs.tsx";
 import { formatStorageBytesV1 } from "./storage-format.ts";
 
 export type WorkpieceTabV1 = "view" | "source" | "capabilities" | "activity";
@@ -219,28 +220,25 @@ export function WorkpiecePaneV1({
           labels={{ tabList: copy.locale === "zh-CN" ? "工作产物视图" : "Workpiece views" }}
         />
         <div className="workpiece-pane__toolbar-actions">
-          <Button
+          <IconButtonV1
             variant="ghost"
-            shape="square"
             size="sm"
             icon={Download}
-            aria-label={copy.locale === "zh-CN" ? "下载预览清单" : "Download preview manifest"}
+            accessibleName={copy.locale === "zh-CN" ? "下载预览清单" : "Download preview manifest"}
             onClick={() => savePreviewV1(program, agentMode)}
           />
-          <Button
+          <IconButtonV1
             variant="ghost"
-            shape="square"
             size="sm"
             icon={fullscreen ? Minimize2 : Maximize2}
-            aria-label={fullscreen ? copy.exitFullscreen : copy.fullscreen}
+            accessibleName={fullscreen ? copy.exitFullscreen : copy.fullscreen}
             onClick={onToggleFullscreen}
           />
-          <Button
+          <IconButtonV1
             variant="ghost"
-            shape="square"
             size="sm"
             icon={X}
-            aria-label={copy.closePreview}
+            accessibleName={copy.closePreview}
             onClick={onClose}
           />
         </div>

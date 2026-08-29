@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
 import type { SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
-import { SillyButtonV1 as Button } from "./controls.tsx";
+import { IconButtonV1 } from "./design-system/button.tsx";
 import { SillyOsBrandV1 } from "./product-chrome.tsx";
 import { ProductMenuV1 } from "./product-menu.tsx";
 
@@ -32,12 +32,11 @@ export function ProgramWorkspaceTopbarV1({
   return (
     <header className="silly-os-topbar program-workspace__topbar">
       <div className="program-workspace__topbar-leading">
-        <Button
+        <IconButtonV1
           variant="ghost"
-          shape="square"
           size="sm"
           icon={ArrowLeft}
-          aria-label={copy.home}
+          accessibleName={copy.home}
           disabled={homeDisabled}
           onClick={onHome}
         />

@@ -45,8 +45,47 @@ describe("SillyOS design-system foundation", () => {
 
   it("keeps component colors behind semantic tokens", async () => {
     const productCss = await readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8");
+    const componentCss = await readFile(
+      resolve(productRootV1, "ui/design-system/components.css"),
+      "utf8",
+    );
 
-    expect(productCss).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/iu);
+    expect(`${productCss}\n${componentCss}`).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/iu);
     expect(productCss).toContain("var(--sos-surface)");
+    expect(componentCss).toContain(".sos-button");
+    expect(componentCss).toContain(".sos-input");
+    expect(componentCss).toContain(".sos-status");
+    expect(componentCss).not.toMatch(/(^|[},]\s*)(?::root|html|body|#root)\b/mu);
+  });
+
+  it("lets surface layout rules override component geometry without duplicating controls", async () => {
+    const app = await readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8");
+    const componentCss = await readFile(
+      resolve(productRootV1, "ui/design-system/components.css"),
+      "utf8",
+    );
+
+    expect(app.indexOf('import "./design-system/components.css";')).toBeLessThan(
+      app.indexOf('import "./silly-os.css";'),
+    );
+    expect(componentCss).toContain('.sos-icon-button:where([data-size="sm"])');
+    const textButtonRule = componentCss.slice(
+      componentCss.indexOf(".sos-button {"),
+      componentCss.indexOf("}", componentCss.indexOf(".sos-button {")) + 1,
+    );
+    expect(componentCss).toContain("min-block-size: var(--silly-control-min-size);");
+    expect(textButtonRule).toContain("white-space: normal");
+    expect(textButtonRule).not.toMatch(/(^|\s)block-size:/u);
+  });
+
+  it("scans every emitted CSS asset for forbidden Tailwind globals", async () => {
+    const checker = await readFile(
+      resolve(productRootV1, "../tools/check-browser-control-plane-build.mts"),
+      "utf8",
+    );
+
+    expect(checker).toContain("const cssFilesV1 = filesV1.filter");
+    expect(checker).toContain("for (const file of cssFilesV1)");
+    expect(checker).toContain("tailwindUtilityCssFilesV1");
   });
 });

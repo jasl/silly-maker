@@ -8,7 +8,7 @@ import {
   type SillyOsLocaleV1,
 } from "../content/copy.ts";
 import { type SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
-import { SillyButtonV1 as Button } from "./controls.tsx";
+import { IconButtonV1 } from "./design-system/button.tsx";
 import {
   DropdownMenuContentV1,
   DropdownMenuItemV1,
@@ -52,13 +52,12 @@ export function ProductMenuV1({
   return (
     <DropdownMenuV1>
       <DropdownMenuTriggerV1 asChild>
-        <Button
+        <IconButtonV1
           className="silly-os-product-menu__trigger"
           variant="ghost"
-          shape="square"
           size="base"
           icon={Settings}
-          aria-label={copy.productMenu}
+          accessibleName={copy.productMenu}
           data-open-settings={surface}
         />
       </DropdownMenuTriggerV1>
