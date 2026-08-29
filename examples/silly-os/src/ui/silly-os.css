@@ -281,41 +281,141 @@ body,
 
 .silly-os-locale {
   position: relative;
-  display: inline-grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
+  display: inline-flex;
+  inline-size: 134px;
   block-size: 32px;
+  min-inline-size: 0;
   border: 1px solid var(--sos-line);
   border-radius: 8px;
   color: var(--sos-ink-soft);
   background: var(--sos-surface);
 }
 
-.silly-os-locale__globe {
-  margin-inline-start: 8px;
-  pointer-events: none;
-}
-
-.silly-os-locale select {
-  inline-size: 104px;
-  max-inline-size: 30vw;
+.silly-os-locale__trigger {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  inline-size: 100%;
   block-size: 100%;
-  padding-block: 0;
-  padding-inline: 6px 25px;
+  padding: 0 8px;
+  gap: 7px;
   border: 0;
   border-radius: inherit;
-  appearance: none;
   color: inherit;
   background: transparent;
-  cursor: pointer;
-  font: inherit;
   font-weight: 650;
+  text-align: start;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.silly-os-locale__trigger:hover,
+.silly-os-locale__trigger[aria-expanded="true"] {
+  color: var(--sos-ink);
+  background: var(--sos-surface-muted);
+}
+
+.silly-os-locale__globe,
+.silly-os-locale__chevron {
+  flex: 0 0 auto;
+  color: var(--sos-ink-muted);
+}
+
+.silly-os-locale__label {
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .silly-os-locale__chevron {
+  transition: transform 120ms ease;
+}
+
+.silly-os-locale__trigger[aria-expanded="true"] .silly-os-locale__chevron {
+  transform: rotate(180deg);
+}
+
+.silly-os-locale__popover {
   position: absolute;
-  inset-inline-end: 7px;
-  pointer-events: none;
+  z-index: 80;
+  inset-block-start: calc(100% + 6px);
+  inset-inline-end: 0;
+  inline-size: 172px;
+  min-inline-size: 100%;
+  max-inline-size: calc(100vw - 24px);
+  padding: 5px;
+  overflow: hidden;
+  border: 1px solid rgb(29 29 27 / 10%);
+  border-radius: 12px;
+  background: var(--sos-surface);
+  box-shadow:
+    0 16px 42px rgb(39 42 38 / 14%),
+    0 3px 9px rgb(39 42 38 / 8%),
+    inset 0 1px rgb(255 255 255 / 90%);
+  animation: silly-os-locale-popover-in 120ms ease-out;
+}
+
+.silly-os-locale__popover > [role="listbox"] {
+  max-block-size: min(260px, 50vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.silly-os-locale__option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: 42px;
+  padding: 7px 9px;
+  gap: 8px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--sos-ink-soft);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: start;
+  transition: background-color 110ms ease, color 110ms ease;
+}
+
+.silly-os-locale__option > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.silly-os-locale__option:hover,
+.silly-os-locale__option[data-active="true"] {
+  color: var(--sos-ink);
+  background: var(--sos-surface-muted);
+}
+
+.silly-os-locale__option[aria-selected="true"] {
+  color: var(--sos-accent-dark);
+  background: var(--sos-accent-soft);
+}
+
+.silly-os-locale__option > svg {
+  color: var(--sos-accent-dark);
+  opacity: 0;
+}
+
+.silly-os-locale__option[aria-selected="true"] > svg {
+  opacity: 1;
+}
+
+@keyframes silly-os-locale-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* Creator Home */
@@ -4066,7 +4166,11 @@ body,
     padding-block: 0;
   }
 
-  .silly-os-settings__topbar .silly-os-locale select {
+  .silly-os-settings__topbar .silly-os-locale__trigger {
+    min-block-size: 44px;
+  }
+
+  .silly-os-locale__option {
     min-block-size: 44px;
   }
 
@@ -4116,10 +4220,11 @@ body,
   }
 
   .silly-os-settings__preference-card .silly-os-locale {
+    inline-size: 100%;
     block-size: 44px;
   }
 
-  .silly-os-settings__preference-card .silly-os-locale select {
+  .silly-os-settings__preference-card .silly-os-locale__trigger {
     min-block-size: 44px;
   }
 
@@ -4397,8 +4502,8 @@ body,
   }
 
   .program-workspace__topbar .silly-os-locale {
+    inline-size: 112px;
     block-size: 30px;
-    padding-inline-start: 3px;
   }
 
   .program-workspace__chat-shell,
@@ -4508,10 +4613,6 @@ body,
     gap: 5px;
   }
 
-  .creator-home__topbar .silly-os-locale__globe {
-    margin-inline-start: 6px;
-  }
-
   .creator-composer__resource-button {
     inline-size: 42px;
     padding: 0;
@@ -4580,10 +4681,17 @@ body,
     animation: none;
   }
 
+  .silly-os-locale__popover {
+    animation: none;
+  }
+
   .creator-composer__model-chevron,
   .creator-composer__model-option,
   .creator-composer__model-settings,
-  .creator-composer__model-selector {
+  .creator-composer__model-selector,
+  .silly-os-locale__chevron,
+  .silly-os-locale__option,
+  .silly-os-locale__trigger {
     transition: none;
   }
 

@@ -722,19 +722,39 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   const globalBackBox = await globalBack.boundingBox();
   expect(globalBackBox?.width ?? 0).toBeGreaterThanOrEqual(44);
   expect(globalBackBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-  const localeSelect = page.locator(".silly-os-settings__topbar .silly-os-locale select");
+  const localeSelect = page.locator(
+    ".silly-os-settings__topbar .silly-os-locale__trigger",
+  );
   await expect(localeSelect).toHaveCount(1);
-  await expect(localeSelect).toHaveValue("en");
-  await expect(localeSelect.locator("option")).toHaveCount(2);
+  await expect(localeSelect).toHaveAttribute("data-selected-value", "en");
+  await expect(page.locator(".silly-os-locale select")).toHaveCount(0);
+  await localeSelect.click();
+  const localeListbox = page.getByRole("listbox", { name: "Language" });
+  await expect(localeListbox).toBeVisible();
+  await expect(localeListbox.getByRole("option")).toHaveCount(2);
+  await expect(localeListbox.getByRole("option", { name: "English" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await settingsProviders.click();
+  await expect(localeListbox).toHaveCount(0);
   const localeSelectBox = await localeSelect.boundingBox();
   expect(localeSelectBox?.width ?? 0).toBeGreaterThanOrEqual(88);
   expect(localeSelectBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-  await localeSelect.selectOption("zh-CN");
+  await localeSelect.press("ArrowDown");
+  await localeSelect.press("ArrowDown");
+  await expect(page.getByRole("option", { name: "简体中文" })).toHaveAttribute(
+    "data-active",
+    "true",
+  );
+  await localeSelect.press("Enter");
   await expect(page.locator(".silly-os")).toHaveAttribute("lang", "zh-CN");
   await expect(page.locator(".silly-os")).toHaveAttribute("data-locale", "zh-CN");
   await expect(page.getByRole("heading", { name: "预设 Provider" })).toBeVisible();
   expect(new URL(page.url()).searchParams.get("locale")).toBe("zh-CN");
-  await localeSelect.selectOption("en");
+  await localeSelect.click();
+  await page.getByRole("listbox", { name: "语言" }).getByRole("option", { name: "English" })
+    .click();
   await expect(page.locator(".silly-os")).toHaveAttribute("lang", "en");
   await expect(page.locator(".silly-os")).toHaveAttribute("data-locale", "en");
   await expect(page.getByRole("heading", { name: "Built-in Providers" })).toBeVisible();

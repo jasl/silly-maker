@@ -197,18 +197,42 @@ describe("SillyOS Settings information architecture", () => {
 
     const topbar = container.querySelector(".silly-os-settings__topbar");
     expect(topbar).not.toBeNull();
-    const localeSelect = within(topbar as HTMLElement).getByRole("combobox", {
+    const localeTrigger = within(topbar as HTMLElement).getByRole("combobox", {
       name: copyV1.settingsLanguage,
     });
-    expect(localeSelect).toHaveValue("en");
-    expect(within(localeSelect).getAllByRole("option").map((option) => option.textContent)).toEqual(
-      [
-        "English",
-        "简体中文",
-      ],
-    );
-    fireEvent.change(localeSelect, { target: { value: "zh-CN" } });
+    expect(localeTrigger).toHaveAttribute("data-selected-value", "en");
+    expect(localeTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(container.querySelector(".silly-os-locale select")).toBeNull();
+
+    fireEvent.click(localeTrigger);
+    const listbox = screen.getByRole("listbox", { name: copyV1.settingsLanguage });
+    expect(localeTrigger).toHaveAttribute("aria-expanded", "true");
+    expect(within(listbox).getAllByRole("option").map((option) => option.textContent?.trim()))
+      .toEqual(
+        [
+          "English",
+          "简体中文",
+        ],
+      );
+    fireEvent.click(within(listbox).getByRole("option", { name: "简体中文" }));
     expect(onLocaleChange).toHaveBeenCalledWith("zh-CN");
+    expect(localeTrigger).toHaveFocus();
+    expect(screen.queryByRole("listbox", { name: copyV1.settingsLanguage })).toBeNull();
+
+    onLocaleChange.mockClear();
+    fireEvent.keyDown(localeTrigger, { key: "ArrowDown" });
+    fireEvent.keyDown(localeTrigger, { key: "ArrowDown" });
+    fireEvent.keyDown(localeTrigger, { key: "Enter" });
+    expect(onLocaleChange).toHaveBeenCalledWith("zh-CN");
+    expect(localeTrigger).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(localeTrigger);
+    fireEvent.keyDown(localeTrigger, { key: "Escape" });
+    expect(localeTrigger).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(localeTrigger);
+    fireEvent.pointerDown(document.body);
+    expect(localeTrigger).toHaveAttribute("aria-expanded", "false");
   });
 
   it("uses initialSection=providers as a direct Provider-settings entry", () => {
