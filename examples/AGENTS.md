@@ -9,7 +9,7 @@ denominator explicitly:
 | `silly-os/`            | GUI-only Creator Preview: Creator Home opens a Program Workspace where the one built-in Agent Creator produces an exact proposal/review flow. The ordinary route reads the fixed runtime's Provider/model catalog but presents product-owned Providers, model preferences, durable API-key Save, reasoning effort, and optional connection testing without exposing the underlying runtime brand. Settings has separate General, Providers, and Credential Vault categories. Fresh Vaults use automatic device-key unlock; users may instead select Password mode with explicit Lock/Unlock. Provider keys persist until Forget or site-data clearing; Save/Test/model visibility/preferred selection/reasoning remain orthogonal. P2 owns the Browser Program catalog and exact durable revisions/terminal receipts. P3c owns the independent-origin OPFS Workspace authority, continuation, recovery/contention/scale, canonical bounded ZIP, immutable accepted snapshots, and accepted/reviewed/mutable-head currentness. S1b binds live and deterministic fixed Pi runs to native `read`/`write`/`edit`/`bash` plus one fixed structured `grep` AgentTool. Closed S2-Q1 adds one fixed synchronous QuickJS command only below Pi native `bash`; the follow-on file-operation slice adds bounded `mkdir`/`touch`/`cp`/`mv`/`rm` behavior through the same shell and durable Workspace authority. Closed S2-N3 clean-replaces N0/N1 approvals/grants with one default-off durable Program network switch; N2 retains the fixed streamed `download` tool whose bytes move directly from the keyless Broker to Workspace Host staging. The current exact-identity `a17c3490` Cloudflare release carries S3-R1, N3, D1 data management, reasoning effort, and the preceding Sandbox/QJS/network substrate. One public ephemeral-profile Chromium Anthropic journey proves a bounded real Pi `write`/`write`/`bash-qjs` loop and exact relational Sandbox output; it does not prove public WebKit, cross-reload durable-key reuse, broader Providers, live reasoning, real-model `read`/`edit`/`grep`/network tools, or general scripting capability. No search, authenticated/guest network, public-origin ingress claim, Mod activation, protocol guessing, arbitrary headers, HTTP endpoint, import, Python product runtime, broader Wasm/Linux/container claim, Git, or Desktop companion is active. Design contract in `silly-os/DESIGN.md` | Code and text MIT |
 | `vn-last-sound-check/` | **One Last Sound Check**, the maintained flagship product. Its independent package, 110-unique / 82-per-route story, two Authoring Scenes, engine-maintained default VN Player, final media/audio, Back/Forward, responsive/accessibility matrix, system menu and Save surfaces, persistent settings/live locale, layered recovery, Agent/participant authoring handoff, and independent product/engine reviews are complete. Browser forced close restores the last durable autosave rather than promising a last-moment async flush. On 2026-08-29 the owner removed representative real current-low-end qualification from this product's completion gates because no suitable device was available; it was not run or passed, and the product makes no corresponding low-end claim. M4 closed on that reduced evidence scope and M5 completed the flagship cutover.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | MIT               |
 
-Current SillyOS checkpoint (2026-08-29), overriding the dated table summary:
+Current SillyOS checkpoint (2026-08-30), overriding the dated table summary:
 S1a has replaced the ordinary byte owner with the independent-origin Workspace
 Sandbox and is closed locally. S1b-1 has separately re-qualified fixed Pi's
 native `edit`, and S1b-2 fixed Pi 0.84.3's native `createBashTool`, for the
@@ -44,14 +44,23 @@ light/dark tokens, device-local theme/locale preferences with cross-tab
 propagation, a product-local overlay host, and one accessible Theme/Language/
 Settings menu. DS1b-1 then converged product Button/IconButton and the stable
 Settings Input/Field/NativeSelect/Card/Badge/Status/Tabs layer without changing
-Settings information architecture or an engine API. DS1b-2 adds a shared native
+Settings information architecture or an engine API. DS1b-2 added a shared native
 Textarea for the Home/Workspace composers and a product Progress recipe over the
-public SillyMaker `ProgressMeter` for ZIP export and the visible Program meter.
+public SillyMaker `ProgressMeter` for ZIP export and the then-visible Program
+meter; DS1c-2 later removes the fictional meter and retains real ZIP progress.
 DS1b-3 closes the shared physical layer with one native Checkbox recipe for
 Program network access and Provider model visibility, and routes the query-gated
-Pi test password field through the existing Input recipe. Hidden file inputs
-remain native platform controls. The remaining DS1 slices own product patterns,
-full surface migration, dead styles, and visual fixtures. Product-scoped Tailwind
+Pi test password field through the existing Input recipe. DS1c-1 then removes the
+filename-only attachment actions and their hidden file inputs while keeping
+durable Programs open independently of Agent readiness. DS1c-2 delivers the
+truthful Workpiece cleanup: invented `.ks` project rows, translation data,
+`68%` progress, fake `program.ts`/Source, and preview-manifest download are gone.
+View now shows manifest-backed Program facts plus an explicit no-admitted-visual-
+workpiece state; real Workspace ZIP, Capabilities, Activity, generation/receipt,
+and Browser storage remain. It adds no file manager, editor, `UiArtifact`
+framework, Workspace/API, or engine change. The remaining DS1c work and
+DS1d–DS1e own Provider/collection patterns, full surface migration, dead styles,
+and visual fixtures. Product-scoped Tailwind
 CSS 4 utilities run without Preflight or
 global generated theme/property output. Shadcn-derived focused Radix
 compositions remain product implementation detail; native `dialog` owns modal

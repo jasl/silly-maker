@@ -217,17 +217,17 @@ High fidelity means preserving the reference's user-observable roles, spatial
 clarity, responsive behavior, input quality, and visual finish. It does not mean
 preserving Cloudflare's names, content, architecture, or distinctive expression.
 
-| Cloudflare OS role           | SillyOS role                   | First-preview status                                                                                            |
-| ---------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| Home prompt                  | Creator home                   | Deterministic local prompt flow                                                                                 |
-| Workspace chat               | Creator session                | User and Creator messages                                                                                       |
-| Gadget / workpiece           | Program and its current output | One local Program lineage at its current revision                                                               |
-| Blueprint                    | Program recipe/template        | Deferred; no public format yet                                                                                  |
-| App / document / slides view | View                           | Fake runnable preview                                                                                           |
-| Code                         | Source                         | Presentation-only placeholder or omitted until real                                                             |
-| Connections                  | Capabilities                   | Real Provider settings plus optional session probe; live runs have proposal tool only, workspace tools await S1 |
-| Activity                     | Proposal and action history    | Local create/revise/accept/reject history                                                                       |
-| Provisional change           | Program proposal revision      | Exact local revision review with stale rejection                                                                |
+| Cloudflare OS role           | SillyOS role                   | First-preview status                                                                           |
+| ---------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Home prompt                  | Creator home                   | Deterministic local prompt flow                                                                |
+| Workspace chat               | Creator session                | User and Creator messages                                                                      |
+| Gadget / workpiece           | Program and its current output | Manifest-backed Program facts plus a truthful empty View until a visual workpiece is admitted  |
+| Blueprint                    | Program recipe/template        | Deferred; no public format yet                                                                 |
+| App / document / slides view | View                           | No admitted visual workpiece yet; no generated or fake application preview                     |
+| Code                         | Source                         | Omitted until a real source/artifact view exists                                               |
+| Connections                  | Capabilities                   | Proposed Program capabilities plus truthful delivered Agent/Workspace/network boundaries       |
+| Activity                     | Proposal and action history    | Durable Program actions plus current Workspace generation and mutation receipt where available |
+| Provisional change           | Program proposal revision      | Exact local revision review with stale rejection                                               |
 
 ## First-stage boundary: Creator Preview
 
@@ -1716,6 +1716,16 @@ Program; it is not a component of the Program or its app. The Program pane is
 the primary work product, not a decorative demo placed beside marketing copy.
 A proposal requiring human review is visible in the supervisor conversation and
 Activity.
+
+The current DS1c-2 Workpiece projects only facts with a real owner. View shows
+the Program manifest's name, purpose, revision, and status, then states that no
+visual workpiece has been admitted yet. It does not synthesize project files,
+translation rows, progress, `program.ts`, a Source recipe, or a second preview
+manifest. Workspace ZIP, Capabilities, Activity, exact Workspace generation and
+last-mutation receipt, and Browser storage remain on their owning real paths.
+This is a truthful product-empty state, not a file manager, editor, generated-
+UI/`UiArtifact` framework, or new Workspace/engine contract.
+
 The preview's accept/reject operates on the exact
 `(proposalId, programRevision)` pair. Once a mutable workspace exists, the
 review envelope additionally names the base accepted Program revision and exact
@@ -1776,10 +1786,13 @@ and Tabs now have product-owned recipes over the neutral physical layer;
 Settings is their first complete stable consumer. DS1b-2 then adds the shared
 native Textarea used by both composers and a product Progress recipe over the
 public SillyMaker `ProgressMeter`, used by ZIP export and the visible Program
-meter. DS1b-3 closes the physical layer with one native Checkbox recipe for
+meter at that checkpoint. DS1c-2 later removes the invented Program meter while
+retaining real ZIP progress. DS1b-3 closes the physical layer with one native
+Checkbox recipe for
 Program network access and Provider model visibility, and moves the query-gated
-test password field onto the existing Input recipe. Hidden file inputs remain
-native platform controls behind named product Buttons. The large product
+test password field onto the existing Input recipe. The hidden file inputs that
+remained at DS1b-3 were removed by DS1c-1 with the filename-only attachment
+actions. The large product
 stylesheet remains a migration source rather than proof that the component/
 pattern system is complete. DS1 remains active and is not complete until
 DS1c–DS1e and their evidence close. Product
@@ -1870,8 +1883,10 @@ semantics, attributes, and refs while Creator Home and Workspace Chat continue
 to own their different size, padding, resize, IME, and Enter/Shift+Enter
 behavior. `ProgressV1` directly composes the public SillyMaker native progress
 contract, so accessible-name, range, value, and value-text validation are not
-copied into the product. Workspace export and the visible Program meter retain
-their surface placement and thickness.
+copied into the product. Workspace export and the then-visible Program meter
+retained their surface placement and thickness at DS1b-2. DS1c-2 later removes
+the Program meter because its `68%` value had no Program/Workspace authority;
+the real ZIP progress consumer remains.
 
 The delivered DS1b-3 slice closes visible physical primitive convergence.
 `CheckboxV1` fixes native checkbox semantics and the shared product size/accent
@@ -1911,6 +1926,16 @@ the underlying behavior. This correction does not alter Pi, Provider, Vault,
 Workspace, or engine contracts and does not introduce a generic status/widget
 framework.
 
+The delivered DS1c-2 Workpiece correction applies the same causality rule to
+Program presentation. The preview-only `.ks` file list, translation/review
+rows, invented `68%` progress, fake `program.ts` and Source recipe, and separate
+preview-manifest action are removed. View now exposes only manifest-backed
+Program identity/revision/status and an explicit no-admitted-visual-workpiece
+state. The real Workspace ZIP, proposed Capabilities, Activity, Workspace
+generation/mutation receipt, and Browser storage projection remain. This slice
+does not introduce a file manager, editor, `UiArtifact` framework, or any
+SillyMaker/Workspace API.
+
 DS1a is backed by focused preference/schema/cross-tab, navigation-only locale,
 pre-mount theme, menu/dialog/focus, Tailwind built-output, and token-containment
 tests; the existing product/build/security gates; and Chromium/WebKit rendered
@@ -1921,7 +1946,11 @@ cascade order, all three Browser artifact boundaries, and rendered desktop/
 narrow Settings checks. DS1b-2 adds native/ref/state contracts for Textarea,
 public-engine composition and value semantics for Progress, structural guards
 against parallel raw composer/progress consumers, and Chromium/WebKit rendered
-checks over both composers, the visible Program meter, and ZIP export. DS1b-3
+checks over both composers, the then-visible Program meter, and ZIP export.
+DS1c-2 later removes that fictional meter and adds focused truthfulness checks
+covering manifest-backed View facts, absent mock file/source/progress/download
+surfaces, retained Capabilities/Activity receipts, and desktop/mobile rendered
+layout. DS1b-3
 adds native/ref/state checks for Checkbox, structural guards against raw visible
 checkbox and password consumers, the existing Program-network and Provider-
 model behavior suites, and rendered checkbox geometry/interaction evidence in
@@ -2070,7 +2099,7 @@ evidence for the preview only.
 | Activity           | Explain what happened and what needs review               | Durable run events + session-local last-mutation receipt                                                                                                                                                                                                                                                                                                      | Complete tool/action history and approvals                                                                                                                          |
 | Capabilities       | Required Agent and UI abilities are understandable        | Live proposal + Pi-native read/write/edit/bash + fixed structured grep + fixed synchronous `qjs` below native bash + fixed bounded `fetch_url`/streamed `download` behind one default-off Program network switch; one bounded real-model write/write/bash-qjs loop passes, while read/edit/grep/network tools and broader workflows remain deterministic-only | Search, broader real-model evidence, and capability composition                                                                                                     |
 | Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                                                                                                                                                                                                                                                                                                                               | OpenUI mapped to closed SillyMaker components                                                                                                                       |
-| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                                                                                                                                                                                                                                                                                                                              | Persistent source/artifact views                                                                                                                                    |
+| Source             | Inspect and refine the Program where useful               | Omitted; DS1c-2 removed the fake recipe because no admitted source/artifact authority exists                                                                                                                                                                                                                                                                  | Persistent real source/artifact views                                                                                                                               |
 | Translation        | A usable translation Program                              | Intent classification only                                                                                                                                                                                                                                                                                                                                    | Complete workflow, data, QA, export                                                                                                                                 |
 | Writing            | A usable writing Program                                  | Intent classification only                                                                                                                                                                                                                                                                                                                                    | Complete workflow, data, revision tools                                                                                                                             |
 | Role-play          | A usable role-play Program                                | Intent classification only                                                                                                                                                                                                                                                                                                                                    | Complete sessions, characters, VN behavior                                                                                                                          |

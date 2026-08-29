@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import {
   CircleCheck,
-  Code2,
+  CircleDashed,
   Download,
   FileText,
   FolderArchive,
@@ -11,7 +11,6 @@ import {
   Minimize2,
   PlugZap,
   RotateCcw,
-  Sparkles,
   X,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -24,12 +23,13 @@ import type {
   PreviewProgramV1,
   ProgramProposalV1,
 } from "../product/contracts.ts";
+import { BadgeV1 as Badge } from "./design-system/badge.tsx";
 import { ButtonV1 as Button, IconButtonV1 } from "./design-system/button.tsx";
 import { ProgressV1 as Progress } from "./design-system/progress.tsx";
 import { TabsV1 as Tabs } from "./design-system/tabs.tsx";
 import { formatStorageBytesV1 } from "./storage-format.ts";
 
-export type WorkpieceTabV1 = "view" | "source" | "capabilities" | "activity";
+export type WorkpieceTabV1 = "view" | "capabilities" | "activity";
 
 export type WorkpieceExecutionWorkspaceDiagnosticCodeV1 =
   | "request_failed"
@@ -135,29 +135,6 @@ export interface WorkpiecePanePropsV1 {
   readonly onClose: () => void;
 }
 
-function savePreviewV1(
-  program: PreviewProgramV1,
-  agentMode: WorkpiecePanePropsV1["agentMode"],
-): void {
-  const payload = JSON.stringify(
-    {
-      previewOnly: true,
-      source: agentMode ?? "deterministic_fake_preview",
-      program,
-    },
-    null,
-    2,
-  );
-  const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${
-    program.name.replaceAll(/[^\p{Letter}\p{Number}]+/gu, "-").toLowerCase()
-  }.preview.json`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 export function WorkpiecePaneV1({
   copy,
   program,
@@ -181,7 +158,6 @@ export function WorkpiecePaneV1({
 }: WorkpiecePanePropsV1): ReactNode {
   const tabs = [
     { value: "view", label: copy.previewTab },
-    { value: "source", label: copy.sourceTab },
     { value: "capabilities", label: copy.capabilitiesTab },
     { value: "activity", label: copy.activityTab },
   ];
@@ -200,17 +176,6 @@ export function WorkpiecePaneV1({
       aria-label={program.name}
       tabIndex={-1}
     >
-      <div className="workpiece-pane__document-strip">
-        <span className="workpiece-pane__document is-active">
-          <FileText size={14} aria-hidden="true" />
-          <span>{program.name}</span>
-        </span>
-        <span className="workpiece-pane__document">
-          <Code2 size={14} aria-hidden="true" />
-          <span>program.ts</span>
-        </span>
-      </div>
-
       <div className="workpiece-pane__toolbar">
         <Tabs
           className="workpiece-pane__tabs"
@@ -221,13 +186,6 @@ export function WorkpiecePaneV1({
           labels={{ tabList: copy.locale === "zh-CN" ? "工作产物视图" : "Workpiece views" }}
         />
         <div className="workpiece-pane__toolbar-actions">
-          <IconButtonV1
-            variant="ghost"
-            size="sm"
-            icon={Download}
-            accessibleName={copy.locale === "zh-CN" ? "下载预览清单" : "Download preview manifest"}
-            onClick={() => savePreviewV1(program, agentMode)}
-          />
           <IconButtonV1
             variant="ghost"
             size="sm"
@@ -259,7 +217,6 @@ export function WorkpiecePaneV1({
         {activeTab === "view" && (
           <ProgramCanvasV1 copy={copy} program={program} proposal={proposal} />
         )}
-        {activeTab === "source" && <ProgramSourceV1 program={program} />}
         {activeTab === "capabilities" && (
           <ProgramCapabilitiesV1
             copy={copy}
@@ -459,200 +416,52 @@ function ProgramCanvasV1({
   readonly program: PreviewProgramV1;
   readonly proposal: ProgramProposalV1 | null;
 }): ReactNode {
+  const status = proposal?.status ?? "pending";
+  const statusVariant = status === "accepted"
+    ? "success"
+    : status === "rejected"
+    ? "danger"
+    : "warning";
   return (
     <div className="program-canvas" data-program-kind={program.kind}>
       <article className="program-surface">
         <header className="program-surface__header">
           <div>
             <span className="program-surface__eyebrow">
-              {program.kind === "translation"
-                ? copy.locale === "zh-CN" ? "视觉小说翻译工程" : "Visual-novel translation project"
-                : copy.locale === "zh-CN"
-                ? "创作者程序"
-                : "Creator program"}
+              {copy.locale === "zh-CN" ? "当前 Program" : "Current Program"}
             </span>
             <h2>{program.name}</h2>
             <p>{program.purpose}</p>
           </div>
-          <span className={`program-surface__state is-${proposal?.status ?? "pending"}`}>
-            <span />
-            {proposal?.status === "accepted"
+          <Badge className="program-surface__state" variant={statusVariant}>
+            v{program.revision} · {proposal?.status === "accepted"
               ? copy.accepted
               : proposal?.status === "rejected"
               ? copy.rejected
               : copy.preview}
-          </span>
+          </Badge>
         </header>
-
-        {program.kind === "translation"
-          ? <TranslationWorkpieceV1 copy={copy} />
-          : <GeneralWorkpieceV1 copy={copy} program={program} />}
-      </article>
-    </div>
-  );
-}
-
-function TranslationWorkpieceV1({ copy }: { readonly copy: SillyOsCopyV1 }): ReactNode {
-  const rows = copy.locale === "zh-CN"
-    ? [
-      ["A quiet station at the edge of the sea.", "海边尽头，一座安静的车站。", "approved"],
-      ["You really came back.", "你真的回来了。", "review"],
-      ["The last train leaves before dawn.", "末班车会在黎明前出发。", "draft"],
-    ]
-    : [
-      ["海边尽头，一座安静的车站。", "A quiet station at the edge of the sea.", "approved"],
-      ["你真的回来了。", "You really came back.", "review"],
-      ["末班车会在黎明前出发。", "The last train leaves before dawn.", "draft"],
-    ];
-
-  return (
-    <div className="translation-workpiece">
-      <aside className="translation-workpiece__files" aria-label="Project files">
-        <div className="translation-workpiece__files-heading">
-          <strong>{copy.locale === "zh-CN" ? "脚本" : "Scripts"}</strong>
-          <span>24</span>
-        </div>
-        <button type="button" className="is-active">
-          <FileText size={14} aria-hidden="true" />
-          <span>prologue.ks</span>
-          <span>18</span>
-        </button>
-        <button type="button">
-          <FileText size={14} aria-hidden="true" />
-          <span>station.ks</span>
-          <span>42</span>
-        </button>
-        <button type="button">
-          <FileText size={14} aria-hidden="true" />
-          <span>memory.ks</span>
-          <span>31</span>
-        </button>
-        <div className="translation-workpiece__progress">
-          <span>{copy.locale === "zh-CN" ? "工程进度" : "Project progress"}</span>
-          <strong>68%</strong>
-          <Progress
-            className="translation-workpiece__meter"
-            accessibleName={copy.locale === "zh-CN" ? "工程进度" : "Project progress"}
-            value={68}
-            max={100}
-            valueText="68%"
-          />
-        </div>
-      </aside>
-      <section className="translation-workpiece__editor" aria-label="Translation review queue">
-        <div className="translation-workpiece__editor-heading">
+        <section
+          className="program-workpiece-empty"
+          aria-labelledby="program-workpiece-empty-title"
+        >
+          <span className="program-workpiece-empty__icon" aria-hidden="true">
+            <FileText size={24} />
+          </span>
           <div>
-            <strong>prologue.ks</strong>
-            <span>{copy.locale === "zh-CN" ? "第 1 章 · 18 行" : "Chapter 1 · 18 lines"}</span>
+            <h3 id="program-workpiece-empty-title">
+              {copy.locale === "zh-CN"
+                ? "尚未发布可视化工作界面"
+                : "No visual workpiece has been published yet"}
+            </h3>
+            <p>
+              {copy.locale === "zh-CN"
+                ? "Program 可能已有 Workspace 文件，但 SillyOS 目前没有可安全呈现的应用或编辑器视图。你可以继续通过对话工作，并在可用时下载 Workspace ZIP。"
+                : "This Program may already have Workspace files, but SillyOS does not yet have an admitted application or editor view to present. Continue working through Chat, and download the Workspace ZIP when it is available."}
+            </p>
           </div>
-          <span className="translation-workpiece__filter">
-            {copy.locale === "zh-CN" ? "全部状态" : "All states"}
-          </span>
-        </div>
-        <div className="translation-workpiece__columns" aria-hidden="true">
-          <span>{copy.locale === "zh-CN" ? "原文" : "Source"}</span>
-          <span>{copy.locale === "zh-CN" ? "译文" : "Translation"}</span>
-          <span>{copy.locale === "zh-CN" ? "状态" : "Status"}</span>
-        </div>
-        <div className="translation-workpiece__rows">
-          {rows.map(([source, translation, status], index) => (
-            <article className="translation-line" key={source}>
-              <span className="translation-line__number">
-                {String(index + 14).padStart(2, "0")}
-              </span>
-              <p lang={copy.locale === "zh-CN" ? "en" : "zh-CN"}>{source}</p>
-              <div className="translation-line__translation">
-                <p>{translation}</p>
-                {status === "review" && (
-                  <small>
-                    <Sparkles size={12} fill="currentColor" aria-hidden="true" />
-                    {copy.locale === "zh-CN"
-                      ? "语气可能需要人工确认"
-                      : "Tone may need human review"}
-                  </small>
-                )}
-              </div>
-              <span className={`translation-line__status is-${status}`}>
-                {status === "approved"
-                  ? copy.locale === "zh-CN" ? "已确认" : "Approved"
-                  : status === "review"
-                  ? copy.locale === "zh-CN" ? "待审" : "Review"
-                  : copy.locale === "zh-CN"
-                  ? "草稿"
-                  : "Draft"}
-              </span>
-            </article>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function GeneralWorkpieceV1({
-  copy,
-  program,
-}: {
-  readonly copy: SillyOsCopyV1;
-  readonly program: PreviewProgramV1;
-}): ReactNode {
-  return (
-    <div className="general-workpiece">
-      <section>
-        <span>01</span>
-        <strong>{copy.locale === "zh-CN" ? "结构" : "Structure"}</strong>
-        <p>{program.suggestedCapabilities[0]?.description}</p>
-      </section>
-      <section>
-        <span>02</span>
-        <strong>{copy.locale === "zh-CN" ? "工作产物" : "Workpiece"}</strong>
-        <p>{program.suggestedCapabilities[1]?.description}</p>
-      </section>
-      <section>
-        <span>03</span>
-        <strong>{copy.locale === "zh-CN" ? "人工验收" : "Human review"}</strong>
-        <p>{program.suggestedCapabilities[2]?.description}</p>
-      </section>
-    </div>
-  );
-}
-
-function ProgramSourceV1({
-  program,
-}: {
-  readonly program: PreviewProgramV1;
-}): ReactNode {
-  const source = [
-    'import { defineProgram } from "@sillyos/creator";',
-    "",
-    "export default defineProgram({",
-    `  name: ${JSON.stringify(program.name)},`,
-    `  revision: ${String(program.revision)},`,
-    `  purpose: ${JSON.stringify(program.purpose)},`,
-    "  requirements: [",
-    ...program.requirements.map((requirement) => `    ${JSON.stringify(requirement)},`),
-    "  ],",
-    "  capabilities: [",
-    ...program.suggestedCapabilities.map((capability) =>
-      `    ${JSON.stringify(capability.capabilityId)},`
-    ),
-    "  ],",
-    '  approval: "human",',
-    "});",
-  ].join("\n");
-
-  return (
-    <div className="program-source">
-      <header>
-        <div>
-          <Code2 size={18} aria-hidden="true" />
-          <span>
-            <strong>program.ts</strong>
-          </span>
-        </div>
-        <span>TypeScript</span>
-      </header>
-      <pre tabIndex={0} aria-label="Program preview source"><code>{source}</code></pre>
+        </section>
+      </article>
     </div>
   );
 }
@@ -681,46 +490,44 @@ function ProgramCapabilitiesV1({
         <h2>{copy.capabilitiesTab}</h2>
         <p>
           {copy.locale === "zh-CN"
-            ? "这一页展示建议的边界；当前切片不会安装 Mod，也不会建立虚假的模型连接。"
-            : "This page shows the proposed boundaries. The slice does not install Mods or fake a model connection."}
+            ? "Program 能力卡片展示建议组合；Agent 与工具卡片反映当前 runtime 状态。"
+            : "Program capability cards show the proposed composition. The Agent and tools card reflects the current runtime state."}
         </p>
       </header>
       <div className="program-capabilities__grid">
         {capabilities.map((capability, index) => (
           <article key={capability.capabilityId}>
             <span className="program-capabilities__ordinal">0{index + 1}</span>
-            <CircleCheck size={20} aria-hidden="true" />
+            <CircleDashed size={20} aria-hidden="true" />
             <strong>{capability.label}</strong>
             <p>{capability.description}</p>
             <small>
-              {copy.locale === "zh-CN" ? "建议的本地能力" : "Proposed local capability"}
+              {copy.locale === "zh-CN" ? "建议的能力" : "Proposed capability"}
             </small>
           </article>
         ))}
         <article className="is-external">
           <span className="program-capabilities__ordinal">RPC</span>
           <PlugZap size={20} aria-hidden="true" />
-          <strong>{copy.locale === "zh-CN" ? "Agent Host" : "Agent Host"}</strong>
+          <strong>{copy.locale === "zh-CN" ? "Agent 与工具" : "Agent and tools"}</strong>
           <p>
             {agentMode === "deterministic_test"
               ? copy.locale === "zh-CN"
-                ? "固定版本 Agent runtime 正在 Browser Worker 中通过 read/write/edit/bash 与受限 proposal 工具操作持久化 Program workspace；bash 使用 Browser Local 虚拟 shell 的终端聚合输出，并非 Linux 容器或 live LLM。"
-                : "The pinned Agent runtime uses read/write/edit/bash and one bounded proposal tool over a persistent Program workspace in Browser Workers. Bash uses terminal-aggregate output from the Browser Local virtual shell; this is neither a Linux container nor a live LLM."
+                ? "产品固定的 Agent runtime 使用确定性本地模型。Workspace 工具只通过当前 Program 绑定的独立 Workspace Sandbox 运行。"
+                : "The product-pinned Agent runtime uses a deterministic local model. Workspace tools run only through the independent Workspace Sandbox bound to this Program."
               : agentMode === "pi_provider"
               ? copy.locale === "zh-CN"
-                ? "固定版本 Agent runtime 正在 Browser Worker 中通过你选择的模型使用受限 proposal 工具。保存的 Key 留在凭据保险库中，当前 Worker 只接收匹配 Provider 的一次性精确交接；read/write/edit/bash 要等独立来源的 Workspace Sandbox 接通后才会开放。"
-                : "The pinned Agent runtime uses one bounded proposal tool with your selected model in a Browser Worker. The saved key remains in the Credential Vault, and the current Worker receives only an exact one-time handoff for the matching Provider; read/write/edit/bash remain unavailable until the independent-origin Workspace Sandbox is connected."
+                ? "产品固定的 Agent runtime 使用你选择的模型。Provider 凭据与 Workspace 隔离，Workspace 工具只通过当前 Program 绑定的 Sandbox 运行。"
+                : "The product-pinned Agent runtime uses your selected model. Provider credentials stay separate from the Workspace, and Workspace tools run only through the Sandbox bound to this Program."
               : copy.locale === "zh-CN"
-              ? "模型、工具执行与数据库属于未来的 typed RPC companion。"
-              : "Models, tool execution, and the database belong to a future typed RPC companion."}
+              ? "Agent runtime 尚未连接。"
+              : "The Agent runtime is not connected."}
           </p>
           <small>
             {agentMode === "deterministic_test"
               ? copy.locale === "zh-CN" ? "确定性测试接线" : "Deterministic test wiring"
               : agentMode === "pi_provider"
-              ? copy.locale === "zh-CN"
-                ? "浏览器 Agent · 实时连接"
-                : "Browser Agent · live connection"
+              ? copy.locale === "zh-CN" ? "浏览器 Provider runtime" : "Browser Provider runtime"
               : copy.locale === "zh-CN"
               ? "尚未连接"
               : "Not connected"}

@@ -50,7 +50,6 @@ export interface SillyOsCopyV1 {
   readonly home: string;
   readonly chat: string;
   readonly previewTab: string;
-  readonly sourceTab: string;
   readonly capabilitiesTab: string;
   readonly activityTab: string;
   readonly fullscreen: string;
@@ -322,7 +321,6 @@ const englishV1: SillyOsCopyV1 = {
   home: "Creator home",
   chat: "Chat",
   previewTab: "View",
-  sourceTab: "Source",
   capabilitiesTab: "Capabilities",
   activityTab: "Activity",
   fullscreen: "Open full screen",
@@ -646,7 +644,6 @@ const chineseV1: SillyOsCopyV1 = {
   home: "Creator 首页",
   chat: "对话",
   previewTab: "界面",
-  sourceTab: "工程",
   capabilitiesTab: "能力",
   activityTab: "活动",
   fullscreen: "全屏打开",

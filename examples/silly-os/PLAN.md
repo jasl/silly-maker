@@ -195,7 +195,8 @@ S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2/N3, the original S3, S3-R1,
 D1, P1-B1d reasoning effort, and E0 engine-baseline absorption are closed. The current
 local source is rebased onto engine baseline
 `31461f362129e6192f70553a261ada225c2abf8b`. DS1 is the current active product
-phase: DS1a, DS1b, and DS1c-1 are delivered, while the remaining DS1c–DS1e work
+phase: DS1a, DS1b, DS1c-1, and DS1c-2 are delivered, while the remaining
+DS1c–DS1e work
 stays active-plan work. No
 Mod phase is active. The current build-matched
 three-origin artifact and fixed Vault Worker are deployed from commit
@@ -267,7 +268,7 @@ or deployed release. Its acceptance is the rebased product/unit/build/security
 gate plus a real computed-style Browser check for product-scope colors, normal
 and compact control geometry, focus tokens, and reduced motion.
 
-### DS1 — SillyOS component and pattern system (active; DS1a, DS1b, and DS1c-1 delivered 2026-08-30)
+### DS1 — SillyOS component and pattern system (active; DS1a, DS1b, DS1c-1, and DS1c-2 delivered 2026-08-30)
 
 The owner has activated DS1 as a product lane. It inventories the real Creator,
 Settings, Workspace, Chat, review, progress, empty/error, and overlay states,
@@ -358,9 +359,20 @@ The active sequence is:
    Add resource actions are removed until their bytes can be admitted into the
    Program Workspace instead of merely recording filenames. This checkpoint
    changes no Credential Vault schema, Provider catalog, Agent loop, Workspace
-   execution contract, or SillyMaker engine API. Provider catalog/Connection
-   information hierarchy, truthful Workpiece cleanup, and shared collection
-   states remain later independent DS1c slices.
+   execution contract, or SillyMaker engine API.
+
+   The deliberately bounded **DS1c-2 — truthful Workpiece** checkpoint is also
+   delivered locally. It removes the invented `.ks` project/file rows,
+   translation-review rows and `68%` progress, fake `program.ts` recipe and
+   Source facet, and separate preview-manifest download. View now projects only
+   manifest-backed Program name, purpose, revision, and status, followed by an
+   explicit no-admitted-visual-workpiece state. The existing Workspace ZIP,
+   proposed Capabilities, Activity, Workspace generation and mutation receipt,
+   and Browser storage projection remain because they are backed by their owning
+   repositories or runtime receipts. This checkpoint does not add a file manager,
+   editor, generated-UI/`UiArtifact` framework, Workspace contract, or
+   SillyMaker engine/API change. Provider catalog/Connection information
+   hierarchy and shared collection states remain later independent DS1c slices.
 4. **DS1d — surface convergence.** Migrate Creator Home, all three Settings
    categories, Chat, Workspace View, and Activity in independently reviewable
    slices. Each slice removes superseded selectors and recipes after its real
@@ -398,7 +410,8 @@ and the focused settings/theme/locale/menu/dialog suite in both Chromium and
 WebKit (10/10), including live `matchMedia` and cross-tab `storage` changes. A
 separate in-app Browser pass checked the dark Creator, General,
 unified menu, native modal backdrop/focus, and desktop layout. DS1 remains
-active: DS1c–DS1e still own pattern, surface, dead-style, and visual-fixture
+active: the remaining DS1c work and DS1d–DS1e still own pattern, surface,
+dead-style, and visual-fixture
 convergence, so the delivered DS1 checkpoints do not claim that all product
 components have already migrated.
 
@@ -417,8 +430,11 @@ DS1b-2 delivered on 2026-08-30 without changing composer behavior, Workspace
 export semantics, product layout, or an engine API. `TextareaV1` replaces the
 two parallel raw composer textareas while surface CSS retains their responsive
 geometry. `ProgressV1` composes the public `@sillymaker/ui` `ProgressMeter` for
-the bounded ZIP export and the visible 68% Program meter, preserving exact
-accessible names and value text. The combined product unit gate is now 70 files
+the bounded ZIP export and the then-visible `68%` Program meter, preserving
+exact accessible names and value text. DS1c-2 later removed that Program meter
+because its value was invented rather than derived from Program or Workspace
+state; the real ZIP progress consumer remains. The combined product unit gate
+is now 70 files
 / 586 tests; focused Chromium and WebKit rendered checks pass for both
 composers, the Program meter, and the complete cancel-then-download ZIP flow
 (4/4). All three Browser artifact boundary builds also pass for the committed
@@ -458,9 +474,23 @@ Browser build and control-plane security boundary, an independent logic/UI/test
 review, and in-app Browser checks at desktop, 390px, and the 280px minimum chat
 pane. Chromium/WebKit source E2E contracts cover Program reopen and independent
 proposal decisions, but were not executed in this checkpoint; DS1c-1 therefore
-makes no new dual-engine rendered claim. Provider information hierarchy,
-truthful Workpiece cleanup, and shared collection states remain independent
-later DS1c slices.
+makes no new dual-engine rendered claim. Provider information hierarchy, the
+then-pending truthful Workpiece cleanup, and shared collection states remained
+independent later DS1c slices at this checkpoint; DS1c-2 has since delivered the
+Workpiece cleanup.
+
+DS1c-2 delivered locally on 2026-08-30 without changing Program, Workspace,
+Agent, Provider, Vault, or engine contracts. It clean-removes the preview-only
+`.ks` project/file list, translation rows and statuses, invented `68%` progress,
+fake `program.ts`/Source recipe, and preview-manifest download. The Workpiece
+View now shows only manifest-backed Program facts and an honest empty state until
+a later admitted visual artifact or application view exists. Workspace ZIP,
+Capabilities, Activity, exact generation/mutation receipt, and Browser storage
+remain visible on their owning real paths. Focused UI contracts and desktop/
+mobile in-app Browser inspection cover the new boundary. No file manager,
+editor, `UiArtifact` framework, or SillyMaker engine/API surface was introduced.
+Provider/Connection hierarchy, shared collection states, and the rest of
+DS1d–DS1e remain active product work.
 
 SillyMaker remains the home only for neutral primitives and interaction
 mechanics that can be reproduced without SillyOS vocabulary. A DS1 discovery
@@ -1575,9 +1605,10 @@ clean-replaces the ordinary same-origin Workspace
 owner with the independent-origin transport and physical Product Repository V5;
 S1b-3 is the live-tools consumer, and closed S2-Q1 adds only fixed
 synchronous QuickJS beneath Pi native `bash`.
-Its initial proposal, Source, translation rows,
-remaining capability labels, and separate preview manifest remain explicit
-preview material.
+Its initial proposal and remaining capability labels remain explicit preview
+material. DS1c-2 later removed the fake Source recipe, translation/project rows,
+invented progress, and separate preview manifest; the current View is an honest
+empty state until a real admitted visual artifact exists.
 
 The first contract gap was smaller than those integrations: the design said
 accept/reject targets an exact proposal revision, but the baseline proposal had
@@ -1879,8 +1910,10 @@ Outcome:
   and stale checks compare both;
 - a stale decision is rejected as a whole and leaves the current proposal
   untouched;
-- the visible proposal, Source facet, Activity, and preview download expose the
-  current revision truthfully.
+- at P0 closure, the visible proposal, Source facet, Activity, and preview
+  download exposed the current revision. DS1c-2 later removed the fake Source
+  recipe and redundant preview download rather than retaining preview-only
+  surfaces without an owning artifact contract.
 
 The slice remains synchronous, deterministic, in memory, and preview-only. It
 does not add RPC envelopes, fake connection state, persistence interfaces,

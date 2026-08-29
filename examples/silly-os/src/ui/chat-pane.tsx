@@ -440,9 +440,7 @@ export function ChatPaneV1({
             aria-expanded={workpieceOpen}
           >
             <span className="workpiece-link__thumbnail" aria-hidden="true">
-              <span />
-              <span />
-              <span />
+              <FileText size={20} />
             </span>
             <span>
               <strong>{program.name}</strong>
