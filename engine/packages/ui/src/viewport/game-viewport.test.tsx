@@ -90,6 +90,34 @@ describe("GameViewportV1", () => {
     expect(geometry.cssWidth).toBe(1600);
   });
 
+  it("upscales a 16:9 logical canvas exactly onto 1080P and 1440P windows", () => {
+    // Hidpi windows are the norm: a VN's low-res logical canvas must map
+    // onto them with one proportional scale (art upscales best-effort,
+    // hit regions ride the same transform) and no letterbox at exact 16:9.
+    const at1080 = renderViewportV1({
+      canvas: { width: 1024, height: 576 },
+      fallbackSize: { width: 1920, height: 1080 },
+      maxScale: 4,
+    });
+    expect(at1080.scale).toBeCloseTo(1.875, 12);
+    expect(at1080.cssWidth).toBeCloseTo(1920);
+    expect(at1080.cssHeight).toBeCloseTo(1080);
+    expect(at1080.letterboxInline).toBeCloseTo(0);
+    expect(at1080.letterboxBlock).toBeCloseTo(0);
+    expect(at1080.toCssPx(100)).toBeCloseTo(187.5);
+    cleanup();
+
+    const at1440 = renderViewportV1({
+      canvas: { width: 1024, height: 576 },
+      fallbackSize: { width: 2560, height: 1440 },
+      maxScale: 4,
+    });
+    expect(at1440.scale).toBeCloseTo(2.5, 12);
+    expect(at1440.cssWidth).toBeCloseTo(2560);
+    expect(at1440.letterboxInline).toBeCloseTo(0);
+    expect(at1440.toCssPx(100)).toBeCloseTo(250);
+  });
+
   it("rejects an invalid canvas and requires a provider for the hook", () => {
     expect(() =>
       render(

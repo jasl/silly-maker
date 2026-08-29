@@ -8,7 +8,11 @@ interface ViewportSizeV1 {
   readonly height: number;
 }
 
-/** 16:10 design canvas, 4:3 letterbox, portrait tablet, ultrawide, small. */
+/**
+ * 16:10 design canvas, 4:3 letterbox, portrait tablet, ultrawide, small,
+ * and the hidpi desktop pair (1080P/1440P upscale the canvas past 1 —
+ * low-res VN masters scale proportionally and hit targets ride along).
+ */
 const declaredViewportsV1 = Object.freeze(
   [
     Object.freeze({ width: 1600, height: 1000 }),
@@ -16,15 +20,20 @@ const declaredViewportsV1 = Object.freeze(
     Object.freeze({ width: 768, height: 1024 }),
     Object.freeze({ width: 2560, height: 1080 }),
     Object.freeze({ width: 800, height: 500 }),
+    Object.freeze({ width: 1920, height: 1080 }),
+    Object.freeze({ width: 2560, height: 1440 }),
   ] as const satisfies readonly ViewportSizeV1[],
 );
+
+/** The Lab declares maxScale 4; fit scaling may exceed 1 on hidpi windows. */
+const labMaxScaleV1 = 4;
 
 async function expectCanvasGeometryV1(canvas: Locator, viewport: ViewportSizeV1): Promise<void> {
   const bounds = await canvas.boundingBox();
   expect(bounds, "the viewport canvas must have bounds").not.toBeNull();
   if (bounds === null) return;
 
-  const expectedScale = Math.min(1, viewport.width / 1600, viewport.height / 1000);
+  const expectedScale = Math.min(labMaxScaleV1, viewport.width / 1600, viewport.height / 1000);
   expect(bounds.width).toBeCloseTo(1600 * expectedScale, 0);
   expect(bounds.height).toBeCloseTo(1000 * expectedScale, 0);
 

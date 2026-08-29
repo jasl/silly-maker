@@ -621,6 +621,10 @@ export const labGameApplicationV1: WebGameApplicationV1<
   viewport: Object.freeze({
     canvas: labViewportCanvasV1,
     fallbackSize: Object.freeze({ width: 1600, height: 1000 }),
+    // Hidpi windows upscale the logical canvas proportionally (the
+    // engine viewport conformance exercises 1080P/1440P against this
+    // declaration); the canvas centers instead of growing past 4×.
+    maxScale: 4,
   }),
   core: labCoreApplicationDefinitionV1,
   ui: ({ instance }: { readonly instance: LabApplicationInstanceV1 }) =>
