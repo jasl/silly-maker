@@ -16,6 +16,7 @@ import {
   parseCanonicalEndpointOriginV1,
 } from "../deployment/cloudflare-selected-origin-worker.ts";
 import { browserWorkspaceSandboxProductionOriginV1 } from "../workspace/browser-workspace-sandbox-origins.ts";
+import { browserNetworkBrokerProductionOriginV1 } from "../network/browser-network-broker-origins.ts";
 
 const deploymentOriginV1 = "https://silly-os.example";
 const agentWorkerPathV1 = "/assets/browser-pi.worker-Ab12_cdE.js";
@@ -92,7 +93,8 @@ describe("SillyOS Cloudflare selected-origin Agent Worker", () => {
       "font-src": "'self'",
       "connect-src": "'self'",
       "worker-src": "'self'",
-      "frame-src": `${browserWorkspaceSandboxProductionOriginV1} blob:`,
+      "frame-src":
+        `${browserWorkspaceSandboxProductionOriginV1} ${browserNetworkBrokerProductionOriginV1} blob:`,
       "media-src": "'self' blob:",
       "manifest-src": "'self'",
       "object-src": "'none'",
@@ -106,7 +108,7 @@ describe("SillyOS Cloudflare selected-origin Agent Worker", () => {
     );
     expect(selected.get("connect-src")).toBe("'self' https://api.example.com");
     expect(selected.get("frame-src")).toBe(
-      `${browserWorkspaceSandboxProductionOriginV1} blob:`,
+      `${browserWorkspaceSandboxProductionOriginV1} ${browserNetworkBrokerProductionOriginV1} blob:`,
     );
     expect(selected.size).toBe(ordinary.size);
   });
@@ -119,6 +121,21 @@ describe("SillyOS Cloudflare selected-origin Agent Worker", () => {
   ])("rejects %s as Workspace Sandbox frame authority", (_label, sandboxOrigin) => {
     expect(() => createBrowserControlPlaneContentSecurityPolicyV1(null, sandboxOrigin))
       .toThrowError("sillyos.control_plane.workspace_sandbox_origin_invalid");
+  });
+
+  it.each([
+    ["an arbitrary HTTPS origin", "https://network.example.com"],
+    ["the production origin with a path", `${browserNetworkBrokerProductionOriginV1}/frame`],
+    ["a wildcard", "*"],
+    ["the Workspace Sandbox origin", browserWorkspaceSandboxProductionOriginV1],
+  ])("rejects %s as Network Broker frame authority", (_label, brokerOrigin) => {
+    expect(() =>
+      createBrowserControlPlaneContentSecurityPolicyV1(
+        null,
+        browserWorkspaceSandboxProductionOriginV1,
+        brokerOrigin,
+      )
+    ).toThrowError("sillyos.control_plane.network_broker_origin_invalid");
   });
 
   it("strips the selection query and returns the static Worker with one exact origin policy", async () => {

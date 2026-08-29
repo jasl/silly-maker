@@ -2254,6 +2254,72 @@ body,
   animation: silly-os-spin 900ms linear infinite;
 }
 
+.network-approval {
+  margin: 16px 0 0 38px;
+  padding: 12px;
+  border: 1px solid #dfc77f;
+  border-radius: 12px;
+  background: #fffaf0;
+}
+
+.network-approval__heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #6f5409;
+}
+
+.network-approval__heading strong {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.network-approval > p {
+  margin: 8px 0 0;
+  color: #62583d;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.network-approval dl {
+  display: grid;
+  margin: 10px 0 0;
+  gap: 7px;
+}
+
+.network-approval dl > div {
+  display: grid;
+  min-inline-size: 0;
+  gap: 2px;
+}
+
+.network-approval dt {
+  color: var(--sos-ink-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.network-approval dd {
+  min-inline-size: 0;
+  margin: 0;
+}
+
+.network-approval code {
+  display: block;
+  color: var(--sos-ink);
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.network-approval__actions {
+  display: flex;
+  margin-block-start: 10px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 @keyframes silly-os-spin {
   to {
     transform: rotate(360deg);
@@ -3938,6 +4004,7 @@ body,
 
   .program-proposal,
   .pi-agent-run,
+  .network-approval,
   .program-workspace-review,
   .workpiece-link {
     margin-inline-start: 0;

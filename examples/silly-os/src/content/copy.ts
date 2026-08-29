@@ -84,6 +84,12 @@ export interface SillyOsCopyV1 {
   readonly piLiveDescription: string;
   readonly piLiveFailed: string;
   readonly piLiveSetupRequired: string;
+  readonly networkApprovalTitle: string;
+  readonly networkApprovalWarning: string;
+  readonly networkApprovalOrigin: string;
+  readonly networkApprovalUrl: string;
+  readonly networkApprovalAllowOnce: string;
+  readonly networkApprovalDeny: string;
   readonly settings: string;
   readonly settingsBack: string;
   readonly providerSettingsTitle: string;
@@ -265,6 +271,13 @@ const englishV1: SillyOsCopyV1 = {
     "Save a Provider API key before creating a Program. Testing is optional; your key moves to Agent Worker memory and is never saved.",
   piLiveFailed: "Provider Agent unavailable",
   piLiveSetupRequired: "API key required",
+  networkApprovalTitle: "Network access requested",
+  networkApprovalWarning:
+    "Allowing this request sends the full URL to the destination. Its path or query may contain data from this Program.",
+  networkApprovalOrigin: "Destination",
+  networkApprovalUrl: "Full URL",
+  networkApprovalAllowOnce: "Allow once",
+  networkApprovalDeny: "Deny",
   settings: "Settings",
   settingsBack: "Back to Agent Creator",
   providerSettingsTitle: "Providers",
@@ -468,6 +481,13 @@ const chineseV1: SillyOsCopyV1 = {
     "创建 Program 前请先保存 Provider API Key。连接测试是可选诊断；Key 会直接进入 Agent Worker 内存，并且永远不会保存。",
   piLiveFailed: "Provider Agent 不可用",
   piLiveSetupRequired: "需要 API key",
+  networkApprovalTitle: "需要网络访问",
+  networkApprovalWarning:
+    "允许后会将完整 URL 发送到目标站点；路径或查询参数中可能包含此 Program 的数据。",
+  networkApprovalOrigin: "目标站点",
+  networkApprovalUrl: "完整 URL",
+  networkApprovalAllowOnce: "仅允许一次",
+  networkApprovalDeny: "拒绝",
   settings: "设置",
   settingsBack: "返回 Agent Creator",
   providerSettingsTitle: "Provider",

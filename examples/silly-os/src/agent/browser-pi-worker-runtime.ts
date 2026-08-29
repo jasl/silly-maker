@@ -34,6 +34,7 @@ import {
   admitBrowserPiWorkerInboundMessageV1,
   type BrowserPiWorkerAnyOutboundMessageV1,
   type BrowserPiWorkerExecutionBindingV1,
+  type BrowserPiNetworkApprovalRequestV1,
   type BrowserPiModelSelectionV1,
   type BrowserPiWorkerRuntimeV1,
   type BrowserPiWorkspaceFailureCodeV1,
@@ -47,6 +48,12 @@ import {
   bindPiWorkspaceWriteToolV1,
   createPiWorkspaceGrepToolV1,
 } from "./pi-workspace-tool-binder.ts";
+import { createPiFetchUrlToolV1 } from "./pi-network-tool-binder.ts";
+import {
+  createBrowserNetworkBrokerClientV1,
+  type BrowserNetworkBrokerClientV1,
+} from "../network/browser-network-broker-client.ts";
+import { normalizeBrowserNetworkUrlV1 } from "../network/browser-network-url.ts";
 import {
   createBrowserWorkspaceEnvironmentClientV1,
   type BrowserWorkspaceEnvironmentClientV1,
@@ -61,6 +68,7 @@ type RunFailureCodeV1 =
   | "candidate_invalid"
   | "candidate_context_mismatch"
   | "candidate_duplicate"
+  | "approval_required"
   | "pi_failed";
 
 interface ActivePiRunV1 {
@@ -70,6 +78,9 @@ interface ActivePiRunV1 {
   readonly workspaceRun: WorkspaceAgentRunV1;
   readonly workspaceSessionId: string;
   readonly admittedWorkspaceGeneration: number;
+  readonly programId: string;
+  readonly workspaceId: string;
+  readonly networkAbort: AbortController;
   sequence: number;
   draft: string;
   candidate: CreatorProgramRevisionCandidateV1 | null;
@@ -92,8 +103,15 @@ interface PiAgentPortV1 {
 const providerProbeTimeoutMillisecondsV1 = 30_000;
 
 export interface BrowserPiWorkerRuntimePortV1 {
-  receive(message: unknown, ports?: readonly BrowserWorkspaceEnvironmentMessagePortV1[]): void;
+  receive(message: unknown, ports?: readonly MessagePort[]): void;
   dispose(): void;
+}
+
+interface BrowserPiNetworkPermitV1 {
+  readonly programId: string;
+  readonly workspaceSessionId: string;
+  readonly operation: "fetch_url";
+  readonly url: string;
 }
 
 function selectionsShareCredentialScopeV1(
@@ -149,6 +167,10 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   let activeRun: ActivePiRunV1 | null = null;
   let workspaceClient: BrowserWorkspaceEnvironmentClientV1 | null = null;
   let workspacePhase: "open" | "closed" = "closed";
+  let networkClient: BrowserNetworkBrokerClientV1 | null = null;
+  let pendingNetworkApproval: BrowserPiNetworkApprovalRequestV1 | null = null;
+  let networkPermit: BrowserPiNetworkPermitV1 | null = null;
+  let nextNetworkApprovalId = 1;
   let operationQueue = Promise.resolve();
   const emittedWorkspaceReceipts = new Set<string>();
 
@@ -313,10 +335,100 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   ): Promise<void> => {
     if (!run.terminal && run.requestedFailure === null) {
       run.requestedFailure = code;
+      run.networkAbort.abort();
       run.agent.abort();
       void run.workspaceRun.abortAndDrain();
     }
     return run.settlement ?? Promise.resolve();
+  };
+
+  const clearNetworkAuthorization = (): void => {
+    pendingNetworkApproval = null;
+    networkPermit = null;
+  };
+
+  const withRunNetworkSignalV1 = async <T>(
+    run: ActivePiRunV1,
+    signal: AbortSignal | undefined,
+    operation: (signal: AbortSignal) => Promise<T>,
+  ): Promise<T> => {
+    const abort = new AbortController();
+    const sources = signal === undefined
+      ? [run.networkAbort.signal]
+      : [run.networkAbort.signal, signal];
+    const forwardAbort = (): void => abort.abort();
+    for (const source of sources) {
+      if (source.aborted) abort.abort();
+      else source.addEventListener("abort", forwardAbort, { once: true });
+    }
+    try {
+      return await operation(abort.signal);
+    } finally {
+      for (const source of sources) source.removeEventListener("abort", forwardAbort);
+    }
+  };
+
+  const executeFetchUrlV1 = async (
+    run: ActivePiRunV1,
+    toolCallId: string,
+    rawUrl: string,
+    signal?: AbortSignal,
+  ) => {
+    if (
+      activeRun !== run || run.terminal || run.requestedFailure !== null ||
+      run.networkAbort.signal.aborted
+    ) throw new Error("Creator run was cancelled");
+    const url = normalizeBrowserNetworkUrlV1(rawUrl);
+    if (url === null) throw new TypeError("fetch_url requires one absolute HTTPS URL");
+    const permit = networkPermit;
+    const permitted = permit !== null && permit.programId === run.programId &&
+      permit.workspaceSessionId === run.workspaceSessionId &&
+      permit.operation === "fetch_url" && permit.url === url;
+    if (!permitted) {
+      if (pendingNetworkApproval === null) {
+        const approval = Object.freeze(
+          {
+            revision: 1,
+            approvalId: `sillyos.network.approval.${String(nextNetworkApprovalId++)}`,
+            programId: run.programId,
+            workspaceId: run.workspaceId,
+            workspaceSessionId: run.workspaceSessionId,
+            sessionId: run.sessionId,
+            runId: run.runId,
+            toolCallId,
+            operation: "fetch_url",
+            origin: new URL(url).origin,
+            url,
+          } satisfies BrowserPiNetworkApprovalRequestV1,
+        );
+        pendingNetworkApproval = approval;
+        // The approval side-event is posted before the terminal run failure.
+        post(Object.freeze({ revision: 1, kind: "network_approval_required", approval }));
+      }
+      void requestRunFailure(run, "approval_required");
+      throw new Error("Exact URL approval is required; approve it and retry the request");
+    }
+
+    // A one-shot permit is consumed before any Broker request, including one
+    // that later fails or is cancelled.
+    networkPermit = null;
+    const client = networkClient;
+    if (client === null) throw new Error("Browser Network Broker is unavailable");
+    const result = await withRunNetworkSignalV1(
+      run,
+      signal,
+      (effectiveSignal) => client.fetchUrl(url, effectiveSignal),
+    );
+    if (
+      activeRun !== run || run.terminal || run.requestedFailure !== null ||
+      run.networkAbort.signal.aborted
+    ) throw new Error("Creator run was cancelled");
+    return Object.freeze({
+      status: result.status,
+      contentType: result.contentType,
+      bytes: result.bytes,
+      text: result.text,
+    });
   };
 
   const createRun = async (
@@ -342,14 +454,18 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     });
     if (begun.kind !== "started") return null;
     const workspaceRun = begun.run;
+    let run!: ActivePiRunV1;
     const workspaceTools = createBrowserPiWorkspaceToolsV1([
       () => bindPiWorkspaceReadToolV1(createReadTool(), workspaceRun),
       () => bindPiWorkspaceWriteToolV1(createWriteTool(), workspaceRun),
       () => bindPiWorkspaceEditToolV1(createEditTool(), workspaceRun),
       () => bindPiWorkspaceBashToolV1(createBashTool(), workspaceRun),
       () => createPiWorkspaceGrepToolV1(workspaceRun),
+      () =>
+        createPiFetchUrlToolV1({
+          execute: (toolCallId, url, signal) => executeFetchUrlV1(run, toolCallId, url, signal),
+        }),
     ]);
-    let run!: ActivePiRunV1;
     const agentInput = {
       submit,
       workspaceTools,
@@ -413,6 +529,9 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       workspaceRun,
       workspaceSessionId: execution.workspaceSessionId,
       admittedWorkspaceGeneration: execution.expectedGeneration,
+      programId: execution.programId,
+      workspaceId: execution.workspaceId,
+      networkAbort: new AbortController(),
       sequence: 0,
       draft: "",
       candidate: null,
@@ -464,7 +583,10 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       return;
     }
     if (predecessor !== null && !predecessor.terminal) {
+      const preserveApprovedPermit = predecessor.requestedFailure === "approval_required" &&
+        pendingNetworkApproval === null && networkPermit !== null;
       await requestRunFailure(predecessor, "replaced");
+      if (!preserveApprovedPermit) clearNetworkAuthorization();
     }
     if (disposed || activeSessionId !== request.params.sessionId) return;
     const descriptorAfterDrain = workspaceClient?.getDescriptor() ?? null;
@@ -512,7 +634,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
 
   const handleWorkspaceRequest = async (
     message: WorkspaceRequestV1,
-    ports: readonly BrowserWorkspaceEnvironmentMessagePortV1[],
+    ports: readonly MessagePort[],
   ): Promise<void> => {
     if (!connectionReady || credentialKey === null) {
       respondWorkspaceFailure(message.requestId, "not_initialized");
@@ -535,11 +657,12 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         generation: record.descriptor.expectedGeneration,
       });
       workspaceClient = createBrowserWorkspaceEnvironmentClientV1({
-        port: environmentPort,
+        port: environmentPort as unknown as BrowserWorkspaceEnvironmentMessagePortV1,
         descriptor,
         onMutationRecord: handleMutationRecordV1,
       });
       workspacePhase = "open";
+      clearNetworkAuthorization();
       post(Object.freeze({
         revision: 1,
         kind: "workspace_response",
@@ -571,6 +694,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         await requestRunFailure(run, "cancelled");
       }
       workspacePhase = "closed";
+      clearNetworkAuthorization();
       post(Object.freeze({
         revision: 1,
         kind: "workspace_response",
@@ -636,11 +760,15 @@ export function createBrowserPiWorkerRuntimeV1(input: {
 
   const receive = (
     raw: unknown,
-    ports: readonly BrowserWorkspaceEnvironmentMessagePortV1[] = [],
+    ports: readonly MessagePort[] = [],
   ): void => {
-    if (disposed) return;
+    if (disposed) {
+      for (const port of ports) port.close();
+      return;
+    }
     const message = admitBrowserPiWorkerInboundMessageV1(raw);
     if (message === null) {
+      for (const port of ports) port.close();
       postProtocolFailure("invalid_message");
       return;
     }
@@ -649,6 +777,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         ports.length !== 0 || connectionTestInProgress || configuredRuntime !== null ||
         credentialKey !== null
       ) {
+        for (const port of ports) port.close();
         postProtocolFailure("invalid_message");
         return;
       }
@@ -672,10 +801,17 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       return;
     }
     if (message.kind === "configure") {
+      const brokerPort = ports[0];
+      if (ports.length !== 1 || brokerPort === undefined) {
+        for (const port of ports) port.close();
+        postProtocolFailure("invalid_message");
+        return;
+      }
       if (
-        ports.length !== 0 || connectionTestInProgress || configuredRuntime !== null ||
+        connectionTestInProgress || configuredRuntime !== null ||
         credentialKey !== null
       ) {
+        for (const port of ports) port.close();
         postProtocolFailure("already_configured");
         return;
       }
@@ -683,6 +819,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         message.runtime === "pi_provider" &&
         (message.selection === null || !isBrowserPiSelectionAvailableV1(message.selection))
       ) {
+        ports[0]?.close();
         post(Object.freeze({
           revision: 1,
           kind: "configuration_failure",
@@ -691,7 +828,16 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         }));
         return;
       }
+      let brokerClient: BrowserNetworkBrokerClientV1;
+      try {
+        brokerClient = createBrowserNetworkBrokerClientV1(brokerPort);
+      } catch {
+        ports[0]?.close();
+        postProtocolFailure("invalid_message");
+        return;
+      }
       const selection = message.selection;
+      networkClient = brokerClient;
       credentialKey = message.credential.value;
       configuredRuntime = message.runtime;
       configuredSelection = selection;
@@ -703,6 +849,42 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         runtime: message.runtime,
         selection,
         distribution: browserPiDistributionIdentityV1,
+      }));
+      return;
+    }
+    if (message.kind === "resolve_network_approval") {
+      if (ports.length !== 0) {
+        for (const port of ports) port.close();
+        postProtocolFailure("invalid_message");
+        return;
+      }
+      const pending = pendingNetworkApproval;
+      if (pending === null || pending.approvalId !== message.approvalId) {
+        post(Object.freeze({
+          revision: 1,
+          kind: "network_approval_response",
+          requestId: message.requestId,
+          ok: false,
+          code: "not_pending",
+        }));
+        return;
+      }
+      if (message.decision === "allow_once") {
+        networkPermit = Object.freeze({
+          programId: pending.programId,
+          workspaceSessionId: pending.workspaceSessionId,
+          operation: pending.operation,
+          url: pending.url,
+        });
+      } else networkPermit = null;
+      pendingNetworkApproval = null;
+      post(Object.freeze({
+        revision: 1,
+        kind: "network_approval_response",
+        requestId: message.requestId,
+        ok: true,
+        approvalId: message.approvalId,
+        decision: message.decision,
       }));
       return;
     }
@@ -867,6 +1049,11 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       enqueue(() => handleWorkspaceRequest(message, ports));
       return;
     }
+    if (ports.length !== 0) {
+      for (const port of ports) port.close();
+      postProtocolFailure("invalid_message");
+      return;
+    }
     if (!connectionReady || credentialKey === null) {
       respondRpcFailure(message.requestId, "not_initialized");
       return;
@@ -882,6 +1069,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         if (predecessor !== null && !predecessor.terminal) {
           await requestRunFailure(predecessor, "replaced");
         }
+        clearNetworkAuthorization();
         activeRun = null;
         activeSessionId = `sillyos.session.${String(nextSessionId++)}`;
         post(Object.freeze({
@@ -933,6 +1121,9 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       configuredRuntime = null;
       configuredSelection = null;
       connectionReady = false;
+      clearNetworkAuthorization();
+      networkClient?.close();
+      networkClient = null;
       const run = activeRun;
       activeRun = null;
       activeSessionId = null;

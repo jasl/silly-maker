@@ -61,6 +61,13 @@ API-key 表单，也不会显示可用的 Test connection。
 - Program 会在事务提交后写入此浏览器的本地目录，返回 Home 或刷新页面后可以从“最近的
   程序”重开同一修订、决定、消息和 Activity。
 
+S2-N0 还为固定 Pi 增加了一个窄 `fetch_url({ url })` 工具。模型首次请求某个精确 HTTPS URL
+时不会发出网络请求，而会在 Chat 中显示完整 URL、origin 和 path/query 外传风险；用户选择
+**Allow once** 后，产品通过普通新 run 重试并在请求前消费该精确许可。真正的 `GET` 只在独立
+origin、无 API key 的 Network Broker 中执行，不携带 Cookie、Authorization、referrer、body
+或自定义 header，只返回不超过 `256 KiB` 的声明 UTF-8 文本/JSON/XML。目标仍必须允许 Browser
+CORS；这不是任意网页抓取、搜索、持久授权或文件下载能力，也没有部署回执。
+
 另有一个只在 `?agent=pi-test` 出现的 B0a 验证入口：它会把产品 lockfile 固定的
 `pi-agent-core` / `pi-ai` 0.84.3 懒加载进 Dedicated Worker，通过 typed RPC 运行真实
 Pi `Agent`、确定性本地 provider 和唯一的 `sillyos_propose_program_revision`
@@ -85,15 +92,18 @@ workspace head 发布为本地不可变 Program snapshot，但不会因此生成
 
 ## Browser 安全与执行边界
 
-2026-08-28 起，SillyOS Browser 使用三个明确分开的安全平面：
+2026-08-29 起，SillyOS Browser 使用四个明确分开的职责/权限边界：
 
 ```text
 SillyOS UI / Product Core
   -> typed Agent RPC
 产品固定版本的 Pi Agent / Credential plane
-  -> typed WorkspaceExecutionPort
-独立 origin 的 Workspace Execution Sandbox
-  -> 当前 Program 专属 VFS volume
+  +-> typed WorkspaceExecutionPort
+  |     -> 独立 origin 的 Workspace Execution Sandbox
+  |          -> 当前 Program 专属 VFS volume
+  +-> typed NetworkCapabilityPort
+        -> 独立 origin、无凭据的 Network Broker
+             -> 有界 Browser HTTPS text fetch
 ```
 
 SillyOS 控制面只执行产品随附、由 lockfile/build identity 固定的可信代码。用户、Agent、
@@ -101,7 +111,10 @@ SillyOS 控制面只执行产品随附、由 lockfile/build identity 固定的�
 origin 中执行；生成 HTML 也不得注入控制面 DOM。Pi 仍是唯一 Agent、Provider、模型和
 Agent loop 来源。当前 deterministic 与 live Pi 路线都通过独立 origin Sandbox 获得 Pi
 原生 `read`/`write`/`edit`/`bash`；SillyOS 另外以 Pi `AgentTool` 注册一个固定、只读、
-结构化的 `grep` capability。它使用显式 typed Workspace RPC，不是第二套 tool dispatcher。
+结构化的 `grep` capability，以及一个固定 `{ url }` 的 `fetch_url` capability。前者使用显式
+typed Workspace RPC；后者只能在 session-only 精确批准后进入无 key 的第三 origin Broker。
+两者都复用 Pi 的工具/Agent loop，不是第二套 tool dispatcher。Workspace Sandbox、QJS 和
+just-bash 仍保持无网络，未注册 `curl`。
 
 产品数据、凭据与 workspace bytes 分属 Product Repository、未来的 Credential Vault 和
 Workspace Volume Repository。S1a-1 已在 source 中把普通 Program 的唯一 Authority 切到独立
@@ -334,22 +347,26 @@ guest 可以主动把本次已经显式 stage 的数据（包括形似 filename 
 
 ## 运行
 
-S1a-1 的普通产品需要 control 与 Sandbox 两个严格分离的 origin。先在本目录的两个终端分别启动：
+普通 Browser 产品需要 control、Workspace Sandbox 与 keyless Network Broker 三个严格分离的
+origin。先在本目录的三个终端分别启动：
 
 ```sh
 deno task dev:workspace-sandbox
+deno task dev:network-broker
 deno task dev
 ```
 
 然后打开 control server 输出的 `http://127.0.0.1:4173`。Sandbox 固定为
-`http://127.0.0.1:41740`；两个 dev server 都发出严格 CSP 并关闭 HMR，代码变化后要完整刷新，
-不能用 Fast Refresh 把两份可信 artifact 更新到不同版本。每次启动 control Vite dev server
+`http://127.0.0.1:41740`，Broker 固定为 `http://127.0.0.1:41741`；三个 dev server 都发出严格
+CSP 并关闭 HMR，代码变化后要完整刷新，不能用 Fast Refresh 把可信 artifact 更新到不同版本。
+每次启动 control Vite dev server
 都会生成一个新的随机 style nonce，并由 Vite 加到它注入的 style 上；这不是 production nonce
 策略。dev 不发送 Vite 自身无法满足的 Trusted Types Report-Only 观察头；preview/production
 继续使用 self-hosted external style 并保留 TT Report-Only。也可以从仓库根目录分别运行：
 
 ```sh
 deno task --cwd examples/silly-os dev:workspace-sandbox
+deno task --cwd examples/silly-os dev:network-broker
 deno task app dev example-silly-os
 ```
 
@@ -400,10 +417,11 @@ Chromium context 与运行后删除的一次性持久 WebKit profile，
 先用明确无效的凭据证明 Provider 4xx 可读且产品只持久化有界 `run_failed`，再证明真实请求
 后的取消不会推进 v1、下一次运行形成精确 v2、测试的持久化投影不含 key，最后等待 Forget
 实际终止 Agent Worker。它不读取或打印 Provider 请求头、请求体或 key。资格检查沿用普通产品的
-双 origin：先在两个终端分别启动固定 `41740` Sandbox 和 `4173` control，再在第三个终端运行：
+三 origin：先分别启动固定 `41740` Sandbox、`41741` keyless Broker 和 `4173` control，再运行：
 
 ```sh
 deno task dev:workspace-sandbox
+deno task dev:network-broker
 deno task dev --host 127.0.0.1 --port 4173 --strictPort
 deno task qualify:browser:qualified
 ```
@@ -416,7 +434,7 @@ HTTPS 地址作为下一个参数传入同一命令。OpenRouter candidate 不�
 通过期间预期为红；日常 release matrix 使用 `qualified`。
 
 默认 `qualify:browser:provider` 仍运行上述 Provider 旅程，不会隐式触发 QJS。要人工资格化
-真实模型的完整 Agent loop，可在同一双-origin dev server 上明确运行 Chromium-first 的
+真实模型的完整 Agent loop，可在同一三-origin dev topology 上明确运行 Chromium-first 的
 `deno task qualify:browser:qjs-loop`。该 opt-in 选择配置的 Anthropic
 `claude-sonnet-4-5` route，给完成轮
 至少 `120 s`：提示要求模型依次用两次 native `write` 写入精确 input/script，再用 native
@@ -447,21 +465,23 @@ B1c-S0 为文档、静态资源和 selected Agent Worker 定义完整的无 wild
 `worker-src`、`connect-src`、`object-src`、
 `base-uri`、`frame-src`、`frame-ancestors` 与 `form-action`，并附加 Trusted Types Report-Only、
 Permissions Policy、`no-referrer`、`nosniff` 和嵌入 denial。control 文档的 `frame-src` 只允许
-精确 Sandbox origin 与 `blob:`，Sandbox 文档的 `frame-src` 只允许 `blob:`，用于 WebKit 的
+精确 Sandbox、Network Broker origin 与 `blob:`，Sandbox 文档的 `frame-src` 只允许 `blob:`，用于 WebKit 的
 Sandbox-private download navigation；该 Blob URL 从不跨 control RPC。Sandbox 文档的
-`frame-ancestors` 也只允许精确 control origin。普通文档与 catalog Worker 的
+`frame-ancestors` 也只允许精确 control origin。Network Broker 同样只允许精确 control
+ancestor，不持有 Provider key、Product Repository 或 Workspace VFS。普通文档与 catalog Worker 的
 `connect-src` 只有 self；built-in 或 custom Agent Worker URL 携带经过验证的
 `endpoint-origin` 时，只有该 Worker 增加这一个精确 HTTPS origin。Cloudflare 和 local
 Vite dev 使用同一 canonical rule；dev 对重复、HTTP 或畸形 origin 返回 400/no-store，并在
-Vite transform 前移除 query。query 不包含 key、model 或 endpoint path。任何响应都不使用
-`connect-src https:`、`unsafe-inline` 或 `unsafe-eval`。
+Vite transform 前移除 query。query 不包含 key、model 或 endpoint path。独立 Broker response
+为动态 Program 授权使用 `connect-src https:`；control、Agent、catalog 与 Workspace response
+不会因此获得通配网络能力。任何 response 都不使用 `unsafe-inline` 或 `unsafe-eval`。
 
 该选择只解决 CSP admission，不会让 Provider 返回允许 SillyOS origin 读取的 CORS 响应。
 自定义 endpoint 仍必须满足 HTTPS、CORS、streaming 与取消合同；Pi 在 Desktop 支持的全部
 Provider 不会自动成为 Browser 能力，`no-cors`、Service Worker 或放宽 CSP 都不能绕过
 Provider CORS。先前的 actual-build blocker 已由通用 SillyMaker tooling 修复并被本产品消费：
 版本戳现在是应用模块之前加载的同源外部脚本，生产 HTML 不再含可执行 inline script。
-S1a-1 进一步让 local dev 使用精确双 origin 的 strict CSP 并关闭 HMR；生产 artifact checker
+S1a-1 及 S2-N0 进一步让 local dev 使用精确三 origin 的 strict CSP 并关闭 HMR；生产 artifact checker
 会拒绝 `development` identity、混合 control/bootstrap/Host identity、宽泛 `frame-src` 和退休的
 同源 Host Worker。control dev server 的随机 style nonce 只允许 Vite 当次注入的 style；preview/
 production 仍是 self-hosted external style，不把 nonce 变成发布策略。通过这些 build checks 仍不替代 ordinary Chromium/WebKit product evidence
@@ -541,6 +561,8 @@ deno task build
 deno task check:browser-security-build
 deno task build:workspace-sandbox
 deno task check:workspace-sandbox-build
+deno task build:network-broker
+deno task check:network-broker-build
 deno task build:desktop
 ```
 

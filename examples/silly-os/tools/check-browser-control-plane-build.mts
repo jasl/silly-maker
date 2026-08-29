@@ -34,6 +34,10 @@ const retiredSameOriginHostWorkerPatternV1 =
 if (filesV1.some((file) => retiredSameOriginHostWorkerPatternV1.test(file))) {
   failV1("artifact contains the retired same-origin Workspace Host Worker");
 }
+const networkBrokerWorkerPatternV1 = /(?:^|\/)browser-network-broker\.worker-[A-Za-z0-9_-]+\.js$/u;
+if (filesV1.some((file) => networkBrokerWorkerPatternV1.test(file))) {
+  failV1("artifact contains the independent-origin Network Broker Worker");
+}
 const sandboxExecutionAssetPatternsV1 = [
   /(?:^|\/)[^/]*quickjs[^/]*\.js$/iu,
   /(?:^|\/)[^/]*emscripten[^/]*\.js$/iu,
@@ -48,6 +52,9 @@ for (const file of filesV1) {
 const productionBuildIdentityPatternV1 =
   /sillyos\.workspace-sandbox\.(?:[0-9a-f]{40}|[0-9a-f]{64})(?:-dirty)?/gu;
 const buildIdentitiesV1 = new Set<string>();
+const productionNetworkBuildIdentityPatternV1 =
+  /sillyos\.network-broker\.(?:[0-9a-f]{40}|[0-9a-f]{64})(?:-dirty)?/gu;
+const networkBuildIdentitiesV1 = new Set<string>();
 const identityBearingFilesV1: string[] = [];
 const sandboxExecutionMarkerPatternV1 =
   /(?:quickjs_(?:execute|result)|quickjs-emscripten|QTS_NewRuntime|WebAssembly\.Memory|wasm(?:Binary|Memory)|emscriptenModule)/u;
@@ -58,8 +65,13 @@ for (const file of filesV1.filter((candidate) => candidate.endsWith(".js"))) {
   for (const identity of identities) {
     buildIdentitiesV1.add(identity);
   }
+  const networkIdentities = source.match(productionNetworkBuildIdentityPatternV1) ?? [];
+  for (const identity of networkIdentities) networkBuildIdentitiesV1.add(identity);
   if (source.includes("sillyos.workspace-sandbox.development")) {
     failV1(`${file} contains the development Workspace Sandbox build identity`);
+  }
+  if (source.includes("sillyos.network-broker.development")) {
+    failV1(`${file} contains the development Network Broker build identity`);
   }
   if (source.includes("browser-workspace-host.worker")) {
     failV1(`${file} references the retired same-origin Workspace Host Worker`);
@@ -70,6 +82,9 @@ for (const file of filesV1.filter((candidate) => candidate.endsWith(".js"))) {
 }
 if (identityBearingFilesV1.length === 0 || buildIdentitiesV1.size !== 1) {
   failV1("artifact does not embed exactly one production Workspace Sandbox build identity");
+}
+if (networkBuildIdentitiesV1.size !== 1) {
+  failV1("artifact does not embed exactly one production Network Broker build identity");
 }
 
 if (/<style\b/iu.test(htmlV1)) failV1("built HTML contains an inline style element");
@@ -110,7 +125,7 @@ const expectedContentSecurityPolicyV1 = [
   "font-src 'self'",
   "connect-src 'self'",
   "worker-src 'self'",
-  "frame-src https://silly-os-sandbox.jasl9187.workers.dev blob:",
+  "frame-src https://silly-os-sandbox.jasl9187.workers.dev https://silly-os-network.jasl9187.workers.dev blob:",
   "media-src 'self' blob:",
   "manifest-src 'self'",
   "object-src 'none'",
@@ -132,5 +147,7 @@ if (headersV1.replaceAll("\r\n", "\n").trimEnd() !== expectedHeadersV1) {
 }
 
 console.log(
-  `SillyOS Browser control-plane build boundary passed (${[...buildIdentitiesV1][0]}).`,
+  `SillyOS Browser control-plane build boundary passed (${[...buildIdentitiesV1][0]}, ${
+    [...networkBuildIdentitiesV1][0]
+  }).`,
 );

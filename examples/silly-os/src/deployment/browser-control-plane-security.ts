@@ -4,6 +4,10 @@ import {
   browserWorkspaceSandboxDevelopmentOriginV1,
   browserWorkspaceSandboxProductionOriginV1,
 } from "../workspace/browser-workspace-sandbox-origins.ts";
+import {
+  browserNetworkBrokerDevelopmentOriginV1,
+  browserNetworkBrokerProductionOriginV1,
+} from "../network/browser-network-broker-origins.ts";
 
 const contentSecurityPolicyDirectivesBeforeConnectV1 = Object.freeze([
   "default-src 'none'",
@@ -32,11 +36,22 @@ export const browserPermissionsPolicyV1 =
 export function createBrowserControlPlaneContentSecurityPolicyV1(
   endpointOrigin: string | null = null,
   workspaceSandboxOrigin: string = browserWorkspaceSandboxProductionOriginV1,
+  networkBrokerOrigin: string =
+    workspaceSandboxOrigin === browserWorkspaceSandboxDevelopmentOriginV1
+      ? browserNetworkBrokerDevelopmentOriginV1
+      : browserNetworkBrokerProductionOriginV1,
 ): string {
   if (
     workspaceSandboxOrigin !== browserWorkspaceSandboxProductionOriginV1 &&
     workspaceSandboxOrigin !== browserWorkspaceSandboxDevelopmentOriginV1
   ) throw new TypeError("sillyos.control_plane.workspace_sandbox_origin_invalid");
+  const expectedNetworkBrokerOrigin = workspaceSandboxOrigin ===
+      browserWorkspaceSandboxDevelopmentOriginV1
+    ? browserNetworkBrokerDevelopmentOriginV1
+    : browserNetworkBrokerProductionOriginV1;
+  if (networkBrokerOrigin !== expectedNetworkBrokerOrigin) {
+    throw new TypeError("sillyos.control_plane.network_broker_origin_invalid");
+  }
   const connect = endpointOrigin === null
     ? "connect-src 'self'"
     : `connect-src 'self' ${endpointOrigin}`;
@@ -47,7 +62,7 @@ export function createBrowserControlPlaneContentSecurityPolicyV1(
     // WebKit applies the embedding page's frame-src policy when the admitted
     // Sandbox iframe hands its same-origin Blob archive to the download UI.
     // The Blob URL itself never crosses into the control-plane process.
-    `frame-src ${workspaceSandboxOrigin} blob:`,
+    `frame-src ${workspaceSandboxOrigin} ${networkBrokerOrigin} blob:`,
     ...contentSecurityPolicyDirectivesAfterConnectV1,
   ].join("; ");
 }

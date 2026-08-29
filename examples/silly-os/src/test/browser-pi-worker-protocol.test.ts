@@ -307,6 +307,76 @@ describe("Browser Pi Worker protocol", () => {
     })).toBeNull();
   });
 
+  it("admits only exact session-only network approval messages", () => {
+    const approval = {
+      revision: 1,
+      approvalId: "sillyos.network.approval.1",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+      workspaceSessionId: workspaceSessionIdV1,
+      sessionId: "pi.session.1",
+      runId: "pi.run.1",
+      toolCallId: "pi.tool.fetch.1",
+      operation: "fetch_url",
+      origin: "https://example.test",
+      url: "https://example.test/reference.txt?revision=1",
+    } as const;
+    for (const decision of ["allow_once", "deny"] as const) {
+      const resolution = {
+        revision: 1,
+        kind: "resolve_network_approval",
+        requestId: 9,
+        approvalId: approval.approvalId,
+        decision,
+      } as const;
+      expect(admitBrowserPiWorkerInboundMessageV1(resolution)).toEqual(resolution);
+    }
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      revision: 1,
+      kind: "resolve_network_approval",
+      requestId: 9,
+      approvalId: approval.approvalId,
+      decision: "allow_program",
+    })).toBeNull();
+
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "network_approval_required",
+      approval,
+    })).toEqual({ revision: 1, kind: "network_approval_required", approval });
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "network_approval_required",
+      approval: { ...approval, url: "http://example.test/reference.txt" },
+    })).toBeNull();
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "network_approval_required",
+      approval: { ...approval, origin: "https://other.example.test" },
+    })).toBeNull();
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "network_approval_required",
+      approval: { ...approval, credential: "forbidden" },
+    })).toBeNull();
+
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "network_approval_response",
+      requestId: 10,
+      ok: true,
+      approvalId: approval.approvalId,
+      decision: "allow_once",
+    })).not.toBeNull();
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "network_approval_response",
+      requestId: 11,
+      ok: false,
+      code: "not_pending",
+    })).not.toBeNull();
+  });
+
   it("admits only bounded catalog projections with derived Provider availability", () => {
     const catalog = catalogV1();
     expect(admitBrowserPiProviderCatalogWireV1(catalog)).toMatchObject({

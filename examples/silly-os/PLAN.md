@@ -120,12 +120,13 @@ editor integration remain separate inactive
 checkpoints. Earlier B1c Provider counts
 are dated evidence for their pre-security snapshot
 and do not by themselves accept the current overlay. Current source still does
-not add OAuth, multi-field cloud credentials, a Provider relay, `fetch_url`,
-remote-to-VFS download, HTTP/LAN access, arbitrary headers, or a second Provider
-runtime, and it does not claim real custom-endpoint qualification until an exact
-custom route passes the later deployed-origin gate. The owner accepted S2-N on
-2026-08-29 as the next explicit Browser capability lane. Its keyless Network
-Broker and bounded tools are specified but not implemented or deployed.
+not add OAuth, multi-field cloud credentials, a Provider relay, remote-to-VFS
+download, HTTP requests, arbitrary headers, or a second Provider runtime, and
+it does not claim real custom-endpoint qualification until an exact custom route
+passes the later deployed-origin gate. S2-N0 is closed locally on 2026-08-29:
+its fixed `fetch_url` and keyless Network Broker admit one exact approved HTTPS
+text request, including LAN/private destinations when the Browser permits it.
+They are not deployed and do not activate durable grants, download, or search.
 The raw launcher is not the typed product RPC; the live Browser route is a
 separate product path. This plan remains local to `examples/silly-os`; the
 neutral async GUI disposer was delivered separately by the engine task and is
@@ -176,11 +177,11 @@ the selected target adapters may combine TypeScript, Workers, Wasm payloads, or
 a native companion behind the same typed workspace boundary.
 
 At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
-S1a-1, S1b-1, S1b-2, S1b-3, and S2-Q1 are closed locally. The post-Q1 Browser
-Workspace namespace/file slice is implemented and locally verified. S2-N0 is
-the accepted next deliberately bounded slice, but no Network Broker, network
-tool, grant, or deployment evidence exists yet; N0 does not activate later
-Program-grant or remote-download work automatically. The opt-in real QJS Agent-loop
+S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, and S2-N0 are closed locally. The post-Q1
+Browser Workspace namespace/file slice is implemented and locally verified.
+N0 adds only its fixed `fetch_url`, keyless third-origin Network Broker, and
+exact session-only **Allow once**; it does not activate a durable Program grant,
+remote download, search, or deployment automatically. The opt-in real QJS Agent-loop
 qualifier has passed once with Anthropic `claude-sonnet-4-5` in Chromium. A
 later phase may be refined before it
 starts, but it may not
@@ -640,7 +641,7 @@ native `bash` schema/result; just-bash owns the admitted command algorithms;
 the Sandbox Host owns Program volume generations and recovery. None of these
 semantics moves into the use-case-neutral SillyMaker engine.
 
-#### S2-N — explicit Browser network tools through a keyless Broker (accepted 2026-08-29; not implemented)
+#### S2-N — explicit Browser network tools through a keyless Broker (active; N0 closed locally 2026-08-29)
 
 Network access is an explicit Program capability, not an ambient Workspace or
 guest-runtime property. SillyOS will ship fixed Pi `AgentTool` values named
@@ -696,7 +697,7 @@ generated code receive no Browser `fetch`; just-bash's bundled but unregistered
 `curl` remains unreachable. The Broker is not placed in an opaque-origin frame,
 because a stable Broker origin is part of the CORS and audit contract.
 
-##### S2-N0 — bounded `fetch_url` and session-only approval
+##### S2-N0 — bounded `fetch_url` and session-only approval — closed locally 2026-08-29
 
 N0 is the deliberately bounded first implementation slice. It adds one fixed
 `fetch_url` Pi `AgentTool`, the third-origin Broker, and the smallest
@@ -740,9 +741,12 @@ N0 closes only when:
 1. focused admission tests reject non-HTTPS, userinfo, malformed input, custom
    request authority, unsupported MIME, and over-limit content without
    accidentally adding a private-address denylist;
-2. a controlled endpoint proves success, readable 4xx/5xx, redirect rejection,
-   missing-CORS failure, streamed size failure, total/idle timeout,
-   cancellation, run/currentness loss, and ignored late settlement;
+2. focused Broker adapter contracts prove success, readable 4xx/5xx, exact
+   `redirect: "error"` request authority, bounded fetch-failure mapping, streamed
+   size failure, total/idle timeout, cancellation, run/currentness loss, and
+   ignored late settlement; the physical target proves the ordinary readable
+   CORS success path, while a real-target redirect and missing-CORS qualifier
+   remain explicitly unclaimed;
 3. captured requests contain no product-added Authorization, Cookie, referrer,
    Provider-key sentinel, Program/Workspace identity, custom header, or body;
    ordinary Browser-generated transport metadata such as `Origin`,
@@ -762,6 +766,24 @@ response in React/Agent state, or weakening
 cancellation/currentness. A site's missing CORS, a Browser LNA refusal, or the
 inability to inspect a hostname's resolved IP is an expected product limit, not
 a reason to build a relay, DNS policy engine, or Browser workaround.
+
+Closure evidence is deliberately local. The focused Deno/Vitest suite passes
+`454/454`, including exact protocol admission, streamed limits/MIME/deadlines,
+silent Broker-peer timeout, late-result currentness, rapid approval before the
+old run drains, and transient product projection. A mutation before approval
+retains its original run identity: Allow retry inherits only the acknowledged
+receipt watermark, while Deny, close, and Forget drain the old run without
+inventing a terminal chat record. Production control, Workspace, and Broker
+builds pass their fixed-asset/CSP/build-identity checks. The
+controlled physical journey passes in Chromium and persistent-profile WebKit:
+zero target request precedes approval; one exact `GET` follows **Allow once**;
+the request has no Authorization, Cookie, referrer, body, Provider-key sentinel,
+or Program/Workspace identity; denial causes no second request or durable Agent
+receipt. This evidence does not deploy the Broker, exercise a stochastic real
+model, prove arbitrary-site CORS, physically qualify redirect/missing-CORS
+behavior, or activate N1/N2/search. Playwright `route.fulfill()` was tried and
+falsified as evidence because it bypassed both Browser checks; N0 does not add a
+test-only TLS server/certificate framework merely to test Browser-owned behavior.
 
 ##### S2-N1 — durable Program grants
 
@@ -1161,12 +1183,15 @@ The accepted execution order is no longer the numeric subsection order:
     One opt-in configured-Anthropic/Chromium write/write/bash-qjs loop passes
     with exact relational output and same-volume post-Forget bytes; Python
     remains absent.
-13. **S2-N is accepted but absent:** N0 is the next bounded slice and includes
-    only a keyless third-origin Broker, fixed `fetch_url`, and session-only
-    **Allow once**. No Broker, network AgentTool, grant, remote-to-VFS download,
-    arbitrary Browser egress, or deployment evidence exists at this checkpoint.
-    N0 does not activate durable Program grants or `download`; S2-N1/N2 retain
-    their own acceptance and stop conditions.
+13. **S2-N0 is closed locally:** a keyless third-origin Broker, fixed
+    `fetch_url`, and session-only exact **Allow once** now cross the ordinary
+    typed Pi path. Focused `454/454` contracts and controlled Chromium/
+    persistent-WebKit journeys prove zero pre-approval request, bounded CORS
+    HTTPS text fetch, rapid approval/retry currentness, denial, deadlines,
+    cancellation, credential-free wire shape, and separated builds. No
+    production Broker deployment, durable Program grant, remote-to-VFS
+    `download`, search, authenticated request, or arbitrary Browser egress is
+    claimed. S2-N1/N2 retain their own acceptance and stop conditions.
     Python and other later S2 execution profiles, S3 Credential Vault, S4 Agent/OpenUI state,
     S5 BYO Sandbox/products, P1-D, and broader import/artifact work require their
     named predecessor and separate acceptance; none is retroactively part of the

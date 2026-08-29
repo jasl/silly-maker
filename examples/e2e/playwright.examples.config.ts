@@ -4,6 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
 import {
   sillyOsTargetUrlV1,
   sillyOsTargetV1,
+  sillyOsNetworkBrokerTargetUrlV1,
+  sillyOsNetworkBrokerTargetV1,
   sillyOsWorkspaceSandboxTargetUrlV1,
   sillyOsWorkspaceSandboxTargetV1,
   templateTargetUrlV1,
@@ -52,6 +54,16 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       url: sillyOsWorkspaceSandboxTargetUrlV1("workspace-sandbox.html"),
+    },
+    {
+      command:
+        `deno run -A npm:vite --config examples/silly-os/vite.network-broker.config.ts --host ${sillyOsNetworkBrokerTargetV1.host} --port ${
+          String(sillyOsNetworkBrokerTargetV1.port)
+        } --strictPort`,
+      cwd: "../..",
+      reuseExistingServer: false,
+      timeout: 120_000,
+      url: sillyOsNetworkBrokerTargetUrlV1("network-broker.html"),
     },
     {
       command:

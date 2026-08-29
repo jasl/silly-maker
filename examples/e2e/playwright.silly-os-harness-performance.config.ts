@@ -2,6 +2,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 import {
+  sillyOsNetworkBrokerTargetUrlV1,
+  sillyOsNetworkBrokerTargetV1,
   sillyOsTargetUrlV1,
   sillyOsTargetV1,
   sillyOsWorkspaceSandboxTargetUrlV1,
@@ -10,7 +12,7 @@ import {
 
 /**
  * Raw-only SillyOS harness characterization. It intentionally owns only the
- * control and independent Sandbox servers and never runs in parallel.
+ * control, independent Sandbox, and keyless Broker servers and never runs in parallel.
  */
 export default defineConfig({
   testDir: ".",
@@ -40,6 +42,16 @@ export default defineConfig({
       reuseExistingServer: true,
       timeout: 120_000,
       url: sillyOsWorkspaceSandboxTargetUrlV1("workspace-sandbox.html"),
+    },
+    {
+      command:
+        `deno run -A npm:vite --config examples/silly-os/vite.network-broker.config.ts --host ${sillyOsNetworkBrokerTargetV1.host} --port ${
+          String(sillyOsNetworkBrokerTargetV1.port)
+        } --strictPort`,
+      cwd: "../..",
+      reuseExistingServer: true,
+      timeout: 120_000,
+      url: sillyOsNetworkBrokerTargetUrlV1("network-broker.html"),
     },
   ],
   projects: [

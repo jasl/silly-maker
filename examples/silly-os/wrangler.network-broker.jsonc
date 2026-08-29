@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: MIT
+// Independent-origin, keyless Browser Network Broker deployment.
+{
+  "name": "silly-os-network",
+  "main": "./src/deployment/cloudflare-network-broker-worker.ts",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./dist-network-broker",
+    "binding": "ASSETS",
+    "run_worker_first": ["/*"],
+  },
+}

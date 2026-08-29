@@ -16,6 +16,8 @@ export const deterministicFileOpsProbePrefixV1:
   "Exercise the pinned native Pi workspace file operations lifecycle: ";
 export const deterministicGrepProbePrefixV1:
   "Exercise the product-fixed Pi grep tool with exact text: ";
+export const deterministicFetchUrlProbePrefixV1:
+  "Exercise the product-fixed Pi fetch_url tool for exact URL: ";
 export const deterministicOversizedReadProbeV1:
   "Verify the qualification workspace rejects an oversized native Pi read.";
 

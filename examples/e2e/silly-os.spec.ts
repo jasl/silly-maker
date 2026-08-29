@@ -3,7 +3,13 @@
 import type { Frame, Locator, Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
-import { expect, sillyOsTargetUrlV1, sillyOsWorkspaceSandboxTargetV1, test } from "./fixtures.ts";
+import {
+  expect,
+  sillyOsNetworkBrokerTargetV1,
+  sillyOsTargetUrlV1,
+  sillyOsWorkspaceSandboxTargetV1,
+  test,
+} from "./fixtures.ts";
 import { readZipCentralDirectoryV1 } from "./silly-os-workspace-zip.ts";
 
 const translationIntentV1 =
@@ -12,6 +18,8 @@ const deterministicEditProbePrefixV1 = "Exercise the pinned native Pi edit tool 
 const deterministicBashProbePrefixV1 = "Exercise the pinned native Pi bash tool with exact text: ";
 const deterministicFileOpsProbePrefixV1 =
   "Exercise the pinned native Pi workspace file operations lifecycle: ";
+const deterministicFetchUrlProbePrefixV1 =
+  "Exercise the product-fixed Pi fetch_url tool for exact URL: ";
 
 async function expectProgramStorageReadyV1(page: Page): Promise<void> {
   await expect(page.locator('[data-program-storage-state="ready"]')).toBeVisible();
@@ -2203,4 +2211,140 @@ test("@mobile portrait uses one navigable pane without page overflow", async ({ 
   await expect(workpiece).toBeHidden();
   await expect(page.getByRole("textbox", { name: "Ask for a change…" })).toBeVisible();
   await expectNoPageOverflowV1(page);
+});
+
+test("the fixed Pi fetch_url tool requires one exact grant and crosses only the keyless Network Broker", async ({ durableProgramPage: page }) => {
+  const sentinelKey = "sillyos-network-key-must-not-cross-broker";
+  const targetUrl = "https://network-target.test/assets/notes.txt?source=silly-os";
+  const targetBody = "SillyOS Browser Broker physical response\n";
+  const brokerOrigin = "http://" + sillyOsNetworkBrokerTargetV1.host + ":" +
+    String(sillyOsNetworkBrokerTargetV1.port);
+  type CapturedBrokerRequestV1 = {
+    readonly method: string;
+    readonly url: string;
+    readonly headers: Record<string, string>;
+    readonly postData: string | null;
+  };
+  const targetRequests: CapturedBrokerRequestV1[] = [];
+
+  await page.route(targetUrl, async (route) => {
+    const request = route.request();
+    targetRequests.push({
+      method: request.method(),
+      url: request.url(),
+      headers: await request.allHeaders(),
+      postData: request.postData(),
+    });
+    await route.fulfill({
+      status: 200,
+      contentType: "text/plain; charset=utf-8",
+      headers: {
+        "access-control-allow-origin": brokerOrigin,
+        "cache-control": "no-store",
+      },
+      body: targetBody,
+    });
+  });
+  // Playwright route.fulfill synthesizes a terminal Response and bypasses the
+  // Browser's redirect and CORS enforcement. Those negative paths stay in the
+  // fetch-adapter contracts until a controlled real HTTPS target is available.
+
+  await openCreatorHomeV1(page);
+  await initializePiTestV1(page, sentinelKey);
+  await expect(page.locator("iframe[data-silly-os-network-broker='active']")).toHaveCount(1);
+  expect(targetRequests).toHaveLength(0);
+
+  await page.getByRole("textbox", { name: "What would you like to make?" }).fill(
+    translationIntentV1,
+  );
+  await page.getByRole("button", { name: "Create program" }).click();
+  const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
+  await expect(workspace).toBeVisible();
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
+  const programId = await readProgramIdV1(workspace);
+  const workspaceSessionId = await readWorkspaceSessionIdV1(workspace);
+
+  const fetchRequirement = `${deterministicFetchUrlProbePrefixV1}${targetUrl}`;
+  const composer = page.getByRole("textbox", { name: "Ask for a change…" });
+  await composer.fill(fetchRequirement);
+  await page.getByRole("button", { name: "Send" }).click();
+
+  const approval = page.getByRole("alert").filter({ hasText: "Network access requested" });
+  await expect(approval).toBeVisible();
+  await expect(approval).toContainText("https://network-target.test");
+  await expect(approval).toContainText(targetUrl);
+  await expect(approval).toContainText("path or query may contain data");
+  await expect(composer).toBeDisabled();
+  expect(targetRequests).toHaveLength(0);
+
+  await approval.getByRole("button", { name: "Allow once" }).click();
+  await expect.poll(() => targetRequests.length).toBe(1);
+  await expect(approval).toHaveCount(0);
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(
+    page.locator('[data-chat-role="creator"]').getByText(
+      "Deterministic test proposal ready.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(composer).toBeEnabled();
+  await expect(
+    page.locator('[data-chat-role="user"]').getByText(fetchRequirement, { exact: true }),
+  ).toHaveCount(1);
+
+  const [request] = targetRequests;
+  expect(request).toBeDefined();
+  expect(request).toMatchObject({
+    method: "GET",
+    url: targetUrl,
+    postData: null,
+  });
+  expect(request?.headers.origin).toBe(brokerOrigin);
+  expect(request?.headers.authorization).toBeUndefined();
+  expect(request?.headers.cookie).toBeUndefined();
+  expect(request?.headers.referer).toBeUndefined();
+  expect(JSON.stringify(request)).not.toContain(sentinelKey);
+
+  const afterAllowed = await readDurableProgramV3(page, programId);
+  if (afterAllowed === null) throw new Error("expected durable Program after allowed fetch");
+  if (afterAllowed.reviewBinding === null) {
+    throw new Error("expected current Workspace identity after allowed fetch");
+  }
+  const protectedIdentities = [
+    programId,
+    workspaceSessionId,
+    afterAllowed.reviewBinding.workspaceId,
+    afterAllowed.reviewBinding.volumeId,
+  ];
+  for (const identity of protectedIdentities) {
+    expect(JSON.stringify(request)).not.toContain(identity);
+  }
+  const durableReceiptCount = afterAllowed.agentRunReceipts.length;
+
+  await composer.fill(fetchRequirement);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(approval).toBeVisible();
+  expect(targetRequests).toHaveLength(1);
+  await approval.getByRole("button", { name: "Deny" }).click();
+  await expect(approval).toHaveCount(0);
+  expect(targetRequests).toHaveLength(1);
+  await expect(
+    page.locator('[data-chat-role="user"]').getByText(fetchRequirement, { exact: true }),
+  ).toHaveCount(1);
+  await expect.poll(async () =>
+    (await readDurableProgramV3(page, programId))?.agentRunReceipts.length ?? -1
+  ).toBe(durableReceiptCount);
+
+  for (const capturedRequest of targetRequests) {
+    expect(capturedRequest.method).toBe("GET");
+    expect(capturedRequest.postData).toBeNull();
+    expect(capturedRequest.headers.origin).toBe(brokerOrigin);
+    expect(capturedRequest.headers.authorization).toBeUndefined();
+    expect(capturedRequest.headers.cookie).toBeUndefined();
+    expect(capturedRequest.headers.referer).toBeUndefined();
+    expect(JSON.stringify(capturedRequest)).not.toContain(sentinelKey);
+    for (const identity of protectedIdentities) {
+      expect(JSON.stringify(capturedRequest)).not.toContain(identity);
+    }
+  }
 });

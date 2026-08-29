@@ -4,6 +4,7 @@ import {
   CircleCheck,
   CircleX,
   FileText,
+  Globe2,
   KeyRound,
   LoaderCircle,
   Paperclip,
@@ -182,6 +183,13 @@ export interface ChatPanePropsV1 {
     readonly diagnosticPath: string | null;
     readonly onCancel: () => void;
     readonly onForget: () => void;
+    readonly networkApproval?: {
+      readonly approvalId: string;
+      readonly origin: string;
+      readonly url: string;
+      readonly onAllowOnce: () => boolean | void | Promise<boolean | void>;
+      readonly onDeny: () => boolean | void | Promise<boolean | void>;
+    };
   };
 }
 
@@ -201,6 +209,7 @@ export function ChatPaneV1({
   piAgentRun,
 }: ChatPanePropsV1): ReactNode {
   const [draft, setDraft] = useState("");
+  const [networkDecisionPending, setNetworkDecisionPending] = useState(false);
   const feedEndRef = useRef<HTMLDivElement>(null);
   const resourceInputRef = useRef<HTMLInputElement>(null);
   const liveAgent = piAgentRun?.runtime === "pi_provider";
@@ -210,15 +219,31 @@ export function ChatPaneV1({
   const agentFailed = liveAgent ? copy.piLiveFailed : copy.piTestFailed;
   const pendingReviewChanged = workspaceReview?.pendingStatus === "changed";
   const providerModelUnavailable = providerModel !== undefined && providerModel.status !== "ready";
+  const networkApproval = piAgentRun?.networkApproval;
+  const interactionPending = mutationPending || networkApproval !== undefined;
 
   useEffect(() => {
     feedEndRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length]);
+  }, [messages.length, networkApproval?.approvalId]);
+
+  useEffect(() => {
+    setNetworkDecisionPending(false);
+  }, [networkApproval?.approvalId]);
+
+  const resolveNetworkApprovalV1 = (
+    operation: (() => boolean | void | Promise<boolean | void>) | undefined,
+  ): void => {
+    if (operation === undefined || networkDecisionPending) return;
+    setNetworkDecisionPending(true);
+    void Promise.resolve(operation()).catch(() => undefined).finally(() =>
+      setNetworkDecisionPending(false)
+    );
+  };
 
   const submitV1 = (event?: FormEvent): void => {
     event?.preventDefault();
     const text = draft.trim();
-    if (text.length === 0 || providerModelUnavailable) return;
+    if (text.length === 0 || providerModelUnavailable || interactionPending) return;
     void Promise.resolve(onSend(text)).then((accepted) => {
       if (accepted === false) return;
       setDraft((current) => current.trim() === text ? "" : current);
@@ -320,6 +345,54 @@ export function ChatPaneV1({
           </aside>
         )}
 
+        {networkApproval !== undefined && (
+          <aside
+            className="network-approval"
+            data-network-approval-id={networkApproval.approvalId}
+            role="alert"
+          >
+            <div className="network-approval__heading">
+              <Globe2 size={16} aria-hidden="true" />
+              <strong>{copy.networkApprovalTitle}</strong>
+            </div>
+            <p>{copy.networkApprovalWarning}</p>
+            <dl>
+              <div>
+                <dt>{copy.networkApprovalOrigin}</dt>
+                <dd>
+                  <code>{networkApproval.origin}</code>
+                </dd>
+              </div>
+              <div>
+                <dt>{copy.networkApprovalUrl}</dt>
+                <dd>
+                  <code>{networkApproval.url}</code>
+                </dd>
+              </div>
+            </dl>
+            <div className="network-approval__actions">
+              <Button
+                type="button"
+                size="sm"
+                variant="primary"
+                disabled={networkDecisionPending}
+                onClick={() => resolveNetworkApprovalV1(networkApproval.onAllowOnce)}
+              >
+                {copy.networkApprovalAllowOnce}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={networkDecisionPending}
+                onClick={() => resolveNetworkApprovalV1(networkApproval.onDeny)}
+              >
+                {copy.networkApprovalDeny}
+              </Button>
+            </div>
+          </aside>
+        )}
+
         {program !== null && proposal !== null && (
           <article className="program-proposal" data-proposal-status={proposal.status}>
             <div className="program-proposal__heading">
@@ -359,7 +432,7 @@ export function ChatPaneV1({
                     size="sm"
                     variant="primary"
                     icon={CircleCheck}
-                    disabled={mutationPending || pendingReviewChanged}
+                    disabled={interactionPending || pendingReviewChanged}
                     aria-describedby={pendingReviewChanged
                       ? pendingReviewStatusDescriptionIdV1
                       : undefined}
@@ -371,7 +444,7 @@ export function ChatPaneV1({
                     size="sm"
                     variant="secondary"
                     icon={CircleX}
-                    disabled={mutationPending}
+                    disabled={interactionPending}
                     onClick={onReject}
                   >
                     {copy.reject}
@@ -423,7 +496,7 @@ export function ChatPaneV1({
           rows={3}
           maxLength={4_000}
           placeholder={copy.sendPlaceholder}
-          disabled={mutationPending}
+          disabled={interactionPending}
           onChange={(event) => setDraft(event.currentTarget.value)}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing) return;
@@ -462,7 +535,7 @@ export function ChatPaneV1({
             size="sm"
             icon={Paperclip}
             aria-label={copy.addResource}
-            disabled={mutationPending || providerModelUnavailable}
+            disabled={interactionPending || providerModelUnavailable}
             onClick={() => resourceInputRef.current?.click()}
           />
           <div className="chat-composer__primary-actions">
@@ -481,7 +554,7 @@ export function ChatPaneV1({
               size="sm"
               icon={ArrowUp}
               aria-label={copy.send}
-              disabled={mutationPending || providerModelUnavailable || draft.trim().length === 0}
+              disabled={interactionPending || providerModelUnavailable || draft.trim().length === 0}
             />
           </div>
         </div>

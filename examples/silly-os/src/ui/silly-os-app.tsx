@@ -60,6 +60,8 @@ export interface SillyOsAgentDrainRegistryV1 {
 }
 
 type BrowserCreatorAgentModuleV1 = typeof import("../agent/creator-agent-port.ts");
+type BrowserNetworkBrokerModuleV1 =
+  typeof import("../network/browser-network-broker-frame-transport.ts");
 type BrowserCreatorAgentPortV1 = ReturnType<
   BrowserCreatorAgentModuleV1["createBrowserCreatorAgentPortV1"]
 >;
@@ -374,6 +376,9 @@ export function SillyOsAppV1({
   const agentFactoryRef = useRef<
     BrowserCreatorAgentModuleV1["createBrowserCreatorAgentPortV1"] | null
   >(null);
+  const networkBrokerFactoryRef = useRef<
+    BrowserNetworkBrokerModuleV1["createBrowserNetworkBrokerFrameTransportV1"] | null
+  >(null);
   const agentPortRef = useRef<BrowserCreatorAgentPortV1 | null>(null);
   const agentSetupEpochRef = useRef(0);
   const providerModelSelectionEpochRef = useRef(0);
@@ -454,10 +459,14 @@ export function SillyOsAppV1({
   useEffect(() => {
     if (!agentDrainRegistry.isAccepting()) return undefined;
     let current = true;
-    void import("../agent/creator-agent-port.ts").then(
-      (module) => {
+    void Promise.all([
+      import("../agent/creator-agent-port.ts"),
+      import("../network/browser-network-broker-frame-transport.ts"),
+    ]).then(
+      ([agentModule, networkModule]) => {
         if (!current || !agentDrainRegistry.isAccepting()) return;
-        agentFactoryRef.current = module.createBrowserCreatorAgentPortV1;
+        agentFactoryRef.current = agentModule.createBrowserCreatorAgentPortV1;
+        networkBrokerFactoryRef.current = networkModule.createBrowserNetworkBrokerFrameTransportV1;
         setPiAgentSetupStatus("available");
       },
       (error: unknown) => {
@@ -469,6 +478,7 @@ export function SillyOsAppV1({
     return () => {
       current = false;
       agentFactoryRef.current = null;
+      networkBrokerFactoryRef.current = null;
     };
   }, [agentDrainRegistry, reportFailure]);
 
@@ -505,6 +515,9 @@ export function SillyOsAppV1({
           persistence,
           agentRunId: terminal.run.agentRunId,
           receipts: port.getSnapshot().workspace.receipts,
+          receiptThroughSequence: port.workspaceReceiptAcknowledgementThroughSequence(
+            terminal.run.agentRunId,
+          ),
           acknowledgeWorkspaceReceipts: (throughSequence) =>
             port.acknowledgeWorkspaceReceipts(throughSequence),
           acknowledgeTerminal: (agentRunId) => port.acknowledgeTerminal(agentRunId),
@@ -757,10 +770,12 @@ export function SillyOsAppV1({
     providerModelSelectionPendingRef.current = false;
     setProviderModelSelectionPending(false);
     const factory = agentFactoryRef.current;
+    const networkBrokerFactory = networkBrokerFactoryRef.current;
     if (selection !== null) persistProviderPreferenceV1(selection);
     setActiveProviderSelection(piRuntime === "pi_provider" ? selection : null);
     if (
-      !agentDrainRegistry.isAccepting() || factory === null || suppliedCredential.length === 0 ||
+      !agentDrainRegistry.isAccepting() || factory === null || networkBrokerFactory === null ||
+      suppliedCredential.length === 0 ||
       (piRuntime === "pi_provider" && selection === null)
     ) {
       setPiAgentSetupStatus("failed");
@@ -798,11 +813,13 @@ export function SillyOsAppV1({
       port = piRuntime === "deterministic_test"
         ? factory({
           onConnectionLost,
+          openNetworkBroker: () => networkBrokerFactory(),
           runtime: "deterministic_test",
           workspaceAuthority,
         })
         : factory({
           onConnectionLost,
+          openNetworkBroker: () => networkBrokerFactory(),
           runtime: "pi_provider",
           selection: selection as BrowserPiModelSelectionV1,
           workspaceAuthority,
@@ -995,6 +1012,10 @@ export function SillyOsAppV1({
       reportFailure("silly_os.browser_pi_unavailable", "credential_required");
       return false;
     }
+    if (port.getSnapshot().networkApproval !== null) {
+      reportFailure("silly_os.browser_network_approval_pending", "approval_required");
+      return false;
+    }
     const currentSession = controller.getSnapshot().session;
     if (
       currentSession.route !== "workspace" || currentSession.program === null ||
@@ -1016,6 +1037,31 @@ export function SillyOsAppV1({
     if (result.kind === "submitted") return true;
     reportFailure("silly_os.browser_pi_submit_failed", result.diagnostic);
     return false;
+  };
+
+  const resolveNetworkApprovalV1 = async (
+    approvalId: string,
+    decision: "allow_once" | "deny",
+  ): Promise<boolean> => {
+    const port = agentPortRef.current;
+    if (port === null) return false;
+    let result: Awaited<ReturnType<BrowserCreatorAgentPortV1["resolveNetworkApproval"]>>;
+    try {
+      result = await port.resolveNetworkApproval({ approvalId, decision });
+    } catch (error) {
+      reportFailure("silly_os.browser_network_approval_failed", error);
+      return false;
+    }
+    if (result.kind !== "resolved") {
+      reportFailure("silly_os.browser_network_approval_failed", result.diagnostic);
+      return false;
+    }
+    if (result.decision === "deny") return true;
+    if (result.retryText === null) {
+      reportFailure("silly_os.browser_network_approval_failed", "retry_text_missing");
+      return false;
+    }
+    return sendFollowUpV1(result.retryText);
   };
 
   const retryAgentWorkspaceV1 = (): void => {
@@ -1135,8 +1181,10 @@ export function SillyOsAppV1({
     abortController.abort();
   };
 
+  const pendingNetworkApproval = agentSnapshot?.networkApproval ?? null;
   const agentMutationPending = agentSnapshot?.phase === "running" ||
     (agentSnapshot?.terminalRuns.length ?? 0) > 0;
+  const networkApprovalPending = pendingNetworkApproval !== null;
   const agentWorkspaceLifecyclePending = agentSnapshot?.workspace.phase === "opening" ||
     agentSnapshot?.workspace.phase === "closing";
   const executionWorkspaceReady = snapshot.route === "workspace" && snapshot.program !== null &&
@@ -1148,7 +1196,8 @@ export function SillyOsAppV1({
   const workspaceExportAvailable = agentPort !== null &&
     executionWorkspaceReady && executionWorkspaceSessionId !== null;
   const workspaceExportDisabled = durability.phase !== "ready" || agentMutationPending ||
-    agentWorkspaceLifecyclePending || !executionWorkspaceReady || workspaceExportPending;
+    networkApprovalPending || agentWorkspaceLifecyclePending || !executionWorkspaceReady ||
+    workspaceExportPending;
   const providerSettingsProfile: ProviderSettingsProfileV1 = activeProviderSelection === null ||
       internalPiTest
     ? { phase: "disconnected", active: null }
@@ -1328,11 +1377,13 @@ export function SillyOsAppV1({
             homeDisabled={durability.phase === "saving" || agentMutationPending ||
               agentWorkspaceLifecyclePending || workspaceExportPending}
             mutationPending={durability.phase === "saving" || agentMutationPending ||
+              networkApprovalPending ||
               !executionWorkspaceReady || workspaceExportPending}
             onHome={() => void openHomeV1()}
             onLocaleChange={changeLocaleV1}
             {...(internalPiTest ? {} : { onOpenSettings: openSettingsV1 })}
             onAccept={() => {
+              if (networkApprovalPending) return;
               const proposal = snapshot.proposal;
               if (proposal === null) {
                 reportFailure("silly_os.proposal_unavailable", proposal);
@@ -1348,6 +1399,7 @@ export function SillyOsAppV1({
               });
             }}
             onReject={() => {
+              if (networkApprovalPending) return;
               const proposal = snapshot.proposal;
               if (proposal === null) {
                 reportFailure("silly_os.proposal_unavailable", proposal);
@@ -1391,6 +1443,23 @@ export function SillyOsAppV1({
                   });
                 },
                 onForget: forgetPiAgentV1,
+                ...(pendingNetworkApproval === null ? {} : {
+                  networkApproval: {
+                    approvalId: pendingNetworkApproval.approvalId,
+                    origin: pendingNetworkApproval.origin,
+                    url: pendingNetworkApproval.url,
+                    onAllowOnce: () =>
+                      resolveNetworkApprovalV1(
+                        pendingNetworkApproval.approvalId,
+                        "allow_once",
+                      ),
+                    onDeny: () =>
+                      resolveNetworkApprovalV1(
+                        pendingNetworkApproval.approvalId,
+                        "deny",
+                      ),
+                  },
+                }),
               },
             })}
           />

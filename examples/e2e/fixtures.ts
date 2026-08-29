@@ -32,8 +32,17 @@ export function sillyOsWorkspaceSandboxTargetUrlV1(query = ""): string {
   }/${query}`;
 }
 
+/** SillyOS: independent-origin keyless Browser Network Broker target. */
+export const sillyOsNetworkBrokerTargetV1 = { host: hostV1, port: 41741 };
+
+export function sillyOsNetworkBrokerTargetUrlV1(query = ""): string {
+  return `http://${sillyOsNetworkBrokerTargetV1.host}:${
+    String(sillyOsNetworkBrokerTargetV1.port)
+  }/${query}`;
+}
+
 /** One Last Sound Check: current product-owned Player, Stage, and audio path. */
-export const vnLastSoundCheckTargetV1 = { host: hostV1, port: 41741 };
+export const vnLastSoundCheckTargetV1 = { host: hostV1, port: 41742 };
 
 export function vnLastSoundCheckTargetUrlV1(query = ""): string {
   return `http://${vnLastSoundCheckTargetV1.host}:${
@@ -42,7 +51,7 @@ export function vnLastSoundCheckTargetUrlV1(query = ""): string {
 }
 
 /** One Last Sound Check: prebuilt production surface with explicit declarative Mods. */
-export const vnLastSoundCheckModsTargetV1 = { host: hostV1, port: 41742 };
+export const vnLastSoundCheckModsTargetV1 = { host: hostV1, port: 41743 };
 
 export function vnLastSoundCheckModsTargetUrlV1(query = ""): string {
   return `http://${vnLastSoundCheckModsTargetV1.host}:${

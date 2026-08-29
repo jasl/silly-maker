@@ -12,7 +12,7 @@ import {
   type BrowserPiWorkerLikeV1,
 } from "../agent/browser-pi-transport.ts";
 import {
-  createBrowserPiWorkerRuntimeV1,
+  createBrowserPiWorkerRuntimeV1 as createBrowserPiWorkerRuntimeCoreV1,
   createBrowserPiWorkspaceToolsV1,
 } from "../agent/browser-pi-worker-runtime.ts";
 import type {
@@ -23,13 +23,20 @@ import type {
   BrowserPiWorkspaceSnapshotWireV1,
 } from "../agent/browser-pi-worker-protocol.ts";
 import {
-  createBrowserCreatorAgentPortV1,
+  createBrowserCreatorAgentPortV1 as createBrowserCreatorAgentPortCoreV1,
   type CreatorAgentPortV1,
 } from "../agent/creator-agent-port.ts";
+import type { BrowserNetworkBrokerLeaseV1 } from "../network/browser-network-broker-frame-transport.ts";
+import {
+  admitBrowserNetworkBrokerCancelV1,
+  admitBrowserNetworkBrokerFetchUrlRequestV1,
+  createBrowserNetworkBrokerFetchUrlResultV1,
+} from "../network/browser-network-broker-protocol.ts";
 import {
   deterministicBashProbePrefixV1,
   deterministicCancellationHoldPrefixV1,
   deterministicEditProbePrefixV1,
+  deterministicFetchUrlProbePrefixV1,
   deterministicFileOpsProbePrefixV1,
   deterministicGrepProbePrefixV1,
   deterministicPersistenceReadPrefixV1,
@@ -143,6 +150,89 @@ const customSelectionV1 = Object.freeze(
   } as const,
 );
 const testWorkspaceAuthoritiesV1 = new Set<{ dispose(): Promise<void> }>();
+
+function createTestNetworkBrokerLeaseV1(input: {
+  readonly text?: string;
+  readonly onRequest?: (url: string, respond: () => void) => void;
+  readonly onCancel?: (requestId: string) => void;
+  readonly onMessage?: (message: unknown) => void;
+} = {}): BrowserNetworkBrokerLeaseV1 {
+  const channel = new MessageChannel();
+  const text = input.text ?? "SillyOS deterministic network response.";
+  let terminated = false;
+  channel.port1.addEventListener("message", (event: MessageEvent<unknown>) => {
+    input.onMessage?.(structuredClone(event.data));
+    const request = admitBrowserNetworkBrokerFetchUrlRequestV1(event.data);
+    if (request !== null) {
+      const respond = (): void =>
+        channel.port1.postMessage(createBrowserNetworkBrokerFetchUrlResultV1({
+          requestId: request.requestId,
+          status: 200,
+          contentType: "text/plain; charset=utf-8",
+          bytes: new TextEncoder().encode(text).byteLength,
+          text,
+        }));
+      if (input.onRequest === undefined) respond();
+      else input.onRequest(request.url, respond);
+      return;
+    }
+    const cancel = admitBrowserNetworkBrokerCancelV1(event.data);
+    if (cancel === null) channel.port1.close();
+    else input.onCancel?.(cancel.requestId);
+  });
+  channel.port1.start();
+  return {
+    agentPort: channel.port2,
+    terminate(): void {
+      if (terminated) return;
+      terminated = true;
+      channel.port1.close();
+      channel.port2.close();
+    },
+  };
+}
+
+const openTestNetworkBrokerV1 = (): Promise<BrowserNetworkBrokerLeaseV1> =>
+  Promise.resolve(createTestNetworkBrokerLeaseV1());
+
+function createBrowserPiWorkerRuntimeV1(
+  input: Parameters<typeof createBrowserPiWorkerRuntimeCoreV1>[0],
+): ReturnType<typeof createBrowserPiWorkerRuntimeCoreV1> {
+  const core = createBrowserPiWorkerRuntimeCoreV1(input);
+  let implicitLease: BrowserNetworkBrokerLeaseV1 | null = null;
+  return {
+    receive(message, ports = []) {
+      const kind = message !== null && typeof message === "object"
+        ? Object.getOwnPropertyDescriptor(message, "kind")?.value
+        : null;
+      if (kind === "configure" && ports.length === 0) {
+        implicitLease?.terminate();
+        implicitLease = createTestNetworkBrokerLeaseV1();
+        core.receive(message, [implicitLease.agentPort]);
+        return;
+      }
+      core.receive(message, ports);
+    },
+    dispose(): void {
+      core.dispose();
+      implicitLease?.terminate();
+      implicitLease = null;
+    },
+  };
+}
+
+function createBrowserCreatorAgentPortV1(
+  input: Omit<Parameters<typeof createBrowserCreatorAgentPortCoreV1>[0], "openNetworkBroker"> & {
+    readonly openNetworkBroker?: () => Promise<BrowserNetworkBrokerLeaseV1>;
+  },
+): CreatorAgentPortV1 {
+  return createBrowserCreatorAgentPortCoreV1(
+    {
+      ...input,
+      openNetworkBroker: input.openNetworkBroker ?? openTestNetworkBrokerV1,
+    } as Parameters<typeof createBrowserCreatorAgentPortCoreV1>[0],
+  );
+}
 
 afterEach(async () => {
   vi.useRealTimers();
@@ -561,6 +651,7 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   private anchor: BrowserWorkspaceVolumeAnchorWireV1 | null = null;
   private nextRequestId = 1;
   private nextCheckpointOrdinal = 2;
+  private controlledWorkerGeneration: number | null = null;
   private disposed = false;
   closeWorkspaceCalls = 0;
   agentSubmitAdmissionCalls = 0;
@@ -573,6 +664,19 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   authorizedExportStarted = false;
   private finishAuthorizedExport: (() => void) | null = null;
   nextOpenFailureCode: BrowserWorkspaceHostControlFailureCodeV1 | null = null;
+
+  reflectControlledWorkerGeneration(generation: number): void {
+    this.controlledWorkerGeneration = generation;
+  }
+
+  private reflectControlledWorkerSnapshotV1(
+    snapshot: BrowserWorkspaceHostSnapshotWireV1,
+  ): BrowserWorkspaceHostSnapshotWireV1 {
+    return this.controlledWorkerGeneration === null ? snapshot : {
+      ...snapshot,
+      descriptor: { ...snapshot.descriptor, generation: this.controlledWorkerGeneration },
+    };
+  }
 
   releaseAuthorizedExport(): void {
     this.finishAuthorizedExport?.();
@@ -709,7 +813,7 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   async queryWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1> {
     const response = await this.control({ method: "query_workspace", workspaceSessionId });
     if (response.method !== "query_workspace") throw new Error("test query response mismatch");
-    return response.snapshot;
+    return this.reflectControlledWorkerSnapshotV1(response.snapshot);
   }
 
   async detachWorkspaceEnvironment(workspaceSessionId: string): Promise<void> {
@@ -768,7 +872,7 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     this.closeWorkspaceCalls += 1;
     const response = await this.control({ method: "close_workspace", workspaceSessionId });
     if (response.method !== "close_workspace") throw new Error("test close response mismatch");
-    return response.snapshot;
+    return this.reflectControlledWorkerSnapshotV1(response.snapshot);
   }
 
   async closeActiveWorkspace(): Promise<BrowserWorkspaceHostSnapshotWireV1 | null> {
@@ -992,10 +1096,12 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   dropSubmitResponses = false;
   failConfiguration = false;
   failConnectionTest = false;
+  failReceiptAcknowledgement = false;
   modelSelectionFailure: BrowserPiModelSelectionFailureCodeV1 | null = null;
   selectModelRequests = 0;
   startRequests = 0;
   testConnectionRequests = 0;
+  readonly workspaceReceiptAcknowledgements: number[] = [];
   private configuredRuntime: unknown = null;
   private configuredSelection: unknown = null;
   latestPiRunId: string | null = null;
@@ -1003,8 +1109,10 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   private readonly messageListeners = new Set<(event: { readonly data: unknown }) => void>();
   private readonly errorListeners = new Set<(event: unknown) => void>();
   private nextPiRunOrdinal = 1;
+  private nextWorkspaceReceiptSequence = 1;
   private workspace: BrowserPiWorkspaceSnapshotWireV1 | null = null;
   private environmentPort: MessagePort | null = null;
+  private pendingNetworkApprovalId: string | null = null;
 
   private emit(message: unknown): void {
     const data = structuredClone(message);
@@ -1080,6 +1188,28 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
       }
       return;
     }
+    if (envelope.kind === "resolve_network_approval") {
+      if (envelope.approvalId !== this.pendingNetworkApprovalId) {
+        this.emit({
+          revision: 1,
+          kind: "network_approval_response",
+          requestId: envelope.requestId,
+          ok: false,
+          code: "not_pending",
+        });
+        return;
+      }
+      this.pendingNetworkApprovalId = null;
+      this.emit({
+        revision: 1,
+        kind: "network_approval_response",
+        requestId: envelope.requestId,
+        ok: true,
+        approvalId: envelope.approvalId,
+        decision: envelope.decision,
+      });
+      return;
+    }
     const record = envelope.record as Readonly<Record<string, unknown>>;
     if (envelope.kind === "workspace_request") {
       if (record.method === "attach_workspace") {
@@ -1106,7 +1236,18 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
       } else if (record.method === "close_workspace") {
         this.workspace = { ...this.workspace, phase: "closed" };
       } else if (record.method === "acknowledge_workspace_receipts") {
+        if (this.failReceiptAcknowledgement) {
+          this.emit({
+            revision: 1,
+            kind: "workspace_response",
+            requestId: envelope.requestId,
+            ok: false,
+            code: "workspace_busy",
+          });
+          return;
+        }
         const throughSequence = record.throughSequence as number;
+        this.workspaceReceiptAcknowledgements.push(throughSequence);
         this.workspace = {
           ...this.workspace,
           receipts: this.workspace.receipts.filter((receipt) => receipt.sequence > throughSequence),
@@ -1183,7 +1324,7 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   }
 
   emitRunFailure(
-    code: "cancelled" | "pi_failed",
+    code: "approval_required" | "cancelled" | "pi_failed",
     piRunId: string = this.latestPiRunId ?? "",
   ): void {
     this.emit({
@@ -1197,6 +1338,68 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
         sequence: 1,
       },
     });
+  }
+
+  emitNetworkApproval(
+    approvalId: string,
+    piRunId: string = this.latestPiRunId ?? "",
+  ): void {
+    const execution = this.latestExecution;
+    if (execution === null) throw new Error("expected an execution binding");
+    this.pendingNetworkApprovalId = approvalId;
+    this.emit({
+      revision: 1,
+      kind: "network_approval_required",
+      approval: {
+        revision: 1,
+        approvalId,
+        programId: execution.programId,
+        workspaceId: execution.workspaceId,
+        workspaceSessionId: execution.workspaceSessionId,
+        sessionId: "controlled.session.1",
+        runId: piRunId,
+        toolCallId: "tool.fetch-url.1",
+        operation: "fetch_url",
+        origin: "https://assets.example.test",
+        url: "https://assets.example.test/file.txt?from=program",
+      },
+    });
+  }
+
+  emitWorkspaceMutation(
+    piRunId: string = this.latestPiRunId ?? "",
+    changedPath = ".sillyos/network-before-approval.txt",
+  ): void {
+    const workspace = this.workspace;
+    const execution = this.latestExecution;
+    if (workspace === null || execution === null) {
+      throw new Error("expected an open controlled Workspace");
+    }
+    const sequence = this.nextWorkspaceReceiptSequence++;
+    const receipt = Object.freeze({
+      revision: 1 as const,
+      sequence,
+      programId: workspace.programId,
+      workspaceId: workspace.workspaceId,
+      workspaceSessionId: workspace.workspaceSessionId,
+      sessionId: "controlled.session.1",
+      runId: piRunId,
+      toolCallId: `tool.write.${String(sequence)}`,
+      tool: "write" as const,
+      expectedGeneration: execution.expectedGeneration,
+      baseGeneration: workspace.generation,
+      resultingGeneration: workspace.generation + 1,
+      outcome: "succeeded" as const,
+      effect: "changed" as const,
+      changedPaths: Object.freeze([changedPath]),
+      diagnosticCode: null,
+    });
+    this.workspace = {
+      ...workspace,
+      generation: receipt.resultingGeneration,
+      receipts: Object.freeze([...workspace.receipts, receipt]),
+    };
+    this.emit({ revision: 1, kind: "workspace_receipt", receipt });
   }
 
   emitCompleted(run: CreatorAgentRunRequestV1, text: string): void {
@@ -1515,7 +1718,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     expect(agentInputs).toEqual([{
       apiKey: "route-sentinel-key",
       selection: copilotCompletionsSelectionV1,
-      workspaceTools: ["read", "write", "edit", "bash", "grep"],
+      workspaceTools: ["read", "write", "edit", "bash", "grep", "fetch_url"],
     }]);
 
     runtime.receive({
@@ -2845,6 +3048,184 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     runtime.dispose();
     await workspaceAuthority.dispose();
   });
+
+  it("requires exact fetch_url approval, then consumes one permit without sending the key", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const brokerMessages: unknown[] = [];
+    const brokerRequests: string[] = [];
+    const brokerCancels: string[] = [];
+    const lateBrokerResponse: { current: (() => void) | null } = { current: null };
+    let brokerRequestsBeforeGrant: readonly string[] | null = null;
+    let onNetworkApproval: (
+      message: Extract<
+        BrowserPiWorkerAnyOutboundMessageV1,
+        { readonly kind: "network_approval_required" }
+      >,
+    ) => void = () => {};
+    const brokerLease = createTestNetworkBrokerLeaseV1({
+      onMessage: (message) => brokerMessages.push(message),
+      onRequest: (url, respond) => {
+        brokerRequests.push(url);
+        if (brokerRequests.length === 1) respond();
+        else lateBrokerResponse.current = respond;
+      },
+      onCancel: (requestId) => brokerCancels.push(requestId),
+    });
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const runtime = createBrowserPiWorkerRuntimeCoreV1({
+      postMessage: (message) => {
+        const cloned = structuredClone(message);
+        messages.push(cloned);
+        if (cloned.kind === "network_approval_required") onNetworkApproval(cloned);
+      },
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "deterministic_test",
+      selection: null,
+      credential: { kind: "api_key", value: "sentinel-network-key" },
+    }, [brokerLease.agentPort]);
+    const execution = await attachRuntimeWorkspaceV1(
+      runtime,
+      messages,
+      workspaceAuthority,
+      2,
+    );
+    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 3 && message.ok
+      )
+    );
+    const url = "https://example.test/reference.txt?revision=1";
+    const fetchText = `${deterministicFetchUrlProbePrefixV1}${url}`;
+    const submitFetchV1 = (requestId: number, proposalId: string): void => {
+      runtime.receive(rpcRequestV1(requestId, {
+        revision: 1,
+        requestId,
+        method: "submit",
+        params: {
+          sessionId: "sillyos.session.1",
+          text: serializeCreatorAgentSubmitV1({ ...submitV1, proposalId, text: fetchText }),
+        },
+      }, execution));
+    };
+
+    // Resolve and retry reentrantly from the approval side-event. This keeps
+    // the predecessor non-terminal and proves its drain cannot erase the
+    // exact one-shot permit that was just granted.
+    onNetworkApproval = (message) => {
+      onNetworkApproval = () => {};
+      brokerRequestsBeforeGrant = [...brokerRequests];
+      runtime.receive({
+        revision: 1,
+        kind: "resolve_network_approval",
+        requestId: 5,
+        approvalId: message.approval.approvalId,
+        decision: "allow_once",
+      });
+      submitFetchV1(6, "workspace.preview.1.proposal.network.2");
+    };
+    submitFetchV1(4, "workspace.preview.1.proposal.network.1");
+    await waitUntilV1(() =>
+      messages.some((message) => message.kind === "network_approval_required") &&
+      messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).code === "approval_required"
+      ) &&
+      messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.2" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
+      )
+    );
+    const approvalIndex = messages.findIndex((message) =>
+      message.kind === "network_approval_required"
+    );
+    const failedIndex = messages.findIndex((message) =>
+      message.kind === "rpc_record" &&
+      (message.record as Readonly<Record<string, unknown>>).code === "approval_required"
+    );
+    expect(approvalIndex).toBeGreaterThan(-1);
+    expect(failedIndex).toBeGreaterThan(approvalIndex);
+    expect(brokerRequestsBeforeGrant).toEqual([]);
+    const approvalEvent = messages[approvalIndex];
+    if (approvalEvent?.kind !== "network_approval_required") {
+      throw new Error("expected exact network approval event");
+    }
+    expect(approvalEvent.approval).toMatchObject({
+      programId: submitV1.programId,
+      workspaceId: workspaceIdV1,
+      workspaceSessionId: workspaceSessionIdV1,
+      sessionId: "sillyos.session.1",
+      runId: "sillyos.run.1",
+      toolCallId: "sillyos-fetch-url-1",
+      operation: "fetch_url",
+      origin: "https://example.test",
+      url,
+    });
+
+    expect(messages).toContainEqual(expect.objectContaining({
+      kind: "network_approval_response",
+      requestId: 5,
+      ok: true,
+    }));
+    expect(brokerRequests).toEqual([url]);
+    expect(JSON.stringify(brokerMessages)).not.toContain("sentinel-network-key");
+
+    submitFetchV1(7, "workspace.preview.1.proposal.network.3");
+    await waitUntilV1(() =>
+      messages.filter((message) => message.kind === "network_approval_required").length === 2
+    );
+    expect(brokerRequests).toEqual([url]);
+
+    const secondApproval =
+      messages.filter((message) => message.kind === "network_approval_required")[1];
+    if (secondApproval?.kind !== "network_approval_required") {
+      throw new Error("expected the second exact network approval event");
+    }
+    runtime.receive({
+      revision: 1,
+      kind: "resolve_network_approval",
+      requestId: 8,
+      approvalId: secondApproval.approval.approvalId,
+      decision: "allow_once",
+    });
+    submitFetchV1(9, "workspace.preview.1.proposal.network.4");
+    await waitUntilV1(() => brokerRequests.length === 2);
+    runtime.receive(rpcRequestV1(10, {
+      revision: 1,
+      requestId: 10,
+      method: "cancel",
+      params: { sessionId: "sillyos.session.1", runId: "sillyos.run.4" },
+    }));
+    await waitUntilV1(() =>
+      brokerCancels.length === 1 && messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.4" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_failed" &&
+        (message.record as Readonly<Record<string, unknown>>).code === "cancelled"
+      )
+    );
+    expect(lateBrokerResponse.current).not.toBeNull();
+    const settleLateBrokerResponse = lateBrokerResponse.current;
+    if (settleLateBrokerResponse === null) {
+      throw new Error("expected the held Broker response");
+    }
+    settleLateBrokerResponse();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(messages.some((message) =>
+      message.kind === "rpc_record" &&
+      (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.4" &&
+      (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
+    )).toBe(false);
+    expect(brokerRequests).toEqual([url, url]);
+    runtime.dispose();
+    brokerLease.terminate();
+    await workspaceAuthority.dispose();
+  });
 });
 
 describe("SillyOS Browser Pi transport and product port", () => {
@@ -3443,6 +3824,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const transport = createBrowserPiWorkerRawTransportV1({
       runtime: "deterministic_test",
       workspaceAuthority: testWorkspaceAuthorityV1(),
+      openNetworkBroker: openTestNetworkBrokerV1,
       workerFactory: () => {
         worker = new InMemoryBrowserPiWorkerV1();
         return worker as BrowserPiWorkerLikeV1;
@@ -3500,6 +3882,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       runtime: "pi_provider",
       selection: copilotAnthropicSelectionV1,
       workspaceAuthority: testWorkspaceAuthorityV1(),
+      openNetworkBroker: openTestNetworkBrokerV1,
       workerFactory: () => {
         worker = new InMemoryBrowserPiWorkerV1();
         return worker as BrowserPiWorkerLikeV1;
@@ -3532,6 +3915,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const transport = createBrowserPiWorkerRawTransportV1({
       runtime: "deterministic_test",
       workspaceAuthority,
+      openNetworkBroker: openTestNetworkBrokerV1,
       workerFactory: () => worker,
     });
     const failures: unknown[] = [];
@@ -3935,5 +4319,387 @@ describe("SillyOS Browser Pi transport and product port", () => {
     worker.emitArtifactChunks(2_049, 2, piRunId);
     expect(port.getSnapshot()).toMatchObject({ phase: "ready", terminalRuns: [] });
     await port.dispose();
+  });
+
+  it("keeps Allow once non-terminal before or after the interrupted run record", async () => {
+    for (const failureOrder of ["before_allow", "after_allow"] as const) {
+      const worker = new ControllableBrowserPiWorkerV1();
+      const port = createBrowserCreatorAgentPortV1({
+        runtime: "deterministic_test",
+        workspaceAuthority: testWorkspaceAuthorityV1(),
+        workerFactory: () => worker,
+      });
+      await openProductWorkspaceV1(port);
+      const run = productRunV1({
+        agentRunId: `agent.run.network.${failureOrder}`,
+        text: "Fetch the exact requested page.",
+      });
+      await expect(port.submit(run)).resolves.toEqual({
+        kind: "submitted",
+        agentRunId: run.agentRunId,
+      });
+      const piRunId = worker.latestPiRunId;
+      if (piRunId === null) throw new Error("expected a transient Pi run id");
+      const approvalId = `approval.${failureOrder}.1`;
+      worker.emitNetworkApproval(approvalId, piRunId);
+      await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
+      if (failureOrder === "before_allow") worker.emitRunFailure("approval_required", piRunId);
+
+      expect(port.getSnapshot().networkApproval).toMatchObject({
+        revision: 1,
+        approvalId,
+        agentRunId: run.agentRunId,
+        programId: run.programId,
+        workspaceSessionId: workspaceSessionIdV1,
+        operation: "fetch_url",
+        origin: "https://assets.example.test",
+        url: "https://assets.example.test/file.txt?from=program",
+        retryText: run.text,
+      });
+      await expect(
+        port.resolveNetworkApproval({ approvalId, decision: "allow_once" }),
+      ).resolves.toEqual({
+        kind: "resolved",
+        decision: "allow_once",
+        retryText: run.text,
+      });
+      if (failureOrder === "after_allow") worker.emitRunFailure("approval_required", piRunId);
+      await waitUntilV1(() => port.getSnapshot().activeRunId === null);
+
+      expect(port.getSnapshot()).toMatchObject({
+        phase: "ready",
+        activeRunId: null,
+        networkApproval: null,
+        terminalRuns: [],
+      });
+      await port.dispose();
+    }
+  });
+
+  it("clears a denied approval without inventing terminal product state", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => worker,
+    });
+    await openProductWorkspaceV1(port);
+    const run = productRunV1({ agentRunId: "agent.run.network.denied" });
+    await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
+    const piRunId = worker.latestPiRunId;
+    if (piRunId === null) throw new Error("expected a transient Pi run id");
+    worker.emitNetworkApproval("approval.denied.1", piRunId);
+    worker.emitRunFailure("approval_required", piRunId);
+    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
+
+    await expect(
+      port.resolveNetworkApproval({ approvalId: "approval.denied.1", decision: "deny" }),
+    ).resolves.toEqual({
+      kind: "resolved",
+      decision: "deny",
+      retryText: null,
+    });
+    expect(port.getSnapshot()).toMatchObject({
+      phase: "ready",
+      networkApproval: null,
+      terminalRuns: [],
+    });
+    await port.dispose();
+  });
+
+  it("carries pre-approval mutation evidence into the exact retry terminal", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => worker,
+    });
+    await openProductWorkspaceV1(port);
+    const interrupted = productRunV1({
+      agentRunId: "agent.run.network.receipt.interrupted",
+      text: "Write a note, then fetch the exact requested page.",
+    });
+    await expect(port.submit(interrupted)).resolves.toMatchObject({ kind: "submitted" });
+    const interruptedPiRunId = worker.latestPiRunId;
+    if (interruptedPiRunId === null) throw new Error("expected a transient Pi run id");
+    worker.emitWorkspaceMutation(interruptedPiRunId);
+    worker.emitNetworkApproval("approval.receipt.allow.1", interruptedPiRunId);
+    worker.emitRunFailure("approval_required", interruptedPiRunId);
+    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
+
+    await expect(port.resolveNetworkApproval({
+      approvalId: "approval.receipt.allow.1",
+      decision: "allow_once",
+    })).resolves.toEqual({
+      kind: "resolved",
+      decision: "allow_once",
+      retryText: interrupted.text,
+    });
+    await expect(port.submit(productRunV1({
+      agentRunId: "agent.run.network.receipt.unrelated",
+      text: "Do something else.",
+      baseProgramRevision: interrupted.baseProgramRevision,
+      baseRepositoryRevision: interrupted.baseRepositoryRevision,
+    }))).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "request_failed", path: "/networkApproval/retry" },
+    });
+
+    const retry = Object.freeze({
+      ...interrupted,
+      agentRunId: "agent.run.network.receipt.retry",
+    });
+    await expect(port.submit(retry)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: retry.agentRunId,
+    });
+    worker.emitCompleted(retry, "The exact retry completed.");
+    await waitUntilV1(() => port.getSnapshot().terminalRuns.length === 1);
+
+    expect(port.getSnapshot().workspace.receipts).toMatchObject([{
+      sequence: 1,
+      agentRunId: interrupted.agentRunId,
+      effect: "changed",
+    }]);
+    expect(port.workspaceReceiptAcknowledgementThroughSequence(retry.agentRunId)).toBe(1);
+    await expect(port.acknowledgeWorkspaceReceipts(1)).resolves.toEqual({
+      kind: "acknowledged",
+      throughSequence: 1,
+    });
+    expect(port.acknowledgeTerminal(retry.agentRunId)).toBe(true);
+    expect(port.getSnapshot()).toMatchObject({
+      phase: "ready",
+      terminalRuns: [],
+      workspace: { receipts: [] },
+    });
+    await port.dispose();
+  });
+
+  it("releases each changed receipt only after an explicit repeated Deny decision", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => worker,
+    });
+    await openProductWorkspaceV1(port);
+
+    for (const sequence of [1, 2] as const) {
+      const run = productRunV1({
+        agentRunId: `agent.run.network.receipt.denied.${String(sequence)}`,
+        text: `Write note ${String(sequence)}, then fetch the requested page.`,
+      });
+      await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
+      const piRunId = worker.latestPiRunId;
+      if (piRunId === null) throw new Error("expected a transient Pi run id");
+      worker.emitWorkspaceMutation(piRunId, `denied-${String(sequence)}.txt`);
+      worker.emitNetworkApproval(`approval.receipt.deny.${String(sequence)}`, piRunId);
+      worker.emitRunFailure("approval_required", piRunId);
+      await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
+
+      expect(port.getSnapshot().workspace.receipts).toMatchObject([{
+        sequence,
+        agentRunId: run.agentRunId,
+      }]);
+
+      const result = await port.resolveNetworkApproval({
+        approvalId: `approval.receipt.deny.${String(sequence)}`,
+        decision: "deny",
+      });
+      expect(result).toEqual({
+        kind: "resolved",
+        decision: "deny",
+        retryText: null,
+      });
+      expect(port.getSnapshot()).toMatchObject({
+        phase: "ready",
+        terminalRuns: [],
+        workspace: { receipts: [] },
+      });
+    }
+    await port.dispose();
+  });
+
+  it("retains the Deny approval and receipt anchor when prefix acknowledgement fails", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => worker,
+    });
+    await openProductWorkspaceV1(port);
+    const run = productRunV1({ agentRunId: "agent.run.network.receipt.deny-retry" });
+    await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
+    const piRunId = worker.latestPiRunId;
+    if (piRunId === null) throw new Error("expected a transient Pi run id");
+    worker.emitWorkspaceMutation(piRunId);
+    worker.emitNetworkApproval("approval.receipt.deny-retry.1", piRunId);
+    worker.emitRunFailure("approval_required", piRunId);
+    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
+
+    worker.failReceiptAcknowledgement = true;
+    await expect(port.resolveNetworkApproval({
+      approvalId: "approval.receipt.deny-retry.1",
+      decision: "deny",
+    })).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "request_failed", path: "/networkApproval/receipts" },
+    });
+    expect(port.getSnapshot()).toMatchObject({
+      networkApproval: { approvalId: "approval.receipt.deny-retry.1" },
+      workspace: { receipts: [{ sequence: 1, agentRunId: run.agentRunId }] },
+    });
+
+    worker.failReceiptAcknowledgement = false;
+    await expect(port.resolveNetworkApproval({
+      approvalId: "approval.receipt.deny-retry.1",
+      decision: "deny",
+    })).resolves.toEqual({ kind: "resolved", decision: "deny", retryText: null });
+    expect(port.getSnapshot()).toMatchObject({
+      phase: "ready",
+      networkApproval: null,
+      terminalRuns: [],
+      workspace: { receipts: [] },
+    });
+    await port.dispose();
+  });
+
+  it("abandons an unused exact retry before closing and does not block the next workspace", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => worker,
+    });
+    await openProductWorkspaceV1(port);
+    const interrupted = productRunV1({
+      agentRunId: "agent.run.network.unused-retry",
+      text: "Write once, then request network access.",
+    });
+    await expect(port.submit(interrupted)).resolves.toMatchObject({ kind: "submitted" });
+    const piRunId = worker.latestPiRunId;
+    if (piRunId === null) throw new Error("expected a transient Pi run id");
+    worker.emitNetworkApproval("approval.unused-retry.1", piRunId);
+    worker.emitRunFailure("approval_required", piRunId);
+    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
+    await expect(port.resolveNetworkApproval({
+      approvalId: "approval.unused-retry.1",
+      decision: "allow_once",
+    })).resolves.toMatchObject({ kind: "resolved", decision: "allow_once" });
+
+    await expect(port.closeWorkspace(workspaceSessionIdV1)).resolves.toMatchObject({
+      kind: "closed",
+    });
+    expect(port.getSnapshot().workspace.receipts).toEqual([]);
+    await openProductWorkspaceV1(port);
+    const ordinary = productRunV1({
+      agentRunId: "agent.run.network.after-unused-retry",
+      text: "Continue without the abandoned network retry.",
+    });
+    await expect(port.submit(ordinary)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: ordinary.agentRunId,
+    });
+    await port.dispose();
+  });
+
+  it("drains a changed pending-approval receipt before implicit close Deny", async () => {
+    const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority,
+      workerFactory: () => worker,
+    });
+    await openProductWorkspaceV1(port);
+    const run = productRunV1({ agentRunId: "agent.run.network.pending-close" });
+    await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
+    const piRunId = worker.latestPiRunId;
+    if (piRunId === null) throw new Error("expected a transient Pi run id");
+    worker.emitWorkspaceMutation(piRunId, "pending-close.txt");
+    workspaceAuthority.reflectControlledWorkerGeneration(2);
+    worker.emitNetworkApproval("approval.pending-close.1", piRunId);
+    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
+
+    const closing = port.closeWorkspace(workspaceSessionIdV1);
+    worker.emitRunFailure("approval_required", piRunId);
+    await expect(closing).resolves.toMatchObject({ kind: "closed" });
+    expect(worker.workspaceReceiptAcknowledgements).toEqual([1]);
+    expect(port.getSnapshot()).toMatchObject({
+      networkApproval: null,
+      terminalRuns: [],
+      workspace: { phase: "closed", receipts: [] },
+    });
+    await port.dispose();
+  });
+
+  it("drains a changed pending-approval receipt before Forget discards the session", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => worker,
+    });
+    await openProductWorkspaceV1(port);
+    const run = productRunV1({ agentRunId: "agent.run.network.pending-forget" });
+    await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
+    const piRunId = worker.latestPiRunId;
+    if (piRunId === null) throw new Error("expected a transient Pi run id");
+    worker.emitWorkspaceMutation(piRunId, "pending-forget.txt");
+    worker.emitNetworkApproval("approval.pending-forget.1", piRunId);
+    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
+
+    const forgetting = port.forget();
+    worker.emitRunFailure("approval_required", piRunId);
+    await forgetting;
+    expect(worker.workspaceReceiptAcknowledgements).toEqual([1]);
+    expect(worker.terminated).toBe(true);
+    expect(port.getSnapshot()).toMatchObject({
+      phase: "forgotten",
+      networkApproval: null,
+      terminalRuns: [],
+      workspace: { phase: "forgotten", descriptor: null, receipts: [] },
+    });
+  });
+
+  it("clears transient approval state when closing or forgetting the workspace session", async () => {
+    for (const lifecycle of ["close", "forget"] as const) {
+      const worker = new ControllableBrowserPiWorkerV1();
+      const port = createBrowserCreatorAgentPortV1({
+        runtime: "deterministic_test",
+        workspaceAuthority: testWorkspaceAuthorityV1(),
+        workerFactory: () => worker,
+      });
+      await openProductWorkspaceV1(port);
+      const run = productRunV1({ agentRunId: `agent.run.network.${lifecycle}` });
+      await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
+      const piRunId = worker.latestPiRunId;
+      if (piRunId === null) throw new Error("expected a transient Pi run id");
+      worker.emitNetworkApproval(`approval.${lifecycle}.1`, piRunId);
+      await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
+
+      if (lifecycle === "close") {
+        const closing = port.closeWorkspace(workspaceSessionIdV1);
+        worker.emitRunFailure("approval_required", piRunId);
+        await expect(closing).resolves.toMatchObject({
+          kind: "closed",
+        });
+        expect(port.getSnapshot()).toMatchObject({
+          networkApproval: null,
+          terminalRuns: [],
+          workspace: { phase: "closed" },
+        });
+        await port.dispose();
+      } else {
+        const forgetting = port.forget();
+        worker.emitRunFailure("approval_required", piRunId);
+        await forgetting;
+        expect(port.getSnapshot()).toMatchObject({
+          phase: "forgotten",
+          networkApproval: null,
+          terminalRuns: [],
+        });
+      }
+    }
   });
 });

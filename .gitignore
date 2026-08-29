@@ -27,6 +27,7 @@ node_modules/
 dist/
 dist-web/
 dist-web-mods/
+dist-network-broker/
 dist-workspace-sandbox/
 dist-desktop/
 *.app/

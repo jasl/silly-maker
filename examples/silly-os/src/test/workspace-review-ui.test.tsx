@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getSillyOsCopyV1 } from "../content/copy.ts";
@@ -143,6 +143,48 @@ function renderAgentChatV1(
 }
 
 describe("SillyOS Workspace composer model selection", () => {
+  it("shows one transient network approval and gates ordinary workspace mutations", async () => {
+    const onAllowOnce = vi.fn(() => Promise.resolve(true));
+    const onDeny = vi.fn(() => Promise.resolve(true));
+    const onSend = vi.fn();
+    renderAgentChatV1({
+      onSend,
+      piAgentRun: {
+        runtime: "pi_provider",
+        status: "ready",
+        draft: "",
+        diagnosticPath: null,
+        onCancel: vi.fn(),
+        onForget: vi.fn(),
+        networkApproval: {
+          approvalId: "approval.network-ui.1",
+          origin: "https://assets.example.test",
+          url: "https://assets.example.test/page?q=program-data",
+          onAllowOnce,
+          onDeny,
+        },
+      },
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Network access requested");
+    expect(screen.getByRole("alert")).toHaveTextContent("https://assets.example.test");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "https://assets.example.test/page?q=program-data",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Its path or query may contain data from this Program.",
+    );
+    expect(screen.getByRole("textbox", { name: "Ask for a change…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Accept program" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reject proposal" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Deny" }));
+    await waitFor(() => expect(onDeny).toHaveBeenCalledOnce());
+    expect(onAllowOnce).not.toHaveBeenCalled();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it("uses the shared picker and hides the persistent live Provider card when ready or completed", () => {
     const onOpenSettings = vi.fn();
     const onSelect = vi.fn();

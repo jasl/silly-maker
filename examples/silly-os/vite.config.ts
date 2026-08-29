@@ -13,6 +13,7 @@ import {
 } from "./src/deployment/browser-control-plane-security.ts";
 import { parseCanonicalEndpointOriginV1 } from "./src/deployment/cloudflare-selected-origin-worker.ts";
 import { browserWorkspaceSandboxDevelopmentOriginV1 } from "./src/workspace/browser-workspace-sandbox-origins.ts";
+import { collectNetworkBrokerBuildIdentityV1 } from "./tools/network-broker-build-identity.mts";
 import { collectWorkspaceSandboxBuildIdentityV1 } from "./tools/workspace-sandbox-build-identity.mts";
 
 const browserPiDevelopmentWorkerPathV1 = "/src/agent/browser-pi.worker.ts";
@@ -75,6 +76,10 @@ export default defineConfig(async ({ command, isPreview }) => {
     appRoot: import.meta.dirname,
     command,
   });
+  const networkBrokerBuildIdentity = collectNetworkBrokerBuildIdentityV1({
+    appRoot: import.meta.dirname,
+    command,
+  });
   const localBaseContentSecurityPolicy = createBrowserControlPlaneContentSecurityPolicyV1(
     null,
     browserWorkspaceSandboxDevelopmentOriginV1,
@@ -112,6 +117,9 @@ export default defineConfig(async ({ command, isPreview }) => {
       __SILLYOS_WORKSPACE_SANDBOX_BUILD_IDENTITY__: JSON.stringify(
         workspaceSandboxBuildIdentity,
       ),
+      __SILLYOS_NETWORK_BROKER_BUILD_IDENTITY__: JSON.stringify(
+        networkBrokerBuildIdentity,
+      ),
     },
     ...(developmentStyleNonce === null ? {} : {
       html: {
@@ -144,7 +152,7 @@ export default defineConfig(async ({ command, isPreview }) => {
         ...config.server?.watch,
         // The independent Sandbox is built before its preview server during
         // browser qualification. Its output must not reload the control page.
-        ignored: ["**/dist-workspace-sandbox/**"],
+        ignored: ["**/dist-workspace-sandbox/**", "**/dist-network-broker/**"],
       },
     },
     preview: {

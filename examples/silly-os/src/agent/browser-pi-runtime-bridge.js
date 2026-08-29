@@ -17,6 +17,8 @@ export const deterministicFileOpsProbePrefixV1 =
   "Exercise the pinned native Pi workspace file operations lifecycle: ";
 export const deterministicGrepProbePrefixV1 =
   "Exercise the product-fixed Pi grep tool with exact text: ";
+export const deterministicFetchUrlProbePrefixV1 =
+  "Exercise the product-fixed Pi fetch_url tool for exact URL: ";
 export const deterministicOversizedReadProbeV1 =
   "Verify the qualification workspace rejects an oversized native Pi read.";
 
@@ -125,6 +127,7 @@ export function createDeterministicPiAgentV1(input) {
   const exerciseBash = input.submit.text.startsWith(deterministicBashProbePrefixV1);
   const exerciseFileOps = input.submit.text.startsWith(deterministicFileOpsProbePrefixV1);
   const exerciseGrep = input.submit.text.startsWith(deterministicGrepProbePrefixV1);
+  const exerciseFetchUrl = input.submit.text.startsWith(deterministicFetchUrlProbePrefixV1);
   const verifyOversizedRead = input.submit.text === deterministicOversizedReadProbeV1;
   const faux = fauxProvider({
     tokenSize: { min: 64, max: 64 },
@@ -229,7 +232,40 @@ export function createDeterministicPiAgentV1(input) {
     }),
     { stopReason: "toolUse" },
   );
-  if (exerciseFileOps) {
+  const fetchUrlResponse = fauxAssistantMessage(
+    fauxToolCall("fetch_url", {
+      url: input.submit.text.slice(deterministicFetchUrlProbePrefixV1.length),
+    }, {
+      id: `sillyos-fetch-url-${input.runNumber}`,
+    }),
+    { stopReason: "toolUse" },
+  );
+  if (exerciseFetchUrl) {
+    faux.setResponses([
+      fetchUrlResponse,
+      (context) => {
+        const result = context.messages.toReversed().find((message) =>
+          message.role === "toolResult" && message.toolName === "fetch_url"
+        );
+        const actual = toolResultTextV1(result);
+        const details = result?.role === "toolResult" ? result.details : null;
+        if (
+          result?.role !== "toolResult" || result.isError || actual === null ||
+          details === null || typeof details !== "object" ||
+          !Number.isInteger(details.status) || details.status < 100 || details.status > 599 ||
+          (details.contentType !== null && typeof details.contentType !== "string") ||
+          !Number.isSafeInteger(details.bytes) || details.bytes < 0 ||
+          details.bytes > 256 * 1024 ||
+          actual !== `[Untrusted remote content]\n${details.text}` ||
+          new TextEncoder().encode(details.text).byteLength !== details.bytes
+        ) {
+          throw new Error("Product-fixed Pi fetch_url did not return the exact bounded result");
+        }
+        return proposalResponse;
+      },
+      fauxAssistantMessage(deterministicFinalReplyV1),
+    ]);
+  } else if (exerciseFileOps) {
     faux.setResponses([
       fileOpsResponse,
       (context) => {
