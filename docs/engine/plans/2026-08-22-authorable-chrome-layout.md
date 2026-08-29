@@ -1,7 +1,7 @@
 # Authorable chrome layout V1（铬布局文档与 Chrome workspace）实施计划
 
 状态：**2026-08-22 开启并当日闭合（M0–M2 + 双消费者交付）；M3 于
-2026-08-29 经新消费者证据交付**（所有者
+2026-08-29 过证据门并交付**（所有者
 当日接受提案，open questions q1–q3 全按建议采纳；明确定性为务实
 V1——「下一轮引擎迭代再统筹更系统的方案（如果存在）」，本车道不是场
 景/物体/交互统一抽象的终局裁决）。合同：
@@ -12,8 +12,11 @@ workspace 加 `StudioBindingV1.chrome` fixture 加 template HUD 仓内消
 费者，浏览器验收为 template.spec.ts 的 chrome M2 用例：拖框 → 保存 →
 落盘毕业 `human_tuned`）同日合入；外部实验仓 HUD 同日迁移到引擎家族
 （`main-hud.chrome-layout.json` + 引擎 parser，本地解析器删除，全量
-vitest 绿）。M3 没有复制旧产品 UI，而是在 Engine Lab 复现 intent 按钮
-与 committed hold progress 的共同合同后交付。本文只拥有切片顺序、admission 落地
+vitest 绿）。M3（意图绑定 widget）证据门由外部实验仓 2026-08-29 封板
+审计满足（挿入2 choice-over-hold 假按钮组 + hold 进度条族两个真实消
+费者），同日交付：`widgets` 节 admission、ui `ChromeWidgetSurfaceV1`
+通用 host、Engine Lab chrome-widgets 一致性演习、Studio 几何编辑对
+widget 引用的同步/收割。本文只拥有切片顺序、admission 落地
 与验收；
 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 仍是唯一跨计划排序入口。
@@ -68,12 +71,16 @@ vitest 绿）。M3 没有复制旧产品 UI，而是在 Engine Lab 复现 intent
   template HUD 盒（几何进 `*.chrome-layout.json`，运行时与 Studio
   同一文档）；外部实验仓 HUD 从本地解析器迁移到引擎家族（第二消费
   者）。
-- **M3 意图/进度 widget（2026-08-29 交付）**：`widgets` 节严格 admission
-  `intent` / `hold_progress` 两类及其 box 引用；focused
-  `@sillymaker/ui/chrome` host 只接 Story 的 availability、intent callback
-  与 committed progress view，产品 render hook 只替换像素；Engine Lab
-  以真实 Browser 指针连接声明按钮、既有 occurrence-fenced 写与条件化
-  Stage appearance。没有新增 resolution、路由表或 retained-mode UI。
+- **M3 意图绑定 widget（2026-08-29 交付）**：`widgets` 节进
+  admission（`intent` / `hold_progress` 两种，box 引用存在性校验、
+  id/文本 id 形状校验、Source 资源预算、exact-record 严
+  拒未知键）；ui 包 `ChromeWidgetSurfaceV1` 通用 host（intent widget
+  经 Story `stateOf`/`onActivate` 端口报激活，禁用态渲染理由文本，
+  `hold_progress` 只读已提交 `remainingMs/totalMs`）；Engine Lab
+  chrome-widgets 一致性演习（共享 tripwire hold 上的围栏写路由 + 部
+  分围栏 tick 推进度 + 禁用零派发 + `when` 臂切换即撤）；Studio
+  chrome-edit 盒改名/删除同步/收割 widget 引用（草稿永不卡死在
+  admission 外），widget 本体在 workspace 只读透传。
 
 ## 验收
 
@@ -91,7 +98,9 @@ vitest 绿）。M3 没有复制旧产品 UI，而是在 Engine Lab 复现 intent
 
 ## Defer
 
-- 跨文档引用 lint（widget 的文本/资产/intent id 与应用目录的存在性）；
+- 跨文档引用 lint（chrome 文档引用资产/文本 id 的存在性检查——现覆
+  盖 widget 的 `labelTextId`/`assetId`/`intentId`，与 regions 资产
+  引用同一门：内容声明成为数据后再接）；
 - Inspector 对 standalone chrome-layout 的可视编辑；当前仍走受检查的
   数据/代码路径，不能复活已删除的多 workspace Studio；
 - 每 workspace 聚合视图与多文档批量操作。

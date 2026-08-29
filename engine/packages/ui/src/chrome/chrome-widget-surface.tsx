@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+import { useMemo } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
 import type { ChromeLayoutBoxV1, ChromeLayoutDocumentV1 } from "@sillymaker/base";
@@ -180,7 +181,11 @@ function ChromeHoldProgressWidgetV1(props: {
 export function ChromeWidgetSurfaceV1(props: ChromeWidgetSurfacePropsV1): ReactElement | null {
   const geometry = useOptionalGameViewportV1();
   const widgets = props.layout.widgets;
-  if (widgets === undefined || Object.keys(widgets).length === 0) return null;
+  const widgetEntries = useMemo(
+    () => widgets === undefined ? [] : Object.entries(widgets),
+    [widgets],
+  );
+  if (widgetEntries.length === 0) return null;
   if (
     geometry !== null &&
     (geometry.authoredRect.width !== props.layout.canvas.width ||
@@ -224,7 +229,7 @@ export function ChromeWidgetSurfaceV1(props: ChromeWidgetSurfacePropsV1): ReactE
           blockSize: `${String(authoredRect.height)}px`,
         }}
       >
-        {Object.entries(widgets).map(([widgetName, widget]) => {
+        {widgetEntries.map(([widgetName, widget]) => {
           const box = props.layout.boxes[widget.box] as ChromeLayoutBoxV1;
           if (widget.kind === "intent") {
             return (

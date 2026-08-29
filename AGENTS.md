@@ -490,16 +490,20 @@ Read only the documents relevant to the change:
   consumers (the template HUD status strip reads its placement from
   `src/chrome/hud.chrome-layout.json` at runtime with browser acceptance;
   the external experiment repo HUD migrated off its M0 story-local parser
-  onto the engine family). On 2026-08-29 M3 added the optional `intent` and
-  `hold_progress` widget data plus focused `@sillymaker/ui/chrome` host after
-  high-fidelity product pressure was reproduced in Engine Lab. The Host keeps
-  accessible button/progress semantics and logical-canvas placement, while
-  Story code still owns availability and maps the reported intent id onto an
-  existing semantic path. Layout documents stay zero-authority presentation
-  data; behavior booleans and legality stay in Story code. The same follow-up
-  accepted the existing domain-event → Stage `appearance` → content-resolution
-  composition for conditional overlays and delivered a zero-authority
-  Presentation RNG; neither creates another gameplay authority.
+  onto the engine family). The M3 intent-binding widget layer passed its
+  evidence gate and was delivered 2026-08-29 (the external golden-baseline
+  audit supplied both real consumers: a choice-over-hold timed-menu button
+  group and a hold-progress HUD bar family): the optional `widgets`
+  section (`intent` and `hold_progress` kinds, box references validated at
+  admission, shared entry budget), the generic `ChromeWidgetSurfaceV1`
+  host in `@sillymaker/ui` (Story supplies the availability projection and
+  maps activation onto semantic commands — widgets never gain routing
+  power; hold progress reads only committed `remainingMs/totalMs`), the
+  Engine Lab chrome-widgets conformance (fenced write over the shared
+  tripwire hold), and Studio geometry edits that keep widget box
+  references valid (rename rewrites, removal reaps). Layout documents stay
+  zero-authority presentation data; behavior booleans and legality stay in
+  Story code.
   The shared-stage-input lane (accepted and delivered 2026-08-26,
   owner-ruled q1 full value set on `say`/`choice`/`hold`/`custom`,
   q2/q3 per recommendation) completed M0–M3 the same day:
@@ -551,6 +555,25 @@ Read only the documents relevant to the change:
   closed). The pending slot, hold arithmetic, resolution legality, and
   stage-input policy are untouched; asides never enter
   State/Save/digest/replay/History.
+  The external golden-baseline seal audit (2026-08-29) closed its
+  remaining engine-capability list on main the same day, all
+  evidence-gated by that audit: the chrome-layout M3 widget delivery
+  (recorded above), the serializable presentation RNG
+  (`docs/engine/proposals/presentation-rng.md` — ui-package
+  `derivePresentationSeedV1` + `createPresentationRngStreamV1`,
+  xorshift32 with plain-data snapshots, seeds from committed facts only;
+  zero-authority: never enters State/Save/digest/replay, and
+  authoritative code keeps drawing through `RuleRngV1`), and the
+  conditional-overlay ruling
+  (`docs/engine/proposals/conditional-overlay-binding.md` — no new
+  primitive: `setAppearance` + the stage owner's domain-event fold +
+  appearance-keyed `resolveContent` is the sanctioned composition for
+  state-conditional art, pinned by the Engine Lab mid-hold-input
+  crate-latch conformance; the declarative variant-table family stays
+  deferred pending a real consumer).
+  There is no active lane (the seal-audit closures on 2026-08-29 were
+  evidence-gated deliveries, not a new lane; awaiting the owner's next
+  order).
   Desktop persistence remains an independent promotion gate while the
   adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
@@ -659,7 +682,8 @@ product-specific Stage B consumer, not a universal `.sillymod` format.
   not DOM/network/listener/main-thread sandboxing.
 - `@sillymaker/vn` is the focused first-party VN genre layer. Its Base entry
   owns generic interaction documents, compilation, stable derived IDs, and
-  deterministic run-to-interaction policy; focused UI entries compose existing
+  deterministic run-to-interaction policy plus the shared Base NarrativeGraph
+  lint/prediction projection; focused UI entries compose existing
   Narrative/Stage/Input primitives, and History is a separately selectable
   presentation Mod. It owns no second Session, State, Save, replay, source
   writer, service locator, or private Mod backend. Products provide typed

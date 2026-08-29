@@ -3,6 +3,7 @@ export {
   compileVnInteractionDocumentV1,
   createVnInteractionRuntimeV1,
 } from "./interaction-document.ts";
+export { projectVnNarrativeGraphV1 } from "./narrative-graph.ts";
 export type {
   CompileVnInteractionDocumentInputV1,
   CompiledVnInteractionDocumentV1,
@@ -27,3 +28,4 @@ export type {
   VnStageBlockV1,
   VnStageOperationV1,
 } from "./interaction-document.ts";
+export type { ProjectVnNarrativeGraphInputV1 } from "./narrative-graph.ts";

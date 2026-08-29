@@ -4,8 +4,8 @@
 > 合计 256 entries 的任意数量上限。Source 资源预算、每个 member 的结构/值校验以及本历史
 > 提案的 presentation-only 语义仍有效。
 
-状态：**已交付（M0–M2 + 双消费者，2026-08-22 当日闭合；M3 意图/
-提交态进度 widget 于 2026-08-29 过证据门并交付）**（同日所有
+状态：**已交付（M0–M2 + 双消费者，2026-08-22 当日闭合；M3 意图绑定
+widget 于 2026-08-29 过证据门并交付）**（同日所有
 者裁决接受：Open questions 按建议定；「不确定这个方案是否能完全解决
 问题，但可以先这么做，下一轮引擎迭代再统筹更系统的方案（如果存
 在）」——本 lane 是务实分层落地，不是场景/物体/交互统一抽象的终局裁
@@ -14,9 +14,17 @@
 CAS 端口）与 M2（Studio 界面布局工作区 + `StudioBindingV1.chrome`
 fixture + template HUD 仓内消费者，浏览器验收 = template.spec.ts 拖
 框→保存→落盘毕业）当日合入；外部实验仓 HUD 同日迁移到引擎家族并删
-除本地解析器（第二消费者）。后续高保真移植暴露了「逻辑画布上的按钮
-只报告意图」与「读取已提交 hold 进度」两个重复形状；M3 因此在
-Engine Lab 中性复现后交付，没有把原产品实现搬入引擎。执行顺序与验收见
+除本地解析器（第二消费者）。M3 证据门于 2026-08-29 由外部实验仓封板
+审计满足（第二真实消费者：挿入2 限时菜单的 choice-over-hold 假按钮
+组 + `imoutoWindowTimerBarLinesV1` hold 进度条族，两者都是 Story
+chrome 手搓「画布坐标 + 意图 id/进度几何」），同日交付：文档家族增
+可选 `widgets` 节（`intent` 与 `hold_progress` 两种，box 引用 +
+labelTextId + 可选 assetId/intentId），ui 包
+`ChromeWidgetSurfaceV1` 通用 chrome host（意图 widget 只报「intent
+id 激活」，可用性/置灰理由走 Story 提供的投影端口；hold 进度只读已
+提交 `remainingMs/totalMs`，不掺墙钟），Engine Lab 一致性演习为仓内
+消费者（widget 激活落 occurrence 围栏 `lab.engage_collector` 写，
+hold 轨迹不动，`when` 臂在下一围栏结算 t=0 收割）。执行顺序与验收见
 [Authorable chrome layout 计划](../plans/2026-08-22-authorable-chrome-layout.md)。
 
 创作者需求：「道具栏/状态板的页签热区偏了，我只能报 bug——位置明明是
@@ -103,6 +111,19 @@ Studio 新增 Chrome workspace：挂 fixture publication 渲染**真实 HUD
   「regions never gain routing power」同一条边界。复杂板体（道具格、状态
   数值）继续留在 renderer，不扩张成通用 UI DSL。
 
+交付形状：可选 `widgets` 节承载两
+种 widget——`intent`（box 引用 + `intentId` + `labelTextId` + 可选
+`assetId`）与 `hold_progress`（box 引用 + `labelTextId`，渲染只读进
+度条，数据源是 Story 递入的已提交 pending-hold 视图
+`remainingMs/totalMs`，永不掺墙钟插值）。通用 host 是 ui 包
+`ChromeWidgetSurfaceV1`：Story 提供 `stateOf(intentId) →
+enabled/disabled(+理由文本 id)/hidden` 投影端口与 `onActivate` 回
+调，未知 intent id 报 hidden；激活映射到哪条语义命令（普通 invoke、
+围栏 hold_write、choice resolve）完全是 Story 代码。choice-over-hold
+（原作限时菜单叠在仍在填的窗上）由此拿到声明式落点：菜单按钮是
+`intent` widget，激活落 occurrence 围栏普通写，窗自己的 `when` 臂在
+下一围栏结算 t=0 读写路由——单决议路径不变，第二个 pending 不存在。
+
 ## 边界与限额
 
 - 只有**被人调过的几何**进文档；布尔行为（板互斥、占用门）留代码；
@@ -123,9 +144,21 @@ Studio 新增 Chrome workspace：挂 fixture publication 渲染**真实 HUD
 - **M2（Studio）**：Chrome workspace（真实组件渲染 + 拖拽写回 +
   saved/draft 会话），双消费者：仓内一例（template 或 Engine Lab 极小
   chrome 盒）+ 外部实验仓 HUD 全量迁移。
-- **M3（2026-08-29 已交付）**：可选 `widgets` admission、focused
-  `ChromeWidgetSurfaceV1`、Story-owned intent/committed-progress ports，
-  以及 Engine Lab 的真实 Browser 指针路径。布局数据不获得路由权。
+- **M3（2026-08-29 交付）**：意图绑定 widget。证据门（第二个需要声
+  明式图标按钮的真实消费者）由外部实验仓封板审计满足：挿入2 限时菜单
+  假按钮组与 hold 进度条族。交付 = `widgets` 节 admission + ui
+  `ChromeWidgetSurfaceV1` + Engine Lab 一致性演习（chrome-widgets
+  jsdom 用例：围栏写路由、部分围栏 tick 推进度、禁用零派发、切臂即
+  撤）；Studio 编辑面对 widget 保持只读透传，但盒改名/删除会同步/收
+  割其 widget 引用，草稿永不因几何编辑卡死在 admission 外。
+- **M3 补刀（同日，golden baseline 迁移实证）**：Story 像素接管钩子
+  `renderIntent` / `renderHoldProgress`（宿主保留全部语义——按钮元素
+  /可达名/禁用门/单次激活、progressbar role/已提交数值/box 定位；
+  Story 只画内部像素，hold 钩子回 null 即隐藏该 widget），及
+  `holdProgress` 接受按 widget 名解析视图的函数形态（多槽位 HUD：只
+  点亮当前 hold 占用的槽）。证据：外部实验仓的 挿入2 深色面板与
+  ■□ 描边文字格条都必须 Story 自有像素，且约 30 个计时窗规格共享
+  8 个 popup 槽位。缺省路径字节不变。
 
 ## 验收草案
 

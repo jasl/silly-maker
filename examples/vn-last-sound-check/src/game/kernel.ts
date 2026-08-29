@@ -115,8 +115,6 @@ export interface VnLastSoundCheckQueriesV1 {
 export interface VnLastSoundCheckChoiceOptionViewV1 {
   readonly choiceId: string;
   readonly textId: string;
-  readonly enabled: boolean;
-  readonly blockedBy: null;
 }
 
 /** The player-safe narrative channel published to UI and agents. */

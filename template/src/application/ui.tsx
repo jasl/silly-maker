@@ -23,12 +23,12 @@ const actionTextIdsV1: Readonly<Record<TemplateActionIdV1, string>> = {
 export function TemplateHudV1(props: {
   readonly publication: DeepReadonly<TemplateUiPublicationV1>;
   readonly semantic: TemplateSemanticPortV1;
-  /** Studio chrome-fixture override: the workspace passes its live draft. */
+  /** Preview/test override; normal runtime reads the checked layout document. */
   readonly layout?: ChromeLayoutDocument;
 }): ReactElement | null {
-  // Geometry comes from the chrome-layout document (authored data, same
-  // file the Studio Chrome workspace edits); runtime admission guarantees
-  // the box exists, and a fixture draft missing it simply hides the strip.
+  // Geometry comes from the checked chrome-layout document; runtime admission
+  // guarantees the box exists, and a preview override missing it simply hides
+  // the strip.
   const box = (props.layout ?? templateHudChromeLayoutV1).boxes[templateHudBoxNameV1];
   if (box === undefined) return null;
   return (

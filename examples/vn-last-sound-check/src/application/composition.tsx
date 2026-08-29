@@ -112,16 +112,11 @@ export function projectVnLastSoundCheckNarrativeSurfaceSelectionV1(
   const narrative = publication.narrative;
   const choiceAvailability = narrative.choiceOptions === null
     ? null
-    : (narrative.choiceOptions.map((option) => {
-      if (option.enabled !== (option.blockedBy === null)) {
-        throw new TypeError("vn-last-sound-check.narrative_choice_availability_inconsistent");
-      }
-      return ({
-        choiceId: option.choiceId,
-        status: option.enabled ? ("enabled" as const) : ("disabled" as const),
-        reasonTextIds: noNarrativeChoiceReasonsV1,
-      });
-    }));
+    : (narrative.choiceOptions.map((option) => ({
+      choiceId: option.choiceId,
+      status: "enabled" as const,
+      reasonTextIds: noNarrativeChoiceReasonsV1,
+    })));
   return ({
     pending: narrative.pending,
     history: narrative.history,

@@ -120,8 +120,6 @@ export function projectVnLastSoundCheckNarrativeViewV1(
         return ({
           choiceId: option.choiceId,
           textId: option.textId,
-          enabled: true,
-          blockedBy: null,
         });
       }))
       : null,

@@ -144,7 +144,6 @@ test.describe("engine default shell", () => {
     await expect(save.getByText("已保存到手动存档 1")).toBeVisible();
     await save.getByRole("button", { name: "关闭", exact: true }).click();
 
-    await page.reload();
     await gotoLabV1(page);
     await page.getByRole("button", { name: "保存", exact: true }).click();
     const reopened = page.getByRole("dialog", { name: "保存" });

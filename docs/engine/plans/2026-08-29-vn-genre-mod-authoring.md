@@ -112,8 +112,10 @@ authoring document 和 structured operation 原生实现。不得复制 Ren'Py p
 - M0 原子退役 Bookshop，并把维护中的旗舰及其 application ID、workspace、网站、命令与 E2E 收口为
   `examples/vn-last-sound-check`；旧名只保留在明确的历史记录中，没有 compatibility alias。
 - M1 交付 `@sillymaker/vn/interaction` 的 JSON-safe interaction document、一次 admission、cold compiler 和
-  direct runtime plan。Template 与 One Last Sound Check 共同消费该层；产品本地代码只保留 predicates、effects
-  与产品词汇适配。100-node 顺序脚本与真实 pure-cycle cases 证明没有人为节点上限或热路径动态 lookup。
+  direct runtime plan。2026-08-30 的合并后收口又把两套已漂移的 Base NarrativeGraph control-flow 投影提升为
+  同一 entry 的 `projectVnNarrativeGraphV1`；它统一持有 hold reroute/expiry successors 与 text/stage dependencies，
+  产品只补 asset/source metadata。Template 与 One Last Sound Check 共同消费该层；产品本地代码只保留
+  predicates、effects 与产品词汇适配。100-node 顺序脚本与真实 pure-cycle cases 证明没有人为节点上限或热路径动态 lookup。
 - M2 交付首个真实 optional VN Mod：开发图通过 literal dynamic import 选择 History presentation，候选经 React
   commit acknowledgement 后替换 predecessor，卸载先关闭当前 History child 并等待 async handle disposal；
   authoritative History State 保留。core-only final receipt 结构排除 renderer、CSS、loader 与 private Mod runtime，

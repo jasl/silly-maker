@@ -14,12 +14,11 @@ export function MuteToggleV1(props: {
   /** Accessible name, e.g. "静音" / "Mute". */
   readonly label: string;
 }): ReactElement {
-  const profile = useSyncExternalStore(
+  const muted = useSyncExternalStore(
     (listener) => props.playerProfile.subscribe(listener),
-    () => props.playerProfile.current(),
-    () => props.playerProfile.current(),
+    () => props.playerProfile.current().preferences.muted,
+    () => props.playerProfile.current().preferences.muted,
   );
-  const muted = profile.preferences.muted;
   return (
     <button
       type="button"

@@ -2,6 +2,7 @@
 import {
   compileVnInteractionDocumentV1,
   createVnInteractionRuntimeV1,
+  projectVnNarrativeGraphV1,
 } from "@sillymaker/vn/interaction";
 import {
   createDefaultVnPlayerHistoryV1,
@@ -20,7 +21,9 @@ type ExpectV1<TValue extends true> = TValue;
 type BaseRuntimeKeysV1 = ExpectV1<
   EqualV1<
     keyof typeof import("@sillymaker/vn/interaction"),
-    "compileVnInteractionDocumentV1" | "createVnInteractionRuntimeV1"
+    | "compileVnInteractionDocumentV1"
+    | "createVnInteractionRuntimeV1"
+    | "projectVnNarrativeGraphV1"
   >
 >;
 type HistoryRuntimeKeysV1 = ExpectV1<
@@ -52,6 +55,7 @@ type UiCoreRuntimeKeysV1 = ExpectV1<
 
 compileVnInteractionDocumentV1;
 createVnInteractionRuntimeV1;
+projectVnNarrativeGraphV1;
 createDefaultVnPlayerHistoryV1;
 defaultVnPlayerHistoryLabelsV1;
 createDefaultVnPlayerV1;

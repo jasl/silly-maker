@@ -2,29 +2,29 @@
   "format": "sillymaker.chrome-layout",
   "version": 1,
   "layoutId": "layout.e2e.drill",
-  "label": "演习界面布局",
+  "label": "演习 Chrome widget 布局",
   "canvas": { "width": 1600, "height": 1000 },
   "boxes": {
-    "drill.progress": { "x": 1240, "y": 760, "width": 240, "height": 32 },
-    "drill.engage": { "x": 1240, "y": 808, "width": 240, "height": 88 }
+    "drill.engage": { "x": 1240, "y": 840, "width": 240, "height": 56 },
+    "drill.progress": { "x": 1240, "y": 780, "width": 240, "height": 24 }
   },
   "anchors": {},
   "offsets": {},
   "widgets": {
-    "drill.progress": {
-      "kind": "hold_progress",
-      "box": "drill.progress",
-      "labelTextId": "text.e2e.lab.chrome.progress"
-    },
     "drill.engage": {
       "kind": "intent",
       "box": "drill.engage",
       "intentId": "lab.intent.engage_collector",
       "labelTextId": "text.e2e.lab.chrome.engage"
+    },
+    "drill.progress": {
+      "kind": "hold_progress",
+      "box": "drill.progress",
+      "labelTextId": "text.e2e.lab.chrome.progress"
     }
   },
   "authoring": {
     "status": "human_tuned",
-    "notes": "演习中的提交态 hold 进度与围栏写入口；路由仍由应用拥有。"
+    "notes": "演习中的提交态 hold 进度与围栏写入口；路由和合法性仍由应用拥有。"
   }
 }

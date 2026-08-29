@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // The HUD chrome-layout package: `hud.chrome-layout.json` is the single
 // authoring authority for where the HUD strip sits on the logical canvas
-// (authorable chrome layout V1). The same file is edited by the Studio
-// Chrome workspace and read here at runtime; the document owns geometry
-// only — behavior, visibility rules, and intent wiring stay in code.
+// (authorable chrome layout V1). The checked data/code path owns edits and
+// runtime admission; the document owns geometry only — behavior, visibility
+// rules, and intent wiring stay in code.
 import { parseChromeLayoutDocument } from "@sillymaker/base/story";
 import type { ChromeLayoutDocument } from "@sillymaker/base/story";
 

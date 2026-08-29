@@ -282,14 +282,19 @@ Clickable body/prop zones are authored as Regions documents: a `sillymaker.regio
 
 Chrome placement (HUD icons, docked boards, tab hot zones, sheet return anchors — the DOM chrome outside the semantic stage) is authored as Chrome-layout documents: a `sillymaker.chrome-layout` JSON file (`*.chrome-layout.json`, strictly admitted) carrying one surface's hand-tuned geometry in logical canvas space — `boxes` (position + size; negative positions are legal for parked/peeking elements), `anchors` (position-only points for self-sizing elements), and `offsets` (named integer scalars such as font-metric nudges). Story code imports the document, runs `parseChromeLayoutDocument` once, and reads named entries as ordinary typed data (fail fast on unknown names); behavior — board exclusivity, occupancy gates, intent legality — stays in Story code, and layout documents never enter State, Saves, digests, or replay. `app check` lints every layout file and the dev server retains the CAS ports. M5 removed the Studio Chrome workspace/fixture binding; the current Inspector does not edit standalone chrome layouts, so use the checked data/code path until a real consumer justifies another focused tool.
 
-An optional `widgets` section can bind a named box to an `intent` control or a
-read-only `hold_progress` slot. Render it through `@sillymaker/ui/chrome` and
-provide availability, committed progress, and the `intentId` callback from the
-Story projection. The host owns accessible button/progress semantics and logical-
-canvas placement; the Story still maps the reported id to an ordinary semantic
-invocation or occurrence-fenced write. Do not put command names, rule predicates,
-or routing authority in the layout document. Product render hooks may replace the
-pixels without replacing those semantics.
+An optional `widgets` section can bind a named box to an `intent` control
+(`intentId`, `labelTextId`, and optional icon `assetId`) or a read-only
+`hold_progress` slot. Render it through `@sillymaker/ui/chrome` and supply the
+behavioral side from the Story: `stateOf(intentId)` projects enabled, disabled
+with reason text IDs, or hidden; `onActivate(intentId)` maps one activation onto
+an ordinary semantic invocation, occurrence-fenced write, or choice resolution;
+and `holdProgress` supplies committed `remainingMs` / `totalMs` views, optionally
+per widget for multi-slot HUDs. The host owns accessible button/progress
+semantics, disabled gating, single activation, and logical-canvas placement;
+product render hooks may replace pixels without replacing those semantics. Do
+not put command names, rule predicates, or routing authority in the layout
+document. A timed menu over a running hold remains the existing fenced-write plus
+hold-`when` composition.
 
 Visual scene composition now has two explicit source authorities. Prefer an Authoring Scene (`sillymaker.authoring-scene` V1, `*.authoring-scene.json`) for new hierarchical work: it declares ordered layers, ordered root/child object trees, local transforms, at most one Visual per object, named cues, and closed references to hit regions, motions, timelines, GUI controls, and semantic intents. A stable `objectId` is also the runtime Stage tag; a group may carry transform and children without becoming a Stage entry. The byte source is Strict-JSON/schema admitted once into normalized typed IR, then a pure compiler flattens each layer by depth-first preorder, composes transforms with deterministic integer/permille rounding, and emits dense z-order.
 
@@ -339,9 +344,12 @@ Start from the tracked Template and use the focused `@sillymaker/vn/interaction`
 interaction-document/compiler/runtime entry. Do not copy either the Template or
 One Last Sound Check narrative kit into a new product. The shared layer owns the
 generic `say`/`choice`/`stage`/`branch`/`hold`/`end` control blocks, stable
-derived IDs and deterministic run-to-interaction policy. The product supplies
-typed predicates and choice effects over its own State; it keeps text packs,
-characters, media, routes and special surfaces locally.
+derived IDs, deterministic run-to-interaction policy, and the matching Base
+NarrativeGraph lint/prediction projection. Use `projectVnNarrativeGraphV1`
+with the compiled document; the product callback adds only its source locations
+and asset dependencies. The product supplies typed predicates and choice
+effects over its own State; it keeps text packs, characters, media, routes and
+special surfaces locally.
 
 This authoring layer is ordinary TypeScript plus admitted JSON-safe data. It is
 not a Ren'Py DSL, runtime expression evaluator, command bus or service locator.
