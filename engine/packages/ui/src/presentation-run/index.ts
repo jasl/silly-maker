@@ -8,6 +8,8 @@ export { createPresentationFreezePortV1 } from "./presentation-freeze.ts";
 export type { PresentationFreezePortV1, PresentationFreezeStateV1 } from "./presentation-freeze.ts";
 export { createPresentationRatePortV1 } from "./presentation-rate.ts";
 export type { PresentationRatePortV1, PresentationRateStateV1 } from "./presentation-rate.ts";
+export { createPresentationRngStreamV1, derivePresentationSeedV1 } from "./presentation-rng.ts";
+export type { PresentationRngStateV1, PresentationRngStreamV1 } from "./presentation-rng.ts";
 export { createPresentationRunV1, easeInOutV1 } from "./presentation-run.ts";
 export type {
   CreatePresentationRunOptionsV1,
