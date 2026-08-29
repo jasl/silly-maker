@@ -23,6 +23,7 @@ import type {
 import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
 import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
 import { ButtonV1 as Button, IconButtonV1 } from "./design-system/button.tsx";
+import { CheckboxV1 } from "./design-system/checkbox.tsx";
 import { TextareaV1 } from "./design-system/textarea.tsx";
 
 const pendingReviewStatusDescriptionIdV1 = "workspace-review-pending-status";
@@ -337,8 +338,7 @@ export function ChatPaneV1({
                 <strong id="network-access-heading">{copy.networkAccessTitle}</strong>
               </span>
               <label className="network-access__toggle">
-                <input
-                  type="checkbox"
+                <CheckboxV1
                   checked={networkAccess.enabled}
                   disabled={networkAccess.pending || interactionPending}
                   onChange={(event) => {

@@ -8,6 +8,7 @@ import { createRef, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ButtonV1, IconButtonV1 } from "../ui/design-system/button.tsx";
+import { CheckboxV1 } from "../ui/design-system/checkbox.tsx";
 import { FieldDescriptionV1, FieldLabelV1, FieldV1 } from "../ui/design-system/field.tsx";
 import { InputV1 } from "../ui/design-system/input.tsx";
 import { ProgressV1 } from "../ui/design-system/progress.tsx";
@@ -86,6 +87,38 @@ describe("SillyOS design-system controls", () => {
     expect(textarea).toHaveAttribute("aria-invalid", "true");
     expect(textarea).toHaveAttribute("maxlength", "4000");
     expect(ref.current).toBe(textarea);
+  });
+
+  it("keeps checkbox state native while fixing its semantic type", () => {
+    const ref = createRef<HTMLInputElement>();
+
+    function CheckboxHarnessV1() {
+      const [checked, setChecked] = useState(false);
+      return (
+        <label>
+          <CheckboxV1
+            ref={ref}
+            checked={checked}
+            onChange={(event) => setChecked(event.currentTarget.checked)}
+          />
+          Allow network access
+        </label>
+      );
+    }
+
+    render(<CheckboxHarnessV1 />);
+    const checkbox = screen.getByRole("checkbox", { name: "Allow network access" });
+    expect(checkbox).toHaveAttribute("type", "checkbox");
+    expect(checkbox).toHaveClass("sos-checkbox");
+    expect(checkbox).toHaveAttribute("data-slot", "checkbox");
+    expect(checkbox).not.toBeChecked();
+    expect(ref.current).toBe(checkbox);
+
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+
+    render(<CheckboxV1 aria-label="Unavailable model" disabled />);
+    expect(screen.getByRole("checkbox", { name: "Unavailable model" })).toBeDisabled();
   });
 
   it("composes the engine progress meter without duplicating its contract", () => {

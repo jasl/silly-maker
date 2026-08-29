@@ -176,6 +176,32 @@ async function initializePiTestV1(page: Page, key: string): Promise<void> {
   await expect(page.getByText("Pi test ready", { exact: true })).toBeVisible();
 }
 
+async function expectSillyOsCheckboxRecipeV1(control: Locator): Promise<void> {
+  await expect(control).toHaveClass(/\bsos-checkbox\b/u);
+  const recipe = await control.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const bounds = element.getBoundingClientRect();
+    return {
+      inlineSize: style.inlineSize,
+      blockSize: style.blockSize,
+      margin: style.margin,
+      accentColor: style.accentColor,
+      width: bounds.width,
+      height: bounds.height,
+    };
+  });
+
+  expect(recipe).toMatchObject({
+    inlineSize: "16px",
+    blockSize: "16px",
+    margin: "0px",
+    width: 16,
+    height: 16,
+  });
+  expect(recipe.accentColor).not.toBe("");
+  expect(recipe.accentColor).not.toBe("auto");
+}
+
 async function readWorkspaceContinuationV1(
   page: Page,
   programId: string,
@@ -992,6 +1018,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   const anthropicAliasRow = page.locator('[data-model-id="claude-sonnet-4-5"]');
   const anthropicAlias = anthropicAliasRow.locator("input");
   await expect(anthropicAlias).toBeEnabled();
+  await expectSillyOsCheckboxRecipeV1(anthropicAlias);
   if (!await anthropicAlias.isChecked()) await anthropicAliasRow.click();
   await expect(anthropicAlias).toBeChecked();
   await page.getByRole("button", { name: "Back to Providers" }).click();
@@ -2701,6 +2728,7 @@ test("the Program network toggle gates fixed Pi fetch_url without per-request ap
   const composer = page.getByRole("textbox", { name: "Ask for a change…" });
 
   await expect(accessToggle).not.toBeChecked();
+  await expectSillyOsCheckboxRecipeV1(accessToggle);
   await composer.fill(`${deterministicFetchUrlProbePrefixV1}${blockedUrl}`);
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");

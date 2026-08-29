@@ -51,6 +51,7 @@ import {
   AlertDialogV1,
 } from "./design-system/alert-dialog.tsx";
 import { BadgeV1 } from "./design-system/badge.tsx";
+import { CheckboxV1 } from "./design-system/checkbox.tsx";
 import {
   CardContentV1,
   CardDescriptionV1,
@@ -2267,8 +2268,7 @@ export function ProviderSettingsV1({
                                                     data-model-id={model.modelId}
                                                     data-availability={model.availability.status}
                                                   >
-                                                    <input
-                                                      type="checkbox"
+                                                    <CheckboxV1
                                                       value={model.modelId}
                                                       checked={enabled}
                                                       disabled={!available}

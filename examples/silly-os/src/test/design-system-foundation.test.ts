@@ -97,6 +97,28 @@ describe("SillyOS design-system foundation", () => {
     expect(productCss).not.toContain(".workpiece-workspace-export progress");
   });
 
+  it("routes visible checkbox and password consumers through shared controls", async () => {
+    const [creator, chat, providers, checkbox, componentCss, productCss] = await Promise.all([
+      readFile(resolve(productRootV1, "ui/creator-home.tsx"), "utf8"),
+      readFile(resolve(productRootV1, "ui/chat-pane.tsx"), "utf8"),
+      readFile(resolve(productRootV1, "ui/provider-settings.tsx"), "utf8"),
+      readFile(resolve(productRootV1, "ui/design-system/checkbox.tsx"), "utf8"),
+      readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+    ]);
+
+    expect(`${chat}\n${providers}`).not.toContain('type="checkbox"');
+    expect(chat).toContain("<CheckboxV1");
+    expect(providers).toContain("<CheckboxV1");
+    expect(checkbox).toContain('type="checkbox"');
+    expect(checkbox).toContain('data-slot="checkbox"');
+    expect(creator).toMatch(/<InputV1\s+id="pi-agent-key"/u);
+    expect(creator).toMatch(/<input\s+ref=\{fileInputRef\}\s+hidden\s+type="file"/u);
+    expect(componentCss).toContain(".sos-checkbox");
+    expect(productCss).not.toContain(".provider-settings__model input");
+    expect(productCss).not.toContain(".network-access__toggle input");
+  });
+
   it("scans every emitted CSS asset for forbidden Tailwind globals", async () => {
     const checker = await readFile(
       resolve(productRootV1, "../tools/check-browser-control-plane-build.mts"),

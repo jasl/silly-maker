@@ -195,8 +195,8 @@ S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2/N3, the original S3, S3-R1,
 D1, P1-B1d reasoning effort, and E0 engine-baseline absorption are closed. The current
 local source is rebased onto engine baseline
 `31461f362129e6192f70553a261ada225c2abf8b`. DS1 is the current active product
-phase: DS1a and the bounded DS1b-1/DS1b-2 checkpoints are delivered, while the rest of
-DS1b plus DS1c–DS1e remain active-plan work. No Mod phase is active. The current build-matched
+phase: DS1a and DS1b are delivered, while DS1c–DS1e remain active-plan work. No
+Mod phase is active. The current build-matched
 three-origin artifact and fixed Vault Worker are deployed from commit
 `a17c3490c9940bb43fc8718df485322c2dee1052` (Sandbox
 `fb703131-3e37-4e7d-95f4-5b7afa9160cd`, Broker
@@ -266,7 +266,7 @@ or deployed release. Its acceptance is the rebased product/unit/build/security
 gate plus a real computed-style Browser check for product-scope colors, normal
 and compact control geometry, focus tokens, and reduced motion.
 
-### DS1 — SillyOS component and pattern system (active; DS1a and DS1b-1/DS1b-2 delivered 2026-08-30)
+### DS1 — SillyOS component and pattern system (active; DS1a and DS1b delivered 2026-08-30)
 
 The owner has activated DS1 as a product lane. It inventories the real Creator,
 Settings, Workspace, Chat, review, progress, empty/error, and overlay states,
@@ -304,7 +304,7 @@ The active sequence is:
    Settings consumes the same theme and locale authority. Existing reachable
    surfaces must remain legible and operational in both resolved themes even
    where their structural component migration is deferred.
-2. **DS1b — shared primitives.** Converge the currently repeated Button,
+2. **DS1b — shared primitives (delivered 2026-08-30).** Converge the currently repeated Button,
    IconButton, field, native-select, segmented/toggle, tabs, menu, dialog,
    status, progress, and overlay roles behind product-owned components. Reuse
    the public SillyMaker physical primitives where their contract fits and use
@@ -324,9 +324,14 @@ The active sequence is:
    Creator Home and Workspace Chat retain their own composer geometry and IME/
    Enter behavior; ZIP export and the visible Program meter now share native
    progress semantics without copying the engine's range/accessibility checks.
-   Checkbox and any remaining stable primitive convergence stay in the rest of
-   DS1b; navigation rows, Provider rows, and workflow composition stay explicit
-   for DS1c rather than becoming a generic Settings framework.
+   The closing **DS1b-3** checkpoint adds one native Checkbox recipe for Program
+   network access and Provider model visibility, and routes the query-gated Pi
+   test password field through the existing Input recipe. Hidden file inputs
+   remain native platform controls because they have no visible recipe and are
+   activated through named product Buttons. This closes visible physical
+   primitive convergence. Navigation rows, Provider rows, loading/empty states,
+   and workflow composition stay explicit for DS1c rather than becoming a
+   generic Settings framework.
 3. **DS1c — product patterns.** Converge the Creator composer, model/reasoning
    pickers, settings rows, Provider connection controls, proposal/review cards,
    navigation, workpiece, and empty/error/loading states. Product vocabulary
@@ -369,9 +374,9 @@ and the focused settings/theme/locale/menu/dialog suite in both Chromium and
 WebKit (10/10), including live `matchMedia` and cross-tab `storage` changes. A
 separate in-app Browser pass checked the dark Creator, General,
 unified menu, native modal backdrop/focus, and desktop layout. DS1 remains
-active: the remainder of DS1b plus DS1c–DS1e still own complete primitive,
-pattern, surface, dead-style, and visual-fixture convergence, so the delivered
-DS1 checkpoints do not claim that all product components have already migrated.
+active: DS1c–DS1e still own pattern, surface, dead-style, and visual-fixture
+convergence, so the delivered DS1 checkpoints do not claim that all product
+components have already migrated.
 
 DS1b-1 delivered on 2026-08-30 without changing Settings information
 architecture, Provider/credential behavior, product flows, or an engine API.
@@ -393,8 +398,23 @@ accessible names and value text. The combined product unit gate is now 70 files
 / 586 tests; focused Chromium and WebKit rendered checks pass for both
 composers, the Program meter, and the complete cancel-then-download ZIP flow
 (4/4). All three Browser artifact boundary builds also pass for the committed
-clean identity. Checkbox, loading/empty patterns, navigation, and Provider rows
-remain later bounded work.
+clean identity. Loading/empty patterns, navigation, and Provider rows remain
+later bounded work.
+
+DS1b-3 closes shared physical primitive convergence on 2026-08-30 without
+changing Program network semantics, Provider model preferences, the query-gated
+test runtime, product layout, or an engine API. `CheckboxV1` fixes native
+checkbox type/ref/state semantics and owns the common product size/accent
+recipe; the Program network and Provider model consumers retain their own
+labels, disabled rules, and mutations. The test-only password field now uses
+`InputV1`, while hidden file inputs remain explicit native exceptions. Focused
+behavior and structural guards cover those boundaries. The combined product
+gate is 70 files / 588 tests; root format, type-aware lint, Stylelint, and
+typecheck pass; the Provider-model and Program-network rendered flows pass in
+Chromium and WebKit (4/4); and an in-app Browser pass confirms desktop/narrow
+geometry, keyboard focus, state change, and no page overflow. All three Browser
+artifact boundaries pass before commit; the closing identity is rebuilt and
+rechecked after commit. DS1c–DS1e remain active product work.
 
 SillyMaker remains the home only for neutral primitives and interaction
 mechanics that can be reproduced without SillyOS vocabulary. A DS1 discovery

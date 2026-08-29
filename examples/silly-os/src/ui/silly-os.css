@@ -286,7 +286,7 @@
   line-height: 1.4;
 }
 
-.pi-agent-setup__controls input {
+.pi-agent-setup__controls .sos-input {
   block-size: 32px;
   padding-inline: 9px;
   font-size: 12px;
@@ -1892,12 +1892,6 @@
   background: var(--sos-accent-softer);
 }
 
-.provider-settings__model input {
-  inline-size: 16px;
-  block-size: 16px;
-  accent-color: var(--sos-accent);
-}
-
 .provider-settings__model-copy {
   gap: 2px;
 }
@@ -2534,10 +2528,6 @@
   font-size: 11px;
   font-weight: 650;
   white-space: nowrap;
-}
-
-.network-access__toggle input {
-  margin: 0;
 }
 
 .network-access p {
@@ -4179,7 +4169,7 @@
     grid-template-columns: 1fr;
   }
 
-  .pi-agent-setup__controls input,
+  .pi-agent-setup__controls .sos-input,
   .pi-agent-setup__controls button {
     min-block-size: 42px;
   }

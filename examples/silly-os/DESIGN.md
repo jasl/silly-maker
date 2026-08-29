@@ -1776,10 +1776,13 @@ and Tabs now have product-owned recipes over the neutral physical layer;
 Settings is their first complete stable consumer. DS1b-2 then adds the shared
 native Textarea used by both composers and a product Progress recipe over the
 public SillyMaker `ProgressMeter`, used by ZIP export and the visible Program
-meter. The large product stylesheet remains a migration source rather than
-proof that the component/pattern system is complete. DS1 remains active and is
-not complete until the remainder of DS1b plus DS1c–DS1e and their evidence
-close. Product
+meter. DS1b-3 closes the physical layer with one native Checkbox recipe for
+Program network access and Provider model visibility, and moves the query-gated
+test password field onto the existing Input recipe. Hidden file inputs remain
+native platform controls behind named product Buttons. The large product
+stylesheet remains a migration source rather than proof that the component/
+pattern system is complete. DS1 remains active and is not complete until
+DS1c–DS1e and their evidence close. Product
 appearance and workflow stay in SillyOS; only use-case-neutral primitives or
 interaction mechanics with an independent second real consumer (or a proved
 engine-wide baseline need) may be proposed upstream.
@@ -1861,16 +1864,24 @@ framework. The slice also migrates every current product Button/IconButton
 consumer to one physical composition, deletes the retired parallel wrapper,
 and adds no engine dependency, API, theme authority, or public component ABI.
 
-The delivered DS1b-2 slice converges only the two remaining plan-named physical
+The delivered DS1b-2 slice converges the two remaining plan-named physical
 roles with multiple real consumers. `TextareaV1` retains native textarea
 semantics, attributes, and refs while Creator Home and Workspace Chat continue
 to own their different size, padding, resize, IME, and Enter/Shift+Enter
 behavior. `ProgressV1` directly composes the public SillyMaker native progress
 contract, so accessible-name, range, value, and value-text validation are not
 copied into the product. Workspace export and the visible Program meter retain
-their surface placement and thickness. Checkbox, navigation/list rows,
-Provider/model patterns, Spinner/loading, and empty/error composition are not
-generalized by this checkpoint.
+their surface placement and thickness.
+
+The delivered DS1b-3 slice closes visible physical primitive convergence.
+`CheckboxV1` fixes native checkbox semantics and the shared product size/accent
+recipe while Program network access and Provider model visibility continue to
+own their distinct labels, availability rules, and mutations. The query-gated
+Pi test password field reuses `InputV1`; the two hidden file inputs remain raw
+native controls because they are invisible `FileList` hosts activated by named
+product Buttons rather than visual input consumers. Navigation/list rows,
+Provider/model patterns, Spinner/loading, and empty/error composition belong to
+DS1c and are not generalized by DS1b.
 
 DS1a is backed by focused preference/schema/cross-tab, navigation-only locale,
 pre-mount theme, menu/dialog/focus, Tailwind built-output, and token-containment
@@ -1882,9 +1893,12 @@ cascade order, all three Browser artifact boundaries, and rendered desktop/
 narrow Settings checks. DS1b-2 adds native/ref/state contracts for Textarea,
 public-engine composition and value semantics for Progress, structural guards
 against parallel raw composer/progress consumers, and Chromium/WebKit rendered
-checks over both composers, the visible Program meter, and ZIP export. Later
-component and surface stages add their own long-content and visual fixtures
-before DS1 can be called complete.
+checks over both composers, the visible Program meter, and ZIP export. DS1b-3
+adds native/ref/state checks for Checkbox, structural guards against raw visible
+checkbox and password consumers, the existing Program-network and Provider-
+model behavior suites, and rendered checkbox geometry/interaction evidence in
+Chromium and WebKit. Later pattern and surface stages add their own long-content
+and visual fixtures before DS1 can be called complete.
 
 ## Responsive layout contract
 

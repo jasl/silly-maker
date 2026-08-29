@@ -44,12 +44,14 @@ light/dark tokens, device-local theme/locale preferences with cross-tab
 propagation, a product-local overlay host, and one accessible Theme/Language/
 Settings menu. DS1b-1 then converged product Button/IconButton and the stable
 Settings Input/Field/NativeSelect/Card/Badge/Status/Tabs layer without changing
-Settings information architecture or an engine API. DS1b-2 now adds a shared
-native Textarea for the Home/Workspace composers and a product Progress recipe
-over the public SillyMaker `ProgressMeter` for ZIP export and the visible
-Program meter. The remaining DS1 slices still own Checkbox and other residual
-stable primitives, product patterns, full surface migration, dead styles, and
-visual fixtures. Product-scoped Tailwind
+Settings information architecture or an engine API. DS1b-2 adds a shared native
+Textarea for the Home/Workspace composers and a product Progress recipe over the
+public SillyMaker `ProgressMeter` for ZIP export and the visible Program meter.
+DS1b-3 closes the shared physical layer with one native Checkbox recipe for
+Program network access and Provider model visibility, and routes the query-gated
+Pi test password field through the existing Input recipe. Hidden file inputs
+remain native platform controls. The remaining DS1 slices own product patterns,
+full surface migration, dead styles, and visual fixtures. Product-scoped Tailwind
 CSS 4 utilities run without Preflight or
 global generated theme/property output. Shadcn-derived focused Radix
 compositions remain product implementation detail; native `dialog` owns modal
