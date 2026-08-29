@@ -80,8 +80,8 @@ admitted submit 前同步当前 Program 的完整 grant set。N2 还增加了固
 staging 后才开始 GET，每次最多转交一个等待 ACK 的 `1 MiB` chunk，完整且仍 current 的 2xx
 响应才会通过原有 journal 发布到 Program volume。Chromium 与 WebKit 已各自验证 `32 MiB`
 二进制、SHA-256、generation/receipt 和冷重开；这仍不等于任意站点 CORS、线上 ingress、搜索、
-解压、认证下载或真实模型调用已经通过。当前三 origin artifact 已发布的仍是上一版本；本轮
-N1/N2/S3 完成后会从同一 committed build identity 重新部署。
+解压、认证下载或真实模型调用已经通过。N1/N2/S3 已随当前三 origin artifact 从同一 exact
+committed build identity 部署；这只提升 artifact availability，不提升上述行为资格。
 
 另有一个只在 `?agent=pi-test` 出现的 B0a 验证入口：它会把产品 lockfile 固定的
 `pi-agent-core` / `pi-ai` 0.84.3 懒加载进 Dedicated Worker，通过 typed RPC 运行真实
@@ -280,7 +280,7 @@ Provider 技术兼容与持久化模型偏好取代产品中的模型质量准�
 Home warning、有界 custom HTTPS profile，以及只给选定 Agent Worker 精确 endpoint origin 的
 Cloudflare CSP 响应层；同时先补齐控制面 CSP/渲染约束、存储分权合同，并从 live Provider
 撤下同源 workspace tools。B1c-S0 保留历史公开域名的严格 CSP、Home 与 Settings
-Chromium/WebKit 回执；当前组合 source 仍待本轮重部署。WebKit 当时产生了预期的 Trusted Types
+Chromium/WebKit 回执；当前组合 source 已在本轮以一个精确 build identity 重新部署。WebKit 当时产生了预期的 Trusted Types
 Report-Only 诊断，因此 enforcement 没有被提升；没有页面错误、失败请求或其他意外 console
 错误。S1a-0 已在 Chromium 与持久 WebKit 中通过：独立 origin frame + 固定 Host Worker、
 typed control/environment port、20 MiB OPFS generation-82 冷重开与同 hash 复核、81 文件
@@ -439,14 +439,21 @@ family 之一并填写 model/limits，再用同一个 Connection 流程保存 ke
 normalized endpoint 的精确绑定恢复为加密记录，测试状态不会恢复。一次测试成功只描述当前
 endpoint/key/model/API family 组合在本次浏览器会话中的那一次请求，不是使用前提。
 
-Cloudflare 入口仍是
-[silly-os.jasl9187.workers.dev](https://silly-os.jasl9187.workers.dev/)，但当前线上 artifacts 是
-上一轮已验证基线；N1、N2 与本节 Credential Vault 改动待本轮重部署。历史部署回执保留在
-[PLAN.md](./PLAN.md) 与 [DESIGN.md](./DESIGN.md)，不能用来声称当前 source 已在线。产品仍是
+Cloudflare 入口是
+[silly-os.jasl9187.workers.dev](https://silly-os.jasl9187.workers.dev/)。N1、N2 与本节
+Credential Vault 已从精确 commit `ca4104b68312e115c698b9e0d5caeb7cdaf67789`
+一起部署；control、Workspace Sandbox 与 Network Broker 的 Cloudflare version 分别是
+`5bc7ad49-d010-4225-8454-4b1dd5b2fa07`、
+`1c228ffe-0e8d-4829-b535-8dd50c4bb770` 与
+`fa8e9465-b63d-4d80-a564-990b1acb2f8a`。三个公开入口和 hashed Vault Worker 均返回
+HTTP 200；源码身份、三 origin CSP 分权与 Vault network-off 响应策略已核对。产品仍是
 静态客户端：Provider Key 和模型请求从 Agent Worker 直接发送给所选 Provider，不经过 SillyOS
 或 Cloudflare relay；`fetch_url` / `download` 的远程响应则只从无 Key 的 Browser Broker 发出。
-本地 N1/N2 Chromium/WebKit evidence 与 Vault focused tests 不自动证明 public-origin 真实模型
-工具调用、任意站点 CORS、线上 ingress 或 search。
+公网只读 smoke 已到达 Creator Home、Settings、Providers、Custom Endpoints 与 Credential Vault
+面板；页面显示 session-only 默认、`Not set up` 与 `0 remembered`，没有 error-level console
+记录或致命 overlay。该 smoke 没有输入或更改任何 key。
+这份 artifact/response 回执不自动证明 public-origin 真实模型工具调用、remembered-key
+真实 Provider journey、任意站点 CORS、线上 ingress 或 search。
 
 开发资格检查会按精确 profile 从本目录的 `.env` 读取对应 Provider key，依次启动普通
 Chromium context 与运行后删除的一次性持久 WebKit profile，

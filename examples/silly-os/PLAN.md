@@ -120,15 +120,18 @@ editor integration remain separate inactive
 checkpoints. Earlier B1c Provider counts
 are dated evidence for their pre-security snapshot
 and do not by themselves accept the current overlay. Current source still does
-not add OAuth, multi-field cloud credentials, a Provider relay, remote-to-VFS
-download, HTTP requests, arbitrary headers, or a second Provider runtime, and
+not add OAuth, multi-field cloud credentials, a Provider relay, authenticated
+downloads, HTTP requests, arbitrary headers, or a second Provider runtime, and
 it does not claim real custom-endpoint qualification until an exact custom route
-passes the later deployed-origin gate. S2-N0 is closed and deployed on 2026-08-29:
+passes the later deployed-origin gate. S2-N0/N1/N2 and S3 are closed and
+deployed on 2026-08-29:
 its fixed `fetch_url` and keyless Network Broker admit one exact approved HTTPS
 text request, including LAN/private destinations when the Browser permits it.
-The build-matched control, Workspace Sandbox, and Broker release is recorded
-below; it does not activate durable grants, download, search, or public-origin
-real-model network qualification.
+N1 adds explicit revocable Program grants, N2 adds bounded streamed download to
+the current Workspace, and S3 adds opt-in encrypted credential persistence.
+The build-matched control, Workspace Sandbox, Broker, and Vault release is
+recorded below; it does not activate search, authenticated network, or
+public-origin real-model/network-tool qualification.
 The raw launcher is not the typed product RPC; the live Browser route is a
 separate product path. This plan remains local to `examples/silly-os`; the
 neutral async GUI disposer was delivered separately by the engine task and is
@@ -179,12 +182,13 @@ the selected target adapters may combine TypeScript, Workers, Wasm payloads, or
 a native companion behind the same typed workspace boundary.
 
 At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
-S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, and S2-N0 are closed locally; the current
-build-matched three-origin artifact is also deployed. The post-Q1
-Browser Workspace namespace/file slice is implemented and locally verified.
-N0 adds only its fixed `fetch_url`, keyless third-origin Network Broker, and
-exact session-only **Allow once**; it does not activate a durable Program grant,
-remote download, or search. Deployment remains a separately recorded release
+S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2, and S3 are closed; the current
+build-matched three-origin artifact and fixed Vault Worker are deployed. The
+post-Q1 Browser Workspace namespace/file slice is implemented and locally
+verified. N0 adds fixed `fetch_url` and exact session-only **Allow once**; N1
+adds explicit revocable Program grants, N2 adds bounded remote download, and S3
+adds opt-in encrypted credential persistence. None activates search or
+authenticated network. Deployment remains a separately recorded release
 operation. The opt-in real QJS Agent-loop
 qualifier has passed once with Anthropic `claude-sonnet-4-5` in Chromium. A
 later phase may be refined before it
@@ -645,11 +649,12 @@ native `bash` schema/result; just-bash owns the admitted command algorithms;
 the Sandbox Host owns Program volume generations and recovery. None of these
 semantics moves into the use-case-neutral SillyMaker engine.
 
-#### S2-N — explicit Browser network tools through a keyless Broker (N0–N2 closed; N0 deployed 2026-08-29)
+#### S2-N — explicit Browser network tools through a keyless Broker (N0–N2 closed and deployed 2026-08-29)
 
 Network access is an explicit Program capability, not an ambient Workspace or
-guest-runtime property. SillyOS will ship fixed Pi `AgentTool` values named
-`fetch_url` and, later, `download`. They use Pi's `AgentTool` contract; Pi
+guest-runtime property. SillyOS ships fixed Pi `AgentTool` values named
+`fetch_url` and `download`; N0 and N2 delivered them in that order. They use
+Pi's `AgentTool` contract; Pi
 continues to own call lifecycle, ordering, and the Agent loop, while the pinned
 SillyOS adapter owns each fixed schema and handler. A product-private
 `NetworkCapabilityPort` owns Browser admission, grants, cancellation, and
@@ -894,7 +899,7 @@ S5. General web search is also absent until its separately named Pi tool and
 bounded result/provider contract are accepted; N0 does not pretend that
 `fetch_url` supplies it.
 
-N2 delivered locally on 2026-08-29. One product-fixed Pi
+N2 delivered and joined the combined release on 2026-08-29. One product-fixed Pi
 `download({ url, destination, overwrite? })` tool now reuses the N1 operation-
 scoped grant boundary. The Agent Worker transfers one endpoint of a private
 stream channel to the keyless Broker and the other to the current Workspace
@@ -919,13 +924,12 @@ prove arbitrary-site CORS, public-origin ingress, browser memory telemetry,
 quota exhaustion on a real device, redirect behavior, background transfer,
 archive extraction, or authenticated download. Playwright fulfillment supplies
 the exact bytes but bypasses Browser CORS/redirect enforcement, so those claims
-remain absent. S3 is now integrated locally; N1, N2, and S3 will move together
-only after the combined tree passes its release gates and is committed under one
-build identity.
+remain absent. N1, N2, and S3 passed the combined release gates and are deployed
+together under the exact build identity recorded below.
 
 ### S3 — optional Credential Vault
 
-S3 delivered locally on 2026-08-29. Session-only remains the default. The
+S3 delivered and deployed on 2026-08-29. Session-only remains the default. The
 Provider form adds an explicit **Remember on this device** choice; it never
 silently promotes an ordinary Save. A user-created, passphrase-unlocked Vault
 derives a non-extractable AES-256-GCM key with PBKDF2-SHA-256 (`600,000`
@@ -973,6 +977,23 @@ and API key; it does not promise resistance to compromised control-plane code,
 XSS, malicious extensions, device malware, supply-chain compromise, passphrase
 capture, or misuse while the Vault is unlocked. The product exposes no generic
 credential-bearing fetch RPC and the keyless Network Broker remains orthogonal.
+
+The combined release operation deployed exact implementation commit
+`ca4104b68312e115c698b9e0d5caeb7cdaf67789` to the canonical control origin as
+Cloudflare version `5bc7ad49-d010-4225-8454-4b1dd5b2fa07`, Workspace Sandbox
+version `1c228ffe-0e8d-4829-b535-8dd50c4bb770`, and Network Broker version
+`fa8e9465-b63d-4d80-a564-990b1acb2f8a`. Control `/`, Sandbox
+`/workspace-sandbox.html`, Broker `/network-broker.html`, and the exact hashed
+Vault Worker return HTTP 200. The public responses embed the same source
+identity and retain the expected control-self-only, Sandbox-network-off,
+Broker-HTTPS-only, and Vault-network-off CSP split. A read-only public Browser
+smoke reached Creator Home, Settings, Providers, Custom Endpoints, and the
+Credential Vault panel with its session-only default, `Not set up`, and zero
+remembered bindings; no error-level console record or fatal overlay appeared.
+That smoke entered no key and invoked no mutation. It therefore does not prove
+Vault create/unlock/encryption/cold reopen, a remembered-key handoff, a real
+Provider/model request, durable N1 behavior, N2 ingress, arbitrary-site CORS,
+or cross-browser runtime behavior.
 
 ### S4 — persistent Agent state and closed generated UI
 
@@ -1297,17 +1318,19 @@ The accepted execution order is no longer the numeric subsection order:
     One opt-in configured-Anthropic/Chromium write/write/bash-qjs loop passes
     with exact relational output and same-volume post-Forget bytes; Python
     remains absent.
-13. **S2-N0 is closed and deployed:** a keyless third-origin Broker, fixed
+13. **S2-N0/N1/N2 and S3 are closed and deployed:** a keyless third-origin Broker, fixed
     `fetch_url`, and session-only exact **Allow once** now cross the ordinary
     typed Pi path. Focused `454/454` contracts and controlled Chromium/
     persistent-WebKit journeys prove zero pre-approval request, bounded CORS
     HTTPS text fetch, rapid approval/retry currentness, denial, deadlines,
     cancellation, credential-free wire shape, and separated builds. The exact
-    three-origin release receipt is recorded above. No durable Program grant,
-    remote-to-VFS `download`, search, authenticated request, arbitrary Browser
-    egress, or public-origin real-model network behavior is claimed. S2-N1/N2
-    retain their own acceptance and stop conditions.
-    Python and other later S2 execution profiles, S3 Credential Vault, S4 Agent/OpenUI state,
+    three-origin release receipt is recorded above. N1 adds the explicit
+    revocable Program grant, N2 adds bounded streamed remote-to-VFS download,
+    and S3 adds the opt-in encrypted Vault while keeping session-only default.
+    Their combined artifact and read-only public UI smoke do not claim search,
+    authenticated request, arbitrary Browser egress, public-origin N2 ingress,
+    or public-origin real-model network behavior.
+    Python and other later S2 execution profiles, S4 Agent/OpenUI state,
     S5 BYO Sandbox/products, P1-D, and broader import/artifact work require their
     named predecessor and separate acceptance; none is retroactively part of the
     closed B1a/B1b/P3 checkpoints.
@@ -1451,8 +1474,9 @@ Under S0, the document and catalog Worker use the complete self-only CSP. For
 each admitted built-in or custom profile, the Cloudflare response layer validates
 the canonical origin on the Agent Worker URL and gives only that Worker the one
 exact selected origin in `connect-src`; no response uses a global `https:` wildcard.
-This code has no deployment claim until the strict-CSP actual build and public
-route pass their own evidence. A user-deployed relay remains a later explicit product;
+This selected-origin response path is included in the current exact release;
+each real custom endpoint still needs its own public-origin behavior evidence
+before qualification. A user-deployed relay remains a later explicit product;
 SillyOS does not operate a general Cloudflare relay, because that would make the
 product a key transit, SSRF, open-proxy, logging, and abuse boundary.
 
@@ -1672,7 +1696,7 @@ The accepted checkpoint order is:
    response header carries only the exact six-origin CSP.
 3. **B1c — request-free credential configuration, optional connection
    diagnostics, and custom HTTPS profiles
-   (locally delivered; deployment gate open).** Deliver it as two reviewable
+   (delivered and included in the current exact release).** Deliver it as two reviewable
    checkpoints rather than treating a settings form as proof of arbitrary
    Browser compatibility.
 
