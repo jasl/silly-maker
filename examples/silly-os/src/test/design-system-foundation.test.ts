@@ -50,6 +50,7 @@ describe("SillyOS design-system foundation", () => {
       composerModelPickerCss,
       settingsCss,
       chatCss,
+      workspaceViewCss,
       componentCss,
     ] = await Promise.all([
       readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
@@ -57,11 +58,12 @@ describe("SillyOS design-system foundation", () => {
       readFile(resolve(productRootV1, "ui/composer-model-picker.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/settings.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/chat.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/workspace-view.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
     ]);
 
     expect(
-      `${productCss}\n${creatorHomeCss}\n${composerModelPickerCss}\n${settingsCss}\n${chatCss}\n${componentCss}`,
+      `${productCss}\n${creatorHomeCss}\n${composerModelPickerCss}\n${settingsCss}\n${chatCss}\n${workspaceViewCss}\n${componentCss}`,
     )
       .not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/iu);
     expect(productCss).toContain("var(--sos-surface)");
@@ -220,9 +222,53 @@ describe("SillyOS design-system foundation", () => {
     );
     expect(legacyCss).not.toContain(".silly-os .workpiece-link");
     expect(legacyCss).toContain("@keyframes silly-os-spin");
-    expect(legacyCss).toContain(".program-workspace__chat-shell {");
-    expect(legacyCss).toContain(".program-workspace__mobile-nav {");
-    expect(legacyCss).toContain(".workpiece-pane {");
+  });
+
+  it("keeps Workspace View styles separate from Activity and shared runtime status", async () => {
+    const [app, workspaceViewCss, legacyCss] = await Promise.all([
+      readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
+      readFile(resolve(productRootV1, "ui/workspace-view.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+    ]);
+
+    expect(app.indexOf('import "./chat.css";')).toBeLessThan(
+      app.indexOf('import "./workspace-view.css";'),
+    );
+    expect(app.indexOf('import "./workspace-view.css";')).toBeLessThan(
+      app.indexOf('import "./silly-os.css";'),
+    );
+    expect(app.indexOf('import "./silly-os.css";')).toBeLessThan(
+      app.indexOf('import "./design-system/tailwind.css";'),
+    );
+
+    expect(workspaceViewCss).toContain(".program-workspace {");
+    expect(workspaceViewCss).toContain(".program-workspace__separator {");
+    expect(workspaceViewCss).toContain(".program-workspace__mobile-nav {");
+    expect(workspaceViewCss).toContain(".workpiece-pane {");
+    expect(workspaceViewCss).toContain(".workpiece-workspace-export {");
+    expect(workspaceViewCss).toContain(".program-canvas {");
+    expect(workspaceViewCss).toContain(".program-surface {");
+    expect(workspaceViewCss).toContain(".program-workpiece-empty {");
+    expect(workspaceViewCss).toContain(".program-capabilities {");
+    expect(workspaceViewCss).toContain(".program-execution-workspace {");
+    expect(workspaceViewCss).toContain(".program-browser-storage {");
+    expect(workspaceViewCss).toContain("@container workpiece-body (width < 620px)");
+    expect(workspaceViewCss).toContain("@media (width <= 1040px)");
+    expect(workspaceViewCss).toContain("@media (width <= 767px)");
+    expect(workspaceViewCss).toContain("@media (width <= 430px)");
+    expect(workspaceViewCss).not.toContain(".program-activity");
+    expect(workspaceViewCss).not.toContain("@keyframes silly-os-spin");
+
+    expect(legacyCss).not.toMatch(
+      /(^|\n)\s*(?:\.program-workspace(?:\b|__)|\.workpiece-pane(?:\b|__)|\.workpiece-workspace-export(?:\b|__)|\.program-canvas(?:\b|__)|\.program-surface(?:\b|__)|\.program-workpiece-empty(?:\b|__)|\.program-capabilities(?:\b|__)|\.program-execution-workspace(?:\b|__)|\.program-browser-storage(?:\b|__))/u,
+    );
+    expect(legacyCss).toContain(".program-activity {");
+    expect(legacyCss).toContain(".program-activity h2 {");
+    expect(legacyCss).toContain(".program-activity header p {");
+    expect(legacyCss).toContain(".program-activity > .program-execution-workspace {");
+    expect(legacyCss).toContain(".program-activity > .program-browser-storage {");
+    expect(legacyCss).toContain("@keyframes silly-os-spin");
+    expect(legacyCss).toContain(".program-storage-status {");
   });
 
   it("routes multiline and durable export progress through the shared physical layer", async () => {
