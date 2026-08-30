@@ -1794,8 +1794,12 @@ test password field onto the existing Input recipe. The hidden file inputs that
 remained at DS1b-3 were removed by DS1c-1 with the filename-only attachment
 actions. The large product
 stylesheet remains a migration source rather than proof that the component/
-pattern system is complete. DS1 remains active and is not complete until
-DS1c–DS1e and their evidence close. Product
+pattern system is complete. DS1c-3 has since added one product-specific Provider
+catalog row, separated credential persistence from optional point-in-time
+connection testing, removed the repeated Vault panel heading, and introduced one
+closed presentational collection-state recipe whose callers retain domain and
+announcement semantics. DS1 remains active and is not complete until DS1d–DS1e
+and their evidence close. Product
 appearance and workflow stay in SillyOS; only use-case-neutral primitives or
 interaction mechanics with an independent second real consumer (or a proved
 engine-wide baseline need) may be proposed upstream.
@@ -1936,6 +1940,17 @@ generation/mutation receipt, and Browser storage projection remain. This slice
 does not introduce a file manager, editor, `UiArtifact` framework, or any
 SillyMaker/Workspace API.
 
+The delivered DS1c-3 Provider and collection checkpoint keeps the same
+orthogonality rule. A Provider detail presents endpoint and credential
+persistence before an explicitly separate optional Test Connection section;
+the transient save receipt names no Provider model, and diagnostic status stays
+point-in-time. Built-in and custom Provider entries use one product-owned
+master-list row rather than parallel markup. Loading, failure/retry, static
+empty, and search-empty collection states use one presentational pattern, but
+the caller continues to own state, copy, action, `role`, and `aria-live`. This is
+not a generic async-state framework, Provider allowlist, Settings framework, or
+engine component/API.
+
 DS1a is backed by focused preference/schema/cross-tab, navigation-only locale,
 pre-mount theme, menu/dialog/focus, Tailwind built-output, and token-containment
 tests; the existing product/build/security gates; and Chromium/WebKit rendered
@@ -1954,7 +1969,9 @@ layout. DS1b-3
 adds native/ref/state checks for Checkbox, structural guards against raw visible
 checkbox and password consumers, the existing Program-network and Provider-
 model behavior suites, and rendered checkbox geometry/interaction evidence in
-Chromium and WebKit. Later pattern and surface stages add their own long-content
+Chromium and WebKit. DS1c-3 adds focused Provider/collection semantics and
+contrast checks plus the affected built-in/custom Chromium/WebKit Settings
+journeys. Later surface stages add their own long-content
 and visual fixtures before DS1 can be called complete.
 
 ## Responsive layout contract

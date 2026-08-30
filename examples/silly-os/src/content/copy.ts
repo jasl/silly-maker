@@ -529,7 +529,7 @@ const englishV1: SillyOsCopyV1 = {
     "The selected model is not available through this Provider in the current Browser build.",
   providerConnectionTitle: "Connection",
   providerConnectionDescription:
-    "Save or update one API key across the fixed endpoint scopes shown below. It remains in the Credential Vault until you delete it or clear site data. Model preferences and testing are separate.",
+    "Store one API key for the fixed endpoint scopes below. Model visibility and connection tests are configured separately.",
   providerConnectionModelLabel: "Test with model",
   providerConnectionModelDescription:
     "Choose any technically callable model from this Provider. This ignores visibility checkboxes and does not change your preferred model.",
@@ -836,7 +836,7 @@ const chineseV1: SillyOsCopyV1 = {
   selectedModelUnavailable: "当前浏览器版本无法通过这个 Provider 使用所选模型。",
   providerConnectionTitle: "连接配置",
   providerConnectionDescription:
-    "把同一个 API Key 保存或更新到下方固定的 Endpoint 范围。Key 会留在凭据保险库中，直到你删除它或清除站点数据；模型偏好与测试是独立设置。",
+    "为下方固定的 Endpoint 范围保存一个 API Key。模型可见性与连接测试在各自区域中独立设置。",
   providerConnectionModelLabel: "使用此模型测试",
   providerConnectionModelDescription:
     "可选择此 Provider 中任何技术上可调用的模型；这里不受可见模型勾选影响，也不会改变首选模型。",

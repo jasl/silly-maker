@@ -40,6 +40,67 @@ const providerModelV1: ComposerModelControlV1 = {
 };
 
 describe("Creator readiness UI", () => {
+  it("uses the shared passive collection pattern for recent Program states", () => {
+    const { rerender } = render(
+      <CreatorHomeV1
+        copy={copyV1}
+        onCreate={vi.fn()}
+        onLocaleChange={vi.fn()}
+        theme="system"
+        onThemeChange={vi.fn()}
+        programCatalog={{
+          status: "loading",
+          programs: [],
+          openDisabled: false,
+          onOpen: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveAttribute("data-slot", "collection-state");
+    expect(screen.getByRole("status")).toHaveTextContent(copyV1.programsLoading);
+
+    rerender(
+      <CreatorHomeV1
+        copy={copyV1}
+        onCreate={vi.fn()}
+        onLocaleChange={vi.fn()}
+        theme="system"
+        onThemeChange={vi.fn()}
+        programCatalog={{
+          status: "failed",
+          programs: [],
+          openDisabled: false,
+          onOpen: vi.fn(),
+        }}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveAttribute("data-slot", "collection-state");
+    expect(screen.getByRole("alert")).toHaveTextContent(copyV1.programsUnavailable);
+
+    rerender(
+      <CreatorHomeV1
+        copy={copyV1}
+        onCreate={vi.fn()}
+        onLocaleChange={vi.fn()}
+        theme="system"
+        onThemeChange={vi.fn()}
+        programCatalog={{
+          status: "ready",
+          programs: [],
+          openDisabled: false,
+          onOpen: vi.fn(),
+        }}
+      />,
+    );
+    const empty = screen.getByText(copyV1.recentProgramsEmpty).closest(
+      "[data-slot=collection-state]",
+    );
+    expect(empty).not.toBeNull();
+    expect(empty).not.toHaveAttribute("role");
+    expect(empty).not.toHaveAttribute("aria-live");
+  });
+
   it("renders one actionable Home blocker instead of a model picker", () => {
     const onRecover = vi.fn();
     const onCreate = vi.fn();

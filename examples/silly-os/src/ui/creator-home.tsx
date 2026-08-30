@@ -5,8 +5,10 @@ import {
   FolderOpen,
   KeyRound,
   Languages,
+  LoaderCircle,
   PenTool,
   Sparkles,
+  TriangleAlert,
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
 
@@ -14,6 +16,7 @@ import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
 import type { PreviewProgramKindV1, ProgramProposalStatusV1 } from "../product/contracts.ts";
 import type { SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
 import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
+import { CollectionStateV1 } from "./collection-state.tsx";
 import { CreatorReadinessNoticeV1 } from "./creator-readiness-notice.tsx";
 import type { CreatorReadinessRecoveryTargetV1, CreatorReadinessV1 } from "./creator-readiness.ts";
 import { ButtonV1 as Button } from "./design-system/button.tsx";
@@ -241,15 +244,34 @@ export function CreatorHomeV1({
               <span>{copy.browserLocal}</span>
             </div>
             {programCatalog.status === "loading"
-              ? <p className="creator-home__catalog-state" role="status">{copy.programsLoading}</p>
+              ? (
+                <CollectionStateV1
+                  className="creator-home__catalog-state"
+                  icon={LoaderCircle}
+                  iconMotion="spin"
+                  title={copy.programsLoading}
+                  role="status"
+                  aria-live="polite"
+                />
+              )
               : programCatalog.status === "failed"
               ? (
-                <p className="creator-home__catalog-state is-failed" role="alert">
-                  {copy.programsUnavailable}
-                </p>
+                <CollectionStateV1
+                  className="creator-home__catalog-state"
+                  icon={TriangleAlert}
+                  tone="danger"
+                  title={copy.programsUnavailable}
+                  role="alert"
+                />
               )
               : programCatalog.programs.length === 0
-              ? <p className="creator-home__catalog-state">{copy.recentProgramsEmpty}</p>
+              ? (
+                <CollectionStateV1
+                  className="creator-home__catalog-state"
+                  icon={FolderOpen}
+                  title={copy.recentProgramsEmpty}
+                />
+              )
               : (
                 <div className="creator-home__program-grid">
                   {programCatalog.programs.map((program) => (

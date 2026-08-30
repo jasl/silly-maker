@@ -58,9 +58,13 @@ truthful Workpiece cleanup: invented `.ks` project rows, translation data,
 View now shows manifest-backed Program facts plus an explicit no-admitted-visual-
 workpiece state; real Workspace ZIP, Capabilities, Activity, generation/receipt,
 and Browser storage remain. It adds no file manager, editor, `UiArtifact`
-framework, Workspace/API, or engine change. The remaining DS1c work and
-DS1d–DS1e own Provider/collection patterns, full surface migration, dead styles,
-and visual fixtures. Product-scoped Tailwind
+framework, Workspace/API, or engine change. DS1c-3 then converges the explicit
+built-in/custom Provider catalog row, separates credential persistence from the
+optional point-in-time connection diagnostic, removes the repeated Vault panel
+heading, and shares one closed presentational collection-state recipe without
+creating an async-state or Settings framework. DS1d–DS1e own full surface
+migration, dead styles, responsive/visual fixtures, and final closure.
+Product-scoped Tailwind
 CSS 4 utilities run without Preflight or
 global generated theme/property output. Shadcn-derived focused Radix
 compositions remain product implementation detail; native `dialog` owns modal

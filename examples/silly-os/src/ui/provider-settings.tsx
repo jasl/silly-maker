@@ -31,6 +31,7 @@ import {
 } from "../content/copy.ts";
 import type { BrowserPiReasoningEffortV1 } from "../agent/browser-pi-worker-protocol.ts";
 import type { SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
+import { CollectionStateV1 } from "./collection-state.tsx";
 import {
   credentialVaultBindingsEqualV2,
   type CredentialVaultBindingV2,
@@ -85,6 +86,7 @@ import {
 import { ToggleGroupItemV1, ToggleGroupV1 } from "./design-system/toggle-group.tsx";
 import { SillyOsBrandV1 } from "./product-chrome.tsx";
 import { ProductMenuV1 } from "./product-menu.tsx";
+import { ProviderCatalogRowV1 } from "./provider-catalog-row.tsx";
 import { formatStorageBytesV1 } from "./storage-format.ts";
 
 export type ProviderSettingsAvailabilityV1 =
@@ -877,24 +879,28 @@ function CatalogStateV1({
 }): ReactNode {
   if (catalog.phase === "loading") {
     return (
-      <div className="provider-settings__catalog-state" role="status">
-        <LoaderCircle className="is-spinning" size={22} aria-hidden="true" />
-        <strong>{copy.providerCatalogLoading}</strong>
-        <span>{copy.providerCatalogLoadingDescription}</span>
-      </div>
+      <CollectionStateV1
+        className="provider-settings__catalog-state"
+        icon={LoaderCircle}
+        iconMotion="spin"
+        title={copy.providerCatalogLoading}
+        description={copy.providerCatalogLoadingDescription}
+        role="status"
+        aria-live="polite"
+      />
     );
   }
   return (
-    <div
-      className="provider-settings__catalog-state is-failed"
+    <CollectionStateV1
+      className="provider-settings__catalog-state"
+      icon={TriangleAlert}
+      tone="danger"
+      title={copy.providerCatalogFailed}
+      description={copy.providerCatalogFailedDescription}
+      action={<Button variant="secondary" onClick={onRetry}>{copy.retry}</Button>}
       data-diagnostic-code={catalog.diagnosticCode}
       role="alert"
-    >
-      <TriangleAlert size={22} aria-hidden="true" />
-      <strong>{copy.providerCatalogFailed}</strong>
-      <span>{copy.providerCatalogFailedDescription}</span>
-      <Button variant="secondary" onClick={onRetry}>{copy.retry}</Button>
-    </div>
+    />
   );
 }
 
@@ -1065,15 +1071,8 @@ function CredentialVaultPanelV1({
     <section
       className="provider-settings__section provider-settings__vault"
       data-vault-phase={vault.phase}
-      aria-labelledby="credential-vault-title"
+      aria-label={copy.credentialVaultTitle}
     >
-      <div className="provider-settings__section-heading">
-        <div>
-          <h3 id="credential-vault-title">{copy.credentialVaultTitle}</h3>
-          <p>{copy.credentialVaultDescription}</p>
-        </div>
-        <ShieldCheck size={18} aria-hidden="true" />
-      </div>
       <StatusV1
         className={`provider-settings__vault-status is-${vault.phase}`}
         variant={statusVariant}
@@ -1241,6 +1240,126 @@ function sameConnectionIdentityV1(
       left.profileId === right.profileId && left.baseUrl === right.baseUrl;
 }
 
+function ProviderConnectionTestV1({
+  copy,
+  target,
+  connectionTest,
+  mutationPending,
+  hasStoredBinding,
+  onSelectTestModel,
+  onTestConnection,
+}: {
+  readonly copy: SillyOsCopyV1;
+  readonly target: ProviderConnectionTargetV1;
+  readonly connectionTest: ProviderSettingsConnectionTestV1;
+  readonly mutationPending: boolean;
+  readonly hasStoredBinding: boolean;
+  readonly onSelectTestModel: (modelId: string) => void;
+  readonly onTestConnection: ProviderSettingsPropsV1["onTestConnection"];
+}): ReactNode {
+  const testMatches = sameSelectionV1(connectionTest.active, target.testSelection);
+  const testing = connectionTest.phase === "testing" && testMatches;
+  const ready = connectionTest.phase === "ready" && testMatches;
+  const testFailed = connectionTest.phase === "test_failed" && testMatches;
+  const testWorkerFailed = connectionTest.phase === "failed" && testMatches;
+  const statusCopy = testing
+    ? copy.providerTesting
+    : ready
+    ? copy.providerConnectionPassed
+    : testFailed
+    ? copy.providerConnectionFailed
+    : testWorkerFailed
+    ? copy.providerWorkerUnavailable
+    : null;
+  const statusModelId = testing || ready || testFailed || testWorkerFailed
+    ? target.testSelection?.kind === "builtin"
+      ? target.testSelection.modelId
+      : target.testSelection?.profile.modelId ?? null
+    : null;
+  const statusIcon = testing
+    ? LoaderCircle
+    : testFailed || testWorkerFailed
+    ? TriangleAlert
+    : Check;
+  const statusVariant = testFailed || testWorkerFailed
+    ? "danger" as const
+    : ready
+    ? "success" as const
+    : "info" as const;
+
+  return (
+    <section
+      className="provider-settings__connection-test"
+      aria-labelledby="connection-test-title"
+    >
+      <div className="provider-settings__connection-test-heading">
+        <strong id="connection-test-title">{copy.providerTestConnection}</strong>
+        <small>{copy.providerConnectionTestNotice}</small>
+      </div>
+      {statusCopy === null ? null : (
+        <StatusV1
+          className="provider-settings__connection-status"
+          variant={statusVariant}
+          icon={statusIcon}
+          data-busy={testing || undefined}
+          data-diagnostic-code={connectionTest.phase === "failed"
+            ? connectionTest.diagnosticCode
+            : undefined}
+          role={testFailed || testWorkerFailed ? "alert" : "status"}
+        >
+          <StatusContentV1>
+            <StatusTitleV1>{statusCopy}</StatusTitleV1>
+            {statusModelId === null
+              ? null
+              : <StatusDescriptionV1>{statusModelId}</StatusDescriptionV1>}
+          </StatusContentV1>
+        </StatusV1>
+      )}
+      {!target.custom
+        ? (
+          <label className="provider-settings__connection-model">
+            <span>
+              <strong>{copy.providerConnectionModelLabel}</strong>
+              <small>{copy.providerConnectionModelDescription}</small>
+            </span>
+            <NativeSelectV1
+              value={target.testSelection?.kind === "builtin" ? target.testSelection.modelId : ""}
+              disabled={target.testModels.length === 0 || mutationPending}
+              onChange={(event) => onSelectTestModel(event.currentTarget.value)}
+            >
+              {target.testModels.length === 0
+                ? <option value="">{copy.providerConnectionModelEmpty}</option>
+                : target.testModels.map((model) => (
+                  <option key={model.modelId} value={model.modelId}>
+                    {model.name} · {model.modelId}
+                  </option>
+                ))}
+            </NativeSelectV1>
+          </label>
+        )
+        : null}
+      <div className="provider-settings__connection-actions">
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={!hasStoredBinding || target.testSelection === null || mutationPending ||
+            testing}
+          onClick={() => {
+            if (target.testSelection !== null) onTestConnection(target.testSelection);
+          }}
+        >
+          {testing ? copy.providerTesting : copy.providerTestConnection}
+        </Button>
+        <small>
+          {hasStoredBinding
+            ? copy.providerTestResultPointInTime
+            : copy.providerTestRequiresSavedKey}
+        </small>
+      </div>
+    </section>
+  );
+}
+
 function ProviderConnectionSectionV1({
   copy,
   target,
@@ -1287,11 +1406,6 @@ function ProviderConnectionSectionV1({
   const saving = credentialOperation.phase === "saving" && credentialMatches;
   const forgetting = credentialOperation.phase === "forgetting" && credentialMatches;
   const credentialFailed = credentialOperation.phase === "failed" && credentialMatches;
-  const testMatches = sameSelectionV1(connectionTest.active, target.testSelection);
-  const testing = connectionTest.phase === "testing" && testMatches;
-  const ready = connectionTest.phase === "ready" && testMatches;
-  const testFailed = connectionTest.phase === "test_failed" && testMatches;
-  const testWorkerFailed = connectionTest.phase === "failed" && testMatches;
   const hasCredentialSaveReceipt = credentialReceipt !== null &&
     target.saveTargets.some((connection) =>
       sameConnectionIdentityV1(credentialReceipt.target, connection)
@@ -1310,40 +1424,23 @@ function ProviderConnectionSectionV1({
     credential = "";
   };
 
-  const statusCopy = saving
+  const credentialStatusCopy = saving
     ? copy.providerSaving
     : forgetting
     ? copy.providerDeletingCredential
     : credentialFailed
     ? copy.providerWorkerUnavailable
-    : testing
-    ? copy.providerTesting
-    : ready
-    ? copy.providerConnectionPassed
-    : testFailed
-    ? copy.providerConnectionFailed
-    : testWorkerFailed
-    ? copy.providerWorkerUnavailable
     : hasCredentialSaveReceipt
     ? copy.providerCredentialSaved
     : null;
-  const statusModelId = testing || ready || testFailed || testWorkerFailed
-    ? target.testSelection?.kind === "builtin"
-      ? target.testSelection.modelId
-      : target.testSelection?.profile.modelId ?? null
-    : null;
   const showingCredentialReceipt = hasCredentialSaveReceipt && !saving && !forgetting &&
-    !credentialFailed && !testing && !ready && !testFailed && !testWorkerFailed;
-  const statusIcon = saving || testing || forgetting
+    !credentialFailed;
+  const credentialStatusIcon = saving || forgetting
     ? LoaderCircle
-    : testFailed || credentialFailed || testWorkerFailed
+    : credentialFailed
     ? TriangleAlert
     : Check;
-  const statusVariant = testFailed || credentialFailed || testWorkerFailed
-    ? "danger" as const
-    : ready
-    ? "success" as const
-    : "info" as const;
+  const credentialStatusVariant = credentialFailed ? "danger" as const : "info" as const;
 
   return (
     <section
@@ -1411,37 +1508,25 @@ function ProviderConnectionSectionV1({
             data-key-saved={String(hasStoredBinding)}
             onSubmit={submitV1}
           >
-            {statusCopy !== null
+            {credentialStatusCopy !== null
               ? (
                 <StatusV1
-                  className={`provider-settings__connection-status${
-                    ready
-                      ? " is-ready"
-                      : testFailed || credentialFailed || testWorkerFailed
-                      ? " is-failed"
-                      : ""
-                  }`}
-                  variant={statusVariant}
-                  icon={statusIcon}
-                  data-busy={saving || testing || forgetting || undefined}
+                  className="provider-settings__connection-status"
+                  variant={credentialStatusVariant}
+                  icon={credentialStatusIcon}
+                  data-busy={saving || forgetting || undefined}
                   data-diagnostic-code={credentialOperation.phase === "failed"
                     ? credentialOperation.diagnosticCode
-                    : connectionTest.phase === "failed"
-                    ? connectionTest.diagnosticCode
                     : undefined}
                   data-credential-receipt={showingCredentialReceipt ? "saved" : undefined}
-                  role={testFailed || credentialFailed || testWorkerFailed ? "alert" : "status"}
+                  role={credentialFailed ? "alert" : "status"}
                 >
                   <StatusContentV1>
-                    <StatusTitleV1>{statusCopy}</StatusTitleV1>
-                    {statusModelId === null
-                      ? null
-                      : <StatusDescriptionV1>{statusModelId}</StatusDescriptionV1>}
+                    <StatusTitleV1>{credentialStatusCopy}</StatusTitleV1>
                   </StatusContentV1>
                 </StatusV1>
               )
               : null}
-            <p>{copy.providerConnectionTestNotice}</p>
             <FieldLabelV1 htmlFor={apiKeyId}>{copy.providerKeyLabel}</FieldLabelV1>
             <div className="provider-settings__credential-controls">
               <InputGroupV1 className="provider-settings__key-input">
@@ -1493,49 +1578,15 @@ function ProviderConnectionSectionV1({
                   : null}
               </span>
             </div>
-            {!target.custom
-              ? (
-                <label className="provider-settings__connection-model">
-                  <span>
-                    <strong>{copy.providerConnectionModelLabel}</strong>
-                    <small>{copy.providerConnectionModelDescription}</small>
-                  </span>
-                  <NativeSelectV1
-                    value={target.testSelection?.kind === "builtin"
-                      ? target.testSelection.modelId
-                      : ""}
-                    disabled={target.testModels.length === 0 || mutationPending}
-                    onChange={(event) => onSelectTestModel(event.currentTarget.value)}
-                  >
-                    {target.testModels.length === 0
-                      ? <option value="">{copy.providerConnectionModelEmpty}</option>
-                      : target.testModels.map((model) => (
-                        <option key={model.modelId} value={model.modelId}>
-                          {model.name} · {model.modelId}
-                        </option>
-                      ))}
-                  </NativeSelectV1>
-                </label>
-              )
-              : null}
-            <div className="provider-settings__connection-actions">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!hasStoredBinding || target.testSelection === null ||
-                  mutationPending || testing}
-                onClick={() => {
-                  if (target.testSelection !== null) onTestConnection(target.testSelection);
-                }}
-              >
-                {testing ? copy.providerTesting : copy.providerTestConnection}
-              </Button>
-              <small>
-                {hasStoredBinding
-                  ? copy.providerTestResultPointInTime
-                  : copy.providerTestRequiresSavedKey}
-              </small>
-            </div>
+            <ProviderConnectionTestV1
+              copy={copy}
+              target={target}
+              connectionTest={connectionTest}
+              mutationPending={mutationPending}
+              hasStoredBinding={hasStoredBinding}
+              onSelectTestModel={onSelectTestModel}
+              onTestConnection={onTestConnection}
+            />
           </form>
         )}
     </section>
@@ -1995,7 +2046,13 @@ export function ProviderSettingsV1({
                     <section aria-labelledby="built-in-provider-section">
                       <h2 id="built-in-provider-section">{copy.providerBuiltInSection}</h2>
                       {providers.length === 0
-                        ? <p className="provider-settings__empty">{copy.providerCatalogEmpty}</p>
+                        ? (
+                          <CollectionStateV1
+                            className="provider-settings__collection-state"
+                            icon={Cloud}
+                            title={copy.providerCatalogEmpty}
+                          />
+                        )
                         : (
                           <ul>
                             {filteredProviders.map((provider) => {
@@ -2006,44 +2063,32 @@ export function ProviderSettingsV1({
                               );
                               return (
                                 <li key={provider.providerId}>
-                                  <button
+                                  <ProviderCatalogRowV1
                                     ref={(element) => {
                                       if (element === null) providerButtonRefs.current.delete(key);
                                       else providerButtonRefs.current.set(key, element);
                                     }}
-                                    type="button"
-                                    className={key === inspectedKey ? "is-active" : undefined}
+                                    kind="builtin"
+                                    label={provider.name}
+                                    detail={provider.providerId}
+                                    active={key === inspectedKey}
+                                    status={credentialAvailable
+                                      ? (
+                                        <AvailabilityChipV1
+                                          copy={copy}
+                                          availability={{ status: "available" }}
+                                        />
+                                      )
+                                      : undefined}
+                                    facts={`${
+                                      String(provider.models.length)
+                                    } ${copy.modelsCountSuffix}`}
                                     data-provider-id={provider.providerId}
                                     data-credential-status={credentialAvailable
                                       ? "available"
                                       : "unset"}
-                                    aria-current={key === inspectedKey ? "page" : undefined}
                                     onClick={() => inspectTargetV1(key)}
-                                  >
-                                    <span
-                                      className="provider-settings__provider-mark"
-                                      aria-hidden="true"
-                                    >
-                                      <Cloud size={16} />
-                                    </span>
-                                    <span className="provider-settings__provider-copy">
-                                      <strong title={provider.name}>{provider.name}</strong>
-                                      <small>{provider.providerId}</small>
-                                    </span>
-                                    <span className="provider-settings__provider-meta">
-                                      {credentialAvailable
-                                        ? (
-                                          <AvailabilityChipV1
-                                            copy={copy}
-                                            availability={{ status: "available" }}
-                                          />
-                                        )
-                                        : null}
-                                      <small>
-                                        {String(provider.models.length)} {copy.modelsCountSuffix}
-                                      </small>
-                                    </span>
-                                  </button>
+                                  />
                                 </li>
                               );
                             })}
@@ -2080,40 +2125,28 @@ export function ProviderSettingsV1({
                               const key = inspectedKeyV1("custom", custom.profileId);
                               return (
                                 <li key={custom.profileId}>
-                                  <button
+                                  <ProviderCatalogRowV1
                                     ref={(element) => {
                                       if (element === null) providerButtonRefs.current.delete(key);
                                       else providerButtonRefs.current.set(key, element);
                                     }}
-                                    type="button"
-                                    className={key === inspectedKey ? "is-active" : undefined}
-                                    data-custom-profile-id={custom.profileId}
-                                    data-connection-status="available"
-                                    aria-current={key === inspectedKey ? "page" : undefined}
-                                    onClick={() => inspectTargetV1(key)}
-                                  >
-                                    <span
-                                      className="provider-settings__provider-mark is-custom"
-                                      aria-hidden="true"
-                                    >
-                                      <Globe2 size={16} />
-                                    </span>
-                                    <span className="provider-settings__provider-copy">
-                                      <strong title={custom.displayName}>
-                                        {custom.displayName}
-                                      </strong>
-                                      <small>{custom.modelId}</small>
-                                    </span>
-                                    <span className="provider-settings__provider-meta">
+                                    kind="custom"
+                                    label={custom.displayName}
+                                    detail={custom.modelId}
+                                    active={key === inspectedKey}
+                                    status={
                                       <BadgeV1
                                         className="provider-settings__custom-status"
                                         variant="success"
                                       >
                                         {copy.providerStatusAvailable}
                                       </BadgeV1>
-                                      <small>{custom.api}</small>
-                                    </span>
-                                  </button>
+                                    }
+                                    facts={custom.api}
+                                    data-custom-profile-id={custom.profileId}
+                                    data-connection-status="available"
+                                    onClick={() => inspectTargetV1(key)}
+                                  />
                                 </li>
                               );
                             })}
@@ -2123,9 +2156,13 @@ export function ProviderSettingsV1({
                     {providerQuery.trim().length > 0 && filteredProviders.length === 0 &&
                         filteredCustomProfiles.length === 0
                       ? (
-                        <p className="provider-settings__empty" role="status">
-                          {copy.providerSearchEmpty}
-                        </p>
+                        <CollectionStateV1
+                          className="provider-settings__collection-state"
+                          icon={Search}
+                          title={copy.providerSearchEmpty}
+                          role="status"
+                          aria-live="polite"
+                        />
                       )
                       : null}
                   </nav>
@@ -2137,10 +2174,11 @@ export function ProviderSettingsV1({
                 >
                   {inspectedKey === null
                     ? (
-                      <div className="provider-settings__detail-empty" role="status">
-                        <Cloud size={24} aria-hidden="true" />
-                        <strong>{copy.providerDetailEmpty}</strong>
-                      </div>
+                      <CollectionStateV1
+                        className="provider-settings__detail-empty"
+                        icon={Cloud}
+                        title={copy.providerDetailEmpty}
+                      />
                     )
                     : (
                       <>
@@ -2223,9 +2261,11 @@ export function ProviderSettingsV1({
                                   </div>
                                   {inspectedProvider.models.length === 0
                                     ? (
-                                      <p className="provider-settings__empty">
-                                        {copy.providerModelsEmpty}
-                                      </p>
+                                      <CollectionStateV1
+                                        className="provider-settings__collection-state"
+                                        icon={Cloud}
+                                        title={copy.providerModelsEmpty}
+                                      />
                                     )
                                     : (
                                       <>
@@ -2245,9 +2285,13 @@ export function ProviderSettingsV1({
                                         </label>
                                         {filteredModels.length === 0
                                           ? (
-                                            <p className="provider-settings__empty" role="status">
-                                              {copy.modelSearchEmpty}
-                                            </p>
+                                            <CollectionStateV1
+                                              className="provider-settings__collection-state"
+                                              icon={Search}
+                                              title={copy.modelSearchEmpty}
+                                              role="status"
+                                              aria-live="polite"
+                                            />
                                           )
                                           : (
                                             <FieldSetV1 className="provider-settings__model-list">

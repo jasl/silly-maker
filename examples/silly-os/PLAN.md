@@ -195,8 +195,8 @@ S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2/N3, the original S3, S3-R1,
 D1, P1-B1d reasoning effort, and E0 engine-baseline absorption are closed. The current
 local source is rebased onto engine baseline
 `31461f362129e6192f70553a261ada225c2abf8b`. DS1 is the current active product
-phase: DS1a, DS1b, DS1c-1, and DS1c-2 are delivered, while the remaining
-DS1c–DS1e work
+phase: DS1a, DS1b, and DS1c-1 through DS1c-3 are delivered, while the remaining
+DS1d–DS1e work
 stays active-plan work. No
 Mod phase is active. The current build-matched
 three-origin artifact and fixed Vault Worker are deployed from commit
@@ -268,7 +268,7 @@ or deployed release. Its acceptance is the rebased product/unit/build/security
 gate plus a real computed-style Browser check for product-scope colors, normal
 and compact control geometry, focus tokens, and reduced motion.
 
-### DS1 — SillyOS component and pattern system (active; DS1a, DS1b, DS1c-1, and DS1c-2 delivered 2026-08-30)
+### DS1 — SillyOS component and pattern system (active; DS1a, DS1b, and DS1c-1 through DS1c-3 delivered 2026-08-30)
 
 The owner has activated DS1 as a product lane. It inventories the real Creator,
 Settings, Workspace, Chat, review, progress, empty/error, and overlay states,
@@ -371,8 +371,19 @@ The active sequence is:
    and Browser storage projection remain because they are backed by their owning
    repositories or runtime receipts. This checkpoint does not add a file manager,
    editor, generated-UI/`UiArtifact` framework, Workspace contract, or
-   SillyMaker engine/API change. Provider catalog/Connection information
-   hierarchy and shared collection states remain later independent DS1c slices.
+   SillyMaker engine/API change.
+
+   The deliberately bounded **DS1c-3 — Provider and collection patterns**
+   checkpoint is also delivered locally. One product-specific Provider catalog
+   row now owns built-in/custom identity, facts, and active navigation without
+   becoming a generic Settings row. Connection separates endpoint and API-key
+   persistence from the optional point-in-time model test; credential receipts
+   contain no model identity and the standalone Vault page no longer repeats its
+   title inside the panel. One presentational collection-state pattern covers
+   loading, failure/retry, static empty, and search-empty states while callers
+   retain role/live-region semantics and domain state. It explicitly excludes a
+   generic async state machine, credential/Test coupling, Provider qualification,
+   or engine API.
 4. **DS1d — surface convergence.** Migrate Creator Home, all three Settings
    categories, Chat, Workspace View, and Activity in independently reviewable
    slices. Each slice removes superseded selectors and recipes after its real
@@ -410,7 +421,7 @@ and the focused settings/theme/locale/menu/dialog suite in both Chromium and
 WebKit (10/10), including live `matchMedia` and cross-tab `storage` changes. A
 separate in-app Browser pass checked the dark Creator, General,
 unified menu, native modal backdrop/focus, and desktop layout. DS1 remains
-active: the remaining DS1c work and DS1d–DS1e still own pattern, surface,
+active: DS1d–DS1e still own surface,
 dead-style, and visual-fixture
 convergence, so the delivered DS1 checkpoints do not claim that all product
 components have already migrated.
@@ -489,8 +500,22 @@ Capabilities, Activity, exact generation/mutation receipt, and Browser storage
 remain visible on their owning real paths. Focused UI contracts and desktop/
 mobile in-app Browser inspection cover the new boundary. No file manager,
 editor, `UiArtifact` framework, or SillyMaker engine/API surface was introduced.
-Provider/Connection hierarchy, shared collection states, and the rest of
 DS1d–DS1e remain active product work.
+
+DS1c-3 delivered locally on 2026-08-30 without changing Provider discovery,
+credential storage, Test Connection behavior, model preference semantics, or an
+engine API. Built-in and custom Provider navigation now share one explicit
+product row. Connection presents credential persistence and optional diagnostics
+as orthogonal sections; a save receipt is transient and never names a model.
+Creator and Provider collections share one closed presentational state recipe,
+but each caller still owns its state, copy, action, announcement, and retry.
+The pattern exposes no direct raw-HTML prop, the control-plane source gate still
+rejects raw-HTML sinks globally, and spinner presentation respects reduced
+motion. Focused component/contrast contracts pass (5 files / 27 tests),
+root typecheck, type-aware lint, Stylelint, and React Doctor pass, and the two
+affected built-in/custom Provider journeys pass in Chromium and WebKit (2/2 in
+each engine). Desktop and 390px in-app Browser inspection found no horizontal
+overflow. DS1d–DS1e remain active.
 
 SillyMaker remains the home only for neutral primitives and interaction
 mechanics that can be reproduced without SillyOS vocabulary. A DS1 discovery

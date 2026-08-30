@@ -264,6 +264,56 @@ describe("SillyOS Settings information architecture", () => {
     })).toBeVisible();
   });
 
+  it("uses the shared collection pattern for Provider catalog loading and failure", () => {
+    const onRetryCatalog = vi.fn();
+    const loadingProps = settingsPropsV1({
+      initialSection: "providers",
+      catalog: { phase: "loading" },
+      onRetryCatalog,
+    });
+    const view = render(settingsViewV1(loadingProps));
+
+    expect(screen.getByRole("status")).toHaveAttribute("data-slot", "collection-state");
+    expect(screen.getByRole("status")).toHaveTextContent(copyV1.providerCatalogLoading);
+
+    view.rerender(settingsViewV1(settingsPropsV1({
+      initialSection: "providers",
+      catalog: { phase: "failed", diagnosticCode: "catalog_unavailable" },
+      onRetryCatalog,
+    })));
+    const failure = screen.getByRole("alert");
+    expect(failure).toHaveAttribute("data-slot", "collection-state");
+    expect(failure).toHaveAttribute("data-diagnostic-code", "catalog_unavailable");
+    fireEvent.click(within(failure).getByRole("button", { name: copyV1.retry }));
+    expect(onRetryCatalog).toHaveBeenCalledOnce();
+  });
+
+  it("uses passive collection states for Provider and model search results", async () => {
+    renderSettingsV1({ initialSection: "providers" });
+
+    fireEvent.change(screen.getByPlaceholderText(copyV1.providerSearchPlaceholder), {
+      target: { value: "no matching provider" },
+    });
+    const providerEmpty = screen.getByText(copyV1.providerSearchEmpty).closest(
+      "[data-slot=collection-state]",
+    );
+    expect(providerEmpty).toHaveAttribute("role", "status");
+
+    fireEvent.change(screen.getByPlaceholderText(copyV1.providerSearchPlaceholder), {
+      target: { value: "" },
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: copyV1.providerConnectionTitle })).toBeVisible();
+    });
+    fireEvent.change(screen.getByPlaceholderText(copyV1.modelSearchPlaceholder), {
+      target: { value: "no matching model" },
+    });
+    const modelEmpty = screen.getByText(copyV1.modelSearchEmpty).closest(
+      "[data-slot=collection-state]",
+    );
+    expect(modelEmpty).toHaveAttribute("role", "status");
+  });
+
   it("shows advisory control and Workspace storage estimates without inventing unknown usage", () => {
     const onRefreshStorageUsage = vi.fn();
     renderSettingsV1({
@@ -659,6 +709,42 @@ describe("SillyOS Provider connection and model independence", () => {
       />,
     );
     expect(screen.queryByText(copyV1.providerCredentialSaved)).toBeNull();
+  });
+
+  it("keeps credential receipts separate from point-in-time connection diagnostics", () => {
+    renderSettingsV1({
+      initialSection: "providers",
+      vault: automaticVaultV1([openAiBindingV2]),
+      credentialReceipt: {
+        kind: "saved",
+        target: {
+          kind: "builtin",
+          providerId: "openai",
+          baseUrl: openAiBindingV2.baseUrl,
+        },
+      },
+      connectionTest: {
+        phase: "ready",
+        active: {
+          kind: "builtin",
+          providerId: "openai",
+          modelId: "gpt-4.1-nano",
+          api: "openai-responses",
+          baseUrl: openAiBindingV2.baseUrl,
+        },
+      },
+    });
+
+    const connection = connectionSectionV1();
+    const credentialReceipt = within(connection).getByText(copyV1.providerCredentialSaved)
+      .closest("[role=status]");
+    const testReceipt = within(connection).getByText(copyV1.providerConnectionPassed)
+      .closest("[role=status]");
+    expect(credentialReceipt).not.toBeNull();
+    expect(testReceipt).not.toBeNull();
+    expect(credentialReceipt).not.toBe(testReceipt);
+    expect(credentialReceipt?.querySelector("small")).toBeNull();
+    expect(testReceipt).toHaveTextContent("gpt-4.1-nano");
   });
 
   it("keys Saved, Update, and Test to the exact endpoint of the selected test model", () => {

@@ -108,6 +108,7 @@ import { projectProviderSettingsCatalogV1 } from "./provider-settings-catalog.ts
 import type { WorkpieceWorkspaceExportV1 } from "./workpiece-pane.tsx";
 import "./design-system/tokens.css";
 import "./design-system/components.css";
+import "./collection-state.css";
 import "./silly-os.css";
 import "./design-system/tailwind.css";
 

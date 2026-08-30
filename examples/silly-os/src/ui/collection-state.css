@@ -1,0 +1,86 @@
+/* SPDX-License-Identifier: MIT */
+
+.sos-collection-state {
+  display: grid;
+  justify-items: center;
+  min-inline-size: 0;
+  padding: clamp(18px, 4vw, 30px);
+  gap: 9px;
+  border: 1px dashed var(--sos-line-strong);
+  border-radius: var(--silly-radius-card);
+  color: var(--sos-ink-soft);
+  background: var(--sos-surface-translucent-soft);
+  text-align: center;
+}
+
+.sos-collection-state > [data-slot="collection-state-icon"] {
+  display: inline-grid;
+  inline-size: 34px;
+  block-size: 34px;
+  border-radius: 10px;
+  color: var(--sos-accent-dark);
+  background: var(--sos-accent-soft);
+  place-items: center;
+}
+
+.sos-collection-state > [data-slot="collection-state-icon"] > svg {
+  inline-size: 18px;
+  block-size: 18px;
+}
+
+.sos-collection-state[data-icon-motion="spin"] > [data-slot="collection-state-icon"] > svg {
+  animation: sos-collection-state-spin 850ms linear infinite;
+}
+
+.sos-collection-state > [data-slot="collection-state-content"] {
+  display: grid;
+  justify-items: center;
+  min-inline-size: 0;
+  max-inline-size: 34rem;
+  gap: 3px;
+}
+
+.sos-collection-state [data-slot="collection-state-title"] {
+  color: var(--sos-ink);
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.sos-collection-state [data-slot="collection-state-description"] {
+  margin: 0;
+  color: var(--sos-ink-soft);
+  font-size: 11px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.sos-collection-state > [data-slot="collection-state-action"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-block-start: 3px;
+}
+
+.sos-collection-state[data-tone="danger"] {
+  border-color: var(--sos-danger-line);
+  background: var(--sos-danger-soft);
+}
+
+.sos-collection-state[data-tone="danger"] > [data-slot="collection-state-icon"] {
+  color: var(--sos-danger);
+  background: var(--sos-danger-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sos-collection-state[data-icon-motion="spin"] > [data-slot="collection-state-icon"] > svg {
+    animation: none;
+  }
+}
+
+@keyframes sos-collection-state-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
