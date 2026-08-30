@@ -102,7 +102,7 @@ function orderedTableV1(rows: readonly OrderedRowV1[]) {
 }
 
 describe("content table definition", () => {
-  it("validates rows, keys, and limits with structured codes", () => {
+  it("validates rows and keys with structured codes", () => {
     expect(() =>
       defineContentTableV1({
         tableId: "activities",
@@ -132,6 +132,19 @@ describe("content table definition", () => {
         ],
       })
     ).toThrowError(expect.objectContaining({ code: "content.primary_key_duplicate" }));
+  });
+
+  it("admits static tables beyond the historical row-count ceiling", () => {
+    const rows = Array.from({ length: 4_097 }, (_, index) => ({
+      id: `row.${String(index)}`,
+      label: `Row ${String(index)}`,
+      score: index,
+    }));
+    const table = orderedTableV1(rows);
+    const view = createContentDatabaseV1({ tables: [table] }).table(table);
+
+    expect(view.rows()).toHaveLength(rows.length);
+    expect(view.byId("row.4096")?.score).toBe(4_096);
   });
 });
 

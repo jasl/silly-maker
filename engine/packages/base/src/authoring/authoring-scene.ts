@@ -187,7 +187,6 @@ const authoringSceneCanvasLimitV1 = 1_000_000;
 const authoringSceneCoordinateLimitV1 = 1_000_000;
 const authoringSceneScaleLimitV1 = 100_000;
 const authoringSceneOpacityLimitV1 = 1_000;
-const authoringSceneAmbientPhaseLimitMsV1 = 60_000;
 /** Resource/stack bounds for the current recursive direct-object traversal. */
 const authoringSceneMaxObjectsV1 = 100_000;
 const authoringSceneMaxDepthV1 = 64;
@@ -380,7 +379,7 @@ function parseAmbientV1(value: unknown, path: string): AuthoringSceneAmbientV1 {
     ? boundedIntV1(
       record.phaseMs,
       0,
-      authoringSceneAmbientPhaseLimitMsV1,
+      Number.MAX_SAFE_INTEGER,
       `${path}/phaseMs`,
       "authoring_scene_ambient_phase_invalid",
     )

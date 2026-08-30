@@ -30,51 +30,68 @@ export default function HomeConsoleScreenV1(
     "routes"
   >,
 ): ReactElement {
-  const [selectedOrder, setSelectedOrder] = useState(0);
-  const [routes, setRoutes] = useState<ReadonlyMap<number, HomeConsoleRoutePropsV1>>(
+  const [requestedRouteId, setRequestedRouteId] = useState<string | null>(null);
+  const [routes, setRoutes] = useState<ReadonlyMap<string, HomeConsoleRoutePropsV1>>(
     () => new Map(),
   );
-  const routeElementsRef = useRef(new Map<number, HTMLAnchorElement>());
+  const routeElementsRef = useRef(new Map<string, HTMLAnchorElement>());
   const inputRouter = useInputRouterV1();
 
   const registerRoute = useCallback((
-    order: number,
+    routeId: string,
     route: HomeConsoleRoutePropsV1,
     element: HTMLAnchorElement,
   ): () => void => {
-    routeElementsRef.current.set(order, element);
+    const registeredElement = routeElementsRef.current.get(routeId);
+    if (registeredElement !== undefined && registeredElement !== element) {
+      throw new TypeError(`website.home_console_route_duplicate:${routeId}`);
+    }
+    routeElementsRef.current.set(routeId, element);
     setRoutes((current) => {
       const next = new Map(current);
-      next.set(order, route);
+      next.set(routeId, route);
       return next;
     });
     return () => {
-      if (routeElementsRef.current.get(order) === element) {
-        routeElementsRef.current.delete(order);
+      if (routeElementsRef.current.get(routeId) === element) {
+        routeElementsRef.current.delete(routeId);
       }
       setRoutes((current) => {
-        if (current.get(order) !== route) return current;
+        if (current.get(routeId) !== route) return current;
         const next = new Map(current);
-        next.delete(order);
+        next.delete(routeId);
         return next;
       });
+      setRequestedRouteId((current) => current === routeId ? null : current);
     };
   }, []);
 
-  const selectRoute = useCallback((order: number, focus = false): void => {
-    if (!routeElementsRef.current.has(order)) return;
-    setSelectedOrder(order);
-    if (focus) routeElementsRef.current.get(order)?.focus();
+  const orderedRouteIds = useMemo(() =>
+    [...routes.entries()]
+      .sort(([leftId, left], [rightId, right]) =>
+        left.order - right.order || leftId.localeCompare(rightId)
+      )
+      .map(([routeId]) => routeId), [routes]);
+  const selectedRouteId = requestedRouteId !== null && routes.has(requestedRouteId)
+    ? requestedRouteId
+    : orderedRouteIds[0] ?? null;
+
+  const selectRoute = useCallback((routeId: string, focus = false): void => {
+    if (!routeElementsRef.current.has(routeId)) return;
+    setRequestedRouteId(routeId);
+    if (focus) routeElementsRef.current.get(routeId)?.focus();
   }, []);
 
   const moveSelection = useCallback((delta: -1 | 1): void => {
-    const orders = [...routeElementsRef.current.keys()].sort((left, right) => left - right);
-    if (orders.length === 0) return;
-    const currentIndex = Math.max(0, orders.indexOf(selectedOrder));
-    const nextIndex = Math.min(Math.max(currentIndex + delta, 0), orders.length - 1);
-    const nextOrder = orders[nextIndex];
-    if (nextOrder !== undefined) selectRoute(nextOrder, true);
-  }, [selectRoute, selectedOrder]);
+    if (orderedRouteIds.length === 0) return;
+    const currentIndex = Math.max(0, orderedRouteIds.indexOf(selectedRouteId ?? ""));
+    const nextIndex = Math.min(
+      Math.max(currentIndex + delta, 0),
+      orderedRouteIds.length - 1,
+    );
+    const nextRouteId = orderedRouteIds[nextIndex];
+    if (nextRouteId !== undefined) selectRoute(nextRouteId, true);
+  }, [orderedRouteIds, selectRoute, selectedRouteId]);
 
   useEffect(() =>
     inputRouter.register({
@@ -89,13 +106,17 @@ export default function HomeConsoleScreenV1(
     }), [inputRouter, moveSelection]);
 
   const session = useMemo<HomeConsoleSessionV1>(() => ({
-    selectedOrder,
+    selectedRouteId,
     routes,
     registerRoute,
     selectRoute,
     moveSelection,
-  }), [moveSelection, registerRoute, routes, selectRoute, selectedOrder]);
-  const selected = routes.get(selectedOrder) ?? routes.values().next().value;
+  }), [moveSelection, registerRoute, routes, selectRoute, selectedRouteId]);
+  const selected = selectedRouteId === null ? undefined : routes.get(selectedRouteId);
+  const selectedRouteIndex = selectedRouteId === null
+    ? -1
+    : orderedRouteIds.indexOf(selectedRouteId);
+  const routeCountLabel = String(orderedRouteIds.length).padStart(2, "0");
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
     const action = event.code === "ArrowLeft"
@@ -111,7 +132,7 @@ export default function HomeConsoleScreenV1(
   return (
     <HomeConsoleSessionContextV1.Provider value={session}>
       <section
-        className="home-console"
+        className={`home-console home-console--${selected?.accent ?? "indigo"}`}
         data-home-console-ready="true"
         data-home-console-selected={selected?.routeId ?? "loading"}
         tabIndex={0}
@@ -129,7 +150,7 @@ export default function HomeConsoleScreenV1(
           <div className="home-console__status">
             <i aria-hidden="true"></i>
             <span>{input.props.statusLabel}</span>
-            <b>{selected?.number ?? "--"} / 04</b>
+            <b>{selected?.number ?? "--"} / {routeCountLabel}</b>
           </div>
         </header>
 
@@ -166,7 +187,7 @@ export default function HomeConsoleScreenV1(
             <button
               type="button"
               aria-label={input.props.previousLabel}
-              disabled={selectedOrder === 0}
+              disabled={selectedRouteIndex <= 0}
               onClick={() => moveSelection(-1)}
             >
               ←
@@ -174,7 +195,7 @@ export default function HomeConsoleScreenV1(
             <button
               type="button"
               aria-label={input.props.nextLabel}
-              disabled={selectedOrder === 3}
+              disabled={selectedRouteIndex < 0 || selectedRouteIndex === orderedRouteIds.length - 1}
               onClick={() => moveSelection(1)}
             >
               →

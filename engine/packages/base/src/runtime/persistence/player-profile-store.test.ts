@@ -27,7 +27,7 @@ function entryV1(sequence: number): NarrativeHistoryEntryV1 {
 }
 
 describe("NarrativeHistoryV1", () => {
-  it("appends within the bounded window and round-trips canonically", () => {
+  it("supports an explicitly selected rolling window and round-trips canonically", () => {
     let history = emptyNarrativeHistoryV1;
     for (let index = 1; index <= 5; index += 1) {
       history = appendNarrativeHistoryV1(history, entryV1(index), 3);
@@ -40,11 +40,30 @@ describe("NarrativeHistoryV1", () => {
     expect(parseNarrativeHistoryV1(JSON.parse(JSON.stringify(history)))).toEqual(history);
   });
 
-  it("rejects duplicate occurrences and oversized histories", () => {
-    const history = appendNarrativeHistoryV1(emptyNarrativeHistoryV1, entryV1(1));
-    expect(() => parseNarrativeHistoryV1({ entries: [...history.entries, ...history.entries] }))
+  it("admits a product retention larger than the retired default and rejects duplicates", () => {
+    let history = emptyNarrativeHistoryV1;
+    for (let index = 1; index <= 128; index += 1) {
+      history = appendNarrativeHistoryV1(history, entryV1(index), 128);
+    }
+    expect(parseNarrativeHistoryV1(history).entries).toHaveLength(128);
+
+    expect(() => parseNarrativeHistoryV1({ entries: [...history.entries, history.entries[0]] }))
       .toThrow("history_occurrence_duplicate");
   });
+
+  it("allows a product to disable authoritative History capture", () => {
+    expect(appendNarrativeHistoryV1(emptyNarrativeHistoryV1, entryV1(1), 0)).toEqual(
+      emptyNarrativeHistoryV1,
+    );
+  });
+
+  it.each([-1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    "rejects an invalid product retention policy (%s)",
+    (maxEntries) => {
+      expect(() => appendNarrativeHistoryV1(emptyNarrativeHistoryV1, entryV1(1), maxEntries))
+        .toThrow("non-negative safe integer");
+    },
+  );
 });
 
 describe("createPlayerProfileStoreV1", () => {

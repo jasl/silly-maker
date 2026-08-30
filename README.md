@@ -16,17 +16,21 @@ Save, audio, localization, responsive, and Inspector authoring paths. Its
 publishable Browser artifact is wired into the static site; this repository does
 not claim that a remote live deployment has been performed.
 
-**Explore the GUI product direction**: [SillyOS](examples/silly-os/) is being
-rebuilt around one visible program, **Agent Creator**. It turns a creative intent
+**Explore the GUI product direction**: [SillyOS](examples/silly-os/) is built
+around one visible program, **Agent Creator**. It turns a creative intent
 into a reviewable Program workspace where the conversation, proposal, workpiece,
-and activity stay together. The default entry remains a deterministic local
-preview. Explicit query-gated Browser routes instead run the product-pinned Pi
-inside an Agent Worker over typed Worker RPC, with a browser-local Program
-database and an OPFS-backed mutable workspace checkpoint. The current recovery
+and activity stay together. A deterministic local preview remains available;
+configured Browser Provider routes run the product-pinned Pi inside an Agent
+Worker over typed Worker RPC, with a browser-local Program database and an
+OPFS-backed mutable workspace checkpoint. The current recovery
 and single-writer ownership contract, Chromium/WebKit 20 MiB-class storage gate,
-and origin-storage estimate/persistence-request UI are implemented. This is not
-a public Mod or Agent ABI, general Provider UI, Desktop persistence, immutable
-snapshot, or ZIP export/import claim.
+and origin-storage estimate/persistence-request UI are implemented. SillyOS uses
+the public transport-neutral Agent Session client, but its Pi wire, Agent Host,
+Programs, Provider UI, and persistence remain product-owned; this is not a public
+Agent Host ABI or Desktop-persistence claim. The current mutable Workspace head
+can be downloaded as a canonical ZIP and an accepted immutable snapshot is
+retained locally; accepted-snapshot download and portable full-product
+import/restore are not implemented.
 
 ## Why SillyMaker
 
@@ -58,7 +62,7 @@ Common commands:
 - `deno task test` / `deno task test:e2e` — engine/game behavior tests and browser user flows;
 - `deno task app <verb> <app>` — the explicit repository application CLI (dev / inspect / check / simulate / build / desktop, JSON reports where applicable);
 - `deno task site:build` — compose the publishable static site (docs + the
-  flagship VN + SillyOS Creator Preview) into `dist/site`, then deploy via the GitHub
+  flagship VN, with a link to standalone SillyOS) into `dist/site`, then deploy via the GitHub
   Pages workflow or `deno task site:deploy:cf` (Cloudflare Workers); see
   [build-and-release](docs/engine/build-and-release.md).
 

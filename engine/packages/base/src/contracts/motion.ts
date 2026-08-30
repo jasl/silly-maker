@@ -133,9 +133,6 @@ const motionIdPatternV1 = /^motion\.[a-z0-9_.-]+$/u;
 const motionMaxIdLengthV1 = 96;
 const motionMaxLabelLengthV1 = 120;
 const motionMaxNotesLengthV1 = 500;
-const motionMaxDurationMsV1 = 60_000;
-const motionMaxDelayMsV1 = 60_000;
-const motionMaxKeyframesV1 = 32;
 
 const motionChannelsV1: readonly MotionChannelV1[] = [
   "offsetX",
@@ -144,9 +141,6 @@ const motionChannelsV1: readonly MotionChannelV1[] = [
   "opacityPermille",
   "frame",
 ];
-
-/** Editor-facing frame index cap; the runtime clamps to the content's frame set anyway. */
-const motionMaxFrameIndexV1 = 255;
 
 const motionNamedEasingsV1: readonly MotionNamedEasingV1[] = [
   "linear",
@@ -192,7 +186,7 @@ function motionChannelValueBoundsV1(
     case "opacityPermille":
       return { min: 0, max: 1000 };
     case "frame":
-      return { min: 0, max: motionMaxFrameIndexV1 };
+      return { min: 0, max: Number.MAX_SAFE_INTEGER };
     default: {
       const exhaustive: never = channel;
       throw new TypeError(`unknown motion channel ${String(exhaustive)}`);
@@ -295,7 +289,7 @@ function parseMotionTrackV1(value: unknown, path: string): MotionTrackV1 {
   }
   const channel = record.channel as MotionChannelV1;
   const rawKeyframes = readArray(record.keyframes, `${path}/keyframes`);
-  if (rawKeyframes.length < 2 || rawKeyframes.length > motionMaxKeyframesV1) {
+  if (rawKeyframes.length < 2) {
     return dataFailure(`${path}/keyframes`, "motion_keyframes_count_invalid");
   }
   const keyframes = rawKeyframes.map((keyframe, index) =>
@@ -396,25 +390,39 @@ function parseMotionAuthoringV1(value: unknown, path: string): MotionAuthoringV1
   return result;
 }
 
+function parseMotionTimingV1(
+  durationValue: unknown,
+  delayValue: unknown,
+  path: string,
+): { readonly durationMs: number; readonly delayMs: number } {
+  const durationMs = requireMotionIntV1(
+    durationValue,
+    1,
+    Number.MAX_SAFE_INTEGER,
+    `${path}/durationMs`,
+    "motion_duration_invalid",
+  );
+  const delayMs = requireMotionIntV1(
+    delayValue,
+    0,
+    Number.MAX_SAFE_INTEGER,
+    `${path}/delayMs`,
+    "motion_delay_invalid",
+  );
+  if (!Number.isSafeInteger(durationMs + delayMs)) {
+    return dataFailure(`${path}/delayMs`, "motion_total_duration_invalid");
+  }
+  return { durationMs, delayMs };
+}
+
 /** Parses the stripped runtime payload embedded in transition definitions. */
 export function parseMotionDefinitionV1(value: unknown, path = "/motion"): MotionDefinitionV1 {
   const record = readExactRecord(value, ["motionId", "durationMs", "delayMs", "tracks"], path);
+  const timing = parseMotionTimingV1(record.durationMs, record.delayMs, path);
   return {
     motionId: parseMotionIdV1(record.motionId, `${path}/motionId`),
-    durationMs: requireMotionIntV1(
-      record.durationMs,
-      1,
-      motionMaxDurationMsV1,
-      `${path}/durationMs`,
-      "motion_duration_invalid",
-    ),
-    delayMs: requireMotionIntV1(
-      record.delayMs,
-      0,
-      motionMaxDelayMsV1,
-      `${path}/delayMs`,
-      "motion_delay_invalid",
-    ),
+    durationMs: timing.durationMs,
+    delayMs: timing.delayMs,
     tracks: parseMotionTracksV1(record.tracks, `${path}/tracks`),
   };
 }
@@ -422,7 +430,7 @@ export function parseMotionDefinitionV1(value: unknown, path = "/motion"): Motio
 /**
  * Parses a `sillymaker.motion` Document (for example the value of a
  * `*.motion.json` import). Admission is strict: exact keys, safe-integer
- * values, bounded sizes, and a structured path on every failure.
+ * values, coherent timing, and a structured path on every failure.
  */
 export function parseMotionDocumentV1(value: unknown, path = ""): MotionDocumentV1 {
   const hasAuthoring = value !== null && typeof value === "object" &&
@@ -449,25 +457,14 @@ export function parseMotionDocumentV1(value: unknown, path = ""): MotionDocument
   const authoring = hasAuthoring
     ? parseMotionAuthoringV1(record.authoring, `${path}/authoring`)
     : undefined;
+  const timing = parseMotionTimingV1(record.durationMs, record.delayMs, path);
   return {
     format: motionDocumentFormatV1,
     version: motionDocumentVersionV1,
     motionId: parseMotionIdV1(record.motionId, `${path}/motionId`),
     label: record.label,
-    durationMs: requireMotionIntV1(
-      record.durationMs,
-      1,
-      motionMaxDurationMsV1,
-      `${path}/durationMs`,
-      "motion_duration_invalid",
-    ),
-    delayMs: requireMotionIntV1(
-      record.delayMs,
-      0,
-      motionMaxDelayMsV1,
-      `${path}/delayMs`,
-      "motion_delay_invalid",
-    ),
+    durationMs: timing.durationMs,
+    delayMs: timing.delayMs,
     tracks: parseMotionTracksV1(record.tracks, `${path}/tracks`),
     ...(authoring === undefined ? {} : { authoring }),
   };

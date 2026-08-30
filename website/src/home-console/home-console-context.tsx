@@ -3,14 +3,14 @@ import { createContext, useContext } from "react";
 import type { HomeConsoleRoutePropsV1 } from "./home-console-catalog.ts";
 
 export interface HomeConsoleSessionV1 {
-  readonly selectedOrder: number;
-  readonly routes: ReadonlyMap<number, HomeConsoleRoutePropsV1>;
+  readonly selectedRouteId: string | null;
+  readonly routes: ReadonlyMap<string, HomeConsoleRoutePropsV1>;
   registerRoute(
-    order: number,
+    routeId: string,
     route: HomeConsoleRoutePropsV1,
     element: HTMLAnchorElement,
   ): () => void;
-  selectRoute(order: number, focus?: boolean): void;
+  selectRoute(routeId: string, focus?: boolean): void;
   moveSelection(delta: -1 | 1): void;
 }
 

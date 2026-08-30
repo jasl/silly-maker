@@ -32,6 +32,15 @@ export function sillyOsWorkspaceSandboxTargetUrlV1(query = ""): string {
   }/${query}`;
 }
 
+/** SillyOS: isolated fixed-QuickJS Sandbox qualification target. */
+export const sillyOsQuickJsSandboxTargetV1 = { host: hostV1, port: 41750 };
+
+export function sillyOsQuickJsSandboxTargetUrlV1(query = ""): string {
+  return `http://${sillyOsQuickJsSandboxTargetV1.host}:${
+    String(sillyOsQuickJsSandboxTargetV1.port)
+  }/${query}`;
+}
+
 /** SillyOS: independent-origin keyless Browser Network Broker target. */
 export const sillyOsNetworkBrokerTargetV1 = { host: hostV1, port: 41741 };
 

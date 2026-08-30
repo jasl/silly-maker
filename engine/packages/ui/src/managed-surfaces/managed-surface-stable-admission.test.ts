@@ -617,7 +617,7 @@ describe("dormant managed stable vector admission", () => {
     expect(accepted3.sourceRevision).toBe(revision3);
   });
 
-  it("enforces the 64 target bound and basic target value shape", () => {
+  it("admits target collections beyond the historical ceiling and checks value shape", () => {
     {
       let schemaCalls = 0;
       const harness = harnessV1({
@@ -632,27 +632,26 @@ describe("dormant managed stable vector admission", () => {
         ),
       });
       const targets = Array.from(
-        { length: 64 },
+        { length: 65 },
         () => targetV1({ occurrenceId: harness.workspace.issueOccurrence() }),
       );
       const revision = harness.workspace.issueSourceRevision();
       const result = admittedV1(
         evaluateV1(harness, publicationV1(harness.workspace, revision, targets)),
       );
-      expect(result.proposal.nextAcceptedBaseline.targets).toHaveLength(64);
+      expect(result.proposal.nextAcceptedBaseline.targets).toHaveLength(65);
       expect(result.proposal.nextAcceptedBaseline.acceptedOccurrenceHighWater)
-        .toMatchObject({ occurrenceSequenceHighWater: 64 });
-      expect(schemaCalls).toBe(64);
+        .toMatchObject({ occurrenceSequenceHighWater: 65 });
+      expect(schemaCalls).toBe(65);
     }
 
     {
       const harness = harnessV1();
-      const targets = Array.from({ length: 65 });
       const revision = harness.workspace.issueSourceRevision();
       expectZeroResultV1(
-        evaluateV1(harness, publicationV1(harness.workspace, revision, targets)),
+        evaluateV1(harness, publicationV1(harness.workspace, revision, [undefined])),
         "rejected",
-        "surface.stable_target_limit_exceeded",
+        "surface.stable_target_shape_invalid",
       );
     }
 

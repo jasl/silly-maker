@@ -76,6 +76,15 @@ describe("stage transition definition contract", () => {
     expect("motion" in definition).toBe(false);
   });
 
+  it("admits long transition and readiness timing", () => {
+    const definition = parseStageTransitionDefinitionV1(legacyDefinitionV1({
+      durationMs: 120_000,
+      readiness: { kind: "wait_for_assets", timeoutMs: 180_000 },
+    }));
+    expect(definition.durationMs).toBe(120_000);
+    expect(definition.readiness).toEqual({ kind: "wait_for_assets", timeoutMs: 180_000 });
+  });
+
   it("parses a motion-kind literal with the embedded runtime payload", () => {
     const definition = parseStageTransitionDefinitionV1(motionDefinitionLiteralV1());
     expect(definition.kind).toBe("motion");

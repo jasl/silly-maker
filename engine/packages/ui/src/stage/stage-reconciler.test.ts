@@ -553,6 +553,50 @@ describe("createStageReconcilerV1", () => {
     reconciler.dispose();
   });
 
+  it("measures readiness elapsed time without overflowing an absolute deadline", () => {
+    const rawClock = createManualPresentationClockV1();
+    const clock = {
+      now: () => Number.MAX_SAFE_INTEGER + rawClock.now(),
+      requestTick: (callback: (now: number) => void) =>
+        rawClock.requestTick((now) => callback(Number.MAX_SAFE_INTEGER + now)),
+    };
+    const reportFailure = vi.fn();
+    const reconciler = createStageReconcilerV1({
+      clock,
+      catalog: catalogV1((kind) =>
+        kind === "replace"
+          ? definitionV1({
+            transitionId: "transition.test.safe-readiness-elapsed",
+            readiness: { kind: "wait_for_assets", timeoutMs: 2 },
+          })
+          : null
+      ),
+      assetsReady: () => false,
+      reportFailure,
+    });
+
+    reconciler.retarget({ target: targetOfV1([showBackV1]), revision: 1, epoch: 0 });
+    reconciler.retarget({
+      target: targetOfV1([{ ...showBackV1, contentId: "content.test.b" }]),
+      revision: 2,
+      epoch: 0,
+    });
+
+    // MAX_SAFE_INTEGER + 2 rounds down to MAX_SAFE_INTEGER + 1. An absolute
+    // deadline therefore used to expire after only one elapsed millisecond.
+    rawClock.advance(1);
+    expect(reconciler.frame().settled).toBe(false);
+    expect(reportFailure).not.toHaveBeenCalled();
+
+    rawClock.advance(2);
+    expect(reconciler.frame().settled).toBe(true);
+    expect(reportFailure).toHaveBeenCalledWith(
+      "stage.transition_readiness_timeout",
+      expect.stringContaining("transition.test.safe-readiness-elapsed"),
+    );
+    reconciler.dispose();
+  });
+
   it("suspends and resumes runs for page visibility", () => {
     const clock = createManualPresentationClockV1();
     const reconciler = createStageReconcilerV1({

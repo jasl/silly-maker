@@ -109,6 +109,12 @@ describe("Authoring Scene operation admission", () => {
       contentId: "content.test.hero-alt",
     });
     expect(admitSceneAuthoringOperationV1(ordinary)).toMatchObject({ kind: "admitted" });
+    expect(admitSceneAuthoringOperationV1({
+      schemaRevision: sceneAuthoringOperationSchemaRevisionV1,
+      kind: "scene.object.set_ambient",
+      objectId: "tag.test.hero",
+      ambient: { motionId: "motion.test.hero-idle", phaseMs: 120_000 },
+    })).toMatchObject({ kind: "admitted" });
 
     const invalid = [
       null,
@@ -142,7 +148,10 @@ describe("Authoring Scene operation admission", () => {
         schemaRevision: sceneAuthoringOperationSchemaRevisionV1,
         kind: "scene.object.set_ambient",
         objectId: "tag.test.hero",
-        ambient: { motionId: "motion.test.hero-idle", phaseMs: 60_001 },
+        ambient: {
+          motionId: "motion.test.hero-idle",
+          phaseMs: Number.MAX_SAFE_INTEGER + 1,
+        },
       },
       {
         schemaRevision: 2,

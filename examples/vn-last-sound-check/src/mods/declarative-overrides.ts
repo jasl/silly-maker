@@ -18,12 +18,13 @@ export const vnLastSoundCheckDeclarativeModTargetV1 = {
   overrideContractRevision: 1,
 } as const;
 
+const manifestMaxNodesV1 = 1_024;
 const manifestLimitsV1 = parseStrictJsonLimitsV1({
   maxBytes: 1_048_576,
   maxDepth: 6,
-  maxArrayItems: 64,
+  maxArrayItems: manifestMaxNodesV1,
   maxObjectMembers: 16,
-  maxNodes: 1_024,
+  maxNodes: manifestMaxNodesV1,
   maxStringBytes: 4_096,
 });
 const maxTextPackBytesV1 = 16_777_216;

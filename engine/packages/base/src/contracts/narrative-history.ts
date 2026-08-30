@@ -46,9 +46,6 @@ export interface NarrativeHistoryV1 {
 
 export const emptyNarrativeHistoryV1: NarrativeHistoryV1 = { entries: [] };
 
-/** The default backlog capacity; older entries fall off the front. */
-export const narrativeHistoryMaxEntriesV1 = 100;
-
 export function parseNarrativeHistoryEntryV1(
   value: unknown,
   path = "/entry",
@@ -98,9 +95,6 @@ export function parseNarrativeHistoryEntryV1(
 export function parseNarrativeHistoryV1(value: unknown, path = "/history"): NarrativeHistoryV1 {
   const record = readExactRecord(value, ["entries"], path);
   const entriesValue = readArray(record.entries, `${path}/entries`);
-  if (entriesValue.length > narrativeHistoryMaxEntriesV1) {
-    return dataFailure(`${path}/entries`, "history_too_long");
-  }
   const seen = new Set<string>();
   const entries = entriesValue.map((entry, index) => {
     const parsed = parseNarrativeHistoryEntryV1(entry, `${path}/entries/${String(index)}`);
@@ -116,12 +110,20 @@ export function parseNarrativeHistoryV1(value: unknown, path = "/history"): Narr
   return { entries };
 }
 
-/** Appends within the bounded capacity, dropping the oldest entries. */
+/**
+ * Appends one resolved boundary within the product-selected retention policy.
+ * History lives in authoritative State, so the engine does not silently choose
+ * either an arbitrary rolling-window size or unbounded Snapshot growth.
+ */
 export function appendNarrativeHistoryV1(
   history: NarrativeHistoryV1,
   entry: NarrativeHistoryEntryV1,
-  maxEntries = narrativeHistoryMaxEntriesV1,
+  maxEntries: number,
 ): NarrativeHistoryV1 {
+  if (!Number.isSafeInteger(maxEntries) || maxEntries < 0) {
+    throw new TypeError("maxEntries must be a non-negative safe integer");
+  }
+  if (maxEntries === 0) return emptyNarrativeHistoryV1;
   const entries = [...history.entries, entry];
   return {
     entries: entries.slice(Math.max(0, entries.length - maxEntries)),

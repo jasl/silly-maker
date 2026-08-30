@@ -24,8 +24,6 @@ export interface NarrativeAsideV1 {
   readonly pages: readonly NarrativeAsidePageV1[];
 }
 
-export const narrativeAsidePageLimitV1 = 16;
-
 // Same id shape the pending-interaction contract admits for say text ids.
 const asideTextIdPatternV1 = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/u;
 
@@ -43,8 +41,8 @@ function parseAsideTextIdV1(value: unknown, path: string, reason: string): strin
 
 /**
  * Admits a Story-projected aside page list once at the instance boundary:
- * up to 16 exact-key pages whose text ids follow the pending-interaction id
- * pattern. An empty projection means "no aside this commit" and admits as
+ * exact-key pages whose text ids follow the pending-interaction id pattern.
+ * An empty projection means "no aside this commit" and admits as
  * an empty frozen list.
  */
 export function parseNarrativeAsidePagesV1(
@@ -52,9 +50,6 @@ export function parseNarrativeAsidePagesV1(
   path = "/narrativeAside",
 ): readonly NarrativeAsidePageV1[] {
   const entries = readArray(value, path);
-  if (entries.length > narrativeAsidePageLimitV1) {
-    return dataFailure(path, "aside_pages_overflow");
-  }
   return Object.freeze(entries.map((entry, index): NarrativeAsidePageV1 => {
     const pagePath = `${path}/${String(index)}`;
     const record = readExactRecord(entry, ["speakerTextId", "textId"], pagePath);

@@ -18,6 +18,11 @@ import type {
 import { templateStoryEntryV1 } from "../story.ts";
 import { templateOpeningSceneV1 } from "../scenes/opening/index.ts";
 
+// The starter deliberately includes a repeatable earn action, so the complete
+// rollback history is open-ended. Keep a recent, product-owned checkpoint
+// window rather than implying that the engine imposes this capacity.
+const templateRollbackCheckpointRetentionV1 = 64;
+
 /**
  * The Host-neutral core application: the GamePackage entry plus the
  * semantic adapter. Session, persistence, diagnostics, and lifecycle come
@@ -47,7 +52,7 @@ export const templateCoreApplicationDefinitionV1 = defineCoreGameApplication<
       : ({ kind: "template.scene_reconcile" as const, mutations });
   },
   rollback: {
-    capacity: 64,
+    capacity: templateRollbackCheckpointRetentionV1,
     classify(command) {
       switch (command.kind) {
         case "template.begin_story":

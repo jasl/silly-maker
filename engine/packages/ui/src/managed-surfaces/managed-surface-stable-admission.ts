@@ -634,13 +634,6 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
       } catch {
         return zeroResultInternalV1("faulted", "surface.stable_admission_faulted");
       }
-      if (targetCount > managedSurfaceStableContractLimitsInternalV1.maxTargets) {
-        return zeroResultInternalV1(
-          "rejected",
-          "surface.stable_target_limit_exceeded",
-        );
-      }
-
       const capturedTargets: CapturedTargetInternalV1[] = [];
       try {
         for (let index = 0; index < targetCount; index += 1) {

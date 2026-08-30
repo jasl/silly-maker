@@ -35,8 +35,6 @@ import {
   type ManagedSurfaceCoordinatorRuntimeV1,
 } from "../managed-surfaces/managed-surface-coordinator-lifetime.ts";
 
-export const maximumOverlayDetailDepthV1 = 4 as const;
-
 export interface WorkspaceOverlayExactIdSchemaV1 {
   readonly kind: "exact_id";
 }
@@ -92,7 +90,6 @@ export type OverlayAdmissionRejectionV1 =
   }
   | { readonly kind: "rejected"; readonly code: "overlay.no_primary" }
   | { readonly kind: "rejected"; readonly code: "overlay.duplicate" }
-  | { readonly kind: "rejected"; readonly code: "overlay.detail_limit" }
   | { readonly kind: "rejected"; readonly code: "overlay.invalid_parent" }
   | { readonly kind: "rejected"; readonly code: "overlay.invalid_transition" }
   | { readonly kind: "rejected"; readonly code: "overlay.disposed" };
@@ -848,9 +845,6 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
       state.primaryId === id ||
       (state.detailIds as readonly TOverlayId[]).includes(id)
     ) return rejectionV1("overlay.duplicate");
-    if (state.detailIds.length >= maximumOverlayDetailDepthV1) {
-      return rejectionV1("overlay.detail_limit");
-    }
     const admission = preflight(id);
     if ("kind" in admission) return admission;
     const parent = currentTopReady();

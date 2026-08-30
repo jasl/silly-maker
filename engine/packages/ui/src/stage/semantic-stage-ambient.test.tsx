@@ -54,6 +54,22 @@ const breatheMotionV1 = parseMotionDefinitionV1({
   ],
 });
 
+// A 400ms linear probe whose X offset equals the sampled millisecond.
+const phaseProbeMotionV1 = parseMotionDefinitionV1({
+  motionId: "motion.test.phase-probe",
+  durationMs: 400,
+  delayMs: 0,
+  tracks: [
+    {
+      channel: "offsetX",
+      keyframes: [
+        { atPermille: 0, value: 0 },
+        { atPermille: 1000, value: 400 },
+      ],
+    },
+  ],
+});
+
 function ambientCatalogV1(phaseMsByTag?: Readonly<Record<string, number>>): StageAmbientCatalogV1 {
   return {
     resolveAmbient: (_layerId, entry) =>
@@ -519,5 +535,47 @@ describe("SemanticStageV1 ambient loops", () => {
     act(() => clock.advance(100));
     expect(entryOf(container, "tag.test.actor").style.transform).toContain("translate3d(20px");
     expect(entryOf(container, "tag.test.cloud").style.transform).toContain("translate3d(40px");
+  });
+
+  it("composes a maximum safe phase without overflowing the loop addition", () => {
+    const clock = createManualPresentationClockV1();
+    const ambient: StageAmbientCatalogV1 = {
+      resolveAmbient: () => ({
+        motion: phaseProbeMotionV1,
+        phaseMs: Number.MAX_SAFE_INTEGER,
+      }),
+    };
+    const { container, rerender } = render(
+      <SemanticStageV1
+        target={targetV1([])}
+        revision={1}
+        epoch={0}
+        catalog={cutCatalogV1}
+        ambient={ambient}
+        renderers={renderersV1}
+        accessibleName="Ambient 舞台"
+        clock={clock}
+      />,
+    );
+    act(() => {
+      rerender(
+        <SemanticStageV1
+          target={targetV1(["tag.test.actor"])}
+          revision={2}
+          epoch={0}
+          catalog={cutCatalogV1}
+          ambient={ambient}
+          renderers={renderersV1}
+          accessibleName="Ambient 舞台"
+          clock={clock}
+        />,
+      );
+    });
+    act(() => clock.advance(100));
+
+    // MAX_SAFE_INTEGER % 400 is 191; 100ms later the loop samples 291ms.
+    expect(entryOf(container, "tag.test.actor").style.transform).toContain(
+      "translate3d(291px",
+    );
   });
 });

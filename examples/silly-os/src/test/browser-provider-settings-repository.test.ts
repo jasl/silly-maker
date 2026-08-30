@@ -8,8 +8,7 @@ import {
   browserProviderContextWindowMaximumV1,
   browserProviderCustomApiFamiliesV1,
   browserProviderMaxTokensMaximumV1,
-  browserProviderSettingsMaximumBuiltinModelsV1,
-  browserProviderSettingsMaximumProfilesV1,
+  browserProviderSettingsMaximumSerializedUtf8BytesV1,
   browserProviderSettingsRevisionV2,
   browserProviderSettingsStorageKeyV2,
   canonicalizeBrowserProviderBaseUrlV1,
@@ -327,7 +326,7 @@ describe("Browser Provider Settings repository", () => {
     });
   });
 
-  it("rejects malformed, duplicate, and over-limit defaults without a partial write", () => {
+  it("rejects malformed and duplicate defaults without a partial write", () => {
     const invalidCases = [
       {
         value: [builtinModelRefV1(), builtinModelRefV1()],
@@ -336,13 +335,6 @@ describe("Browser Provider Settings repository", () => {
       {
         value: [{ ...builtinModelRefV1(), apiKey: "must-never-persist" }],
         code: "invalid_model_ref",
-      },
-      {
-        value: Array.from(
-          { length: browserProviderSettingsMaximumBuiltinModelsV1 + 1 },
-          (_, index) => builtinModelRefV1("provider", `model-${String(index)}`),
-        ),
-        code: "model_limit",
       },
     ] as const;
     for (const invalid of invalidCases) {
@@ -359,7 +351,7 @@ describe("Browser Provider Settings repository", () => {
     }
   });
 
-  it("rejects duplicate profile ids and applies the profile count limit atomically", () => {
+  it("rejects duplicate profile ids without imposing a separate profile count", () => {
     const storage = new MemoryStorageV1();
     const repository = createBrowserProviderSettingsRepositoryV1({ storage });
     repository.add(profileV1());
@@ -367,37 +359,57 @@ describe("Browser Provider Settings repository", () => {
       expect.objectContaining({ code: "profile_exists", operation: "add" }),
     );
 
-    for (let index = 1; index < browserProviderSettingsMaximumProfilesV1; index += 1) {
+    for (let index = 1; index < 32; index += 1) {
       repository.add(profileV1({ profileId: `custom.endpoint-${String(index)}` }));
     }
-    const before = storage.getItem(browserProviderSettingsStorageKeyV2);
-    expect(() => repository.add(profileV1({ profileId: "custom.too-many" }))).toThrowError(
-      expect.objectContaining({ code: "profile_limit", operation: "add" }),
-    );
-    expect(storage.getItem(browserProviderSettingsStorageKeyV2)).toBe(before);
+    expect(repository.list()).toHaveLength(32);
   });
 
-  it("applies the enabled-model bound atomically and treats repeated toggles as no-ops", () => {
+  it("accepts a large compact model set and treats repeated toggles as no-ops", () => {
     const storage = new MemoryStorageV1();
     const repository = createBrowserProviderSettingsRepositoryV1({ storage });
-    for (let index = 0; index < browserProviderSettingsMaximumBuiltinModelsV1; index += 1) {
-      expect(
-        repository.setBuiltinModelEnabled(
-          builtinModelRefV1("provider", `model-${String(index).padStart(3, "0")}`),
-          true,
-        ),
-      ).toBe(true);
-    }
+    const refs = Array.from(
+      { length: 300 },
+      (_, index) => builtinModelRefV1("provider", `model-${String(index).padStart(3, "0")}`),
+    );
+    expect(repository.initializeBuiltinModelDefaults(refs)).toMatchObject({ initialized: true });
+    expect(repository.read().enabledBuiltinModels).toHaveLength(300);
     expect(repository.setBuiltinModelEnabled(builtinModelRefV1("provider", "model-000"), true))
       .toBe(false);
+  });
+
+  it("uses the settings-record byte budget and preserves the prior record on overflow", () => {
+    const storage = new MemoryStorageV1();
+    const repository = createBrowserProviderSettingsRepositoryV1({ storage });
+    const profiles: BrowserProviderCustomProfileV1[] = [];
+    let overflowProfile: BrowserProviderCustomProfileV1 | null = null;
+    for (let index = 0; overflowProfile === null; index += 1) {
+      const candidate = profileV1({
+        profileId: `custom.endpoint-${String(index).padStart(3, "0")}`,
+        displayName: "D".repeat(128),
+        baseUrl: `https://llm.example.test/${"a".repeat(1_900)}/${String(index)}`,
+        modelId: `model-${String(index)}-${"m".repeat(230)}`,
+      });
+      const serialized = JSON.stringify({
+        revision: browserProviderSettingsRevisionV2,
+        customProfiles: [...profiles, candidate],
+        enabledBuiltinModels: [],
+        preferredModel: null,
+      });
+      if (
+        new TextEncoder().encode(serialized).byteLength >
+          browserProviderSettingsMaximumSerializedUtf8BytesV1
+      ) {
+        overflowProfile = candidate;
+      } else {
+        profiles.push(candidate);
+      }
+    }
+    expect(profiles.length).toBeGreaterThan(16);
+    for (const profile of profiles) repository.add(profile);
     const before = storage.getItem(browserProviderSettingsStorageKeyV2);
-    expect(() =>
-      repository.setBuiltinModelEnabled(builtinModelRefV1("provider", "model-over-limit"), true)
-    ).toThrowError(
-      expect.objectContaining({
-        code: "model_limit",
-        operation: "set_builtin_model_enabled",
-      }),
+    expect(() => repository.add(overflowProfile)).toThrowError(
+      expect.objectContaining({ code: "record_too_large", operation: "add" }),
     );
     expect(storage.getItem(browserProviderSettingsStorageKeyV2)).toBe(before);
   });

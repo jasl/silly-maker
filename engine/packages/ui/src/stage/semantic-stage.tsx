@@ -672,7 +672,15 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
           settledAt = now;
           settledAtByKey.set(frameEntry.entry.key, settledAt);
         }
-        const elapsed = (now - settledAt + binding.phaseMs) % total;
+        const elapsedSinceSettle = (now - settledAt) % total;
+        const normalizedElapsed = elapsedSinceSettle < 0
+          ? elapsedSinceSettle + total
+          : elapsedSinceSettle;
+        const phase = binding.phaseMs % total;
+        const wrapAt = total - phase;
+        const elapsed = normalizedElapsed >= wrapAt
+          ? normalizedElapsed - wrapAt
+          : normalizedElapsed + phase;
         ambientSamples ??= new Map();
         ambientSamples.set(frameEntry.entry.key, sampleMotionAtV1(binding.motion, elapsed));
       }

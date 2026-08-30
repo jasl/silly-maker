@@ -19,7 +19,6 @@ const appearanceKeyPatternV1 = /^[a-z][a-z0-9_]*$/u;
 const appearanceValuePatternV1 = /^[a-z0-9][a-z0-9_.-]*$/u;
 const motionIdPatternV1 = /^motion\.[a-z0-9_.-]+$/u;
 const motionIdMaxLengthV1 = 96;
-const ambientPhaseLimitMsV1 = 60_000;
 
 class SceneAuthoringAdmissionFailureV1 extends Error {
   readonly diagnostic: SceneAuthoringDiagnosticV1;
@@ -120,7 +119,7 @@ function parseAmbientV1(
     ? boundedIntegerV1(
       input.phaseMs,
       0,
-      ambientPhaseLimitMsV1,
+      Number.MAX_SAFE_INTEGER,
       "/operation/ambient/phaseMs",
     )
     : undefined;

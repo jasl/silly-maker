@@ -291,8 +291,14 @@ interface ActiveTransitionV1 {
   readonly run: PresentationRunV1;
   /** Internal proof metadata; never projected through the public Stage API. */
   acknowledgedRun: StageAcknowledgedRunProofRecordInternalV1 | null;
-  /** Readiness hold: the run starts when ready or the deadline passes. */
-  readiness: { readonly deadline: number; readonly assetIds: readonly AssetId[] } | null;
+  /** Readiness hold: the run starts when ready or the bounded wait elapses. */
+  readiness:
+    | {
+      readonly startedAt: number;
+      readonly timeoutMs: number;
+      readonly assetIds: readonly AssetId[];
+    }
+    | null;
 }
 
 interface ActiveFrameTransitionV1 {
@@ -610,7 +616,8 @@ export function createStageReconcilerV1(
           changed = true;
           continue;
         }
-        if (stageClockInternalV1.now() >= transition.readiness.deadline) {
+        const elapsed = Math.max(0, stageClockInternalV1.now() - transition.readiness.startedAt);
+        if (elapsed >= transition.readiness.timeoutMs) {
           const detail =
             `transition ${transition.definition.transitionId} degraded after bounded wait`;
           transition.readiness = null;
@@ -710,7 +717,8 @@ export function createStageReconcilerV1(
     const demanded = demandedAssetsForChange(change);
     if (definition.readiness.kind === "wait_for_assets" && !assetsReady(demanded)) {
       transition.readiness = {
-        deadline: stageClockInternalV1.now() + definition.readiness.timeoutMs,
+        startedAt: stageClockInternalV1.now(),
+        timeoutMs: definition.readiness.timeoutMs,
         assetIds: [...demanded],
       };
       ensureReadinessTicking();
@@ -1196,7 +1204,8 @@ export function createStageReconcilerV1(
             !assetsReady(demanded)
           ) {
             transition.readiness = {
-              deadline: stageClockInternalV1.now() + effectiveDefinition.readiness.timeoutMs,
+              startedAt: stageClockInternalV1.now(),
+              timeoutMs: effectiveDefinition.readiness.timeoutMs,
               assetIds: [...demanded],
             };
           }

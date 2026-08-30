@@ -1867,6 +1867,43 @@ describe("resolveCoreGameApplicationV1", () => {
     expect(defineCalls).toHaveBeenCalled();
   });
 
+  it("admits a product-selected rollback capacity without an engine ceiling", () => {
+    const defineCalls = vi.fn();
+    const raw = {
+      ...definitionV1,
+      entry: Object.freeze({
+        ...definitionV1.entry,
+        define: () => {
+          defineCalls();
+          return definitionV1.entry.define();
+        },
+      }),
+    };
+
+    for (const capacity of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(
+        resolveCoreGameApplicationV1({
+          ...raw,
+          rollback: { capacity, classify: () => "checkpoint" as const },
+        }),
+      ).toMatchObject({
+        kind: "failed",
+        failure: { code: "rollback_policy.invalid" },
+      });
+    }
+    expect(defineCalls).not.toHaveBeenCalled();
+
+    const result = resolveCoreGameApplicationV1(
+      {
+        ...raw,
+        rollback: { capacity: 1_024, classify: () => "checkpoint" as const },
+      },
+      { buildIdentityInput: deterministicBuildIdentityInputV1 },
+    );
+    expect(result.kind).toBe("resolved");
+    expect(defineCalls).toHaveBeenCalled();
+  });
+
   it("reports resolution failures structurally instead of throwing", () => {
     const broken = defineCoreGameApplicationV1({
       ...definitionV1,

@@ -297,6 +297,7 @@ const templateNarrativeRuntimeV1 = createVnInteractionRuntimeV1<
   entryNodeId: templateCompiledOpeningV1.entryNodeId,
   nodes: templateCompiledOpeningV1.nodes,
   errorPrefix: "template",
+  historyRetentionEntries: templateCompiledOpeningV1.nodes.length,
   matchesPredicate: (state, predicate) => state.flags.includes(predicate.flag),
   applyChoiceEffect: (state, effect) => ({
     ...state,

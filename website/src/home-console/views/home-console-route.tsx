@@ -15,11 +15,11 @@ export default function HomeConsoleRouteV1(
   const [element, setElement] = useState<HTMLAnchorElement | null>(null);
   const session = useHomeConsoleSessionV1();
   const { registerRoute } = session;
-  const selected = session.selectedOrder === input.props.order;
+  const selected = session.selectedRouteId === input.props.routeId;
 
   useEffect(() => {
     if (element === null) return undefined;
-    return registerRoute(input.props.order, input.props, element);
+    return registerRoute(input.props.routeId, input.props, element);
   }, [element, input.props, registerRoute]);
 
   return (
@@ -29,8 +29,8 @@ export default function HomeConsoleRouteV1(
       data-selected={selected ? "true" : "false"}
       href={input.props.href}
       aria-label={`${input.props.number}. ${input.props.title}`}
-      onFocus={() => session.selectRoute(input.props.order)}
-      onPointerEnter={() => session.selectRoute(input.props.order)}
+      onFocus={() => session.selectRoute(input.props.routeId)}
+      onPointerEnter={() => session.selectRoute(input.props.routeId)}
     >
       <span className="home-console-route__number" aria-hidden="true">{input.props.number}</span>
       <span className="home-console-route__cover" aria-hidden="true">

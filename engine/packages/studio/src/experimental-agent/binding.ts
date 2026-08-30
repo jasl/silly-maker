@@ -32,8 +32,8 @@ function admitSceneActionsInternalV1(
     throw new TypeError("Experimental Agent scene actions must be a record");
   }
   const actionIds = Object.keys(value).toSorted();
-  if (actionIds.length === 0 || actionIds.length > 32) {
-    throw new TypeError("Experimental Agent scene actions must contain 1-32 string keys");
+  if (actionIds.length === 0) {
+    throw new TypeError("Experimental Agent scene actions must contain string keys");
   }
   const actions: Record<string, SceneAuthoringOperationV1> = {};
   for (const actionId of actionIds) {

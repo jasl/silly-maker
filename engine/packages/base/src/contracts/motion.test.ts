@@ -86,6 +86,33 @@ describe("motion document contract", () => {
     expect(definition.motionId).toBe("motion.test.embedded");
   });
 
+  it("admits long motions, dense tracks, and frame indexes beyond historical editor caps", () => {
+    const keyframes = Array.from({ length: 33 }, (_, index) => ({
+      atPermille: Math.round(index * 1000 / 32),
+      value: 256 + index,
+    }));
+    const document = parseMotionDocumentV1({
+      ...entranceDocumentV1(),
+      durationMs: 120_000,
+      delayMs: 90_000,
+      tracks: [{ channel: "frame", keyframes }],
+    });
+
+    expect(document.tracks[0]?.keyframes).toHaveLength(33);
+    expect(motionTotalDurationMsV1(document)).toBe(210_000);
+    expect(sampleMotionAtV1(document, 210_000).frameIndex).toBe(288);
+  });
+
+  it("rejects timing whose combined duration is not a safe integer", () => {
+    expect(() =>
+      parseMotionDocumentV1({
+        ...entranceDocumentV1(),
+        durationMs: Number.MAX_SAFE_INTEGER,
+        delayMs: 1,
+      })
+    ).toThrowError(/motion_total_duration_invalid/);
+  });
+
   it.each([
     ["wrong format", { format: "sillymaker.timeline" }, /motion_format_invalid/],
     ["unsupported version", { version: 2 }, /motion_version_unsupported/],
@@ -423,9 +450,9 @@ describe("frame channel (authorable frame set)", () => {
       /motion_keyframe_value_invalid/,
     ],
     [
-      "frame index beyond the cap",
+      "unsafe frame index",
       [
-        { atPermille: 0, value: 256 },
+        { atPermille: 0, value: Number.MAX_SAFE_INTEGER + 1 },
         { atPermille: 1000, value: 0 },
       ],
       /motion_keyframe_value_invalid/,

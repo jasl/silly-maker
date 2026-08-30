@@ -41,10 +41,17 @@ Read only the documents relevant to the change:
   client and connector to public `@sillymaker/agent/session`; raw request/wire,
   Agent Host, UiArtifact and deterministic fake remain private. SillyOS has
   completed its downstream connector migration without widening that public
-  contract or activating a successor lane. The downstream review records one
-  inactive neutral candidate for reporting asynchronous post-ready connection
-  loss; the current product fallback remains local and no Engine API change is
-  authorized.
+  contract. The post-closure clarification rejects the current arbitrary
+  96-message/aggregate transcript
+  ceiling, requires a pageable single-active rich Conversation projection, and
+  defines Browser local Agent execution as interruptible with stale fencing and
+  recovery from the last still-readable, admitted durable semantic checkpoint,
+  or an explicit unrecoverable state when that evidence is unavailable. Those
+  are SillyOS product requirements and evidence gates, not newly delivered
+  Engine APIs. The downstream review records one inactive neutral candidate for
+  reporting asynchronous post-ready connection loss; the current product
+  fallback remains local, no successor lane is active, and no Engine API change
+  is authorized.
   The preceding completed lane is
   `docs/engine/plans/2026-08-29-production-mod-v1.md`: it promoted the selected
   build-time trusted Mod contract to public `@sillymaker/composition/mod`, kept

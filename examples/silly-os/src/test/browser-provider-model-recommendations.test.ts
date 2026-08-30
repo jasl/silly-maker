@@ -9,7 +9,6 @@ import {
   isBrowserProviderRecommendedModelIdV1,
   recommendedBrowserProviderBuiltinModelRefsV1,
 } from "../product/browser-provider-model-recommendations.ts";
-import { browserProviderSettingsMaximumBuiltinModelsV1 } from "../product/browser-provider-settings-repository.ts";
 import { projectProviderSettingsCatalogV1 } from "../ui/provider-settings-catalog.ts";
 
 describe("Browser Provider recommended model defaults", () => {
@@ -71,7 +70,6 @@ describe("Browser Provider recommended model defaults", () => {
     const refs = recommendedBrowserProviderBuiltinModelRefsV1(catalog.providers);
     expect(refs).toHaveLength(132);
     expect(refs.length).toBeGreaterThan(128);
-    expect(refs.length).toBeLessThanOrEqual(browserProviderSettingsMaximumBuiltinModelsV1);
     expect(refs).toContainEqual({
       providerId: "baseten",
       modelId: "deepseek-ai/DeepSeek-V4-Flash-0731",

@@ -108,6 +108,13 @@ describe("audio media contracts", () => {
       },
     });
     expect(JSON.parse(JSON.stringify(intent))).toEqual(intent);
+    expect(
+      parseAudioIntentV1({
+        bgm: { assetId: "audio.test.theme", loop: true, gainPermille: 800, fadeMs: 120_000 },
+        ambient: null,
+        voice: null,
+      }).bgm?.fadeMs,
+    ).toBe(120_000);
     expect(() =>
       parseAudioIntentV1({
         bgm: { assetId: "audio.test.theme", loop: true, gainPermille: 800.5, fadeMs: 0 },

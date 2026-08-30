@@ -126,6 +126,20 @@ describe("One Last Sound Check declarative Mod admission", () => {
     ).toThrow(expect.objectContaining({ code: "declarative_mod.slot_duplicate" }));
   });
 
+  it("lets the manifest resource budget, rather than a slot-count cap, admit arrays", () => {
+    const repeatedOverrides = Array.from({ length: 65 }, (_, index) => ({
+      slotId: sharedChineseSlotV1,
+      path: `content/repeated-${String(index)}.json`,
+    }));
+
+    expect(() =>
+      admitVnLastSoundCheckDeclarativeModManifestV1(manifestBytesV1({
+        textOverrides: repeatedOverrides,
+        assetOverrides: [],
+      }))
+    ).toThrow(expect.objectContaining({ code: "declarative_mod.slot_duplicate" }));
+  });
+
   it("stages and validates every resource before returning detached bytes", async () => {
     const textBytes = await editedSharedPackBytesV1();
     const assetBytes = new Uint8Array([1, 2, 3, 4]);

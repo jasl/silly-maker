@@ -74,6 +74,7 @@ interface ActiveChannelV1 {
   readonly source: WebBufferSourceLikeV1;
   readonly gain: WebGainNodeLikeV1;
   readonly generation: number;
+  released: boolean;
 }
 
 interface PendingChannelPlayV1 {
@@ -109,6 +110,7 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
   let disposed = false;
   const buffers = new Map<string, Promise<WebAudioBufferLikeV1 | null>>();
   const channels = new Map<AudioHostChannelV1, ActiveChannelV1>();
+  const retiringChannels = new Map<AudioHostChannelV1, ActiveChannelV1>();
   const channelGenerations = new Map<AudioHostChannelV1, number>();
   /** Current play demand, including unlock/fetch/decode before a source starts. */
   const activeChannelDemands = new Map<AudioHostChannelV1, number>();
@@ -268,14 +270,51 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
     return guarded;
   };
 
+  const releaseChannelNodesV1 = (active: ActiveChannelV1): void => {
+    if (active.released) return;
+    active.released = true;
+    try {
+      active.source.disconnect();
+    } catch {
+      // The source may already have disconnected after ending.
+    }
+    try {
+      active.gain.disconnect();
+    } catch {
+      // The gain may already have disconnected after ending.
+    }
+  };
+
+  const forceReleaseRetiringChannelV1 = (channel: AudioHostChannelV1): void => {
+    const retiring = retiringChannels.get(channel);
+    if (retiring === undefined) return;
+    retiringChannels.delete(channel);
+    try {
+      retiring.source.stop();
+    } catch {
+      // The scheduled source may already have ended.
+    }
+    releaseChannelNodesV1(retiring);
+  };
+
   const stopChannelV1 = (channel: AudioHostChannelV1, fadeMs: number): void => {
+    forceReleaseRetiringChannelV1(channel);
     const active = channels.get(channel);
     if (active === undefined) return;
     channels.delete(channel);
     const activeContext = context;
-    if (activeContext === null) return;
+    if (activeContext === null) {
+      try {
+        active.source.stop();
+      } catch {
+        // The source may already have ended.
+      }
+      releaseChannelNodesV1(active);
+      return;
+    }
     try {
       if (fadeMs > 0) {
+        retiringChannels.set(channel, active);
         const now = activeContext.currentTime;
         active.gain.gain.cancelScheduledValues(now);
         active.gain.gain.setValueAtTime(active.gain.gain.value, now);
@@ -283,17 +322,18 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
         active.source.stop(now + fadeMs / 1000);
       } else {
         active.source.stop();
+        releaseChannelNodesV1(active);
       }
-      active.source.addEventListener(
-        "ended",
-        () => {
-          active.source.disconnect();
-          active.gain.disconnect();
-        },
-        { once: true },
-      );
     } catch {
-      // Stopping an already-ended source is fine.
+      if (retiringChannels.get(channel) === active) {
+        retiringChannels.delete(channel);
+      }
+      try {
+        active.source.stop();
+      } catch {
+        // The source may already have ended.
+      }
+      releaseChannelNodesV1(active);
     }
   };
 
@@ -338,27 +378,36 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
       } else {
         gain.gain.value = target;
       }
+      const active: ActiveChannelV1 = {
+        source,
+        gain,
+        generation,
+        released: false,
+      };
       source.addEventListener(
         "ended",
         () => {
           const current = channels.get(input.channel);
-          if (current?.source === source) {
+          if (current === active) {
             channels.delete(input.channel);
             finishChannelDemandV1(input.channel, current.generation);
           }
-          source.disconnect();
-          gain.disconnect();
+          if (retiringChannels.get(input.channel) === active) {
+            retiringChannels.delete(input.channel);
+          }
+          releaseChannelNodesV1(active);
         },
         { once: true },
       );
       source.start();
-      channels.set(input.channel, { source, gain, generation });
+      channels.set(input.channel, active);
     });
   };
 
   return ({
     play(input: AudioHostPlayInputV1): void {
       if (disposed) return;
+      forceReleaseRetiringChannelV1(input.channel);
       const generation = advanceChannelGenerationV1(input.channel);
       activeChannelDemands.set(input.channel, generation);
       startChannelV1(input, generation);

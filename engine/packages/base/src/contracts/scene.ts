@@ -209,9 +209,6 @@ function parseSceneMotionIdV1(
   return value;
 }
 
-/** Bounded by the motion duration cap: phase is modulo the loop anyway. */
-const sceneAmbientPhaseLimitMsV1 = 60_000;
-
 function parseSceneEntryAmbientV1(value: unknown, path: string): SceneEntryAmbientV1 {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "scene_ambient_invalid");
@@ -221,8 +218,7 @@ function parseSceneEntryAmbientV1(value: unknown, path: string): SceneEntryAmbie
   const phaseMs = record.phaseMs;
   if (
     phaseMs !== undefined &&
-    (typeof phaseMs !== "number" || !Number.isSafeInteger(phaseMs) || phaseMs < 0 ||
-      phaseMs > sceneAmbientPhaseLimitMsV1)
+    (typeof phaseMs !== "number" || !Number.isSafeInteger(phaseMs) || phaseMs < 0)
   ) {
     return dataFailure(`${path}/phaseMs`, "scene_ambient_phase_invalid");
   }

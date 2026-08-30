@@ -5,7 +5,18 @@ import type { InteractionResolutionV1, PendingInteractionV1 } from "@sillymaker/
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
 import type { LabInvocationV1 } from "../index.ts";
-import { labHeadlessExecutionContextV1, labSemanticAdapterV1, labStoryEntryV1 } from "../index.ts";
+import {
+  createInitialLabNarrativeStateV1,
+  createInitialLabStageStateV1,
+  labHeadlessExecutionContextV1,
+  labSemanticAdapterV1,
+  labStoryEntryV1,
+} from "../index.ts";
+import {
+  defineLabNarrativePlanV1,
+  type LabNarrativeNodeV1,
+  runLabNarrativeUntilInteractionV1,
+} from "../gameplay/narrative-runtime.ts";
 
 function createLabHarnessV1(seed = 90201) {
   return createGameHarnessV1({
@@ -90,6 +101,70 @@ async function playCalibrationV1(
 }
 
 describe("Engine Lab pending interactions", () => {
+  it("runs finite pure-node chains longer than the old fixed step allowance", () => {
+    const nodeIdV1 = (index: number): string => `node.e2e.long-pure-chain.${String(index)}`;
+    const pureNodes: LabNarrativeNodeV1[] = Array.from({ length: 65 }, (_, index) => {
+      const next = index === 64 ? "node.e2e.long-pure-chain.say" : nodeIdV1(index + 1);
+      return {
+        kind: "branch",
+        nodeId: nodeIdV1(index),
+        successors: [next],
+        choose: () => next,
+      };
+    });
+    const plan = defineLabNarrativePlanV1("unit.e2e.long-pure-chain", [
+      ...pureNodes,
+      {
+        kind: "say",
+        nodeId: "node.e2e.long-pure-chain.say",
+        definitionId: "interaction.e2e.long-pure-chain.say",
+        seenRevision: 1,
+        speakerTextId: null,
+        textId: "text.e2e.long-pure-chain.say",
+        next: "node.e2e.long-pure-chain.end",
+      },
+      { kind: "end", nodeId: "node.e2e.long-pure-chain.end" },
+    ]);
+
+    const result = runLabNarrativeUntilInteractionV1(
+      plan,
+      {
+        ...createInitialLabNarrativeStateV1(),
+        phase: "active",
+        cursor: nodeIdV1(0),
+      },
+      createInitialLabStageStateV1(),
+      { collectorUnits: 0, collectorEngaged: false },
+    );
+
+    expect(result.narrative.pending).toMatchObject({
+      kind: "say",
+      definitionId: "interaction.e2e.long-pure-chain.say",
+    });
+  });
+
+  it("rejects a real pure-node cycle", () => {
+    const plan = defineLabNarrativePlanV1("unit.e2e.pure-cycle", [{
+      kind: "branch",
+      nodeId: "node.e2e.pure-cycle",
+      successors: ["node.e2e.pure-cycle"],
+      choose: () => "node.e2e.pure-cycle",
+    }]);
+
+    expect(() =>
+      runLabNarrativeUntilInteractionV1(
+        plan,
+        {
+          ...createInitialLabNarrativeStateV1(),
+          phase: "active",
+          cursor: "node.e2e.pure-cycle",
+        },
+        createInitialLabStageStateV1(),
+        { collectorUnits: 0, collectorEngaged: false },
+      )
+    ).toThrow("e2e.narrative_runaway_script:node.e2e.pure-cycle");
+  });
+
   it("runs pure nodes to each boundary and completes headless, including the barrier", async () => {
     const harness = await createLabHarnessV1();
 

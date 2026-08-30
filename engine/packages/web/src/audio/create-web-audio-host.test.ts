@@ -44,6 +44,9 @@ interface FakeContextV1 extends WebAudioContextLikeV1 {
     assetId: string | null;
     loop: boolean;
     stopped: boolean;
+    readonly stopCalls: readonly (number | undefined)[];
+    readonly disconnected: boolean;
+    readonly gainDisconnected: boolean;
     finish(): void;
   }[];
   setState(state: "suspended" | "running"): void;
@@ -59,18 +62,29 @@ function createFakeContextV1(
     assetId: string | null;
     loop: boolean;
     stopped: boolean;
+    readonly stopCalls: readonly (number | undefined)[];
+    readonly disconnected: boolean;
+    readonly gainDisconnected: boolean;
     finish(): void;
   }[] = [];
-  const gainNode = () => ({
-    gain: {
-      value: 1,
-      setValueAtTime: () => undefined,
-      linearRampToValueAtTime: () => undefined,
-      cancelScheduledValues: () => undefined,
-    },
-    connect: () => undefined,
-    disconnect: () => undefined,
-  });
+  const gainNode = () => {
+    let disconnected = false;
+    return {
+      gain: {
+        value: 1,
+        setValueAtTime: () => undefined,
+        linearRampToValueAtTime: () => undefined,
+        cancelScheduledValues: () => undefined,
+      },
+      connect: () => undefined,
+      disconnect: () => {
+        disconnected = true;
+      },
+      get disconnected() {
+        return disconnected;
+      },
+    };
+  };
   return {
     get state() {
       return state;
@@ -93,10 +107,20 @@ function createFakeContextV1(
     createGain: gainNode,
     createBufferSource: () => {
       const endedListeners: Array<() => void> = [];
+      const stopCalls: Array<number | undefined> = [];
+      let disconnected = false;
+      let connectedGain: { readonly disconnected: boolean } | null = null;
       const record = {
         assetId: null as string | null,
         loop: false,
         stopped: false,
+        stopCalls,
+        get disconnected() {
+          return disconnected;
+        },
+        get gainDisconnected() {
+          return connectedGain?.disconnected ?? false;
+        },
         finish(): void {
           for (const listener of endedListeners.splice(0)) listener();
         },
@@ -110,11 +134,16 @@ function createFakeContextV1(
         get loop() {
           return record.loop;
         },
-        connect: () => undefined,
-        disconnect: () => undefined,
+        connect: (target: unknown) => {
+          connectedGain = target as { readonly disconnected: boolean };
+        },
+        disconnect: () => {
+          disconnected = true;
+        },
         start: () => undefined,
-        stop: () => {
+        stop: (when?: number) => {
           record.stopped = true;
+          stopCalls.push(when);
         },
         addEventListener: (_type: "ended", listener: () => void) => {
           endedListeners.push(listener);
@@ -306,6 +335,80 @@ describe("createWebAudioHostV1", () => {
     replay?.finish();
     expect(host.isChannelActive("voice")).toBe(false);
     host.dispose();
+  });
+
+  it("keeps at most one retiring fade per channel", async () => {
+    const { host, context } = hostV1({});
+    host.play({
+      channel: "voice",
+      assetId: "audio.test.theme",
+      loop: false,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+    await flushV1();
+    const retiring = context.startedSources()[0];
+
+    host.stop("voice", Number.MAX_SAFE_INTEGER);
+    expect(retiring?.disconnected).toBe(false);
+    expect(retiring?.gainDisconnected).toBe(false);
+    expect(retiring?.stopCalls).toEqual([Number.MAX_SAFE_INTEGER / 1000]);
+
+    host.stop("voice", 0);
+    expect(retiring?.stopCalls).toEqual([Number.MAX_SAFE_INTEGER / 1000, undefined]);
+    expect(retiring?.disconnected).toBe(true);
+    expect(retiring?.gainDisconnected).toBe(true);
+    host.dispose();
+  });
+
+  it("releases a retiring fade when replacement playback is demanded", async () => {
+    const { host, context } = hostV1({
+      bytesByPath: {
+        "audio/theme.ogg": new Uint8Array([1, 2, 3, 4]),
+        "audio/alternate.ogg": new Uint8Array([5, 6, 7, 8]),
+      },
+    });
+    host.play({
+      channel: "bgm",
+      assetId: "audio.test.theme",
+      loop: true,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+    await flushV1();
+    const retiring = context.startedSources()[0];
+    host.stop("bgm", Number.MAX_SAFE_INTEGER);
+
+    host.play({
+      channel: "bgm",
+      assetId: "audio.test.alternate",
+      loop: true,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+    expect(retiring?.disconnected).toBe(true);
+    expect(retiring?.gainDisconnected).toBe(true);
+    await flushV1();
+    expect(context.startedSources()).toHaveLength(2);
+    host.dispose();
+  });
+
+  it("releases a retiring fade when the host is disposed", async () => {
+    const { host, context } = hostV1({});
+    host.play({
+      channel: "ambient",
+      assetId: "audio.test.theme",
+      loop: true,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+    await flushV1();
+    const retiring = context.startedSources()[0];
+    host.stop("ambient", Number.MAX_SAFE_INTEGER);
+
+    host.dispose();
+    expect(retiring?.disconnected).toBe(true);
+    expect(retiring?.gainDisconnected).toBe(true);
   });
 
   it("does not start a continuous channel stopped while decode is pending", async () => {

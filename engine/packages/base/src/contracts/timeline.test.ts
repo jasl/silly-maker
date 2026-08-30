@@ -80,12 +80,12 @@ describe("timeline definition contract", () => {
       "timeline.duration_invalid",
     ],
     [
-      "unbounded repeat",
+      "zero repeat",
       {
         timelineId: "cue.t",
-        root: { kind: "repeat", count: 9, step: { kind: "wait", durationMs: 1 } },
+        root: { kind: "repeat", count: 0, step: { kind: "wait", durationMs: 1 } },
       },
-      "timeline.repeat_unbounded",
+      "timeline.repeat_invalid",
     ],
     [
       "unknown easing",
@@ -185,6 +185,40 @@ describe("timeline definition contract", () => {
     expect(() => parseTimelineDefinitionV1({ timelineId: "cue.t", root: step })).toThrowError(
       expect.objectContaining({ code: "timeline.too_many_event_occurrences" }),
     );
+  });
+
+  it("accepts long event-free repeats and durations without linear sampling work", () => {
+    const definition = timelineV1.define(
+      "cue.test.long-repeat",
+      timelineV1.repeat(
+        10_000,
+        timelineV1.tween({
+          target: beacon,
+          property: "offsetX",
+          from: 0,
+          to: 10,
+          durationMs: 120_000,
+        }),
+      ),
+    );
+
+    expect(timelineDurationV1(definition)).toBe(1_200_000_000);
+    expect(evaluateTimelineAtV1(definition, 1_199_940_000).values).toEqual([
+      { target: beacon, property: "offsetX", value: 5 },
+    ]);
+  });
+
+  it("rejects a finite descriptor whose total duration overflows a safe integer", () => {
+    expect(() =>
+      parseTimelineDefinitionV1({
+        timelineId: "cue.test.duration-overflow",
+        root: {
+          kind: "repeat",
+          count: 2,
+          step: { kind: "wait", durationMs: Number.MAX_SAFE_INTEGER },
+        },
+      })
+    ).toThrowError(expect.objectContaining({ code: "timeline.duration_overflow" }));
   });
 });
 

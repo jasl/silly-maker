@@ -68,6 +68,7 @@ describe("VN interaction document", () => {
     >({
       ...compiled,
       errorPrefix: "probe",
+      historyRetentionEntries: compiled.nodes.length,
       matchesPredicate: (state, predicate) => state.route === predicate.route,
       applyChoiceEffect: (state, effect) => ({ ...state, route: effect.route }),
     });
@@ -111,6 +112,7 @@ describe("VN interaction document", () => {
     const runtime = createVnInteractionRuntimeV1<ProbeStateV1, never, never>({
       ...compiled,
       errorPrefix: "long",
+      historyRetentionEntries: compiled.nodes.length,
       matchesPredicate: () => false,
       applyChoiceEffect: (state) => state,
     });
@@ -165,6 +167,7 @@ describe("VN interaction document", () => {
     const runtime = createVnInteractionRuntimeV1<ProbeStateV1, never, never>({
       ...compiled,
       errorPrefix: "cycle",
+      historyRetentionEntries: compiled.nodes.length,
       matchesPredicate: () => false,
       applyChoiceEffect: (state) => state,
     });
@@ -195,6 +198,7 @@ describe("VN interaction document", () => {
     >({
       ...compiled,
       errorPrefix: "hold-cycle",
+      historyRetentionEntries: compiled.nodes.length,
       matchesPredicate: () => true,
       applyChoiceEffect: (state) => state,
     });

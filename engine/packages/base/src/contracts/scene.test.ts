@@ -433,6 +433,11 @@ describe("sceneAmbientCatalogV1", () => {
     ).toBe(JSON.stringify(plain.cueMutations("cue.app.opening.hero-enters", emptyStageV1())));
   });
 
+  it("admits a phase offset longer than one minute", () => {
+    const scene = parseSceneDocumentV1(ambientDocumentV1(120_000));
+    expect(scene.entries[1]?.ambient?.phaseMs).toBe(120_000);
+  });
+
   it("rejects bad ambient declarations at admission", () => {
     const withAmbient = (ambient: unknown) => {
       const base = sceneDocumentV1();

@@ -494,6 +494,8 @@ export interface CreateVnInteractionRuntimeInputV1<
   readonly entryNodeId: string;
   readonly nodes: readonly VnNarrativeNodeV1<TChoiceEffect, TPredicate>[];
   readonly errorPrefix: string;
+  /** Product-owned authoritative History retention; zero disables capture. */
+  readonly historyRetentionEntries: number;
   matchesPredicate(state: TState, predicate: TPredicate): boolean;
   applyChoiceEffect(state: TState, effect: TChoiceEffect): TState;
   onBegin?(state: TState): TState;
@@ -524,6 +526,11 @@ export function createVnInteractionRuntimeV1<
 >(
   input: CreateVnInteractionRuntimeInputV1<TState, TChoiceEffect, TPredicate>,
 ): VnInteractionRuntimeV1<TState, TChoiceEffect> {
+  if (
+    !Number.isSafeInteger(input.historyRetentionEntries) || input.historyRetentionEntries < 0
+  ) {
+    throw new TypeError(`${input.errorPrefix}.history_retention_invalid`);
+  }
   const nodesById = new Map(input.nodes.map((node) => [node.nodeId, node]));
   const choicesByDefinitionId = new Map<string, readonly VnChoiceOptionV1<TChoiceEffect>[]>();
   for (const node of input.nodes) {
@@ -680,7 +687,7 @@ export function createVnInteractionRuntimeV1<
           speakerTextId: null,
           textId: option.textId,
           voiceAssetId: null,
-        });
+        }, input.historyRetentionEntries);
       } else if (node.kind === "say") {
         next = node.next;
         history = appendNarrativeHistory(history, {
@@ -691,7 +698,7 @@ export function createVnInteractionRuntimeV1<
           speakerTextId: node.speakerTextId,
           textId: node.textId,
           voiceAssetId: null,
-        });
+        }, input.historyRetentionEntries);
       } else {
         return fail("narrative_resolution_mismatch", node.nodeId);
       }

@@ -6,6 +6,8 @@ import {
   sillyOsTargetV1,
   sillyOsNetworkBrokerTargetUrlV1,
   sillyOsNetworkBrokerTargetV1,
+  sillyOsQuickJsSandboxTargetUrlV1,
+  sillyOsQuickJsSandboxTargetV1,
   sillyOsWorkspaceSandboxTargetUrlV1,
   sillyOsWorkspaceSandboxTargetV1,
   templateTargetUrlV1,
@@ -64,6 +66,16 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       url: sillyOsNetworkBrokerTargetUrlV1("network-broker.html"),
+    },
+    {
+      command:
+        `deno run -A npm:vite --config examples/silly-os/vite.workspace-sandbox.config.ts --host ${sillyOsQuickJsSandboxTargetV1.host} --port ${
+          String(sillyOsQuickJsSandboxTargetV1.port)
+        } --strictPort`,
+      cwd: "../..",
+      reuseExistingServer: false,
+      timeout: 120_000,
+      url: sillyOsQuickJsSandboxTargetUrlV1("workspace-sandbox.html"),
     },
     {
       command:

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { defineConfig, devices } from "@playwright/test";
 
-const quickJsSandboxTargetV1 = { host: "127.0.0.1", port: 41750 } as const;
+import { sillyOsQuickJsSandboxTargetUrlV1, sillyOsQuickJsSandboxTargetV1 } from "./fixtures.ts";
 
 /** Fixed product QuickJS runtime and Sandbox-origin boundary qualification. */
 export default defineConfig({
@@ -14,15 +14,13 @@ export default defineConfig({
   timeout: 60_000,
   webServer: {
     command:
-      `deno run -A npm:vite --config examples/silly-os/vite.workspace-sandbox.config.ts --host ${quickJsSandboxTargetV1.host} --port ${
-        String(quickJsSandboxTargetV1.port)
+      `deno run -A npm:vite --config examples/silly-os/vite.workspace-sandbox.config.ts --host ${sillyOsQuickJsSandboxTargetV1.host} --port ${
+        String(sillyOsQuickJsSandboxTargetV1.port)
       } --strictPort`,
     cwd: "../..",
     reuseExistingServer: false,
     timeout: 120_000,
-    url: `http://${quickJsSandboxTargetV1.host}:${
-      String(quickJsSandboxTargetV1.port)
-    }/workspace-sandbox.html`,
+    url: sillyOsQuickJsSandboxTargetUrlV1("workspace-sandbox.html"),
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },

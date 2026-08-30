@@ -8,25 +8,25 @@ export interface WebsiteHomeConsoleContextV1 {
 }
 
 const screenPropsSchemaV1 = z.strictObject({
-  label: z.string().min(1).max(80),
-  statusLabel: z.string().min(1).max(40),
-  routeLabel: z.string().min(1).max(60),
-  openLabel: z.string().min(1).max(40),
-  previousLabel: z.string().min(1).max(40),
-  nextLabel: z.string().min(1).max(40),
-  helpText: z.string().min(1).max(180),
+  label: z.string().min(1),
+  statusLabel: z.string().min(1),
+  routeLabel: z.string().min(1),
+  openLabel: z.string().min(1),
+  previousLabel: z.string().min(1),
+  nextLabel: z.string().min(1),
+  helpText: z.string().min(1),
 });
 
 const routePropsSchemaV1 = z.strictObject({
-  routeId: z.enum(["start", "gui", "game", "examples"]),
-  order: z.number().int().min(0).max(3),
-  number: z.string().min(1).max(8),
-  eyebrow: z.string().min(1).max(40),
-  title: z.string().min(1).max(80),
-  summary: z.string().min(1).max(240),
-  href: z.string().min(1).max(160),
+  routeId: z.string().min(1),
+  order: z.number().int().min(0),
+  number: z.string().min(1),
+  eyebrow: z.string().min(1),
+  title: z.string().min(1),
+  summary: z.string().min(1),
+  href: z.string().min(1),
   accent: z.enum(["indigo", "mint", "amber", "violet"]),
-  tags: z.array(z.string().min(1).max(40)).min(2).max(4),
+  tags: z.array(z.string().min(1)),
 });
 
 export type HomeConsoleScreenPropsV1 = z.infer<typeof screenPropsSchemaV1>;

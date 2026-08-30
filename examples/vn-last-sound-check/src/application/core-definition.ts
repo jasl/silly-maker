@@ -19,7 +19,7 @@ import type {
 import { vnLastSoundCheckStoryEntryV1 } from "../story.ts";
 import { vnLastSoundCheckControlRoomSceneV1 } from "../scenes/control-room/index.ts";
 import { vnLastSoundCheckRooftopAntennaSceneV1 } from "../scenes/rooftop-antenna/index.ts";
-import { vnLastSoundCheckContentIdsV1 } from "../story/narrative.ts";
+import { vnLastSoundCheckContentIdsV1, vnLastSoundCheckScriptV1 } from "../story/narrative.ts";
 
 /**
  * The Host-neutral core application: the GamePackage entry plus the
@@ -62,7 +62,7 @@ export const vnLastSoundCheckCoreApplicationDefinitionV1 = defineCoreGameApplica
   }),
   resumeFromAutosave: true,
   rollback: {
-    capacity: 64,
+    capacity: vnLastSoundCheckScriptV1.length,
     classify(command) {
       switch (command.kind) {
         case "vn-last-sound-check.begin_story":

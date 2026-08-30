@@ -468,9 +468,13 @@ export function runLabNarrativeUntilInteractionV1(
   let sequence = narrative.sequence;
   let localStage = stage;
   const collected: StageMutationV1[] = [];
+  const visitedNodeIds = new Set<string>();
 
-  for (let steps = 0; steps < 64; steps += 1) {
-    if (cursor === null) break;
+  while (cursor !== null) {
+    if (visitedNodeIds.has(cursor)) {
+      throw new TypeError(`e2e.narrative_runaway_script:${cursor}`);
+    }
+    visitedNodeIds.add(cursor);
     const node = requireNodeV1(plan, cursor);
     if (node.kind === "branch") {
       const next = node.choose({ rapport: narrative.rapport });
@@ -536,7 +540,7 @@ export function runLabNarrativeUntilInteractionV1(
       stageMutations: collected,
     });
   }
-  throw new TypeError("e2e.narrative_runaway_script");
+  throw new TypeError("e2e.narrative_cursor_ended_without_end_node");
 }
 
 /**
@@ -572,7 +576,7 @@ export function labNarrativeAfterResolutionV1(
       speakerTextId: null,
       textId: option.textId,
       voiceAssetId: null,
-    });
+    }, plan.nodesById.size);
   } else if (node.kind === "custom" && resolution.kind === "custom") {
     const value = resolution.payload.value;
     if (typeof value !== "number") throw new TypeError("e2e.narrative_payload_missing");
@@ -588,7 +592,7 @@ export function labNarrativeAfterResolutionV1(
       speakerTextId: node.speakerTextId,
       textId: node.textId,
       voiceAssetId: labVoiceForSayV1(pending.definitionId)?.assetId ?? null,
-    });
+    }, plan.nodesById.size);
   } else if (node.kind === "barrier") {
     next = node.next;
   } else {

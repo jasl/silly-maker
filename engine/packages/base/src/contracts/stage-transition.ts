@@ -75,7 +75,7 @@ function parseTransitionIdV1(value: unknown, path: string): string {
 }
 
 function parseDurationMsV1(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > 60_000) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     return dataFailure(path, "transition_duration_invalid");
   }
   return value;

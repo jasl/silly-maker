@@ -93,7 +93,11 @@ live predecessor；R2 disposal 开始后的 release failure 是 terminal。relea
 它增加了 public `@sillymaker/agent/session`，只提升 semantic Session/Run client、connector/
 connection、status/result/stream contracts、currentness 与 awaited disposal；raw request/wire/provider、
 Agent Host、`UiArtifact` 与 deterministic fake 保持 private。SillyOS 随后已完成产品自有
-downstream connector handoff，不会改写已关闭 engine slice 的边界。终审仅记录 ready 后异步
+downstream connector handoff，不会改写已关闭 engine slice 的边界。handoff 合同已明确长 Conversation 不设任意
+消息条数上限，rich transcript 由 SillyOS 分页持久化并只挂载当前 Process；Browser local Agent
+按“前台执行、允许中断、拒绝 stale 发布；最近已确认 checkpoint 仍可读且 admission 成功时恢复，
+否则进入明确不可恢复状态”验收。这些是 downstream
+产品要求与候选证据门，不是已交付的 Engine Process/persistence/background API。终审仅记录 ready 后异步
 connection loss 通知这一项未激活的中立候选；当前没有自动激活的后继，也没有授权公共 API 改动。
 
 此前完成的有界 lane 是

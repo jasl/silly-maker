@@ -352,8 +352,10 @@ The Settings navigation separates the unchanged Pi built-in catalog from
 product-owned custom HTTPS profiles. A custom profile explicitly declares one
 of Pi's `openai-completions`, `openai-responses`, `anthropic-messages`, or
 `google-generative-ai` API families, its canonical base URL, model id, and
-bounds; URL shape never selects a protocol. Its non-secret record may persist
-in the Browser Settings repository. Its API key, when that API family requires
+bounds; URL shape never selects a protocol. Each non-secret field is byte-
+admitted and the complete Browser Settings record has one `64 KiB` UTF-8
+storage budget; profile and model arrays have no separate item-count contract.
+Its API key, when that API family requires
 one, follows the same durable exact-binding Vault path as a built-in Provider. A
 successful custom probe describes only that bounded request and is never a
 prerequisite for using the complete profile. Neither kind of profile or key is
@@ -1441,9 +1443,9 @@ The Host reads and writes OPFS files by range or stream and keeps only bounded
 active-operation buffers. It never loads or copies the complete volume through
 the page, Agent Worker, structured clone, or one unconditional `ArrayBuffer`.
 The page receives no volume bytes, and no product component needs the complete
-volume resident in memory. P3a-B0's `2 MiB` ceiling remains solely the retired
-disposable in-memory control's guardrail; it is not the persistent Program
-capacity.
+volume resident in memory. P3a-B0's retired disposable in-memory control once
+used `2 MiB` volume, `256 KiB` file, and `256` file-count guardrails; none is a
+current Workspace contract or exported persistent-capacity constant.
 
 The historical P3c checkpoint 2 automated Chromium and persistent-WebKit gate retains and cold-
 reopens exactly 1,000 `5 KiB` files plus one `16 MiB` file: `1,001` files and

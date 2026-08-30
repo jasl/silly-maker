@@ -12,6 +12,7 @@ test("the home console shares one keyboard and pointer selection", async ({ page
     "data-home-console-selected",
     "start",
   );
+  await expect(homeConsole.locator(".home-console__status b")).toHaveText("01 / 04");
 
   await homeConsole.focus();
   await page.keyboard.press("ArrowRight");
@@ -118,6 +119,7 @@ test("the composed site exposes the maintained products", async ({ page }) => {
   await expect(page.locator("[data-title-screen='true']")).toBeVisible();
   await expect(page.getByRole("button", { name: "新游戏" })).toBeVisible();
 
-  await page.goto(`${websiteUrlV1}play/silly-os/`);
-  await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+  await page.goto(`${websiteUrlV1}examples/silly-os/`);
+  await expect(page.getByRole("link", { name: "Open the standalone SillyOS deployment" }))
+    .toHaveAttribute("href", "https://silly-os.jasl9187.workers.dev/");
 });

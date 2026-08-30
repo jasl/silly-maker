@@ -2,7 +2,6 @@
 // Composes the publishable static site under dist/site:
 //   /                          Astro/Starlight documentation (website/)
 //   /play/vn-last-sound-check/  the flagship VN Reference Product
-//   /play/silly-os/            the GUI-only SillyOS deterministic preview
 //
 // SITE_BASE selects the deployment base path. Root deployments (Cloudflare
 // Workers, custom domains) omit it; GitHub Pages project sites set
@@ -48,7 +47,6 @@ console.log(`[site] base: ${siteBase}`);
 
 // 1. Application bundles (app build runs Vite with each target's own config).
 await runV1(["deno", "task", "app", "build", "example-vn-last-sound-check"]);
-await runV1(["deno", "task", "app", "build", "example-silly-os"]);
 
 // 2. Documentation site with the deployment base.
 await runV1(["deno", "task", "docs:build"], { SITE_BASE: siteBase });
@@ -62,9 +60,6 @@ await cp(
   join(siteDir, "play", "vn-last-sound-check"),
   { recursive: true },
 );
-await cp(join(repoRoot, "examples", "silly-os", "dist-web"), join(siteDir, "play", "silly-os"), {
-  recursive: true,
-});
 // GitHub Pages runs Jekyll by default, which drops Astro's underscore-prefixed
 // asset directory. `.nojekyll` preserves the generated site and is inert on
 // other static hosts.

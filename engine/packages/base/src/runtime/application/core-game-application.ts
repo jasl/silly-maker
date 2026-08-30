@@ -656,10 +656,26 @@ export function resolveCoreGameApplicationV1<
       },
     };
   }
+  let rollback: CoreRollbackPolicyV1<TTypes["command"]> | undefined;
+  try {
+    rollback = definition.rollback === undefined ? undefined : {
+      ...definition.rollback,
+      capacity: parsePositiveSafeInteger(definition.rollback.capacity),
+    };
+  } catch {
+    return {
+      kind: "failed" as const,
+      failure: {
+        code: "rollback_policy.invalid",
+        details: {},
+      },
+    };
+  }
   const admittedDefinition = {
     ...definition,
     adoptionDeclarations,
     ...(persistenceSafepoint === undefined ? {} : { persistenceSafepoint }),
+    ...(rollback === undefined ? {} : { rollback }),
   };
   const result = resolveGamePackageV1(
     admittedDefinition.entry,
@@ -1002,7 +1018,7 @@ export type CoreRebootstrapStartFailureInternalV1 =
  * rerolls).
  */
 export interface CoreRollbackPolicyV1<TCommand> {
-  /** History capacity (checkpoints kept behind the current state), 1..256. */
+  /** Product-selected number of checkpoints kept behind the current state. */
   readonly capacity: number;
   classify(command: DeepReadonly<TCommand>): "checkpoint" | "transparent" | "barrier";
 }
@@ -2254,9 +2270,7 @@ export async function createCoreGameApplicationInstanceV1<
       readonly commandSequence: NonNegativeSafeInteger;
     }
     const rollbackPolicy = definition.rollback ?? null;
-    const rollbackCapacity = rollbackPolicy === null
-      ? 0
-      : Math.max(1, Math.min(256, Math.trunc(rollbackPolicy.capacity)));
+    const rollbackCapacity = rollbackPolicy === null ? 0 : rollbackPolicy.capacity;
     let rollbackTimeline: RollbackCheckpointV1[] = [];
     let rollbackCursor = 0;
     let rollbackTimelineGeneration = 0;
@@ -2319,9 +2333,9 @@ export async function createCoreGameApplicationInstanceV1<
       }
       rollbackTimeline.push(currentCheckpointV1());
       rollbackCursor = rollbackTimeline.length - 1;
-      const maximumEntries = rollbackCapacity + 1;
-      if (rollbackTimeline.length > maximumEntries) {
-        rollbackTimeline = rollbackTimeline.slice(rollbackTimeline.length - maximumEntries);
+      const entriesBeyondCapacity = rollbackTimeline.length - 1 - rollbackCapacity;
+      if (entriesBeyondCapacity > 0) {
+        rollbackTimeline = rollbackTimeline.slice(entriesBeyondCapacity);
         rollbackCursor = rollbackTimeline.length - 1;
       }
       publishRollbackTimelineChangeV1();

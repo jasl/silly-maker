@@ -81,10 +81,8 @@ export class TimelineDefinitionErrorV1 extends TypeError {
 
 const timelineIdPatternV1 = /^cue\.[a-z0-9_.-]+$/u;
 const eventIdPatternV1 = /^event\.[a-z0-9_.-]+$/u;
-const maxRepeatCountV1 = 8;
 const maxDepthV1 = 8;
 const maxStepsV1 = 256;
-const maxDurationMsV1 = 60_000;
 const maxEventOccurrencesV1 = 4_096;
 const propertyValuesV1: readonly TimelinePropertyV1[] = [
   "offsetX",
@@ -176,7 +174,7 @@ function parseStepV1(
       const durationMs = requireIntV1(
         record.durationMs,
         1,
-        maxDurationMsV1,
+        Number.MAX_SAFE_INTEGER,
         "timeline.duration_invalid",
         `${path}/durationMs`,
       );
@@ -203,7 +201,7 @@ function parseStepV1(
         durationMs: requireIntV1(
           record.durationMs,
           1,
-          maxDurationMsV1,
+          Number.MAX_SAFE_INTEGER,
           "timeline.duration_invalid",
           `${path}/durationMs`,
         ),
@@ -252,8 +250,8 @@ function parseStepV1(
       const count = requireIntV1(
         record.count,
         1,
-        maxRepeatCountV1,
-        "timeline.repeat_unbounded",
+        Number.MAX_SAFE_INTEGER,
+        "timeline.repeat_invalid",
         `${path}/count`,
       );
       return {
@@ -326,7 +324,7 @@ const compiledTimelineDefinitionsV1 = new WeakMap<
   TimelineEvaluationPlanInternalV1
 >();
 
-export function timelineStepDurationV1(step: TimelineStepV1): number {
+function timelineStepDurationAtPathV1(step: TimelineStepV1, path: string): number {
   const existing = timelineStepDurationsV1.get(step);
   if (existing !== undefined) return existing;
 
@@ -339,18 +337,26 @@ export function timelineStepDurationV1(step: TimelineStepV1): number {
     case "event":
       durationMs = 0;
       break;
-    case "sequence":
-      durationMs = step.steps.reduce((total, child) => total + timelineStepDurationV1(child), 0);
+    case "sequence": {
+      durationMs = 0;
+      for (const [index, child] of step.steps.entries()) {
+        durationMs += timelineStepDurationAtPathV1(child, `${path}/steps/${String(index)}`);
+        if (!Number.isSafeInteger(durationMs)) fail("timeline.duration_overflow", path);
+      }
       break;
+    }
     case "parallel":
       durationMs = step.steps.reduce(
-        (max, child) => Math.max(max, timelineStepDurationV1(child)),
+        (max, child, index) =>
+          Math.max(max, timelineStepDurationAtPathV1(child, `${path}/steps/${String(index)}`)),
         0,
       );
       break;
-    case "repeat":
-      durationMs = step.count * timelineStepDurationV1(step.step);
+    case "repeat": {
+      durationMs = step.count * timelineStepDurationAtPathV1(step.step, `${path}/step`);
+      if (!Number.isSafeInteger(durationMs)) fail("timeline.duration_overflow", path);
       break;
+    }
     default: {
       const exhaustive: never = step;
       throw new TypeError(`unknown timeline step ${String(exhaustive)}`);
@@ -360,8 +366,12 @@ export function timelineStepDurationV1(step: TimelineStepV1): number {
   return durationMs;
 }
 
+export function timelineStepDurationV1(step: TimelineStepV1): number {
+  return timelineStepDurationAtPathV1(step, "/step");
+}
+
 export function timelineDurationV1(definition: TimelineDefinitionV1): number {
-  return timelineStepDurationV1(definition.root);
+  return timelineStepDurationAtPathV1(definition.root, "/root");
 }
 
 const easingFunctionsV1: Readonly<Record<TimelineEasingV1, (value: number) => number>> = {
@@ -411,7 +421,7 @@ function sampleStepV1(step: TimelineStepV1, elapsedMs: number, state: SampleStat
       const childDuration = timelineStepDurationV1(step.step);
       if (childDuration === 0) return;
       const completedIterations = Math.min(step.count, Math.floor(elapsedMs / childDuration));
-      for (let index = 0; index < completedIterations; index += 1) {
+      if (completedIterations > 0) {
         sampleStepV1(step.step, childDuration, state);
       }
       if (completedIterations < step.count) {
@@ -429,6 +439,25 @@ function sampleStepV1(step: TimelineStepV1, elapsedMs: number, state: SampleStat
 
 interface OrderedTimelineEventOccurrenceInternalV1 extends TimelineEventOccurrenceInternalV1 {
   readonly order: number;
+}
+
+function hasTimelineEventV1(step: TimelineStepV1): boolean {
+  switch (step.kind) {
+    case "event":
+      return true;
+    case "tween":
+    case "wait":
+      return false;
+    case "sequence":
+    case "parallel":
+      return step.steps.some(hasTimelineEventV1);
+    case "repeat":
+      return hasTimelineEventV1(step.step);
+    default: {
+      const exhaustive: never = step;
+      throw new TypeError(`unknown timeline step ${String(exhaustive)}`);
+    }
+  }
 }
 
 function collectTimelineEventOccurrencesV1(
@@ -471,6 +500,7 @@ function collectTimelineEventOccurrencesV1(
       }
       return;
     case "repeat": {
+      if (!hasTimelineEventV1(step.step)) return;
       const childDuration = timelineStepDurationV1(step.step);
       for (let index = 0; index < step.count; index += 1) {
         collectTimelineEventOccurrencesV1(
@@ -495,12 +525,13 @@ export function compileTimelineEvaluationInternalV1(
 ): TimelineEvaluationPlanInternalV1 {
   const existing = compiledTimelineDefinitionsV1.get(definition);
   if (existing !== undefined) return existing;
+  const durationMs = timelineStepDurationAtPathV1(definition.root, path);
   const orderedEvents: OrderedTimelineEventOccurrenceInternalV1[] = [];
   collectTimelineEventOccurrencesV1(definition.root, 0, orderedEvents, path);
   orderedEvents.sort((left, right) => left.atMs - right.atMs || left.order - right.order);
   const events = orderedEvents.map(({ atMs, eventId }) => ({ atMs, eventId }));
   const plan: TimelineEvaluationPlanInternalV1 = {
-    durationMs: timelineDurationV1(definition),
+    durationMs,
     eventsInternalV1: events,
     sampleValuesInternalV1(elapsedMs: number): readonly TimelineChannelValueV1[] {
       const state: SampleStateV1 = { values: new Map() };

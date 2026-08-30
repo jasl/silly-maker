@@ -48,17 +48,17 @@
   margin: 0;
 }
 
-.home-console[data-home-console-selected="gui"] {
+.home-console--mint {
   --console-accent: #43d2a8;
   --console-accent-soft: rgb(67 210 168 / 13%);
 }
 
-.home-console[data-home-console-selected="game"] {
+.home-console--amber {
   --console-accent: #eca753;
   --console-accent-soft: rgb(236 167 83 / 13%);
 }
 
-.home-console[data-home-console-selected="examples"] {
+.home-console--violet {
   --console-accent: #aa91ff;
   --console-accent-soft: rgb(170 145 255 / 14%);
 }
@@ -343,7 +343,7 @@
 
 .home-console__deck {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
   gap: clamp(0.42rem, 1vw, 0.72rem);
   min-width: 0;
 }

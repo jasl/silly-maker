@@ -432,6 +432,7 @@ function historyWithOneEntryV1(): NarrativeHistoryV1 {
       textId: "text.host-test.line",
       voiceAssetId: null,
     },
+    1,
   );
 }
 

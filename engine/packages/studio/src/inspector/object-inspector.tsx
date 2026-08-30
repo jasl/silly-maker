@@ -268,7 +268,6 @@ export function InspectorObjectPanelV1(props: InspectorObjectPanelPropsV1): Reac
                       label="ambient phase (ms)"
                       value={ambient.phaseMs ?? 0}
                       min={0}
-                      max={60_000}
                       disabled={props.disabled}
                       commit={(phaseMs) =>
                         props.execute({

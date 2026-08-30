@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: MIT
-export {
-  defineWorkspaceOverlayV1,
-  maximumOverlayDetailDepthV1,
-} from "./workspace-overlay-session.ts";
+export { defineWorkspaceOverlayV1 } from "./workspace-overlay-session.ts";
 export type {
   DefineWorkspaceOverlayInputV1,
   OverlayAdmissionRejectionV1,

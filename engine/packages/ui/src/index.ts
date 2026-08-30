@@ -158,7 +158,7 @@ export type {
 } from "./whole-canvas/whole-canvas-surface-composition.tsx";
 export { useLocaleTextV1 } from "./system/use-locale-text.ts";
 export { useReducedMotionV1 } from "./system/use-reduced-motion.ts";
-export { defineWorkspaceOverlayV1, maximumOverlayDetailDepthV1 } from "./overlays/index.ts";
+export { defineWorkspaceOverlayV1 } from "./overlays/index.ts";
 export type {
   DefineWorkspaceOverlayInputV1,
   OverlayAdmissionRejectionV1,

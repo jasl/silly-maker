@@ -81,7 +81,6 @@ export interface ManagedSurfaceStableAdmittedTargetInternalV1 {
 }
 
 export const managedSurfaceStableContractLimitsInternalV1 = {
-  maxTargets: 64,
   canonicalParameters: {
     maxBytes: 65_536,
     maxDepth: 32,
@@ -104,7 +103,6 @@ export type ManagedSurfaceStableRejectedCodeInternalV1 =
   | "surface.stable_source_revision_invalid"
   | "surface.stable_initial_revision_invalid"
   | "surface.stable_target_shape_invalid"
-  | "surface.stable_target_limit_exceeded"
   | "surface.stable_occurrence_duplicate"
   | "surface.stable_occurrence_unissued"
   | "surface.stable_occurrence_reused"

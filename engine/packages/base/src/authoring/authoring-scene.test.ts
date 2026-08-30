@@ -463,6 +463,20 @@ describe("Authoring Scene compiler", () => {
     ]);
   });
 
+  it("admits a long ambient phase without an authoring-only ceiling", () => {
+    const raw = authoringSceneV1();
+    const layers = raw.layers as Array<Record<string, unknown>>;
+    const characterRoots = layers[1]?.roots as Array<Record<string, unknown>>;
+    const children = characterRoots[0]?.children as Array<Record<string, unknown>>;
+    const visual = children[0]?.visual as Record<string, unknown>;
+    visual.ambient = { motionId: "motion.app.breathe", phaseMs: 120_000 };
+
+    const document = admitAuthoringSceneDocumentV1(raw);
+    expect(document.document.layers[1]?.roots[0]?.children[0]?.visual?.ambient?.phaseMs).toBe(
+      120_000,
+    );
+  });
+
   it("produces canonical-identical runtime bytes under source property-order perturbation", () => {
     const ordinary = compileAuthoringSceneV1(
       admitAuthoringSceneDocumentV1(authoringSceneV1()),

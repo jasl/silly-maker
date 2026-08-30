@@ -202,6 +202,14 @@ waits for the selected resource owner. This is R1: it keeps the same
 `GameSession` and cannot alter Snapshot, Save, replay, Seen, Back/Forward or
 History retention.
 
+The backlog is authoritative gameplay State, so the interaction runtime does
+not choose an arbitrary default or permit accidental unbounded growth. Each
+product supplies a non-negative retention count when it constructs the VN
+runtime; `0` disables capture. A finite product may derive a window large enough
+for one complete route from its compiled interaction graph. Looping and
+open-ended products must instead own an explicit rolling policy, or persist a
+complete pageable transcript outside the gameplay Snapshot.
+
 Development may expose load, unload and reload repeatedly. A production product
 may explicitly include the same extension surface, or select a core-only build
 that structurally omits the History implementation, CSS, literal loader and
@@ -299,7 +307,7 @@ Renderer、只读 PresentationObservation 和 Host tests 能观察 asset demand/
 
 ## 9. Timeline and bounded scene graph
 
-状态更新（2026-07-28）：类型化 Timeline 已实现——JSON-safe descriptor + `timelineV1` builder（与 literal 同契约）、验证器（unknown target/非法 duration/easing/并行写冲突/有界 repeat）、纯采样函数、复用 PresentationRun/Clock 的播放器（pause/cancel/skip/快进/reduced-motion 即时 settle/事件一次性水位线）、语义舞台 overlay 集成与 `play_cue` 接线，Engine Lab 的信标脉冲 cue 作垂直证明。`keyframes` 语法糖与 `onLifecycle` 绑定按 [R5–R7 计划](../plans/2026-07-28-sillymaker-r5-r7.md) defer；受约束 scene graph 仍待真实 Story 证据。
+状态更新（2026-07-28，容量修订 2026-08-30）：类型化 Timeline 已实现——JSON-safe descriptor + `timelineV1` builder（与 literal 同契约）、验证器（unknown target/非法或非安全 timing/并行写冲突/有界 descriptor 与 event 展开）、纯采样函数、复用 PresentationRun/Clock 的播放器（pause/cancel/skip/快进/reduced-motion 即时 settle/事件一次性水位线）、语义舞台 overlay 集成与 `play_cue` 接线，Engine Lab 的信标脉冲 cue 作垂直证明。有限 safe-integer repeat 和 duration 不再带任意创作上限；无事件 repeat 的编译与采样不按次数循环。`keyframes` 语法糖与 `onLifecycle` 绑定按 [R5–R7 计划](../plans/2026-07-28-sillymaker-r5-r7.md) defer；受约束 scene graph 仍待真实 Story 证据。
 
 资源边界更新（2026-08-25）：解析/编译拒绝嵌套 repeat 展开后超过 4,096 个 event
 occurrence 的 Timeline。该上限保护真实的冷编译内存和播放器事件表；成功 admission 后，采样与
@@ -333,7 +341,7 @@ repeat(...)
 onLifecycle("show" | "hide" | "replace" | "replaced", ...)
 ```
 
-验证器至少检查 unknown target、非法 duration/easing、并行写冲突、无界 repeat、不可预测资源和 barrier misuse。Timeline 可以暂停、取消、跳过、快进和在 reduced-motion 下映射到稳定 fallback。
+验证器至少检查 unknown target、非法或溢出的 duration/easing、并行写冲突、非有限安全整数 repeat、event 展开资源预算、不可预测资源和 barrier misuse。Timeline 可以暂停、取消、跳过、快进和在 reduced-motion 下映射到稳定 fallback。
 
 自定义 Story React renderer 仍是高级 escape hatch，但不能把任意 closure 写入 Stage/Save。若 custom renderer 需要 gameplay effect，只能发送语义 intent。
 

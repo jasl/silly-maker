@@ -453,7 +453,7 @@ export type {
   TransientEffectRequestV1,
   TransientEffectV1,
 } from "./asset-demand.ts";
-export { narrativeAsidePageLimitV1, parseNarrativeAsidePagesV1 } from "./narrative-aside.ts";
+export { parseNarrativeAsidePagesV1 } from "./narrative-aside.ts";
 export type { NarrativeAsidePageV1, NarrativeAsideV1 } from "./narrative-aside.ts";
 export {
   lintNarrativeGraphV1,
@@ -483,7 +483,6 @@ export type {
 export {
   appendNarrativeHistoryV1,
   emptyNarrativeHistoryV1,
-  narrativeHistoryMaxEntriesV1,
   parseNarrativeHistoryEntryV1,
   parseNarrativeHistoryV1,
 } from "./narrative-history.ts";

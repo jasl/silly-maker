@@ -12,14 +12,16 @@ coding agent 在同一组所有权边界与运行证据内实现。浏览器与
 Narrative/Stage、Player、Save、音频、本地化、响应式与 Inspector 作者路径。它的可发布 Browser artifact
 已接入静态站构建；本仓库不声称已经执行远程 live deployment。
 
-**探索 GUI 产品方向**：[SillyOS](examples/silly-os/) 正在围绕唯一可见程序
-**Agent Creator** 重写。它把创作意图整理进可审查的 Program 工作区，让对话、方案、
-工作成果与活动记录保持在一起。默认入口仍是确定性的本地预览；显式 query-gated 的
-Browser 路线则在 Agent Worker 中运行产品固定版本的 Pi，经 typed Worker RPC 接入，
+**探索 GUI 产品方向**：[SillyOS](examples/silly-os/) 围绕唯一可见程序
+**Agent Creator** 构建。它把创作意图整理进可审查的 Program 工作区，让对话、方案、
+工作成果与活动记录保持在一起。确定性的本地预览仍然可用；配置后的 Browser Provider
+路线则在 Agent Worker 中运行产品固定版本的 Pi，经 typed Worker RPC 接入，
 并使用浏览器本地 Program 数据库与 OPFS mutable workspace checkpoint。当前已交付恢复与
 单写者 ownership 合同、Chromium/WebKit 的 20 MiB 级存储门禁，以及来源存储估算/
-持久化请求 UI。这不代表已经提供 public Mod/Agent ABI、通用 Provider UI、Desktop
-持久化、immutable snapshot 或 ZIP 导出/导入。
+持久化请求 UI。SillyOS 使用公开、传输中立的 Agent Session client，但 Pi wire、Agent Host、
+Programs、Provider UI 和持久化仍由产品拥有；这不代表已经提供 public Agent Host ABI、
+Desktop 持久化。当前 mutable Workspace head 已可下载为 canonical ZIP，accepted immutable
+snapshot 也会在本地保留；accepted snapshot 下载与完整产品的便携导入/恢复尚未实现。
 
 ## 为什么是 SillyMaker
 
@@ -48,7 +50,7 @@ deno run dev             # 启动这个应用自己的 Vite 服务
 - `deno task check`——本地主门禁：格式、静态检查、类型检查与产品级测试套件；
 - `deno task test` / `deno task test:e2e`——引擎/游戏行为测试与浏览器用户流程；
 - `deno task app <verb> <app>`——显式选择目标的仓库应用 CLI（dev / inspect / check / simulate / build / desktop，适用时输出 JSON 报告）；
-- `deno task site:build`——组装可发布静态站（文档 + 旗舰 VN + SillyOS Creator Preview）
+- `deno task site:build`——组装可发布静态站（文档 + 旗舰 VN，并链接到独立部署的 SillyOS）
   到 `dist/site`，经 GitHub Pages workflow 或
   `deno task site:deploy:cf`（Cloudflare Workers）发布；见
   [构建与发布](docs/engine/build-and-release.md)。

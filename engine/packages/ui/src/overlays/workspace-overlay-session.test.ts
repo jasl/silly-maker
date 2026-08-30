@@ -496,6 +496,36 @@ describe("Workspace Overlay Coordinator facade", () => {
     expect(afterChildFailure.focusOwner).toEqual(activeRoot.focusOwner);
   });
 
+  it("admits detail stacks beyond the historical depth ceiling", async () => {
+    const detailIds = Array.from(
+      { length: 5 },
+      (_, index) => `overlay.test.detail-${String(index)}`,
+    );
+    const { session } = createWorkspaceOverlayTestFixtureV1({
+      inputRouter: createInputRouterV1(),
+      epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
+      definitions: [
+        defineWorkspaceOverlayV1({ id: "overlay.test.root", contractRevision: 1 }),
+        ...detailIds.map((id) => defineWorkspaceOverlayV1({ id, contractRevision: 1 })),
+      ],
+    });
+    session.attachRendererResolverInternalV1({
+      resolve: (id: string) => ({ accessibleName: id, content: id }),
+    });
+
+    expect(session.openPrimary("overlay.test.root")).toMatchObject({ kind: "preparing" });
+    await readyOnlyCandidateV1(session);
+    for (const id of detailIds) {
+      expect(session.pushDetail(id)).toMatchObject({ kind: "preparing" });
+      await readyOnlyCandidateV1(session);
+    }
+
+    expect(session.getSnapshot()).toEqual({
+      primaryId: "overlay.test.root",
+      detailIds,
+    });
+  });
+
   it("never reuses an instance after initial failure and makes repeated receipts stale", async () => {
     let rejectPreparation = true;
     const { session } = createWorkspaceOverlayTestFixtureV1({

@@ -4,8 +4,6 @@
 export const browserProviderSettingsStorageKeyV2 =
   "sillymaker.example-silly-os.provider-settings.v2";
 export const browserProviderSettingsRevisionV2 = 2 as const;
-export const browserProviderSettingsMaximumProfilesV1 = 16;
-export const browserProviderSettingsMaximumBuiltinModelsV1 = 256;
 export const browserProviderSettingsMaximumSerializedUtf8BytesV1 = 65_536;
 export const browserProviderProfileIdMaximumUtf8BytesV1 = 64;
 export const browserProviderIdMaximumUtf8BytesV1 = 128;
@@ -84,8 +82,7 @@ export type BrowserProviderSettingsRepositoryFailureCodeV1 =
   | "invalid_model_ref"
   | "invalid_preferred_model"
   | "profile_exists"
-  | "profile_limit"
-  | "model_limit"
+  | "record_too_large"
   | "schema_invalid"
   | "storage_unavailable";
 
@@ -146,8 +143,8 @@ function exactRecordV1(value: unknown, keys: readonly string[]): ExactRecordV1 |
   }
 }
 
-function exactArrayV1(value: unknown, maximumLength: number): readonly unknown[] | null {
-  if (!Array.isArray(value) || value.length > maximumLength) return null;
+function exactArrayV1(value: unknown): readonly unknown[] | null {
+  if (!Array.isArray(value)) return null;
   try {
     if (Object.getPrototypeOf(value) !== Array.prototype) return null;
     if (Object.getOwnPropertySymbols(value).length !== 0) return null;
@@ -430,14 +427,8 @@ function admitStoredSettingsV1(value: unknown): BrowserProviderSettingsSnapshotV
     "preferredModel",
   ]);
   if (settings === null || settings.revision !== browserProviderSettingsRevisionV2) return null;
-  const rawProfiles = exactArrayV1(
-    settings.customProfiles,
-    browserProviderSettingsMaximumProfilesV1,
-  );
-  const rawBuiltinModels = exactArrayV1(
-    settings.enabledBuiltinModels,
-    browserProviderSettingsMaximumBuiltinModelsV1,
-  );
+  const rawProfiles = exactArrayV1(settings.customProfiles);
+  const rawBuiltinModels = exactArrayV1(settings.enabledBuiltinModels);
   if (rawProfiles === null || rawBuiltinModels === null) return null;
 
   const customProfiles: BrowserProviderCustomProfileV1[] = [];
@@ -565,7 +556,7 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
       byteLength === null ||
       byteLength > browserProviderSettingsMaximumSerializedUtf8BytesV1
     ) {
-      throw new BrowserProviderSettingsRepositoryErrorV1("schema_invalid", operation);
+      throw new BrowserProviderSettingsRepositoryErrorV1("record_too_large", operation);
     }
     try {
       input.storage.setItem(storageKey, serialized);
@@ -605,17 +596,7 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
         return Object.freeze({ initialized: false, snapshot: decodeV1(serialized, operation) });
       }
 
-      let exceedsLimit = false;
-      try {
-        exceedsLimit = Array.isArray(value) &&
-          value.length > browserProviderSettingsMaximumBuiltinModelsV1;
-      } catch {
-        // The strict array admission below reports this as an invalid model ref.
-      }
-      if (exceedsLimit) {
-        throw new BrowserProviderSettingsRepositoryErrorV1("model_limit", operation);
-      }
-      const rawRefs = exactArrayV1(value, browserProviderSettingsMaximumBuiltinModelsV1);
+      const rawRefs = exactArrayV1(value);
       if (rawRefs === null) {
         throw new BrowserProviderSettingsRepositoryErrorV1("invalid_model_ref", operation);
       }
@@ -653,9 +634,6 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
       const current = loadV1("add");
       if (current.customProfiles.some(({ profileId }) => profileId === admitted.value.profileId)) {
         throw new BrowserProviderSettingsRepositoryErrorV1("profile_exists", "add");
-      }
-      if (current.customProfiles.length >= browserProviderSettingsMaximumProfilesV1) {
-        throw new BrowserProviderSettingsRepositoryErrorV1("profile_limit", "add");
       }
       const customProfiles = [...current.customProfiles, admitted.value].sort((left, right) =>
         left.profileId < right.profileId ? -1 : left.profileId > right.profileId ? 1 : 0
@@ -710,15 +688,6 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
         builtinModelRefsEqualV1(model, ref)
       );
       if (existing === enabled) return false;
-      if (
-        enabled &&
-        current.enabledBuiltinModels.length >= browserProviderSettingsMaximumBuiltinModelsV1
-      ) {
-        throw new BrowserProviderSettingsRepositoryErrorV1(
-          "model_limit",
-          "set_builtin_model_enabled",
-        );
-      }
       const enabledBuiltinModels = enabled
         ? [...current.enabledBuiltinModels, ref].sort(compareBuiltinModelRefsV1)
         : current.enabledBuiltinModels.filter((model) => !builtinModelRefsEqualV1(model, ref));

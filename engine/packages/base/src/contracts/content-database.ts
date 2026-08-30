@@ -41,7 +41,6 @@ export class ContentDatabaseErrorV1 extends TypeError {
 }
 
 const tableIdPatternV1 = /^table\.[a-z0-9_.-]+$/u;
-const maxRowsV1 = 4096;
 
 function fail(code: string, path: string): never {
   throw new ContentDatabaseErrorV1(code, path);
@@ -69,9 +68,6 @@ export function defineContentTableV1<TRow extends Readonly<Record<string, unknow
   }
   if (!Array.isArray(input.rows) || input.rows.length === 0) {
     fail("content.rows_empty", `/${input.tableId}/rows`);
-  }
-  if (input.rows.length > maxRowsV1) {
-    fail("content.rows_limit", `/${input.tableId}/rows`);
   }
   const seen = new Set<string>();
   const rows = input.rows.map((candidate, index) => {

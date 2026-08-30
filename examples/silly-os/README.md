@@ -87,8 +87,9 @@ Agent Worker 无凭据读取完整 Provider/model catalog；React 不导入底�
 B1c 另外把 **Built-in Providers** 和 **Custom Endpoints** 分区。自定义 profile 只允许
 HTTPS base URL、model id、显式 context/output 上限，以及 Pi 已提供的四种 API family：
 `openai-completions`、`openai-responses`、`anthropic-messages`、
-`google-generative-ai`；协议永远不从 URL 猜测。这个有界非秘密 profile 可以保存在产品自有
-Browser Settings repository 中。API Key 总是由已解锁 Vault 按该 profile 身份与完整 normalized
+`google-generative-ai`；协议永远不从 URL 猜测。每个非秘密 profile 的字段都经过字节准入，完整
+Browser Settings 记录共享明确的 `64 KiB` UTF-8 存储预算，而不是另设 profile/model 条目数上限。
+API Key 总是由已解锁 Vault 按该 profile 身份与完整 normalized
 HTTPS endpoint 的精确 binding 加密持久化；修改 endpoint 不会隐式重绑旧 Key，需要保存新的
 binding，并可从独立 Vault 列表 Forget 已不再使用的旧 binding。最近一次测试状态不会持久化，
 一次测试成功也不会升级成 SillyOS 的 built-in 双浏览器资格结论。
@@ -197,8 +198,9 @@ Install/lock graph 仍含 optional/vendor 依赖，shell bundle 也包含未注�
 checkpoint 2 已在 Chromium 与持久 WebKit 中自动写入并冷重开 `1,000 × 5 KiB` 文件和一个
 `16 MiB` 文件，共 `1,001` 个文件、`21,897,216` 字节，最终 generation 为 `1002`；
 `100 MiB`、`256 MiB` 只保留为 origin 容量允许时的可选原始测量，不是支持承诺。固定边界是
-`1 MiB` 最大 I/O chunk 和 `4 MiB` **SillyOS 管理的文件系统 payload** in-flight；这不测量或
-限制浏览器总 heap。页面从不接收 volume bytes，任何组件也不需要让整卷常驻内存。Pi 原生
+`1 MiB` 最大 I/O chunk 和 `4 MiB` **SillyOS 管理的文件系统 payload** in-flight；当前合同没有
+固定的单文件、整卷或文件数量上限，实际容量由 origin quota 与真实写入决定。这不测量或限制浏览器
+总 heap。页面从不接收 volume bytes，任何组件也不需要让整卷常驻内存。Pi 原生
 `read` 的 `256 KiB` wire 上限只限制一次工具调用，并不是 OPFS 卷上限。
 
 `navigator.storage.estimate()` 只描述调用方 origin，不存在跨浏览器、设备统一的固定 quota。

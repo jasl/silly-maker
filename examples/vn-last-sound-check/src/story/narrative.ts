@@ -327,6 +327,7 @@ const vnLastSoundCheckNarrativeRuntimeV1 = createVnInteractionRuntimeV1<
   entryNodeId: vnLastSoundCheckCompiledStoryV1.entryNodeId,
   nodes: vnLastSoundCheckCompiledStoryV1.nodes,
   errorPrefix: "vn-last-sound-check",
+  historyRetentionEntries: vnLastSoundCheckCompiledStoryV1.nodes.length,
   matchesPredicate: (state, predicate) => state.signalChoice === predicate.signalChoice,
   applyChoiceEffect: (state, effect) => ({
     ...state,

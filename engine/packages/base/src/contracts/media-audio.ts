@@ -197,7 +197,7 @@ function parseGainPermilleV1(value: unknown, path: string): number {
 }
 
 function parseFadeMsV1(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > 60_000) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     return dataFailure(path, "fade_ms_invalid");
   }
   return value;

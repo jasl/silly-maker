@@ -464,30 +464,33 @@ independent of Deno Desktop APIs; the web Player is the stable fallback.
 
 `deno task site:build` composes a publishable static site at `dist/site`: the
 Astro/Starlight documentation at the root, the maintained flagship VN
-**One Last Sound Check** at `/play/vn-last-sound-check/`, and the GUI-only SillyOS Creator Preview
-at `/play/silly-os/`. The VN path packages the complete two-route _One Last
-Sound Check_ Browser product; its inclusion is static publish wiring, not
-evidence that a remote live deployment has occurred. SillyOS currently exposes the Creator Home → Program
-Workspace journey with one built-in Agent Creator. Its default entry remains a
-deterministic local preview. Explicit query-gated Browser routes load the
-product-pinned Pi in an Agent Worker over typed Worker RPC, retain the Program
-catalog/continuation database in browser-local IndexedDB, and retain the mutable
-workspace checkpoint in OPFS. Checkpoint recovery and single-writer ownership,
-a 20 MiB-class Chromium/WebKit storage gate, and the origin-storage
-estimate/persistence-request UI are current product evidence. They do not
-activate a public Mod or Agent ABI, general Provider UI, Desktop persistence,
-immutable snapshot, or ZIP export/import.
+**One Last Sound Check** at `/play/vn-last-sound-check/`, and documentation that
+links to the standalone SillyOS deployment. The VN path packages the complete
+two-route _One Last Sound Check_ Browser product; its inclusion is static publish
+wiring, not evidence that a remote live deployment has occurred.
 
-Application bundles build with `base: "./"` and resolve runtime assets against
-`document.baseURI`, so they are location-independent; only the docs site needs
-the deployment base, supplied through `SITE_BASE` (defaults to `/`). SillyOS
-Program data stays in the visitor's browser under the current origin.
-The Cloudflare Worker is assets-only: it does not receive, synchronize, or back
-up that Program database or OPFS volume. Storage estimates are advisory
-for the complete origin rather than a per-Program limit, and a browser
-`persist()` grant remains best effort. Changing the deployment origin or
-clearing site data loses the local SillyOS checkpoint; portable ZIP backup and
-restore are not implemented. Static deployment adds no SillyMaker data service.
+SillyOS is not copied under `/play/`. Its current Browser product requires three
+build-known origins: the control application, an independent Workspace Sandbox,
+and an independent Network Broker. The companion CSP and origin admission are
+part of the product boundary, so an assets-only documentation host or GitHub
+Pages subpath cannot truthfully serve a complete SillyOS deployment. The website
+therefore links to `https://silly-os.jasl9187.workers.dev/`; local product work
+uses the application control server plus both companion servers described in
+`examples/silly-os/README.md`.
+
+Ordinary application bundles build with `base: "./"` and resolve runtime assets
+against `document.baseURI`, so they are location-independent; only the docs site
+needs the deployment base, supplied through `SITE_BASE` (defaults to `/`).
+SillyOS is the explicit exception because its companion origins are admitted by
+the product rather than inferred from a static bundle location. Its Program data
+stays in the visitor's browser under the control origin. The Cloudflare control
+and companion Workers do not receive, synchronize, or back up the Program
+database or OPFS volume. Storage estimates are advisory for the complete origin
+rather than a per-Program limit, and a browser `persist()` grant remains best
+effort. Changing the control origin or clearing site data loses the local
+SillyOS checkpoint. The current mutable Workspace head has a canonical ZIP
+export, but it is not a full-product backup; accepted-snapshot download and
+portable import/restore are not implemented.
 
 - **GitHub Pages** — `.github/workflows/deploy-pages.yml` uses `deno ci`, builds with `SITE_BASE=/<repo>/`, and deploys through `actions/deploy-pages`. One-time setup: repository Settings → Pages → Source: "GitHub Actions", then run the workflow from the Actions tab. Push deployment is intentionally disabled; enabling it requires the deployment build to wait for the same commit's required CI quality and Engine Lab prebuilt-smoke gates. The site lands at `https://<owner>.github.io/<repo>/`.
 - **Cloudflare Workers** — `wrangler.jsonc` declares an assets-only Worker serving `dist/site`. Deploy from a local machine with `deno task site:build && deno task site:deploy:cf` (authenticate once with `deno run -A npm:wrangler@4.123.0 login`). Root-based hosting, so the default `SITE_BASE=/` is correct; the site lands at `https://silly-maker.<account>.workers.dev/` or a custom domain.
@@ -501,7 +504,7 @@ independently can therefore deploy `dist-web/` directly. It does not need an
 additional handoff-preparation step.
 
 - **Cloudflare Workers** — the template and each example carry an app-local `wrangler.jsonc` (assets-only Worker serving `./dist-web`) and a `deploy:cf` script. From the application directory: `deno task deploy:cf` (builds, then deploys; authenticate once with `deno run -A npm:wrangler@4.123.0 login`). The Player lands at `https://<worker-name>.<account>.workers.dev/`. The `name` field in `wrangler.jsonc` is the Worker name — template copies rename it with the rest of the project; each application deploys as its own Worker, independent of the composed site. The wrangler version is pinned in each project's `package.json` and task; bump both together.
-- **GitHub Pages** — one repository owns one Pages site, and this repository's Pages slot serves the composed documentation plus the VN and SillyOS applications when the manual deployment workflow is actually run. For a standalone application deployment, publish the built `dist-web/` contents from a dedicated repository; the relative-base bundle works unchanged from any path.
+- **GitHub Pages** — one repository owns one Pages site, and this repository's Pages slot serves the composed documentation plus the VN application when the manual deployment workflow is actually run. For an ordinary standalone application deployment, publish the built `dist-web/` contents from a dedicated repository; the relative-base bundle works unchanged from any path. SillyOS instead requires its admitted control, Workspace Sandbox, and Network Broker deployment topology.
 
 Remote distribution makes the SillyMaker MIT text available through the
 Player's project-license link or the files copied into an offline output

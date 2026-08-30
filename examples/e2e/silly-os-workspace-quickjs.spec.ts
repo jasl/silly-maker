@@ -2,10 +2,9 @@
 
 import type { Frame, Page } from "@playwright/test";
 
-import { expect, test } from "./fixtures.ts";
+import { expect, sillyOsQuickJsSandboxTargetUrlV1, test } from "./fixtures.ts";
 
-const sandboxOriginV1 = "http://127.0.0.1:41750";
-const sandboxUrlV1 = `${sandboxOriginV1}/workspace-sandbox.html`;
+const sandboxUrlV1 = sillyOsQuickJsSandboxTargetUrlV1("workspace-sandbox.html");
 const workerPathV1 = "/src/workspace-sandbox/browser-workspace-quickjs.worker.ts";
 const buildIdentityV1 = "sillyos.workspace-sandbox.development";
 
@@ -259,7 +258,7 @@ test(
       }
     });
     const frame = await openSandboxOriginV1(page);
-    expect(new URL(frame.url()).origin).toBe(sandboxOriginV1);
+    expect(new URL(frame.url()).origin).toBe(new URL(sandboxUrlV1).origin);
     expect(sandboxResponses).toHaveLength(1);
     expect(sandboxResponses[0]).toContain("script-src 'self' 'wasm-unsafe-eval'");
     expect(sandboxResponses[0]).not.toMatch(/(?:^|[ ;])'unsafe-eval'(?=[ ;]|$)/u);

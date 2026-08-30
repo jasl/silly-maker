@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { narrativeAsidePageLimitV1, parseNarrativeAsidePagesV1 } from "./narrative-aside.ts";
+import { parseNarrativeAsidePagesV1 } from "./narrative-aside.ts";
 
 describe("narrative aside admission", () => {
   it("admits pages with optional speakers and freezes the list", () => {
@@ -19,16 +19,17 @@ describe("narrative aside admission", () => {
     expect(parseNarrativeAsidePagesV1([])).toEqual([]);
   });
 
-  it("rejects non-arrays, over-bound lists, malformed pages, and bad ids", () => {
+  it("admits page lists beyond the historical count ceiling", () => {
+    const input = Array.from({ length: 17 }, (_, index) => ({
+      speakerTextId: null,
+      textId: `text.app.aside.page-${String(index)}`,
+    }));
+
+    expect(parseNarrativeAsidePagesV1(input)).toHaveLength(input.length);
+  });
+
+  it("rejects non-arrays, malformed pages, and bad ids", () => {
     expect(() => parseNarrativeAsidePagesV1(null)).toThrowError(/array_expected/);
-    expect(() =>
-      parseNarrativeAsidePagesV1(
-        Array.from({ length: narrativeAsidePageLimitV1 + 1 }, () => ({
-          speakerTextId: null,
-          textId: "text.app.aside.overflow",
-        })),
-      )
-    ).toThrowError(/aside_pages_overflow/);
     expect(() => parseNarrativeAsidePagesV1(["text.app.aside.first"])).toThrowError(
       /object_expected/,
     );

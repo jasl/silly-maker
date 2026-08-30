@@ -13,7 +13,8 @@ claim.
   audio, localization, responsive UI, and Inspector-assisted authoring.
   [Read the case study](./vn-last-sound-check/) or
   [play it in this site build](../play/vn-last-sound-check/).
-- **SillyOS** — a GUI-only Creator Home → Program Workspace product slice. Its
-  one built-in Agent Creator defaults to a deterministic local preview; explicit
-  query-gated Browser routes use product-pinned Pi, typed Worker RPC, a local
-  Program database, and an OPFS mutable checkpoint. [Open it](../play/silly-os/).
+- **SillyOS** — a browser-local Creator Home → Program Workspace product. Its
+  one built-in Agent Creator supports a deterministic preview and configured
+  Provider routes through product-pinned Pi, typed Worker RPC, a local Program
+  database, and an OPFS mutable checkpoint. Its isolated Workspace Sandbox and
+  Network Broker require the [standalone deployment](https://silly-os.jasl9187.workers.dev/).
