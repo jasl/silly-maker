@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { existsSync, statSync } from "node:fs";
 import { cp } from "node:fs/promises";
-import { extname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, extname, isAbsolute, relative, resolve, sep } from "node:path";
 
 export type RuntimeAssetPathResolutionV1 =
   | { readonly kind: "file"; readonly filePath: string }
@@ -86,11 +86,32 @@ export function runtimeAssetContentTypeV1(filePath: string): string {
   );
 }
 
+/**
+ * Finder / Explorer metadata that must never ship in a Player Artifact.
+ * Matched by basename so a nested `assets/vendor/.DS_Store` is dropped.
+ */
+const ignoredRuntimeAssetNamesV1: ReadonlySet<string> = new Set([
+  ".DS_Store",
+  ".AppleDouble",
+  ".LSOverride",
+  "Thumbs.db",
+  "ehthumbs.db",
+  "Desktop.ini",
+]);
+
+function isIgnoredRuntimeAssetNameV1(name: string): boolean {
+  return ignoredRuntimeAssetNamesV1.has(name) || name.startsWith("._");
+}
+
 /** Copies the application-owned runtime asset tree into a production Artifact. */
 export async function copyRuntimeAssetsV1(
   assetsDirectory: string,
   outputDirectory: string,
 ): Promise<void> {
   if (!existsSync(assetsDirectory)) return;
-  await cp(assetsDirectory, outputDirectory, { recursive: true, dereference: true });
+  await cp(assetsDirectory, outputDirectory, {
+    recursive: true,
+    dereference: true,
+    filter: (source) => !isIgnoredRuntimeAssetNameV1(basename(source)),
+  });
 }

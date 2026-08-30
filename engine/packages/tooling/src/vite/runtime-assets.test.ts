@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -57,6 +57,23 @@ describe("runtime asset path resolution", () => {
     });
     expect(resolveRuntimeAssetPathV1(fixture.assets, "images%5Ccover.webp")).toEqual({
       kind: "bad_request",
+    });
+  });
+
+  it("drops Finder/Explorer metadata from the production copy", async () => {
+    const fixture = await fixtureV1();
+    await writeFile(join(fixture.assets, ".DS_Store"), "finder", "utf8");
+    await writeFile(join(fixture.assets, "images", "Thumbs.db"), "explorer", "utf8");
+    await writeFile(join(fixture.assets, "images", "._cover.webp"), "appledouble", "utf8");
+    const output = join(fixture.root, "dist-assets");
+    await copyRuntimeAssetsV1(fixture.assets, output);
+    await expect(access(join(output, "images", "cover.webp"))).resolves.toBeUndefined();
+    await expect(access(join(output, ".DS_Store"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(access(join(output, "images", "Thumbs.db"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(access(join(output, "images", "._cover.webp"))).rejects.toMatchObject({
+      code: "ENOENT",
     });
   });
 
