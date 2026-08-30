@@ -3,6 +3,7 @@ import {
   createAgentSessionClientV1,
   type AgentSessionCancelInputV1,
   type AgentSessionClientV1,
+  type AgentSessionConnectionV1,
   type AgentSessionConnectorV1,
   type AgentSessionStreamEventV1,
   type AgentSessionSubmitInputV1,
@@ -19,7 +20,9 @@ type SessionRuntimeKeysV1 = ExpectV1<
 >;
 
 declare const connectorV1: AgentSessionConnectorV1;
+declare const connectionV1: AgentSessionConnectionV1;
 const clientV1: AgentSessionClientV1 = createAgentSessionClientV1({ connector: connectorV1 });
+const whenClosedV1: Promise<void> = connectionV1.whenClosed;
 const submitInputV1: AgentSessionSubmitInputV1 = { sessionId: "session.1", text: "hello" };
 const cancelInputV1: AgentSessionCancelInputV1 = {
   sessionId: "session.1",
@@ -30,6 +33,7 @@ declare const streamEventV1: AgentSessionStreamEventV1;
 void clientV1.submit(submitInputV1);
 void clientV1.cancel(cancelInputV1);
 streamEventV1;
+void whenClosedV1;
 createAgentHostInternalV1;
 
 export type { SessionRuntimeKeysV1 };

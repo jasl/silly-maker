@@ -21,7 +21,60 @@ function streamEventCandidateInternalV1(
   };
 }
 
+function createDeferredSignalV1(): {
+  readonly promise: Promise<void>;
+  readonly resolve: () => void;
+} {
+  let resolve!: () => void;
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 describe("createAgentSessionClientV1", () => {
+  it("never publishes ready when the returned connection is already closed", async () => {
+    let resolveClosed!: () => void;
+    const whenClosed = new Promise<void>((resolve) => {
+      resolveClosed = resolve;
+    });
+    const statuses: string[] = [];
+    const client = createAgentSessionClientV1({
+      connector: {
+        isConfigured: () => true,
+        async connect() {
+          resolveClosed();
+          return {
+            kind: "connected",
+            connection: {
+              whenClosed,
+              async start() {
+                return { kind: "started", sessionId: "session.1" };
+              },
+              async submit() {
+                return { kind: "submitted", runId: "run.1" };
+              },
+              async cancel() {
+                return { kind: "cancel_requested" };
+              },
+              async close() {},
+            },
+          };
+        },
+      },
+    });
+    client.subscribe(() => statuses.push(client.getSnapshot().status.kind));
+
+    await expect(client.connect()).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: {
+        code: "agent_session.connection_failed",
+        path: "/connection",
+      },
+    });
+    expect(statuses).toEqual(["connecting", "unavailable"]);
+  });
+
   it("keeps unconfigured, slow, offline, failed, and retry states explicit", async () => {
     const fake = createDeterministicFakeAgentSessionConnectorInternalV1("unconfigured");
     const client = createAgentSessionClientV1({ connector: fake.connector });
@@ -56,6 +109,7 @@ describe("createAgentSessionClientV1", () => {
     const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
     const client = createAgentSessionClientV1({ connector: fake.connector });
     const events: AgentSessionStreamEventV1[] = [];
+    const statuses: string[] = [];
     client.subscribeStream((event) => events.push(event));
 
     await client.connect();
@@ -77,7 +131,12 @@ describe("createAgentSessionClientV1", () => {
     expect(events.map((event) => event.sequence)).toEqual([1, 2]);
 
     const operationCount = fake.getOperations().length;
+    const unsubscribeStatuses = client.subscribe(() => {
+      statuses.push(client.getSnapshot().status.kind);
+    });
     await expect(client.reconnect()).resolves.toEqual({ kind: "ready" });
+    unsubscribeStatuses();
+    expect(statuses).not.toContain("unavailable");
     expect(fake.getOperations()).toHaveLength(operationCount);
     fake.emitToConnection(1, streamEventCandidateInternalV1("run_completed", 3));
     expect(events).toHaveLength(2);
@@ -252,5 +311,126 @@ describe("createAgentSessionClientV1", () => {
     await expect(connecting).resolves.toEqual({ kind: "disposed" });
     expect(client.getSnapshot().status).toEqual({ kind: "disposed" });
     expect(fake.getCloseCount()).toBe(1);
+  });
+
+  it.each(["resolve", "reject"] as const)(
+    "fences an in-flight submit that settles after asynchronous close (%s)",
+    async (settlement) => {
+      const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+      const client = createAgentSessionClientV1({ connector: fake.connector });
+      await client.connect();
+      await client.start();
+      let resolveSubmit!: (value: unknown) => void;
+      let rejectSubmit!: (reason?: unknown) => void;
+      const pending = new Promise<unknown>((resolve, reject) => {
+        resolveSubmit = resolve;
+        rejectSubmit = reject;
+      });
+      fake.queueResponse(pending);
+      const submitting = client.submit({ sessionId: "session.1", text: "late" });
+
+      fake.disconnectConnection();
+      await Promise.resolve();
+      if (settlement === "resolve") {
+        resolveSubmit({ kind: "submitted", runId: "run.late" });
+      } else {
+        rejectSubmit(new Error("late failure"));
+      }
+
+      await expect(submitting).resolves.toEqual({ kind: "superseded" });
+      expect(client.getSnapshot()).toMatchObject({
+        status: {
+          kind: "unavailable",
+          diagnostic: {
+            code: "agent_session.connection_failed",
+            path: "/connection",
+          },
+        },
+      });
+
+      fake.setMode("ready");
+      await expect(client.reconnect()).resolves.toEqual({ kind: "ready" });
+      fake.queueResponse({ kind: "submitted", runId: "run.late" });
+      await expect(client.submit({ sessionId: "session.1", text: "current" })).resolves.toEqual({
+        kind: "submitted",
+        runId: "run.late",
+      });
+    },
+  );
+
+  it("ignores a retired connection close signal after its successor is ready", async () => {
+    const closeSignals = [createDeferredSignalV1(), createDeferredSignalV1()];
+    let connectionIndex = 0;
+    const client = createAgentSessionClientV1({
+      connector: {
+        isConfigured: () => true,
+        async connect() {
+          const index = connectionIndex++;
+          const signal = closeSignals[index];
+          if (signal === undefined) throw new TypeError("Unexpected connection");
+          return {
+            kind: "connected",
+            connection: {
+              whenClosed: signal.promise,
+              async start() {
+                return { kind: "started", sessionId: "session.1" };
+              },
+              async submit() {
+                return { kind: "submitted", runId: "run.1" };
+              },
+              async cancel() {
+                return { kind: "cancel_requested" };
+              },
+              async close() {},
+            },
+          };
+        },
+      },
+    });
+    await client.connect();
+    await client.reconnect();
+    const successorSnapshot = client.getSnapshot();
+    const predecessorSignal = closeSignals[0];
+    const successorSignal = closeSignals[1];
+    if (predecessorSignal === undefined || successorSignal === undefined) {
+      throw new TypeError("Missing close signal");
+    }
+
+    predecessorSignal.resolve();
+    await Promise.resolve();
+
+    expect(client.getSnapshot()).toBe(successorSnapshot);
+    successorSignal.resolve();
+    await client.dispose();
+  });
+
+  it("preserves active run identity across asynchronous connection replacement", async () => {
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+    const client = createAgentSessionClientV1({ connector: fake.connector });
+    const events: AgentSessionStreamEventV1[] = [];
+    client.subscribeStream((event) => events.push(event));
+    await client.connect();
+    await client.start();
+    await client.submit({ sessionId: "session.1", text: "first" });
+    fake.emit(streamEventCandidateInternalV1("output_text_delta", 1, { text: "one" }));
+
+    fake.disconnectConnection();
+    await Promise.resolve();
+    fake.emitToConnection(
+      1,
+      streamEventCandidateInternalV1("output_text_delta", 2, {
+        text: "late",
+      }),
+    );
+    await client.reconnect();
+    fake.emit(streamEventCandidateInternalV1("output_text_delta", 2, { text: "two" }));
+    fake.emit(streamEventCandidateInternalV1("run_completed", 3));
+    fake.queueResponse({ kind: "submitted", runId: "run.1" });
+
+    expect(events.map((event) => event.sequence)).toEqual([1, 2, 3]);
+    await expect(client.submit({ sessionId: "session.1", text: "reuse" })).resolves.toMatchObject({
+      kind: "unavailable",
+      diagnostic: { code: "agent_session.record_invalid", path: "/response/runId" },
+    });
   });
 });

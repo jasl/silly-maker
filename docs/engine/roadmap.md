@@ -89,6 +89,13 @@ live predecessor；R2 disposal 开始后的 release failure 是 terminal。relea
 ## 4. Current execution priority — production floor
 
 最近完成的 focused lane 是
+[Agent Session 异步断连收口](plans/2026-08-30-agent-session-asynchronous-connection-loss.md)。它由所有者
+显式激活 handback 终审留下的唯一中立 lifecycle 候选：public connection 以一次性 `whenClosed` 表达不可用，
+client 在 ready 前订阅并拥有 exact generation/status fencing、active-run identity 延续与 awaited cleanup；
+SillyOS Browser Pi transport 已删除私有断连旁路，Creator facade 从公共 `/connection` snapshot 触发产品恢复。
+它没有公开原因、自动重连、合成 Run terminal，或提升 Worker/Pi/Provider/credential/workspace/产品恢复策略。
+
+此前完成的 focused lane 是
 [Neutral Agent Session/Run 与 SillyOS Engine Handback](plans/2026-08-30-sillyos-neutral-engine-handback.md)。
 它增加了 public `@sillymaker/agent/session`，只提升 semantic Session/Run client、connector/
 connection、status/result/stream contracts、currentness 与 awaited disposal；raw request/wire/provider、
@@ -97,8 +104,8 @@ downstream connector handoff，不会改写已关闭 engine slice 的边界。ha
 消息条数上限，rich transcript 由 SillyOS 分页持久化并只挂载当前 Process；Browser local Agent
 按“前台执行、允许中断、拒绝 stale 发布；最近已确认 checkpoint 仍可读且 admission 成功时恢复，
 否则进入明确不可恢复状态”验收。这些是 downstream
-产品要求与候选证据门，不是已交付的 Engine Process/persistence/background API。终审仅记录 ready 后异步
-connection loss 通知这一项未激活的中立候选；当前没有自动激活的后继，也没有授权公共 API 改动。
+产品要求与候选证据门，不是已交付的 Engine Process/persistence/background API。终审记录的 ready 后异步
+connection loss 候选随后由所有者显式激活并在上述独立 lane 关闭；其余候选仍不自动激活。
 
 此前完成的有界 lane 是
 [Production Mod V1](plans/2026-08-29-production-mod-v1.md)：focused public
@@ -756,10 +763,12 @@ AR4 最初交付 transport/provider-neutral、package-internal 的 Agent RPC cli
 `UiArtifact` lifecycle seam，并以 deterministic fake 对本地 revisioned authoring draft 验证；closed
 renderer 只接受 admitted `column`/`text`/`action` data 与 allowlisted actions，late/invalid successor
 保留 predecessor；需要 AR2 receipt 的 action 在 exact pairing 前保持 inert，Scene 稍后 ready 可补配。
-2026-08-30 当前 focused lane 已将其中中立的 Session/Run client 与 connector 提升到
-`@sillymaker/agent/session`。公共 connection 只提供无参 `start`、text `submit`、`cancel` 与 awaited
-`close`；公共 stream 只包含 `output_text_delta`、bounded Strict JSON `output_data` 和 Run terminal
-events。raw request/request ID/wire/provider 与 connection generation 不公开，private Host 才把
+2026-08-30 完成的 neutral handback lane 已将其中中立的 Session/Run client 与 connector 提升到
+`@sillymaker/agent/session`。公共 connection 提供无参 `start`、text `submit`、`cancel`、awaited
+`close`，以及中立、无原因的一次性 `whenClosed` lifecycle signal；后者由同日完成的独立
+[Agent Session 异步断连收口](plans/2026-08-30-agent-session-asynchronous-connection-loss.md) lane 补齐。
+公共 stream 只包含 `output_text_delta`、bounded Strict JSON `output_data` 和 Run terminal events。
+raw request/request ID/wire/provider、connection generation 与产品恢复策略不公开，private Host 才把
 `output_data` 解释成 `UiArtifact`。fake 不保存文件、不提交 authoritative state、不执行 external effect，
 因此没有激活独立 approval/receipt subsystem。真实后台/LLM、provider connector、`UiArtifact`
 persistence 与具体 OpenUI/A2UI adapter 必须由后续 owner-selected 产品计划单独激活，不能从 Track G

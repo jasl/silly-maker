@@ -26,6 +26,7 @@ export interface DeterministicFakeAgentSessionConnectorInternalV1 {
   ): void;
   emit(candidate: unknown): void;
   emitToConnection(connection: number, candidate: unknown): void;
+  disconnectConnection(connection?: number): void;
   queueResponse(response: unknown): void;
   getOperations(): readonly DeterministicFakeAgentSessionOperationInternalV1[];
   getConnectionCount(): number;
@@ -36,6 +37,7 @@ interface FakeConnectionRecordInternalV1 {
   readonly ordinal: number;
   readonly onEvent: (candidate: unknown) => void;
   readonly connection: AgentSessionConnectionV1;
+  readonly disconnect: () => void;
 }
 
 interface PendingSlowConnectInternalV1 {
@@ -83,7 +85,17 @@ export function createDeterministicFakeAgentSessionConnectorInternalV1(
   ): AgentSessionConnectorConnectResultV1 => {
     const ordinal = connections.length + 1;
     let closed = false;
+    let resolveClosed!: () => void;
+    const whenClosed = new Promise<void>((resolve) => {
+      resolveClosed = resolve;
+    });
+    const disconnect = (): void => {
+      if (closed) return;
+      closed = true;
+      resolveClosed();
+    };
     const connection: AgentSessionConnectionV1 = {
+      whenClosed,
       start(): Promise<unknown> {
         if (closed) return Promise.reject(new Error("fake connection closed"));
         return responseFor(ordinal, "start", undefined);
@@ -98,12 +110,12 @@ export function createDeterministicFakeAgentSessionConnectorInternalV1(
       },
       close(): Promise<void> {
         if (closed) return Promise.resolve();
-        closed = true;
         closeCount += 1;
+        disconnect();
         return Promise.resolve();
       },
     };
-    connections.push({ ordinal, onEvent, connection });
+    connections.push({ ordinal, onEvent, connection, disconnect });
     return { kind: "connected", connection };
   };
 
@@ -156,6 +168,12 @@ export function createDeterministicFakeAgentSessionConnectorInternalV1(
       if (target === undefined) throw new TypeError("Unknown fake connection");
       // Deliberately calls through after close so the client's internal fence is observable.
       target.onEvent(candidate);
+    },
+    disconnectConnection(connectionOrdinal): void {
+      const ordinal = connectionOrdinal ?? connections.length;
+      const target = connections[ordinal - 1];
+      if (target === undefined) throw new TypeError("Unknown fake connection");
+      target.disconnect();
     },
     queueResponse(response): void {
       queuedResponses.push(response);

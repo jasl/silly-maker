@@ -23,8 +23,9 @@ journal/reducer transaction 对齐；早期 proposal/fact public shape 已删除
 AR2 随后交付 package-private structured operations；AR3 又把 standalone 与
 dev-only embedded author surface 收口到同一个 private Authoring Host，并以 Engine Lab 的真实
 authoring binding 和 Game/Session successor 证明 sibling lifetime。AR4 private typed RPC/UiArtifact
-seam 与 AR5 Browser/Agent structural-exclusion 主线也已交付；2026-08-30 当前 focused lane 已把其中
-provider-neutral Session/Run client 与 connector 提升到 public `@sillymaker/agent/session`，而 Host、
+seam 与 AR5 Browser/Agent structural-exclusion 主线也已交付；2026-08-30 完成的 neutral handback lane
+已把其中 provider-neutral Session/Run client 与 connector 提升到 public
+`@sillymaker/agent/session`，同日完成的独立 lifecycle lane 又补齐了中立 `whenClosed`；Host、
 `UiArtifact` 与 deterministic fake 仍为 private。package-private、explicit、
 ordinary-path default-off 的 Desktop HMR adapter 已通过指定 canary characterization，并在
 Deno 2.9.6 stable 上完成 source/behavior revalidation。显式维护入口为
@@ -129,13 +130,17 @@ accepted immutable snapshot 也在产品本地保留；accepted-snapshot 下载�
 
 - `@sillymaker/agent/session` 是 focused transport/provider-neutral 公共入口。它公开一个 observable client、
   connector/connection ports、snapshot/diagnostic/results 和 stream events，不公开 root Agent barrel。
-- connection 只实现语义级 `start`、`submit`、`cancel`、`close`；client 另外拥有
+- connection 只实现语义级 `start`、`submit`、`cancel`、`close`，并以一次性 `whenClosed` 表达预期或
+  异步失效后的不可用；client 另外拥有
   `connect`、`reconnect`、subscriptions 与 awaited `dispose`。`start` 无产品参数，`submit` 只接收非空
   `sessionId` 与 text。
 - stream 只有 `output_text_delta`、bounded Strict JSON `output_data`、`run_completed` 与
   `run_failed`。client 以 `(sessionId, runId)` 拥有 active-run currentness、连续正 sequence、旧连接/旧
   lifecycle fencing、terminal retirement 和 diagnostics；`cancel_requested` 只确认请求已被接收，直到远端
   terminal 前 tuple 仍由 client 保持 current。connection generation 是内部实现，不进入 snapshot。
+- 当前 connection 的 `whenClosed` 会退休 exact generation 并发布一次
+  `agent_session.connection_failed /connection`；它不合成 Run terminal、不自动重连，也不清除已接受的 tuple。
+  reconnect/dispose 的预期 close 与旧 generation 的迟到 signal 被 fence，异步 cleanup 进入 dispose barrier。
 - connector 的 unknown response/event 在公共 client 边界做一次 bounded canonical projection 与 exact
   admission。submit response 必须先 settle，connector 才能交付该 Run 的首个 event；真实 wire 若乱序，
   产品 connector 负责 bounded reorder。
@@ -145,7 +150,7 @@ accepted immutable snapshot 也在产品本地保留；accepted-snapshot 下载�
   `UiArtifact`；该语义不属于 Session 合同。
 - SillyOS 已完成 downstream connector 迁移：Browser connector 使用公共 Session 语义
   调用映射产品私有 Worker wire，Creator facade 再将中立 `output_data` 解释为已准入的
-  Program candidate。这是真实 Pi/provider 产品消费者证据，但不把 Worker/provider wire、
+  Program candidate，并从公共 `/connection` snapshot 处理 ready 后断连。这是真实 Pi/provider 产品消费者证据，但不把 Worker/provider wire、
   Program bootstrap、附件、数据库、tool 或动态 UI 提升为引擎合同。
 
 ## Internal composition kernel

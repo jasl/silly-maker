@@ -7,6 +7,25 @@ import {
   type AgentSessionStreamEventV1,
 } from "@sillymaker/agent/session";
 
+function createCloseSignalV1(): {
+  readonly whenClosed: Promise<void>;
+  readonly close: () => void;
+} {
+  let resolveClosed!: () => void;
+  const whenClosed = new Promise<void>((resolve) => {
+    resolveClosed = resolve;
+  });
+  let closed = false;
+  return {
+    whenClosed,
+    close: () => {
+      if (closed) return;
+      closed = true;
+      resolveClosed();
+    },
+  };
+}
+
 describe("public Agent Session contract", () => {
   it("keeps connector wire details private while publishing ordered semantic outputs", async () => {
     const eventSink: { current: ((event: unknown) => void) | null } = { current: null };
@@ -15,9 +34,11 @@ describe("public Agent Session contract", () => {
       isConfigured: () => true,
       async connect(input) {
         eventSink.current = input.onEvent;
+        const closed = createCloseSignalV1();
         return {
           kind: "connected",
           connection: {
+            whenClosed: closed.whenClosed,
             async start() {
               return { kind: "started", sessionId: "session.1" };
             },
@@ -31,6 +52,7 @@ describe("public Agent Session contract", () => {
             },
             async close() {
               closeCount += 1;
+              closed.close();
             },
           },
         };
@@ -107,9 +129,11 @@ describe("public Agent Session contract", () => {
       isConfigured: () => true,
       async connect(input) {
         onEvent = input.onEvent;
+        const closed = createCloseSignalV1();
         return {
           kind: "connected",
           connection: {
+            whenClosed: closed.whenClosed,
             async start() {
               return { kind: "started", sessionId: "session.1" };
             },
@@ -129,7 +153,9 @@ describe("public Agent Session contract", () => {
             async cancel() {
               return { kind: "cancel_requested" };
             },
-            async close() {},
+            async close() {
+              closed.close();
+            },
           },
         };
       },
@@ -169,9 +195,11 @@ describe("public Agent Session contract", () => {
     const connector: AgentSessionConnectorV1 = {
       isConfigured: () => true,
       async connect() {
+        const closed = createCloseSignalV1();
         return {
           kind: "connected",
           connection: {
+            whenClosed: closed.whenClosed,
             async start() {
               return { kind: "started", sessionId: "session.1" };
             },
@@ -182,6 +210,7 @@ describe("public Agent Session contract", () => {
               return { kind: "cancel_requested" };
             },
             async close() {
+              closed.close();
               closeStartedResolve();
               await closeGate;
             },
@@ -217,9 +246,11 @@ describe("public Agent Session contract", () => {
     const connector: AgentSessionConnectorV1 = {
       isConfigured: () => true,
       async connect() {
+        const closed = createCloseSignalV1();
         return {
           kind: "connected",
           connection: {
+            whenClosed: closed.whenClosed,
             async start() {
               return { kind: "started", sessionId: "session.1" };
             },
@@ -230,6 +261,7 @@ describe("public Agent Session contract", () => {
               return { kind: "cancel_requested" };
             },
             async close() {
+              closed.close();
               closeStartedResolve();
               await closeGate;
             },
@@ -250,5 +282,110 @@ describe("public Agent Session contract", () => {
     expect(secondSettled).toBe(false);
     closeResolve();
     await Promise.all([first, second]);
+  });
+
+  it("publishes one neutral failure when a ready connection closes asynchronously", async () => {
+    const closed = createCloseSignalV1();
+    const connector: AgentSessionConnectorV1 = {
+      isConfigured: () => true,
+      async connect() {
+        return {
+          kind: "connected",
+          connection: {
+            whenClosed: closed.whenClosed,
+            async start() {
+              return { kind: "started", sessionId: "session.1" };
+            },
+            async submit() {
+              return { kind: "submitted", runId: "run.1" };
+            },
+            async cancel() {
+              return { kind: "cancel_requested" };
+            },
+            async close() {
+              closed.close();
+            },
+          },
+        };
+      },
+    };
+    const client = createAgentSessionClientV1({ connector });
+    const events: AgentSessionStreamEventV1[] = [];
+    client.subscribeStream((event) => events.push(event));
+
+    await expect(client.connect()).resolves.toEqual({ kind: "ready" });
+    const readyRevision = client.getSnapshot().revision;
+    closed.close();
+    await Promise.resolve();
+
+    expect(client.getSnapshot()).toMatchObject({
+      revision: readyRevision + 1,
+      status: {
+        kind: "unavailable",
+        diagnostic: {
+          code: "agent_session.connection_failed",
+          path: "/connection",
+        },
+      },
+      diagnostic: {
+        code: "agent_session.connection_failed",
+        path: "/connection",
+      },
+    });
+    expect(events).toEqual([]);
+    closed.close();
+    await Promise.resolve();
+    expect(client.getSnapshot().revision).toBe(readyRevision + 1);
+  });
+
+  it("joins asynchronous cleanup started by a lost connection into disposal", async () => {
+    const closed = createCloseSignalV1();
+    let closeStartedResolve!: () => void;
+    let closeResolve!: () => void;
+    const closeStarted = new Promise<void>((resolve) => {
+      closeStartedResolve = resolve;
+    });
+    const closeGate = new Promise<void>((resolve) => {
+      closeResolve = resolve;
+    });
+    const client = createAgentSessionClientV1({
+      connector: {
+        isConfigured: () => true,
+        async connect() {
+          return {
+            kind: "connected",
+            connection: {
+              whenClosed: closed.whenClosed,
+              async start() {
+                return { kind: "started", sessionId: "session.1" };
+              },
+              async submit() {
+                return { kind: "submitted", runId: "run.1" };
+              },
+              async cancel() {
+                return { kind: "cancel_requested" };
+              },
+              async close() {
+                closeStartedResolve();
+                await closeGate;
+              },
+            },
+          };
+        },
+      },
+    });
+    await client.connect();
+    closed.close();
+    await closeStarted;
+    let disposed = false;
+    const disposal = client.dispose().then(() => {
+      disposed = true;
+    });
+    await Promise.resolve();
+
+    expect(disposed).toBe(false);
+    closeResolve();
+    await disposal;
+    expect(client.getSnapshot().status).toEqual({ kind: "disposed" });
   });
 });

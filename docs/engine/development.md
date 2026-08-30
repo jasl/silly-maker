@@ -329,7 +329,9 @@ missing; do not create a second fake-only Agent state machine. Connector respons
 candidates remain untrusted: preserve bounded canonical projection, exact response/event shapes, per-run contiguous
 sequence admission keyed by `(sessionId, runId)`, connection/lifecycle generation fencing,
 and atomic rejection. The public connection implements semantic `start/submit/cancel/close` rather
-than generic `request(unknown)`. A product connector must settle submit before forwarding that
+than generic `request(unknown)` and supplies a stable one-shot `whenClosed`. It must fulfill that
+signal whenever the connection becomes unusable, including after expected local close; the client,
+not the adapter, distinguishes retired generations from a current asynchronous loss. A product connector must settle submit before forwarding that
 tuple's first stream event; it owns bounded reordering when wire frames arrive first. Replacement
 after a failed connection operation must close the predecessor. The private Agent Host marks its
 presentation run `cancel_requested` before awaiting the connector response and stops presenting late
@@ -337,6 +339,11 @@ output; the public Session client keeps that tuple current until `run_completed`
 Remote `run_failed` must terminate both the active run and streaming draft. Invalid completion, unknown nodes/actions,
 old-run/old-connection records, and cancellation-late completion must leave the predecessor
 Artifact unchanged.
+
+Do not attach Worker/provider/credential/workspace reasons to `whenClosed`, synthesize a Run
+terminal, or reconnect automatically. The client publishes the neutral current-loss diagnostic at
+`/connection`, preserves accepted run identity for an explicit successor, and joins connection
+cleanup into disposal. Product recovery remains outside the Session contract.
 
 `UiArtifact` remains closed data, currently `column`, `text`, and `action`. Add a node kind only
 with bounded admission, inert renderer behavior, intent currentness, and a

@@ -599,13 +599,15 @@ complete repository check at 475 files / 6,198 tests. Pinned React Doctor
 finishes with 0 errors and 54 reviewed warnings; ordered filesystem/lifecycle
 work and bounded state machines were not rewritten merely to satisfy heuristics.
 
-The final boundary audit found one neutral, non-blocking Engine handback
-candidate: a connector can lose an already-ready connection asynchronously when
-there is no pending operation, while the public Session connector currently has
-no closed signal. SillyOS retains its product-private `onConnectionLost`
-fallback. This branch does not extend the public API; a later Engine lane must
-first reproduce the behavior with a pure connector and own any client status /
-generation-fencing contract.
+The final boundary audit found one neutral Engine handback candidate: a connector
+can lose an already-ready connection asynchronously when there is no pending
+operation. The owner subsequently activated the independent
+[Agent Session asynchronous connection-loss closure](../../docs/engine/plans/2026-08-30-agent-session-asynchronous-connection-loss.md):
+the public connection now supplies a one-shot `whenClosed`, the client owns exact
+generation/status fencing and awaited cleanup, and the Browser Pi transport no
+longer carries a private product callback. The Creator facade still owns the
+product recovery notification after consuming the public snapshot; Program,
+Provider, credential, Workspace and UI recovery semantics remain local.
 
 ### M0 — first SillyOS public Mod consumer (inactive and evidence-gated)
 
@@ -2676,7 +2678,10 @@ the public `@sillymaker/agent/session` semantic connection while keeping the
 product-private Worker envelope, Pi binding, credentials, workspace/network
 ports, and request correlation inside SillyOS. The Engine client owns only
 Session/Run lifecycle, currentness, ordered stream admission, cancel/reconnect,
-diagnostics, and awaited disposal. The Creator facade interprets admitted
+diagnostics, one-shot connection-close fencing, and awaited disposal. Browser Pi
+fulfills the public `whenClosed`; Creator consumes the neutral `/connection`
+snapshot before triggering product recovery, without a transport-private loss
+bypass. The Creator facade interprets admitted
 `output_data` as a Program candidate and retains product-run correlation,
 Repository/Workspace CAS, and durable terminal projection. None of those
 product types becomes the SillyOS wire or a public Agent ABI, and the private

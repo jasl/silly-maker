@@ -166,6 +166,8 @@ type BufferedWorkerEventV1 =
 interface ConnectionStateV1 {
   readonly worker: BrowserPiWorkerLikeV1;
   readonly networkBrokerLease: BrowserNetworkBrokerLeaseV1;
+  readonly whenClosed: Promise<void>;
+  readonly resolveClosed: () => void;
   readonly pending: Map<number, PendingCallV1>;
   readonly bufferedEvents: BufferedWorkerEventV1[];
   onEvent: ((record: unknown) => void) | null;
@@ -306,7 +308,6 @@ function executionBindingFromHostV1(
 }
 
 export function createBrowserPiWorkerConnectorV1({
-  onConnectionLost = () => undefined,
   openNetworkBroker,
   runtime,
   selection: suppliedSelection = null,
@@ -316,7 +317,6 @@ export function createBrowserPiWorkerConnectorV1({
   createCredentialHandoffId = () => `credential.handoff.${crypto.randomUUID()}`,
 }:
   & {
-    readonly onConnectionLost?: () => void;
     readonly openNetworkBroker: BrowserPiOpenNetworkBrokerV1;
     readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
     readonly workerFactory?: BrowserPiWorkerFactoryV1;
@@ -356,12 +356,11 @@ export function createBrowserPiWorkerConnectorV1({
     reason: string,
     options: {
       readonly detachEnvironment?: boolean;
-      readonly expected?: boolean;
     } = {},
   ): void => {
     if (state.closed) return;
-    const reportConnectionLoss = state.credentialAccepted && options.expected !== true;
     state.closed = true;
+    state.resolveClosed();
     const workspaceSessionId = state.activeWorkspace?.phase === "open"
       ? state.activeWorkspace.workspaceSessionId
       : null;
@@ -396,13 +395,6 @@ export function createBrowserPiWorkerConnectorV1({
       void detachWorkspaceEnvironment(workspaceSessionId).catch(() => undefined);
     }
     if (activeState === state) activeState = null;
-    if (reportConnectionLoss) {
-      try {
-        onConnectionLost();
-      } catch {
-        // Product observers cannot alter transport closure.
-      }
-    }
   };
 
   const unsubscribeWorkspaceAuthorityFatal = workspaceAuthority.subscribeFatal((fatal) => {
@@ -508,9 +500,15 @@ export function createBrowserPiWorkerConnectorV1({
     worker: BrowserPiWorkerLikeV1,
     networkBrokerLease: BrowserNetworkBrokerLeaseV1,
   ): ConnectionStateV1 => {
+    let resolveClosed!: () => void;
+    const whenClosed = new Promise<void>((resolve) => {
+      resolveClosed = resolve;
+    });
     const state: ConnectionStateV1 = {
       worker,
       networkBrokerLease,
+      whenClosed,
+      resolveClosed,
       pending: new Map<number, PendingCallV1>(),
       bufferedEvents: [],
       onEvent: null,
@@ -675,7 +673,7 @@ export function createBrowserPiWorkerConnectorV1({
             return;
           }
           settleSetupV1(state, false);
-          closeState(state, `configure_${message.code}`, { expected: true });
+          closeState(state, `configure_${message.code}`);
           return;
         }
         if (message.kind === "connection_test_failure") {
@@ -844,11 +842,12 @@ export function createBrowserPiWorkerConnectorV1({
       });
     };
     return {
+      whenClosed: state.whenClosed,
       start: () => requestV1("start"),
       submit: (input) => requestV1("submit", input),
       cancel: (input) => requestV1("cancel", input),
       async close(): Promise<void> {
-        closeState(state, "connection_closed", { expected: true });
+        closeState(state, "connection_closed");
       },
     };
   };
@@ -892,7 +891,7 @@ export function createBrowserPiWorkerConnectorV1({
       });
       credential = "";
       if (!await accepted || state.closed || !state.credentialAccepted) {
-        if (!state.closed) closeState(state, "configuration_failed", { expected: true });
+        if (!state.closed) closeState(state, "configuration_failed");
         return { kind: "unavailable", reason: "failed" };
       }
       const effectiveReasoningEffort = state.activeEffectiveReasoningEffort;
@@ -985,11 +984,11 @@ export function createBrowserPiWorkerConnectorV1({
         } catch {
           // The callback may already have transferred the one-time delivery port.
         }
-        if (!state.closed) closeState(state, "credential_handoff_failed", { expected: true });
+        if (!state.closed) closeState(state, "credential_handoff_failed");
         return { kind: "unavailable", reason: "failed" };
       }
       if (!await accepted || state.closed || !state.credentialAccepted) {
-        if (!state.closed) closeState(state, "configuration_failed", { expected: true });
+        if (!state.closed) closeState(state, "configuration_failed");
         return { kind: "unavailable", reason: "failed" };
       }
       const effectiveReasoningEffort = state.activeEffectiveReasoningEffort;
@@ -1198,7 +1197,7 @@ export function createBrowserPiWorkerConnectorV1({
       credentialRevoked = true;
       const state = activeState;
       if (state !== null) {
-        closeState(state, "credential_revoked", { expected: true });
+        closeState(state, "credential_revoked");
       }
     },
     async forget(): Promise<void> {
@@ -1219,7 +1218,7 @@ export function createBrowserPiWorkerConnectorV1({
         if (workspaceSessionId !== null) {
           await detachWorkspaceEnvironment(workspaceSessionId).catch(() => undefined);
         }
-        closeState(state, "forgotten", { detachEnvironment: false, expected: true });
+        closeState(state, "forgotten", { detachEnvironment: false });
       }
       if (!credentialRevoked) await workspaceEnvironmentDetachSettlement;
     },

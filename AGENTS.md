@@ -36,6 +36,16 @@ Read only the documents relevant to the change:
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
   PF6 remains evidence-gated and inactive. The most recently completed focused lane is
+  `docs/engine/plans/2026-08-30-agent-session-asynchronous-connection-loss.md`:
+  the owner explicitly activated and closed the handback review's sole neutral
+  lifecycle candidate. Public `AgentSessionConnectionV1` now exposes a one-shot
+  `whenClosed`; the client observes it before ready, owns exact generation/status
+  fencing, preserves accepted Run identity for an explicit successor, and joins
+  async cleanup into disposal. SillyOS removed its Browser Pi transport-private
+  loss callback and consumes the public `/connection` snapshot before applying
+  product recovery. This does not expose close reasons, synthesize Run terminal,
+  auto-reconnect, or promote Worker, Pi, Provider, credential, Workspace, or
+  product recovery policy. The preceding completed lane is
   `docs/engine/plans/2026-08-30-sillyos-neutral-engine-handback.md`: it
   promoted only the transport/provider-neutral Session/Run
   client and connector to public `@sillymaker/agent/session`; raw request/wire,
@@ -48,10 +58,9 @@ Read only the documents relevant to the change:
   recovery from the last still-readable, admitted durable semantic checkpoint,
   or an explicit unrecoverable state when that evidence is unavailable. Those
   are SillyOS product requirements and evidence gates, not newly delivered
-  Engine APIs. The downstream review records one inactive neutral candidate for
-  reporting asynchronous post-ready connection loss; the current product
-  fallback remains local, no successor lane is active, and no Engine API change
-  is authorized.
+  Engine APIs. The downstream review's asynchronous post-ready connection-loss
+  candidate was subsequently activated and closed by the focused lane above;
+  the remaining downstream candidates stay inactive.
   The preceding completed lane is
   `docs/engine/plans/2026-08-29-production-mod-v1.md`: it promoted the selected
   build-time trusted Mod contract to public `@sillymaker/composition/mod`, kept

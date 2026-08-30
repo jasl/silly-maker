@@ -1,7 +1,9 @@
 # Neutral Agent Session/Run 与 SillyOS Engine Handback 计划
 
 状态：**2026-08-30 经所有者接受并完成 M0–M3 的公共 Agent Session/Run engine slice；
-SillyOS 随后完成独立 downstream handoff，当前没有自动激活的后继。**
+SillyOS 随后完成独立 downstream handoff。本计划关闭时没有自动激活的后继；其终审留下的唯一中立
+lifecycle 候选后来由独立的
+[Agent Session 异步断连收口](2026-08-30-agent-session-asynchronous-connection-loss.md) 计划交付。**
 
 2026-08-30 所有者的 post-closure 澄清补充了 §2 / §4–§6 的下游长 Conversation、Process 与
 Browser 中断恢复合同；它不重开 M0–M3，也不声称新的 Engine API 已交付。
@@ -186,11 +188,12 @@ Program 需要的浏览器工作流继续是 SillyOS 产品数据与 Pi adapter 
 
 ## 5. 条件式后续候选
 
-以下候选只记录 handoff 原始结论，不自动激活：
+Asynchronous connection loss 候选已由所有者在本计划关闭后显式激活，并由独立
+[Agent Session 异步断连收口](2026-08-30-agent-session-asynchronous-connection-loss.md)交付；它不再是
+inactive backlog。以下其余候选只记录 handoff 原始结论，不自动激活：
 
 | Candidate                            | 激活证据                                                                                                   | 最小中立提升                                                                                   | Stop rule                                                                               |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Asynchronous connection loss         | 已 ready 且无 pending call 时，真实 connector 可异步失去底层连接                                           | connector 发出一次中立 closed signal；client 统一 generation fencing 与 status                 | 不暴露 Worker、credential、provider、workspace 或产品恢复策略                           |
 | Session bootstrap / resource message | 一个真实 Program process 需固定 revision，或一个真实附件纵切不能由 connector 局部表达                      | versioned bootstrap 或 immutable opaque resource reference，分别 admission                     | 不暴露 prompt、路径、URL、Blob、provider 或产品 storage                                 |
 | Multi-attachment Host intake         | 翻译 Program 需要一次选择多个真实文件                                                                      | bounded `selectMany`，保留名称、媒体类型、每文件与总字节预算                                   | 一旦需要目录/VFS/数据库，退回 SillyOS 产品层                                            |
 | OpenUI / UiArtifact                  | 一个真实翻译流程完成动态 UI 闭环                                                                           | immutable revision、catalog identity、CAS/currentness、intent routing、fallback                | 不把 OpenUI schema、产品组件或业务 mutation 放进 Base                                   |
@@ -248,7 +251,7 @@ ABA 复用，以及 reconnect/concurrent-dispose 对同一 async close barrier �
 restore 或 resource-source 候选。公共 Session currentness 只保证拒绝 retired generation / run 的迟到事件，
 不保证页面冻结/丢弃后继续后台执行、中途 token 恢复或未回执 tool effect 的自动重放。
 
-downstream 终审同时确认 asynchronous connection loss 是一个中立 handback 候选：当前公共
-`AgentSessionConnectorV1` 只有 event sink，无法在 ready 后且没有 pending operation 时通知 client
-连接已丢失；SillyOS 目前用产品私有 `onConnectionLost` callback 正确兜底。此发现不阻塞当前产品迁移，
-也不授权本分支扩公共 API；应在后续独立 Engine lane 先以纯 connector 复现，再决定是否激活 §5 对应候选。
+downstream 终审当时确认 asynchronous connection loss 是一个中立 handback 候选：原公共 connector
+无法在 ready 后且没有 pending operation 时通知 client，SillyOS 因而保留了产品私有 transport callback。
+所有者随后显式授权独立 lane；纯 connector 回归已复现缺口并由上述收口计划交付中立 closed signal、client
+generation/status fencing 与 SillyOS 公共 snapshot 迁移。历史 M0–M3 的其余边界不变。

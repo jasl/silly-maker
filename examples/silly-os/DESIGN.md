@@ -1094,7 +1094,10 @@ change a real product behavior.
   in Desktop, the private companion owns them. The Browser connector implements
   public `@sillymaker/agent/session`, whose Engine client owns only neutral
   connection, Session/Run currentness, ordered stream admission,
-  cancel/reconnect diagnostics, and awaited disposal. The connector still owns
+  cancel/reconnect diagnostics, one-shot asynchronous close observation, and awaited disposal.
+  Browser Pi fulfills the public `whenClosed`; Creator consumes the resulting
+  neutral `/connection` snapshot before applying product credential/UI recovery.
+  The connector still owns
   its Worker envelope and Pi binding; `CreatorAgentPortV1` owns Program-candidate
   admission, product-run correlation, Repository/Workspace CAS, and durable
   terminal projection. The public client defines neutral reconnect semantics,

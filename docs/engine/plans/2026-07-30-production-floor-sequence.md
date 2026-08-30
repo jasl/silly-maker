@@ -22,6 +22,14 @@ active authority；完成里程碑摘要在
 
 ## 1. Current and next
 
+2026-08-30 所有者显式接受并完成
+[Agent Session 异步断连收口](2026-08-30-agent-session-asynchronous-connection-loss.md)。它只关闭 handback
+终审留下的一个中立缺口：public connection 增加一次性 `whenClosed`，client 在 ready 前订阅并统一处理 current
+generation 的 `/connection` failure、在途/迟到 fencing、active Run identity 延续和 awaited cleanup；SillyOS
+删除 Browser Pi transport 的私有断连 callback，改由 Creator facade 消费公共 snapshot 后执行产品恢复。
+这不是 close-reason protocol、heartbeat、自动重连、Run terminal、Pi/Provider/credential/workspace API 或
+Browser background recovery。本 lane 关闭后没有自动激活后继。
+
 2026-08-30 所有者接受并完成
 [Neutral Agent Session/Run 与 SillyOS Engine Handback](2026-08-30-sillyos-neutral-engine-handback.md)。
 该 engine slice 只把已由 Engine Lab 与 SillyOS 并行产品实现共同施压的 transport/provider-neutral
@@ -31,8 +39,8 @@ Session/Run seam 提升为 focused public `@sillymaker/agent/session`：connecto
 `output_text_delta`、bounded Strict JSON `output_data`、`run_completed` 与 `run_failed`。raw request
 envelope、request ID、Worker/provider wire 和 connection generation 不进入公共合同；Agent Host、
 `UiArtifact` admission/renderer 与 deterministic fake 仍为 private。SillyOS 随后已完成独立
-downstream connector handoff；它保留产品私有 Worker/Pi/Program 语义，未改写已关闭
-engine slice 的边界，也未自动激活后继。
+downstream connector handoff；它保留产品私有 Worker/Pi/Program 语义。随后独立的异步断连 lane 只补充上述
+connection lifecycle 信号，没有改写其余已关闭边界。
 
 2026-08-29 所有者接受并完成
 [Production Mod V1](2026-08-29-production-mod-v1.md) M0–M4。它把上一轮已经证明的 private、

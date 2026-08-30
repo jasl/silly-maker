@@ -102,6 +102,13 @@ export interface AgentSessionClientV1 {
 }
 
 export interface AgentSessionConnectionV1 {
+  /**
+   * Fulfills once this connection can no longer be used, including after an
+   * expected local `close()`. The client owns expected-close fencing; adapters
+   * do not encode a provider-specific reason here. An adapter rejection is
+   * defensively treated as the same retirement signal.
+   */
+  readonly whenClosed: Promise<void>;
   start(): Promise<unknown>;
   /**
    * The result must settle before this connection forwards the run's first

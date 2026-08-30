@@ -446,6 +446,9 @@ artifact 边界；真实 Agent 产品、后台和 LLM 由后续产品计划证�
   可以是 optional contribution，真实模型、工具后台和 companion service 仍统一经 RPC；
 - private Agent Host 拥有 GUI/session 与 Artifact 解释；public Session client 只
   connect/observe/start/submit/cancel/reconnect/dispose；
+- public connection 以一次性 `whenClosed` 中立表达不可再用；client 在 ready 前订阅、统一退休 current
+  generation、发布 `/connection`、fence 迟到调用/event 并等待 cleanup。它不公开原因、不合成 Run terminal、
+  不自动重连或拥有产品恢复；
 - private deterministic fake 实现同一 public connector port，不建立第二套只供测试使用的 lifecycle；
 - required service 慢、离线或失败时，Agent domain 不得谎报 ready，但 shell、配置、诊断和 retry
   GUI 仍可用；不依赖它的 Game/Authoring sibling 继续工作；
@@ -503,7 +506,9 @@ raw request envelope、request ID、具体 wire、provider、connection generati
 `UiArtifact` 或 deterministic fake。connector 的 unknown response/event 由 client 边界 admission 一次；
 currentness、连续 sequence、cancel/reconnect 和 awaited disposal 继续由同一实现拥有。SillyOS 的产品
 connector 已完成 downstream handoff：它自己拥有 Worker wire 与 Pi/provider 绑定，Creator facade
-拥有 Program candidate/CAS 与持久 terminal projection。该消费者证据不会把 conversation
+拥有 Program candidate/CAS 与持久 terminal projection。2026-08-30 的 focused 后继补充了 public connection
+一次性 `whenClosed`、ready 前 observation、current `/connection` fencing 与 cleanup join；SillyOS 已删除
+Browser Pi transport 的私有断连旁路，Creator facade 只在消费公共 snapshot 后触发产品恢复。该消费者证据不会把 conversation
 persistence、tool execution、permission UI、OpenUI/A2UI adapter、Effect Broker 或 public Agent
 product/renderer ABI 提升为引擎能力。
 

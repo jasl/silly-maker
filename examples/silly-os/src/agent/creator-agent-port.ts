@@ -482,27 +482,13 @@ export function createBrowserCreatorAgentPortV1(
       | { readonly runtime: "pi_provider"; readonly selection: BrowserPiModelSelectionV1 }
     ),
 ): CreatorAgentPortV1 {
-  const { workspaceAuthority } = input;
-  const notifyConnectionLost = input.onConnectionLost;
+  const { onConnectionLost: notifyConnectionLost, workspaceAuthority, ...connectorInput } = input;
   let providerCredentialConfigured = false;
   let configuredEffectiveReasoningEffort: BrowserPiReasoningEffortV1 | null = null;
   let credentialRevoked = false;
   const connector = createBrowserPiWorkerConnectorV1({
-    ...input,
+    ...connectorInput,
     workspaceAuthority,
-    onConnectionLost: () => {
-      if (!providerCredentialConfigured) return;
-      retireCredentialOwnerV1(false);
-      if (!terminal) {
-        connectionFailureDiagnostic = diagnosticV1("connection_failed", "/connection");
-        failFacadeV1(connectionFailureDiagnostic);
-      }
-      try {
-        notifyConnectionLost?.();
-      } catch {
-        // The product observer cannot alter Agent lifecycle cleanup.
-      }
-    },
   });
   const client = createAgentSessionClientV1({ connector });
   const listeners = new Set<() => void>();
@@ -912,13 +898,33 @@ export function createBrowserCreatorAgentPortV1(
   let lastHandledSessionDiagnostic: AgentSessionDiagnosticV1 | null = null;
   unsubscribeClientSnapshots = client.subscribe(() => {
     if (terminal) return;
-    const sessionDiagnostic = client.getSnapshot().diagnostic;
+    const sessionSnapshot = client.getSnapshot();
+    const sessionDiagnostic = sessionSnapshot.diagnostic;
     if (sessionDiagnostic === null) {
       lastHandledSessionDiagnostic = null;
       return;
     }
     if (sessionDiagnostic === lastHandledSessionDiagnostic) return;
     lastHandledSessionDiagnostic = sessionDiagnostic;
+    if (
+      sessionSnapshot.status.kind === "unavailable" &&
+      sessionDiagnostic.code === "agent_session.connection_failed" &&
+      sessionDiagnostic.path === "/connection"
+    ) {
+      if (!providerCredentialConfigured) return;
+      const retired = retireCredentialOwnerV1(false);
+      if (!retired) return;
+      if (connectionFailureDiagnostic === null) {
+        connectionFailureDiagnostic = mapEngineDiagnosticV1(sessionDiagnostic);
+        failFacadeV1(connectionFailureDiagnostic);
+      }
+      try {
+        notifyConnectionLost?.();
+      } catch {
+        // The product observer cannot alter Agent lifecycle cleanup.
+      }
+      return;
+    }
     if (!isFatalBrowserConnectorStreamDiagnosticV1(sessionDiagnostic)) return;
 
     // The public Session intentionally does not attach product or wire identity

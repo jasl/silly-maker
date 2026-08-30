@@ -4466,7 +4466,12 @@ describe("SillyOS Browser Pi transport and product port", () => {
     await configureAndTestProductPortV1(port);
     fail(worker);
 
+    await waitUntilV1(() => onConnectionLost.mock.calls.length === 1);
     expect(onConnectionLost).toHaveBeenCalledOnce();
+    expect(port.getSnapshot()).toMatchObject({
+      phase: "failed",
+      diagnostic: { code: "connection_failed", path: "/connection" },
+    });
     expect(worker.terminated).toBe(true);
     await port.dispose();
     expect(onConnectionLost).toHaveBeenCalledOnce();
@@ -4995,10 +5000,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
 
     workspaceAuthority.failHost({ code: "outcome_unknown" });
 
-    await expect(submitted).resolves.toEqual({
-      kind: "unavailable",
-      diagnostic: { code: "agent_session.operation_failed", path: "/operation" },
-    });
+    await expect(submitted).resolves.toEqual({ kind: "superseded" });
     expect(failures).toEqual([{
       revision: 1,
       code: "outcome_unknown",

@@ -406,13 +406,20 @@ semantic connector/connection ports. The client owns observable
 `unconfigured/disconnected/connecting/ready/unavailable/disposed` status and
 `connect/start/submit/cancel/reconnect/dispose`; `start` has no product payload and `submit`
 accepts only a non-empty `sessionId` plus text. A connector implements semantic
-`start/submit/cancel/close`, not a generic request envelope, request ID, Worker/network wire, or
+`start/submit/cancel/close` plus a one-shot `whenClosed`, not a generic request envelope, request ID, Worker/network wire, or
 provider protocol. The deterministic fake remains private and implements that same connector
 rather than a separate test Host. It supplies controllable unconfigured, slow, offline, failed,
 and ready connections plus late-record injection, so connection disposal, retry, and lifecycle
 fencing remain deterministic without a network or provider. A product connector must settle
 submit before forwarding that `(sessionId, runId)` tuple's first event candidate; wire-order
 inversion is the connector's bounded-reordering responsibility.
+
+`whenClosed` fulfills whenever that connection becomes unusable, including expected local close.
+The client arms it before publishing ready; a current asynchronous loss retires the exact generation,
+publishes `agent_session.connection_failed /connection` once, fences pending calls and late records,
+and joins async cleanup into disposal. It does not synthesize `run_failed`, clear accepted run identity,
+or reconnect. Explicit reconnect/dispose retire the generation before close, and stale signals cannot
+alter a successor.
 
 Every connector response and event candidate crosses Base's bounded canonical-data projection
 before exact schema admission. Public stream events are only `output_text_delta`, bounded Strict
@@ -453,7 +460,9 @@ renderer surface. The focused public Session contract has no real transport/back
 wire-protocol promise, Agent persistence, tool/permission system, OpenUI/A2UI adapter, Effect
 Broker, or Desktop HMR. SillyOS now consumes that contract through a product-owned Browser
 connector and Creator facade; its Worker wire, Pi/provider binding, Program candidate admission,
-and Repository/Workspace currentness remain outside the Engine Session API. Chromium and WebKit physical
+and Repository/Workspace currentness remain outside the Engine Session API. Its Browser Pi connection
+now fulfills the public `whenClosed`, while product recovery begins only after the Creator facade consumes
+the public `/connection` snapshot; there is no transport-private loss bypass. Chromium and WebKit physical
 HMR retain three contract-level cases: an incompatible Authoring R1 candidate rejects and a
 compatible retry succeeds while the dirty Authoring sibling and explicitly selected held Agent stay
 usable; a shared presentation change publishes Player R2 plus Authoring R1 without losing the dirty

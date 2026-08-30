@@ -109,6 +109,23 @@ export function createAgentSessionClientV1(input: {
     }
   };
 
+  const retireUnexpectedlyClosedConnection = (
+    target: AgentSessionConnectionV1,
+    expectedGeneration: number,
+    expectedEpoch: number,
+  ): void => {
+    if (
+      disposed || lifecycleEpoch !== expectedEpoch || connection !== target ||
+      activeConnectionGeneration !== expectedGeneration
+    ) return;
+    connection = null;
+    activeConnectionGeneration = null;
+    void closeConnection(target);
+    setUnavailable(
+      diagnosticInternalV1("agent_session.connection_failed", "/connection"),
+    );
+  };
+
   const acceptAdmittedEvent = (
     event: AgentSessionStreamEventV1,
     expectedGeneration: number,
@@ -189,6 +206,12 @@ export function createAgentSessionClientV1(input: {
           return disposed ? disposedResultInternalV1 : supersededResultInternalV1;
         }
       }
+      if (closingConnections.size > 0) {
+        await waitForClosingConnections();
+        if (disposed || lifecycleEpoch !== expectedEpoch) {
+          return disposed ? disposedResultInternalV1 : supersededResultInternalV1;
+        }
+      }
       let connected: Awaited<ReturnType<AgentSessionConnectorV1["connect"]>>;
       try {
         connected = await input.connector.connect({
@@ -226,6 +249,25 @@ export function createAgentSessionClientV1(input: {
       }
       connection = connected.connection;
       activeConnectionGeneration = generation;
+      const handleClosed = (): void =>
+        retireUnexpectedlyClosedConnection(
+          connected.connection,
+          generation,
+          expectedEpoch,
+        );
+      void connected.connection.whenClosed.then(handleClosed, handleClosed);
+      // A connector may discover closure before returning the connection. Give
+      // the stable close signal one reaction turn before publishing `ready`.
+      await Promise.resolve();
+      if (disposed) return disposedResultInternalV1;
+      if (lifecycleEpoch !== expectedEpoch) return supersededResultInternalV1;
+      if (
+        connection !== connected.connection || activeConnectionGeneration !== generation
+      ) {
+        return unavailableInternalV1(
+          diagnosticInternalV1("agent_session.connection_failed", "/connection"),
+        );
+      }
       status = { kind: "ready" };
       lastDiagnostic = null;
       publish();
