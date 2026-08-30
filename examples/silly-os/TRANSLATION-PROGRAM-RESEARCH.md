@@ -181,6 +181,69 @@ Workspace publication, protected-span truth, retry policy, acceptance of its
 own output, or final file serialization. A higher-intelligence model may improve
 language quality; it must not be required to repair missing product invariants.
 
+## Program package and context discipline
+
+The Translation Program is not just its system prompt. Its Agent-facing package
+combines a versioned prompt, selected domain skills/resources, deterministic
+tools or Workspace scripts, and the harness policy that sequences those pieces.
+The surrounding translation records, review UI, and exported artifacts complete
+the Program as a reusable product. A Process must pin the accepted Program
+revision so later Program upgrades do not rewrite the prompt, skills, tools, or
+workflow of an already-running Process.
+
+The current foundation does not yet close that last invariant:
+`ProgramDefinitionRevisionV1` persists only the harness reference and capability
+IDs, and Browser runtime code resolves that reference to the currently shipped
+prompt. P5-B must first make each harness reference identify one immutable,
+build-known execution package whose contents and behavior cannot change under
+that identity. No ordinary Translation Process exists yet, so this is a
+pre-product correction rather than a compatibility claim or permission to build
+a resource dependency graph or general package manager.
+
+The implementation should prefer tools for mechanical work. Format probing,
+parse/extract, stable unit construction, source matching, batch selection,
+placeholder/tag checks, progress accounting, write-back, structural QA, and
+export are deterministic operations. The Agent performs judgment: proposing a
+project profile, resolving genuine ambiguity with a human, translating admitted
+units, and identifying semantic concerns. It may author a one-off data script
+inside the admitted Workspace when no shipped operation fits, but that script's
+outputs remain candidates for the same validation and publication boundaries.
+The first Translation slice uses shipped deterministic operations; one-off
+script authoring is activated only when a real step demonstrates that those
+operations are insufficient.
+
+Each Agent attempt receives a stage-specific context projection, not an append
+of everything known by the product. For a translation batch that projection is:
+
+1. the stable execution contract and current workflow stage;
+2. current human-confirmed language, terminology, entity/relationship, style,
+   and example decisions relevant to the selected units;
+3. the exact current source units, protected segments, local neighboring
+   context, and unresolved questions;
+4. exact references to prior accepted batches or artifacts when comparison is
+   required; and
+5. only the recent human exchange needed to understand a still-open decision.
+
+The complete attachment, Workspace, project profile, accepted translations,
+and Conversation must remain addressable through structured lookup or tools.
+They are not copied into every prompt. Initial Profile matching, bounded query
+results, and the final context projection must be repeatable and inspectable.
+The Agent may request additional bounded context, but the Host records the exact
+query and returned evidence; it cannot admit the whole project implicitly.
+Source-matching terminology must become the first concrete selector delivered
+in P5-B—the research runner demonstrates only the intended pressure. Available
+context is calculated from admitted model-profile context metadata with space
+reserved for the requested output, without inventing a fixed semantic item
+limit. When the evidence does not fit, the product context planner reduces the
+batch or loads a different slice instead of silently truncating it.
+
+Conversation records explain decisions but are not workflow state. Any context
+projection cache, if measurement later justifies one, must be rebuildable from
+exact authoritative records rather than become another checkpoint schema.
+Pi session compaction cannot become the sole copy of terminology, review state,
+or progress, and SillyOS must be able to start a fresh model attempt from the
+pinned Program plus durable Process state.
+
 ## Dual-model experiment matrix
 
 The initial study uses two deliberately named routes supplied through the

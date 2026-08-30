@@ -150,12 +150,47 @@ implementation baseline before P0 is commit
 
 ## Product invariant and execution rule
 
-Agent Creator remains the only built-in user-facing program. Every generated
-Program remains one cohesive product unit:
+Program Creator remains the only built-in user-facing Program in the current
+product. It is a bootstrap and in-product revision path, not an attempt to
+replace a general coding Agent as the preferred environment for authoring and
+testing sophisticated Programs. A future externally authored Program package
+must enter through the same admission, review, snapshot, and revision-pinning
+contracts rather than gaining a privileged install path. Every Program remains
+one cohesive product unit:
 
 ```text
 Program = project + harness + agent + app
 ```
+
+For Agent execution, the useful package can be stated more concretely:
+
+```text
+Program Agent package = versioned prompt + selected skills/resources
+                      + allowed tools/scripts + harness policy
+```
+
+This second equation is an execution projection, not a replacement for the
+complete Program. SillyOS workflow controllers own stage transitions, context
+planning, checkpoints, and recovery. The Pi execution package binds the prompt,
+skills/resources, and model-visible tool availability for one attempt. The
+Agent/model performs semantic judgment under those instructions and the admitted
+Profile; the human owns final Profile, ambiguity, review, and acceptance
+decisions. Product admission, repositories, and Workspace authority own
+validation, CAS, publication, and leases. "Harness policy" here describes that
+composition; it is not Pi's currently unimplemented `AgentHarness` convenience
+API and not a second Agent loop. Skills/resources carry reusable domain
+procedures and examples and may package fixed scripts; scripts execute only
+through admitted tool or Workspace boundaries. The app and structured domain
+records remain the human-facing product and durable authority.
+
+Mechanical work belongs in deterministic tools or Workspace scripts whenever
+practical: parsing, normalization, splitting, counting, lookup, comparison,
+validation, cache mutation, and export should not be repeatedly simulated in
+model prose. The Agent may choose tools, interpret their results, or author a
+task-specific script, but a generated script executes only through the admitted
+Workspace boundary and produces reviewable artifacts/receipts. It does not gain
+direct Program-database authority. This division is a quality and token-ROI
+requirement, not merely an optimization.
 
 Browser and Deno Desktop are the product targets. Browser is the current
 implementation priority so the deployed example can become a usable local-first
@@ -174,6 +209,25 @@ one live Workspace instance or one conversation. SillyOS does not implement a
 second Agent loop, provider layer, tool dispatcher, session format, or extension
 system. SillyMaker remains responsible for GUI and interaction contracts; it
 does not absorb Pi, model, Program-database, or tool runtime responsibilities.
+
+Conversation history is likewise not the default model context. Each Program
+workflow must build a small, inspectable context projection from the pinned
+Program revision and current Process state: the stable execution prompt, current
+stage and human decisions, the current work units with necessary local context,
+only the relevant glossary/entity/style/example entries, and selected recent
+unresolved exchanges. Attachments, the whole Workspace, the complete glossary,
+and the complete transcript must stay addressable through structured records
+and tools rather than being appended wholesale. P5-B's context policy must
+derive capacity from admitted model-profile context metadata and an explicit
+output reserve; there is no arbitrary semantic item ceiling. If admitted
+evidence does not fit, the product context planner must split the work or
+retrieve another slice rather than silently drop it.
+
+Any cached context projection must be rebuildable from authoritative product
+records and exact source references; it is not a second truth source or an
+untraceable Conversation summary. Any future selected Pi-side compaction may
+manage its live session, while SillyOS remains responsible for choosing the
+domain evidence supplied to each new attempt.
 
 Future generated UI follows the same split. Pi may produce an admitted OpenUI
 artifact through a Pi extension tool, while a closed adapter maps supported
@@ -4657,6 +4711,20 @@ remain separate product/distribution decisions. This lane does not introduce or
 expand the existing focused public SillyMaker Mod API, and it introduces no
 public Agent, Program, or plugin ABI.
 
+One prerequisite remains open before P5-B can claim that version pinning. The
+current durable `ProgramDefinitionRevisionV1` stores an opaque
+`harnessReference` plus capability IDs, while Browser code selects the prompt
+and completion behavior from the currently shipped implementation of that
+reference. A later code release could therefore change an old Process's prompt
+without changing its pinned Program revision. The first Translation product
+slice must make each harness reference identify one immutable, build-known
+execution package whose contents and behavior cannot change under that identity,
+retain any package still referenced by a supported Process, and fail before
+Agent startup when that package is unavailable. Its internal resources need not
+form a separately versioned dependency graph. This is a small private lookup
+over shipped packages, not a plugin loader, dependency solver, workflow language,
+or third Agent runtime.
+
 Complete Browser/Desktop Extension API parity is explicitly deferred. Browser
 does not emulate Pi's Node/TUI/CLI/exec extension surface. If a later Program
 needs an extension event that cannot be expressed by the shared capability core
@@ -4667,11 +4735,12 @@ request backed by the real consumer, not permission to create a second runtime.
 
 **Current status (2026-08-31):** P5 remains active in P5-A through P5-D order.
 P5-A is complete with the deterministic original four-format corpus,
-round-trip laboratory, secret-safe research runner, and a bounded prompt-v4
-model-protocol smoke. P5-B through P5-D remain incomplete: no named model route
-or ordinary Translation product journey is qualified. Process-owned Workspace,
-Host import, and Browser Translation dispatch exist only as explicitly
-unconsumed next-slice substrate. See
+round-trip laboratory, secret-safe research runner, and recorded prompt-v4/v5
+model-protocol evidence through both named routes, including a confirmed-plan
+ablation. P5-B through P5-D remain incomplete: neither route nor an ordinary
+Translation product journey is qualified. Process-owned Workspace, Host import,
+and Browser Translation dispatch exist only as explicitly unconsumed next-slice
+substrate. See
 [TRANSLATION-PROGRAM-RESEARCH.md](./TRANSLATION-PROGRAM-RESEARCH.md).
 
 Make translation the first complete product consumer. Its denominator is one
@@ -4681,6 +4750,16 @@ resume after committed batches, editable target text, discovery-oriented QA,
 explicit human review, and format-preserving export. Translation owns concrete
 domain records and artifacts; it is not a demo skin over a generic Creator
 framework.
+
+Its first complete Program package must demonstrate the split above. Product
+code or shipped deterministic capabilities own format detection confirmation,
+parse/extract, stable unit identity, relevant-profile selection, batching,
+checkpoint/write-back, structural QA, and export. The model proposes terminology
+and relationships, translates the current admitted batch, diagnoses semantic
+problems, and discusses human revisions. The model never receives the entire
+attachment, project profile, Workspace, or Process transcript merely because it
+exists. P5 first proves this concrete package; it does not begin by defining a
+generic skill manifest, workflow DSL, retrieval framework, or Program SDK.
 
 Only shared boundaries reproduced by this product may graduate into the P4 Pi
 extension and UI mapping. Startup, bundle, memory, and long-project evidence are
