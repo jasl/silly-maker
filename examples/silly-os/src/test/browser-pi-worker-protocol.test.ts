@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  admitBrowserPiEngineRequestV1,
+  admitBrowserPiWorkerSessionRequestV1,
   admitBrowserPiProviderCatalogWireV1,
   admitBrowserPiWorkerInboundMessageV1,
   admitBrowserPiWorkerOutboundMessageV1,
@@ -26,7 +26,6 @@ const submitTextV1 = serializeCreatorAgentSubmitV1({
 
 const submitRecordV1 = {
   revision: 1,
-  requestId: 7,
   method: "submit",
   params: { sessionId: "pi.session.1", text: submitTextV1 },
 } as const;
@@ -440,15 +439,14 @@ describe("Browser Pi Worker protocol", () => {
   });
 
   it("keeps start/cancel inner admission and adds execution only beside valid submit", () => {
-    const start = { revision: 1, requestId: 1, method: "start" };
+    const start = { revision: 1, method: "start" };
     const cancel = {
       revision: 1,
-      requestId: 2,
       method: "cancel",
       params: { sessionId: "pi.session.1", runId: "pi.run.1" },
     };
-    expect(admitBrowserPiEngineRequestV1(start)?.method).toBe("start");
-    expect(admitBrowserPiEngineRequestV1(cancel)?.method).toBe("cancel");
+    expect(admitBrowserPiWorkerSessionRequestV1(start)?.method).toBe("start");
+    expect(admitBrowserPiWorkerSessionRequestV1(cancel)?.method).toBe("cancel");
     expect(admitBrowserPiWorkerInboundMessageV1(rpcEnvelopeV1(start))).not.toBeNull();
     expect(admitBrowserPiWorkerInboundMessageV1(rpcEnvelopeV1(cancel))).not.toBeNull();
 
@@ -475,9 +473,10 @@ describe("Browser Pi Worker protocol", () => {
     ).toBeNull();
     expect(admitBrowserPiWorkerInboundMessageV1(rpcEnvelopeV1(start, executionBindingV1)))
       .toBeNull();
+    expect(admitBrowserPiWorkerSessionRequestV1({ ...start, requestId: 1 })).toBeNull();
 
     const invalidInner = { ...submitRecordV1, unexpected: true };
-    expect(admitBrowserPiEngineRequestV1(invalidInner)).toBeNull();
+    expect(admitBrowserPiWorkerSessionRequestV1(invalidInner)).toBeNull();
     expect(admitBrowserPiWorkerInboundMessageV1(rpcEnvelopeV1(invalidInner))).not.toBeNull();
   });
 

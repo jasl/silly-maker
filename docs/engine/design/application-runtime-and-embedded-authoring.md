@@ -502,8 +502,10 @@ Session/Run client、connector/connection port、snapshot/diagnostic/result 与 
 raw request envelope、request ID、具体 wire、provider、connection generation、Agent Host、
 `UiArtifact` 或 deterministic fake。connector 的 unknown response/event 由 client 边界 admission 一次；
 currentness、连续 sequence、cancel/reconnect 和 awaited disposal 继续由同一实现拥有。SillyOS 的产品
-connector 迁移尚未 handoff，不能据此宣称真实 backend/provider、conversation persistence、tool execution、
-permission UI、OpenUI/A2UI adapter、Effect Broker 或 public Agent product/renderer ABI 已交付。
+connector 已完成 downstream handoff：它自己拥有 Worker wire 与 Pi/provider 绑定，Creator facade
+拥有 Program candidate/CAS 与持久 terminal projection。该消费者证据不会把 conversation
+persistence、tool execution、permission UI、OpenUI/A2UI adapter、Effect Broker 或 public Agent
+product/renderer ABI 提升为引擎能力。
 
 实现状态（2026-08-25，AR5 保留、M5 已吸收）：Inspector core publication/embedded surface 只
 依赖 package-private 的 neutral single-companion bridge；Agent client/Host/renderer 只从显式

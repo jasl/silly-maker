@@ -429,15 +429,13 @@ export type BrowserPiWorkerAnyOutboundMessageV1 =
   | BrowserPiWorkerOutboundMessageV1
   | BrowserPiWorkerWorkspaceOutboundMessageV1;
 
-export type BrowserPiEngineRequestV1 =
+export type BrowserPiWorkerSessionRequestV1 =
   | {
     readonly revision: 1;
-    readonly requestId: number;
     readonly method: "start";
   }
   | {
     readonly revision: 1;
-    readonly requestId: number;
     readonly method: "submit";
     readonly params: {
       readonly sessionId: string;
@@ -446,7 +444,6 @@ export type BrowserPiEngineRequestV1 =
   }
   | {
     readonly revision: 1;
-    readonly requestId: number;
     readonly method: "cancel";
     readonly params: {
       readonly sessionId: string;
@@ -1142,7 +1139,7 @@ export function admitBrowserPiWorkerInboundMessageV1(
     };
   }
   if (discriminator.kind === "rpc_request") {
-    const request = admitBrowserPiEngineRequestV1(discriminator.record);
+    const request = admitBrowserPiWorkerSessionRequestV1(discriminator.record);
     if (request?.method === "submit") {
       const execution = admitExecutionBindingV1(discriminator.execution);
       const submit = admitCreatorAgentSubmitTextV1(request.params.text);
@@ -1533,16 +1530,18 @@ export function admitBrowserPiWorkerAnyOutboundMessageV1(
     admitBrowserPiWorkerOutboundMessageV1(value);
 }
 
-export function admitBrowserPiEngineRequestV1(value: unknown): BrowserPiEngineRequestV1 | null {
-  const base = exactDataRecordV1(value, ["revision", "requestId", "method"]) ??
-    exactDataRecordV1(value, ["revision", "requestId", "method", "params"]);
+export function admitBrowserPiWorkerSessionRequestV1(
+  value: unknown,
+): BrowserPiWorkerSessionRequestV1 | null {
+  const base = exactDataRecordV1(value, ["revision", "method"]) ??
+    exactDataRecordV1(value, ["revision", "method", "params"]);
   if (
-    base === null || base.revision !== 1 || !isRequestIdV1(base.requestId) ||
+    base === null || base.revision !== 1 ||
     (base.method !== "start" && base.method !== "submit" && base.method !== "cancel")
   ) return null;
   if (base.method === "start") {
     if (Object.hasOwn(base, "params")) return null;
-    return { revision: 1, requestId: base.requestId, method: "start" };
+    return { revision: 1, method: "start" };
   }
   if (base.method === "submit") {
     const params = exactDataRecordV1(base.params, ["sessionId", "text"]);
@@ -1551,7 +1550,6 @@ export function admitBrowserPiEngineRequestV1(value: unknown): BrowserPiEngineRe
     if (submit.kind === "rejected") return null;
     return {
       revision: 1,
-      requestId: base.requestId,
       method: "submit",
       params: {
         sessionId: params.sessionId,
@@ -1565,7 +1563,6 @@ export function admitBrowserPiEngineRequestV1(value: unknown): BrowserPiEngineRe
   ) return null;
   return {
     revision: 1,
-    requestId: base.requestId,
     method: "cancel",
     params: { sessionId: params.sessionId, runId: params.runId },
   };

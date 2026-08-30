@@ -712,8 +712,8 @@ deno run -A npm:vitest run \
 | `src/product/creator-agent-admission.ts`                        | submit/candidate 的严格 product wire admission                                 |
 | `src/product/browser-provider-settings-repository.ts`           | 有界非秘密 custom HTTPS profile 持久化；不接收 key                             |
 | `src/product/fake-creator.ts`                                   | 默认初始 proposal 的确定性 fake Creator                                        |
-| `src/agent/creator-agent-port.ts`                               | React 可见的 product facade；不暴露 raw Pi records                             |
-| `src/agent/browser-pi-*`                                        | 懒加载 Worker、固定 Pi identity、catalog、Provider 与 admitted workspace tools |
+| `src/agent/creator-agent-port.ts`                               | React 可见的 product facade；拥有 Program candidate/CAS，不暴露 raw Pi records |
+| `src/agent/browser-pi-*`                                        | 公共 Agent Session connector、产品私有 Worker wire、固定 Pi 与 workspace tools |
 | `src/agent/pi-workspace-tool-binder.ts`                         | Pi 原生四工具绑定与固定 structured `grep` AgentTool                            |
 | `src/credential/`                                               | 独立 Vault Worker、WebCrypto、exact binding、IndexedDB、handoff 与 client      |
 | `src/deployment/browser-credential-vault-security.ts`           | Vault Worker 的 network-off CSP 与专属 response headers                        |
@@ -737,6 +737,13 @@ deno run -A npm:vitest run \
 后续 Agent loop、模型/provider、会话、tool dispatch 与 Agent 扩展统一由 Pi 负责。
 Browser Agent Worker 或 Desktop companion 只做目标适配、Program 数据所有权和 typed
 transport 投影；React 不接触 raw Pi RPC/provider records，也不读取或持久化完整 Provider Key。
+当前 Browser adapter 通过公共 `@sillymaker/agent/session` 获得中立的 Session/Run
+currentness、stream admission、cancel/reconnect 和 awaited disposal；它自己仍拥有
+Worker envelope、Pi 绑定与 submit/event ordering。`CreatorAgentPortV1` 另行拥有
+Program candidate admission、product-run correlation、Repository/Workspace CAS 和持久 terminal
+projection。公共 client 定义中立 reconnect 语义，但当前持有 credential 的 Browser
+connector 不做透明重连；关闭 connector 会终止 Worker，恢复时需要重新交付 credential。
+这不公开 raw wire，也不选择 private Agent Host/`UiArtifact` 路线。
 持久化只由专属 Credential Vault Worker 在 exact endpoint binding 下完成。
 Agent 侧独特能力只实现一次 schema/prompt/handler 核心，Browser 薄适配为 Pi
 `AgentTool`，Desktop 薄适配为 Pi Extension tool。未来 OpenUI 数据映射到 SillyMaker

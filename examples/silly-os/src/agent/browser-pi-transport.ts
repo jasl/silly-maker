@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 import type {
-  AgentRpcRawConnectionInternalV1,
-  AgentRpcRawTransportInternalV1,
-} from "@sillymaker/agent/internal";
+  AgentSessionCancelInputV1,
+  AgentSessionConnectionV1,
+  AgentSessionConnectorV1,
+  AgentSessionSubmitInputV1,
+} from "@sillymaker/agent/session";
 
 // Vite supplies the default URL export for this query module at build time.
 // oxlint-disable-next-line import/default
@@ -23,7 +25,7 @@ import {
 } from "../credential/credential-vault-contracts.ts";
 import { credentialVaultBindingForSelectionV2 } from "../credential/provider-credential-binding.ts";
 import {
-  admitBrowserPiEngineRequestV1,
+  admitBrowserPiWorkerSessionRequestV1,
   admitBrowserPiWorkerAnyOutboundMessageV1,
   browserPiDefaultReasoningEffortV1,
   browserPiSelectionEndpointOriginV1,
@@ -93,7 +95,7 @@ export type BrowserPiWorkerSetReasoningEffortResultV1 =
     readonly reason: BrowserPiReasoningEffortSelectionFailureCodeV1;
   };
 
-export interface BrowserPiWorkerRawTransportV1 extends AgentRpcRawTransportInternalV1 {
+export interface BrowserPiWorkerConnectorV1 extends AgentSessionConnectorV1 {
   configureCredential(apiKey: string): Promise<
     | {
       readonly kind: "configured";
@@ -155,7 +157,7 @@ interface PendingCallV1 {
 }
 
 type BufferedWorkerEventV1 =
-  | { readonly kind: "rpc_record"; readonly record: unknown }
+  | { readonly kind: "session_event"; readonly candidate: unknown }
   | {
     readonly kind: "workspace_receipt";
     readonly receipt: BrowserPiWorkspaceMutationReceiptWireV1;
@@ -166,7 +168,7 @@ interface ConnectionStateV1 {
   readonly networkBrokerLease: BrowserNetworkBrokerLeaseV1;
   readonly pending: Map<number, PendingCallV1>;
   readonly bufferedEvents: BufferedWorkerEventV1[];
-  onRecord: ((record: unknown) => void) | null;
+  onEvent: ((record: unknown) => void) | null;
   setup:
     | {
       readonly kind: "configure";
@@ -303,7 +305,7 @@ function executionBindingFromHostV1(
   });
 }
 
-export function createBrowserPiWorkerRawTransportV1({
+export function createBrowserPiWorkerConnectorV1({
   onConnectionLost = () => undefined,
   openNetworkBroker,
   runtime,
@@ -324,7 +326,7 @@ export function createBrowserPiWorkerRawTransportV1({
   & (
     | { readonly runtime: "deterministic_test"; readonly selection?: null }
     | { readonly runtime: "pi_provider"; readonly selection: BrowserPiModelSelectionV1 }
-  )): BrowserPiWorkerRawTransportV1 {
+  )): BrowserPiWorkerConnectorV1 {
   const preferredReasoningEffort = isBrowserPiReasoningEffortV1(suppliedPreferredReasoningEffort)
     ? suppliedPreferredReasoningEffort
     : browserPiDefaultReasoningEffortV1;
@@ -511,7 +513,7 @@ export function createBrowserPiWorkerRawTransportV1({
       networkBrokerLease,
       pending: new Map<number, PendingCallV1>(),
       bufferedEvents: [],
-      onRecord: null,
+      onEvent: null,
       setup: null,
       messageListener: undefined as unknown as BrowserPiWorkerMessageListenerV1,
       errorListener: undefined as unknown as BrowserPiWorkerErrorListenerV1,
@@ -566,11 +568,11 @@ export function createBrowserPiWorkerRawTransportV1({
       for (const event of events) {
         if (event.kind === "workspace_receipt") {
           deliverWorkspaceReceipt(event.receipt);
-        } else if (state.onRecord !== null) {
+        } else if (state.onEvent !== null) {
           try {
-            state.onRecord(event.record);
+            state.onEvent(event.candidate);
           } catch {
-            // The raw record consumer is observational at this transport boundary.
+            // The semantic Session event consumer is observational at this boundary.
           }
         } else {
           closeState(state, "record_without_connection");
@@ -704,7 +706,7 @@ export function createBrowserPiWorkerRawTransportV1({
       }
       if (message.kind === "rpc_record" || message.kind === "workspace_receipt") {
         const buffered: BufferedWorkerEventV1 = message.kind === "rpc_record"
-          ? { kind: "rpc_record", record: message.record }
+          ? { kind: "session_event", candidate: message.record }
           : { kind: "workspace_receipt", receipt: message.receipt };
         if (state.pendingSubmitGates !== 0) {
           if (state.bufferedEvents.length >= bufferedRecordMaximumV1) {
@@ -714,11 +716,11 @@ export function createBrowserPiWorkerRawTransportV1({
           state.bufferedEvents.push(buffered);
         } else if (buffered.kind === "workspace_receipt") {
           deliverWorkspaceReceipt(buffered.receipt);
-        } else if (state.onRecord !== null) {
+        } else if (state.onEvent !== null) {
           try {
-            state.onRecord(buffered.record);
+            state.onEvent(buffered.candidate);
           } catch {
-            // The raw record consumer is observational at this transport boundary.
+            // The semantic Session event consumer is observational at this boundary.
           }
         } else {
           closeState(state, "record_without_connection");
@@ -788,14 +790,19 @@ export function createBrowserPiWorkerRawTransportV1({
     return state;
   };
 
-  const createConnectionV1 = (state: ConnectionStateV1): AgentRpcRawConnectionInternalV1 => ({
-    request(record: unknown): Promise<unknown> {
+  const createConnectionV1 = (state: ConnectionStateV1): AgentSessionConnectionV1 => {
+    const requestV1 = (
+      method: "start" | "submit" | "cancel",
+      input?: AgentSessionSubmitInputV1 | AgentSessionCancelInputV1,
+    ): Promise<unknown> => {
       if (state.closed || activeState !== state || !state.ready) {
         return Promise.reject(transportErrorV1("connection_closed"));
       }
-      const request = admitBrowserPiEngineRequestV1(record);
-      if (request === null) return Promise.reject(transportErrorV1("request_invalid"));
       const callId = state.nextCallId++;
+      const request = admitBrowserPiWorkerSessionRequestV1(
+        method === "start" ? { revision: 1, method } : { revision: 1, method, params: input },
+      );
+      if (request === null) return Promise.reject(transportErrorV1("request_invalid"));
       if (request.method === "submit") state.pendingSubmitGates += 1;
       return new Promise<unknown>((resolve, reject) => {
         state.pending.set(callId, { method: request.method, resolve, reject });
@@ -835,13 +842,18 @@ export function createBrowserPiWorkerRawTransportV1({
           reject(transportErrorV1("post_failed"));
         }
       });
-    },
-    async close(): Promise<void> {
-      closeState(state, "connection_closed", { expected: true });
-    },
-  });
+    };
+    return {
+      start: () => requestV1("start"),
+      submit: (input) => requestV1("submit", input),
+      cancel: (input) => requestV1("cancel", input),
+      async close(): Promise<void> {
+        closeState(state, "connection_closed", { expected: true });
+      },
+    };
+  };
 
-  const transport: BrowserPiWorkerRawTransportV1 = {
+  const connector: BrowserPiWorkerConnectorV1 = {
     isConfigured(): boolean {
       return activeState?.credentialAccepted === true && !activeState.closed;
     },
@@ -1085,7 +1097,7 @@ export function createBrowserPiWorkerRawTransportV1({
       }
       return result;
     },
-    async connect({ onRecord }) {
+    async connect({ onEvent }) {
       const state = activeState;
       if (state === null || state.closed || !state.credentialAccepted) {
         return { kind: "unconfigured" };
@@ -1093,7 +1105,7 @@ export function createBrowserPiWorkerRawTransportV1({
       if (state.connectionIssued || state.setup !== null || !state.ready) {
         return { kind: "unavailable", reason: "failed" };
       }
-      state.onRecord = onRecord;
+      state.onEvent = onEvent;
       state.connectionIssued = true;
       return { kind: "connected", connection: createConnectionV1(state) };
     },
@@ -1243,5 +1255,5 @@ export function createBrowserPiWorkerRawTransportV1({
     ) throw transportErrorV1("workspace_response_invalid");
     return (response as { readonly snapshot: BrowserPiWorkspaceSnapshotWireV1 }).snapshot;
   };
-  return transport;
+  return connector;
 }

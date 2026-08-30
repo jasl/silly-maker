@@ -1089,9 +1089,17 @@ change a real product behavior.
 - React presentation never owns Pi, provider streams, the Program database,
   workspace tools, companion processes, or external services. In Browser, a
   Dedicated Worker owns Pi and temporarily owns the user-supplied credential;
-  in Desktop, the private companion owns them. A typed product transport exposes
-  only the state and actions needed by the GUI; it is not a second Agent
-  protocol or runtime.
+  in Desktop, the private companion owns them. The Browser connector implements
+  public `@sillymaker/agent/session`, whose Engine client owns only neutral
+  connection, Session/Run currentness, ordered stream admission,
+  cancel/reconnect diagnostics, and awaited disposal. The connector still owns
+  its Worker envelope and Pi binding; `CreatorAgentPortV1` owns Program-candidate
+  admission, product-run correlation, Repository/Workspace CAS, and durable
+  terminal projection. The public client defines neutral reconnect semantics,
+  but the current credential-bearing Browser connector does not transparently
+  reconnect: closing it terminates the Worker and recovery requires credential
+  re-handoff. This typed product transport exposes only the state and actions
+  needed by the GUI; it is not a second Agent protocol or runtime.
 - Product-private development launch arguments and `.env` files may select a Pi
   provider/model and supply credentials without a UI. They remain companion
   configuration: no key, provider record, or environment snapshot enters React,

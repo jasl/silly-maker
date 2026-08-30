@@ -4,6 +4,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -405,6 +406,34 @@ function defaultAgentPreferencesSnapshotV1(): BrowserAgentPreferencesSnapshotV1 
   });
 }
 
+function initializeProviderSettingsV1(): {
+  readonly repository: BrowserProviderSettingsRepositoryV1 | null;
+  readonly snapshot: BrowserProviderSettingsSnapshotV1;
+  readonly failure?: unknown;
+} {
+  const repository = createProviderSettingsRepositoryV1();
+  if (repository === null) return { repository, snapshot: emptyProviderSettingsSnapshotV1() };
+  try {
+    return { repository, snapshot: repository.read() };
+  } catch (failure) {
+    return { repository, snapshot: emptyProviderSettingsSnapshotV1(), failure };
+  }
+}
+
+function initializeAgentPreferencesV1(): {
+  readonly repository: BrowserAgentPreferencesRepositoryV1 | null;
+  readonly snapshot: BrowserAgentPreferencesSnapshotV1;
+  readonly failure?: unknown;
+} {
+  const repository = createAgentPreferencesRepositoryV1();
+  if (repository === null) return { repository, snapshot: defaultAgentPreferencesSnapshotV1() };
+  try {
+    return { repository, snapshot: repository.read() };
+  } catch (failure) {
+    return { repository, snapshot: defaultAgentPreferencesSnapshotV1(), failure };
+  }
+}
+
 function providerSettingsVaultFromListV1(
   snapshot: CredentialVaultListV2,
 ): ProviderSettingsVaultV1 {
@@ -517,6 +546,7 @@ export function workspaceArchiveFileNameV1(programName: string): string {
 
 const workspaceDownloadHandoffMillisecondsV1 = 1_000;
 const credentialSaveReceiptMillisecondsV1 = 2_400;
+const resolvedVoidPromiseV1 = Promise.resolve();
 
 /** Retains the Sandbox-owned archive through the browser download handoff. */
 async function commitWorkspaceDownloadV1(
@@ -566,31 +596,17 @@ export function SillyOsAppV1({
   const [providerCatalog, setProviderCatalog] = useState<ProviderSettingsCatalogV1>({
     phase: "loading",
   });
-  const [providerSettingsRepository] = useState(createProviderSettingsRepositoryV1);
-  const [agentPreferencesRepository] = useState(createAgentPreferencesRepositoryV1);
+  const [providerSettingsInitialization] = useState(initializeProviderSettingsV1);
+  const providerSettingsRepository = providerSettingsInitialization.repository;
+  const [agentPreferencesInitialization] = useState(initializeAgentPreferencesV1);
+  const agentPreferencesRepository = agentPreferencesInitialization.repository;
   const [dataResetCoordinator] = useState(createDataResetCoordinatorV1);
   const [providerSettingsSnapshot, setProviderSettingsSnapshot] = useState<
     BrowserProviderSettingsSnapshotV1
-  >(() => {
-    if (providerSettingsRepository === null) return emptyProviderSettingsSnapshotV1();
-    try {
-      return providerSettingsRepository.read();
-    } catch (error) {
-      reportFailure("silly_os.provider_settings_load_failed", error);
-      return emptyProviderSettingsSnapshotV1();
-    }
-  });
+  >(providerSettingsInitialization.snapshot);
   const [agentPreferencesSnapshot, setAgentPreferencesSnapshot] = useState<
     BrowserAgentPreferencesSnapshotV1
-  >(() => {
-    if (agentPreferencesRepository === null) return defaultAgentPreferencesSnapshotV1();
-    try {
-      return agentPreferencesRepository.read();
-    } catch (error) {
-      reportFailure("silly_os.agent_preferences_load_failed", error);
-      return defaultAgentPreferencesSnapshotV1();
-    }
-  });
+  >(agentPreferencesInitialization.snapshot);
   const [credentialVault, setCredentialVault] = useState<ProviderSettingsVaultV1>({
     phase: "unavailable",
     diagnosticCode: "initializing",
@@ -643,30 +659,28 @@ export function SillyOsAppV1({
   >(null);
   const credentialVaultPortRef = useRef<BrowserCredentialVaultPortV1 | null>(null);
   const credentialVaultStateRef = useRef<ProviderSettingsVaultV1>(credentialVault);
-  credentialVaultStateRef.current = credentialVault;
   const credentialVaultEpochRef = useRef(0);
   const credentialVaultOperationEpochRef = useRef(0);
-  const credentialVaultSettlementRef = useRef<Promise<void>>(Promise.resolve());
+  const credentialVaultSettlementRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
   const agentPortRef = useRef<BrowserCreatorAgentPortV1 | null>(null);
   const activeProviderSelectionRef = useRef<BrowserPiModelSelectionV1 | null>(
     activeProviderSelection,
   );
-  activeProviderSelectionRef.current = activeProviderSelection;
   const agentSetupEpochRef = useRef(0);
   const agentConfigurationPendingRef = useRef(false);
   const connectionTestEpochRef = useRef(0);
   const providerModelSelectionEpochRef = useRef(0);
   const providerModelSelectionPendingRef = useRef(false);
-  const providerModelSelectionSettlementRef = useRef<Promise<void>>(Promise.resolve());
+  const providerModelSelectionSettlementRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
   const reasoningEffortSelectionEpochRef = useRef(0);
   const reasoningEffortSelectionPendingRef = useRef(false);
-  const reasoningEffortSelectionSettlementRef = useRef<Promise<void>>(Promise.resolve());
+  const reasoningEffortSelectionSettlementRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
   const providerCatalogEpochRef = useRef(0);
   const settingsReturnTargetRef = useRef<SettingsReturnTargetV1>("home");
-  const agentSetupSettlementRef = useRef<Promise<void>>(Promise.resolve());
-  const agentTeardownRef = useRef<Promise<void>>(Promise.resolve());
-  const agentWorkspaceLifecycleRef = useRef<Promise<void>>(Promise.resolve());
-  const agentTerminalSettlementRef = useRef<Promise<void>>(Promise.resolve());
+  const agentSetupSettlementRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
+  const agentTeardownRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
+  const agentWorkspaceLifecycleRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
+  const agentTerminalSettlementRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
   const workspaceExportEpochRef = useRef(0);
   const networkAccessEpochRef = useRef(0);
   const networkAccessMutationPendingRef = useRef(false);
@@ -674,7 +688,6 @@ export function SillyOsAppV1({
   const clearAllPendingRef = useRef(false);
   const remoteResetActionRef = useRef<() => void>(() => undefined);
   const reportFailureRef = useRef(reportFailure);
-  reportFailureRef.current = reportFailure;
   const workspaceExportAbortRef = useRef<AbortController | null>(null);
   const claimedTerminalRunIdsRef = useRef(new Set<string>());
   const controllerSnapshot = useSyncExternalStore(
@@ -689,12 +702,36 @@ export function SillyOsAppV1({
     ? snapshot.program?.programId ?? null
     : null;
   const routedProgramIdRef = useRef(routedProgramId);
-  routedProgramIdRef.current = routedProgramId;
   const routedWorkspaceId = snapshot.route === "workspace"
     ? snapshot.workspace?.workspaceId ?? null
     : null;
   const executionWorkspaceSessionId = agentSnapshot?.workspace.descriptor?.workspaceSessionId ??
     null;
+
+  useLayoutEffect(() => {
+    credentialVaultStateRef.current = credentialVault;
+    activeProviderSelectionRef.current = activeProviderSelection;
+    reportFailureRef.current = reportFailure;
+    routedProgramIdRef.current = routedProgramId;
+  }, [activeProviderSelection, credentialVault, reportFailure, routedProgramId]);
+
+  const initializationFailuresReportedRef = useRef(false);
+  useEffect(() => {
+    if (initializationFailuresReportedRef.current) return;
+    initializationFailuresReportedRef.current = true;
+    if ("failure" in providerSettingsInitialization) {
+      reportFailure(
+        "silly_os.provider_settings_load_failed",
+        providerSettingsInitialization.failure,
+      );
+    }
+    if ("failure" in agentPreferencesInitialization) {
+      reportFailure(
+        "silly_os.agent_preferences_load_failed",
+        agentPreferencesInitialization.failure,
+      );
+    }
+  }, [agentPreferencesInitialization, providerSettingsInitialization, reportFailure]);
 
   useEffect(() => {
     if (typeof matchMedia !== "function") return undefined;
@@ -1394,7 +1431,7 @@ export function SillyOsAppV1({
     }
   };
 
-  remoteResetActionRef.current = (): void => {
+  const remoteResetActionV1 = (): void => {
     setClearAll({ phase: "clearing" });
     forgetPiAgentV1();
     // Unloading closes the Agent Worker, Sandbox iframe, and their shared
@@ -1402,6 +1439,9 @@ export function SillyOsAppV1({
     // repositories; localStorage carries only this invalidation signal.
     window.location.reload();
   };
+  useLayoutEffect(() => {
+    remoteResetActionRef.current = remoteResetActionV1;
+  });
 
   useEffect(() => {
     if (dataResetCoordinator === null) return undefined;
@@ -2431,11 +2471,13 @@ export function SillyOsAppV1({
   } as const);
 
   const preferredProviderChoiceRef = useRef(preferredProviderChoice);
-  preferredProviderChoiceRef.current = preferredProviderChoice;
   const selectConfiguredModelRef = useRef(selectConfiguredModelV1);
-  selectConfiguredModelRef.current = selectConfiguredModelV1;
   const activateVaultSelectionRef = useRef(activateVaultSelectionV1);
-  activateVaultSelectionRef.current = activateVaultSelectionV1;
+  useLayoutEffect(() => {
+    preferredProviderChoiceRef.current = preferredProviderChoice;
+    selectConfiguredModelRef.current = selectConfiguredModelV1;
+    activateVaultSelectionRef.current = activateVaultSelectionV1;
+  });
 
   useEffect(() => {
     const choice = preferredProviderChoiceRef.current;

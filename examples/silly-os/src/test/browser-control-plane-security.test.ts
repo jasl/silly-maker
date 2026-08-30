@@ -72,6 +72,19 @@ describe("SillyOS Browser control-plane source boundary", () => {
     }
   });
 
+  it("keeps the Browser Pi connector and Creator facade on the public Agent Session boundary", async () => {
+    for (
+      const path of [
+        new URL("../agent/browser-pi-transport.ts", import.meta.url),
+        new URL("../agent/creator-agent-port.ts", import.meta.url),
+      ]
+    ) {
+      const source = await readFile(path, "utf8");
+      expect(source).toContain("@sillymaker/agent/session");
+      expect(source).not.toContain("@sillymaker/agent/internal");
+    }
+  });
+
   it("detects multiline data-controlled dynamic imports", () => {
     expect(dynamicImportArgumentsV1("import(\n userSelectedModule\n)"))
       .toEqual(["userSelectedModule"]);

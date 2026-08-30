@@ -29,6 +29,10 @@ import { CheckboxV1 } from "./design-system/checkbox.tsx";
 import { TextareaV1 } from "./design-system/textarea.tsx";
 
 const pendingReviewStatusDescriptionIdV1 = "workspace-review-pending-status";
+const workspaceReviewNumberFormatsV1 = Object.freeze({
+  en: new Intl.NumberFormat("en"),
+  "zh-CN": new Intl.NumberFormat("zh-CN"),
+});
 
 function acceptedStatusCopyV1(
   copy: SillyOsCopyV1,
@@ -62,7 +66,7 @@ export function ProgramWorkspaceReviewV1({
   ) return null;
   const acceptedStatus = acceptedStatusCopyV1(copy, review.acceptedStatus);
   const pendingStatus = pendingStatusCopyV1(copy, review.pendingStatus);
-  const numberFormat = new Intl.NumberFormat(copy.locale);
+  const numberFormat = workspaceReviewNumberFormatsV1[copy.locale];
 
   return (
     <section

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 import {
-  createAgentRpcClientInternalV1,
-  type AgentRpcCallFailureInternalV1,
-  type AgentRpcDiagnosticInternalV1,
-  type AgentRpcStreamEventInternalV1,
-} from "@sillymaker/agent/internal";
+  createAgentSessionClientV1,
+  type AgentSessionCallFailureV1,
+  type AgentSessionDiagnosticV1,
+  type AgentSessionStreamEventV1,
+} from "@sillymaker/agent/session";
 
 import {
   admitCreatorAgentSubmitV1,
@@ -39,11 +39,11 @@ import type {
 } from "../workspace/contracts.ts";
 import { workspaceMutationReceiptMaximumV1 } from "../workspace/contracts.ts";
 import {
-  createBrowserPiWorkerRawTransportV1,
+  createBrowserPiWorkerConnectorV1,
   type BrowserPiCredentialHandoffV1,
   type BrowserPiOpenNetworkBrokerV1,
   type BrowserPiWorkerFactoryV1,
-  type BrowserPiWorkerRawTransportV1,
+  type BrowserPiWorkerConnectorV1,
 } from "./browser-pi-transport.ts";
 import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
 import type {
@@ -263,25 +263,44 @@ function workspaceDiagnosticV1(
 }
 
 function mapEngineDiagnosticV1(
-  value: AgentRpcDiagnosticInternalV1,
+  value: AgentSessionDiagnosticV1,
 ): CreatorAgentDiagnosticV1 {
   switch (value.code) {
-    case "rpc.unconfigured":
+    case "agent_session.unconfigured":
       return diagnosticV1("unconfigured", value.path);
-    case "rpc.offline":
-    case "rpc.connection_failed":
+    case "agent_session.offline":
+    case "agent_session.connection_failed":
       return diagnosticV1("connection_failed", value.path);
-    case "rpc.request_failed":
+    case "agent_session.operation_failed":
       return diagnosticV1("request_failed", value.path);
     default:
       return diagnosticV1("protocol_invalid", value.path);
   }
 }
 
-function mapCallFailureV1(value: AgentRpcCallFailureInternalV1): CreatorAgentDiagnosticV1 {
+function mapCallFailureV1(value: AgentSessionCallFailureV1): CreatorAgentDiagnosticV1 {
   return value.kind === "unavailable"
     ? mapEngineDiagnosticV1(value.diagnostic)
     : diagnosticV1(value.kind === "disposed" ? "disposed" : "request_failed", "/request");
+}
+
+function isFatalBrowserConnectorStreamDiagnosticV1(
+  value: AgentSessionDiagnosticV1,
+): boolean {
+  switch (value.code) {
+    case "agent_session.record_invalid":
+    case "agent_session.record_too_large":
+    case "agent_session.sequence_gap":
+      return true;
+    case "agent_session.unconfigured":
+    case "agent_session.offline":
+    case "agent_session.connection_failed":
+    case "agent_session.operation_failed":
+    case "agent_session.sequence_duplicate":
+    case "agent_session.unknown_run":
+      return false;
+  }
+  return false;
 }
 
 function exactRecordV1(
@@ -413,7 +432,7 @@ function matchesRunV1(
 
 function mapRemoteFailureV1(
   run: CreatorAgentRunRequestV1,
-  value: AgentRpcDiagnosticInternalV1,
+  value: AgentSessionDiagnosticV1,
 ): CreatorAgentTerminalRunV1 | FailedTerminalProjectionV1 {
   const remoteCode = value.path.startsWith("/remote/") ? value.path.slice("/remote/".length) : "";
   if (remoteCode === "cancelled" || remoteCode === "replaced") {
@@ -468,13 +487,12 @@ export function createBrowserCreatorAgentPortV1(
   let providerCredentialConfigured = false;
   let configuredEffectiveReasoningEffort: BrowserPiReasoningEffortV1 | null = null;
   let credentialRevoked = false;
-  const transport = createBrowserPiWorkerRawTransportV1({
+  const connector = createBrowserPiWorkerConnectorV1({
     ...input,
     workspaceAuthority,
     onConnectionLost: () => {
       if (!providerCredentialConfigured) return;
-      providerCredentialConfigured = false;
-      configuredEffectiveReasoningEffort = null;
+      retireCredentialOwnerV1(false);
       if (!terminal) {
         connectionFailureDiagnostic = diagnosticV1("connection_failed", "/connection");
         failFacadeV1(connectionFailureDiagnostic);
@@ -486,11 +504,11 @@ export function createBrowserCreatorAgentPortV1(
       }
     },
   });
-  const client = createAgentRpcClientInternalV1({ transport });
+  const client = createAgentSessionClientV1({ connector });
   const listeners = new Set<() => void>();
   const trackedByProductRunId = new Map<string, TrackedCreatorAgentRunV1>();
   const trackedByPiRun = new Map<string, TrackedCreatorAgentRunV1>();
-  const pendingStreamEvents = new Map<string, AgentRpcStreamEventInternalV1[]>();
+  const pendingStreamEvents = new Map<string, AgentSessionStreamEventV1[]>();
   const pendingWorkspaceReceipts = new Map<
     string,
     BrowserPiWorkspaceMutationReceiptWireV1[]
@@ -523,6 +541,7 @@ export function createBrowserCreatorAgentPortV1(
   let configurePromise: Promise<CreatorAgentConfigureCredentialResultV1> | null = null;
   let testConnectionPromise: Promise<CreatorAgentTestConnectionResultV1> | null = null;
   let finishPromise: Promise<void> | null = null;
+  let unsubscribeClientSnapshots: (() => void) | null = null;
   let unsubscribeWorkspaceReceipts: (() => void) | null = null;
   let unsubscribeWorkspaceFailures: (() => void) | null = null;
   let snapshot!: CreatorAgentSnapshotV1;
@@ -606,6 +625,18 @@ export function createBrowserCreatorAgentPortV1(
     candidate = null;
     diagnostic = nextDiagnostic;
     publish();
+  };
+  const retireCredentialOwnerV1 = (closeConnector: boolean): boolean => {
+    if (credentialRevoked) return false;
+    credentialRevoked = true;
+    lifecycleEpoch += 1;
+    providerCredentialConfigured = false;
+    configuredEffectiveReasoningEffort = null;
+    sessionId = null;
+    workspaceExportAbort?.abort();
+    workspaceExportAbort = null;
+    if (closeConnector) connector.revokeCredential();
+    return true;
   };
   const failWorkspaceV1 = (nextDiagnostic: CreatorAgentWorkspaceDiagnosticV1): void => {
     workspacePhase = "failed";
@@ -762,11 +793,11 @@ export function createBrowserCreatorAgentPortV1(
 
   const handleStreamEventV1 = (
     tracked: TrackedCreatorAgentRunV1,
-    event: AgentRpcStreamEventInternalV1,
+    event: AgentSessionStreamEventV1,
   ): void => {
     if (!trackedByProductRunId.has(tracked.run.agentRunId)) return;
     switch (event.kind) {
-      case "artifact_chunk":
+      case "output_text_delta":
         if (tracked.draft.length + event.text.length > creatorAgentFinalReplyMaximumCharactersV1) {
           const nextDiagnostic = diagnosticV1("draft_too_large", "/draft");
           settleTrackedRunV1(
@@ -787,8 +818,8 @@ export function createBrowserCreatorAgentPortV1(
           publish();
         }
         return;
-      case "artifact_complete": {
-        const admitted = admitCreatorProgramRevisionCandidateV1(event.candidate);
+      case "output_data": {
+        const admitted = admitCreatorProgramRevisionCandidateV1(event.value);
         if (
           admitted.kind === "rejected" || tracked.candidate !== null ||
           !matchesRunV1(admitted.value, tracked.run)
@@ -854,7 +885,7 @@ export function createBrowserCreatorAgentPortV1(
 
   const bufferStreamEventV1 = (
     key: string,
-    event: AgentRpcStreamEventInternalV1,
+    event: AgentSessionStreamEventV1,
   ): void => {
     if (pendingStreamEventCount >= creatorAgentPendingStreamEventMaximumV1) {
       failFacadeV1(diagnosticV1("protocol_invalid", "/streamBuffer"));
@@ -878,7 +909,59 @@ export function createBrowserCreatorAgentPortV1(
     }
   };
 
-  client.subscribeStream((event: AgentRpcStreamEventInternalV1) => {
+  let lastHandledSessionDiagnostic: AgentSessionDiagnosticV1 | null = null;
+  unsubscribeClientSnapshots = client.subscribe(() => {
+    if (terminal) return;
+    const sessionDiagnostic = client.getSnapshot().diagnostic;
+    if (sessionDiagnostic === null) {
+      lastHandledSessionDiagnostic = null;
+      return;
+    }
+    if (sessionDiagnostic === lastHandledSessionDiagnostic) return;
+    lastHandledSessionDiagnostic = sessionDiagnostic;
+    if (!isFatalBrowserConnectorStreamDiagnosticV1(sessionDiagnostic)) return;
+
+    // The public Session intentionally does not attach product or wire identity
+    // to rejected records. Invalid, oversized, or out-of-order records are fatal
+    // for this ordered Browser Worker channel, so invalidate every product run
+    // on the connector instead of duplicating Engine sequence admission or
+    // guessing which Program run was affected.
+    const nextDiagnostic = mapEngineDiagnosticV1(sessionDiagnostic);
+    connectionFailureDiagnostic = nextDiagnostic;
+    const retired = retireCredentialOwnerV1(true);
+    const interrupted = [...trackedByProductRunId.values()];
+    const acceptedRuns: TrackedCreatorAgentRunV1[] = [];
+    for (const tracked of interrupted) {
+      if (tracked.piRunId === null) removeTrackedRunV1(tracked);
+      else acceptedRuns.push(tracked);
+    }
+    if (acceptedRuns.length === 0) {
+      failFacadeV1(nextDiagnostic);
+      return;
+    }
+    for (const tracked of acceptedRuns) {
+      const piRunId = tracked.piRunId;
+      if (piRunId === null) continue;
+      settleTrackedRunV1(
+        tracked,
+        Object.freeze({
+          run: tracked.run,
+          outcome: "failed",
+          diagnosticCode: "protocol_invalid",
+        }),
+        nextDiagnostic,
+      );
+    }
+    if (retired) {
+      try {
+        notifyConnectionLost?.();
+      } catch {
+        // The product observer cannot alter connector retirement.
+      }
+    }
+  });
+
+  client.subscribeStream((event: AgentSessionStreamEventV1) => {
     if (terminal) return;
     const key = piRunKeyV1(event.sessionId, event.runId);
     const tracked = trackedByPiRun.get(key);
@@ -893,7 +976,7 @@ export function createBrowserCreatorAgentPortV1(
     handleStreamEventV1(tracked, event);
   });
 
-  unsubscribeWorkspaceReceipts = transport.subscribeWorkspaceReceipts((receipt) => {
+  unsubscribeWorkspaceReceipts = connector.subscribeWorkspaceReceipts((receipt) => {
     if (terminal) return;
     const key = piRunKeyV1(receipt.sessionId, receipt.runId);
     const tracked = trackedByPiRun.get(key);
@@ -912,7 +995,7 @@ export function createBrowserCreatorAgentPortV1(
     projectWorkspaceReceiptV1(tracked, receipt);
   });
 
-  unsubscribeWorkspaceFailures = transport.subscribeWorkspaceFailures((failure) => {
+  unsubscribeWorkspaceFailures = connector.subscribeWorkspaceFailures((failure) => {
     if (terminal) return;
     const current = workspaceDescriptor;
     const exactWorkspace = current === null ||
@@ -964,9 +1047,9 @@ export function createBrowserCreatorAgentPortV1(
   });
 
   const configureCredentialWithV1 = (
-    begin: () => ReturnType<BrowserPiWorkerRawTransportV1["configureCredential"]>,
+    begin: () => ReturnType<BrowserPiWorkerConnectorV1["configureCredential"]>,
   ): Promise<CreatorAgentConfigureCredentialResultV1> => {
-    if (terminal || finishPromise !== null) {
+    if (terminal || finishPromise !== null || credentialRevoked) {
       return Promise.resolve({ kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") });
     }
     if (providerCredentialConfigured && configuredEffectiveReasoningEffort !== null) {
@@ -1034,7 +1117,7 @@ export function createBrowserCreatorAgentPortV1(
   ): Promise<CreatorAgentConfigureCredentialResultV1> => {
     let credential = apiKey;
     const result = configureCredentialWithV1(() => {
-      const configuration = transport.configureCredential(credential);
+      const configuration = connector.configureCredential(credential);
       credential = "";
       return configuration;
     });
@@ -1046,7 +1129,7 @@ export function createBrowserCreatorAgentPortV1(
     readonly binding: CredentialVaultBindingV2;
     readonly handoff: BrowserPiCredentialHandoffV1;
   }): Promise<CreatorAgentConfigureCredentialResultV1> =>
-    configureCredentialWithV1(() => transport.configureCredentialHandoff(handoffInput));
+    configureCredentialWithV1(() => connector.configureCredentialHandoff(handoffInput));
 
   const testConnection = (
     selection?: BrowserPiModelSelectionV1 | null,
@@ -1074,7 +1157,7 @@ export function createBrowserCreatorAgentPortV1(
       publish();
     }
     const attempt = (async (): Promise<CreatorAgentTestConnectionResultV1> => {
-      const tested = await transport.testConnection(selection);
+      const tested = await connector.testConnection(selection);
       if (terminal || lifecycleEpoch !== expectedEpoch) {
         return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
       }
@@ -1114,9 +1197,9 @@ export function createBrowserCreatorAgentPortV1(
       };
     }
     const expectedEpoch = lifecycleEpoch;
-    let result: Awaited<ReturnType<BrowserPiWorkerRawTransportV1["selectModel"]>>;
+    let result: Awaited<ReturnType<BrowserPiWorkerConnectorV1["selectModel"]>>;
     try {
-      result = await transport.selectModel(selection);
+      result = await connector.selectModel(selection);
     } catch {
       return {
         kind: "unavailable",
@@ -1164,9 +1247,9 @@ export function createBrowserCreatorAgentPortV1(
       };
     }
     const expectedEpoch = lifecycleEpoch;
-    let result: Awaited<ReturnType<BrowserPiWorkerRawTransportV1["setReasoningEffort"]>>;
+    let result: Awaited<ReturnType<BrowserPiWorkerConnectorV1["setReasoningEffort"]>>;
     try {
-      result = await transport.setReasoningEffort(preferredReasoningEffort);
+      result = await connector.setReasoningEffort(preferredReasoningEffort);
     } catch {
       return {
         kind: "unavailable",
@@ -1252,7 +1335,7 @@ export function createBrowserCreatorAgentPortV1(
           diagnostic: workspaceDiagnosticV1("disposed", "/"),
         };
       }
-      const result = await transport.openWorkspace(raw);
+      const result = await connector.openWorkspace(raw);
       adoptWorkspaceSnapshotV1(result);
       publish();
       return { kind: "opened", descriptor: workspaceDescriptorV1(result) };
@@ -1314,7 +1397,7 @@ export function createBrowserCreatorAgentPortV1(
     workspaceDiagnostic = null;
     publish();
     try {
-      const result = await transport.closeWorkspace(descriptor.workspaceSessionId);
+      const result = await connector.closeWorkspace(descriptor.workspaceSessionId);
       if (result.workspaceSessionId !== descriptor.workspaceSessionId) {
         throw new TypeError("sillyos.creator_agent.workspace_close_mismatch");
       }
@@ -1365,7 +1448,7 @@ export function createBrowserCreatorAgentPortV1(
     }
     workspaceControlBusy = true;
     try {
-      const result = await transport.acknowledgeWorkspaceReceipts({
+      const result = await connector.acknowledgeWorkspaceReceipts({
         workspaceSessionId: descriptor.workspaceSessionId,
         throughSequence,
       });
@@ -1470,7 +1553,7 @@ export function createBrowserCreatorAgentPortV1(
     }
     const expectedEpoch = lifecycleEpoch;
     try {
-      await transport.replaceNetworkAccess({
+      await connector.replaceNetworkAccess({
         access: admitted.value,
         workspaceSessionId: descriptor.workspaceSessionId,
       });
@@ -1502,7 +1585,9 @@ export function createBrowserCreatorAgentPortV1(
       }
       // Keep subscriptions and Pi-to-product correlation alive until close has
       // drained its final receipt and Agent terminal records.
-      await transport.forget().catch(() => undefined);
+      await connector.forget().catch(() => undefined);
+      unsubscribeClientSnapshots?.();
+      unsubscribeClientSnapshots = null;
       await client.dispose().catch(() => undefined);
       unsubscribeWorkspaceReceipts?.();
       unsubscribeWorkspaceReceipts = null;
@@ -1552,14 +1637,8 @@ export function createBrowserCreatorAgentPortV1(
     acknowledgeWorkspaceReceipts,
     exportWorkspace,
     revokeCredential(): void {
-      if (terminal || credentialRevoked) return;
-      credentialRevoked = true;
-      lifecycleEpoch += 1;
-      providerCredentialConfigured = false;
-      configuredEffectiveReasoningEffort = null;
-      workspaceExportAbort?.abort();
-      workspaceExportAbort = null;
-      transport.revokeCredential();
+      if (terminal) return;
+      retireCredentialOwnerV1(true);
     },
     async submit(rawRun: CreatorAgentRunRequestV1): Promise<CreatorAgentPortSubmitResultV1> {
       if (terminal || finishPromise !== null) {
@@ -1657,7 +1736,7 @@ export function createBrowserCreatorAgentPortV1(
       }
       const admittedSubmit = await (async () => {
         try {
-          // This product facade, not the lower raw Pi transport, owns submit
+          // This product facade, not the semantic Pi connector, owns submit
           // admission. Holding the shared Authority operation through the RPC
           // response prevents submit from crossing a review-head/Repository CAS.
           const result = await workspaceAuthority.withAgentSubmitAdmission({
@@ -1667,7 +1746,7 @@ export function createBrowserCreatorAgentPortV1(
             expectedRepositoryRevision: normalized.run.baseRepositoryRevision,
             expectedGeneration: submitWorkspace.generation,
             operation: async (access) => {
-              await transport.replaceNetworkAccess({
+              await connector.replaceNetworkAccess({
                 access,
                 workspaceSessionId: submitWorkspace.workspaceSessionId,
               });
@@ -1693,7 +1772,12 @@ export function createBrowserCreatorAgentPortV1(
       const result = admittedSubmit.result;
       if (terminal || lifecycleEpoch !== expectedEpoch) {
         removeTrackedRunV1(tracked);
-        return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+        return {
+          kind: "unavailable",
+          diagnostic: terminal
+            ? diagnosticV1("disposed", "/")
+            : connectionFailureDiagnostic ?? diagnosticV1("disposed", "/"),
+        };
       }
       if (!trackedByProductRunId.has(tracked.run.agentRunId)) {
         return {

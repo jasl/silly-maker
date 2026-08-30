@@ -22,7 +22,7 @@ const submitV1: CreatorAgentSubmitV1 = {
 };
 
 describe("SillyOS Creator Agent product admission", () => {
-  it("serializes the exact submit contract inside the engine RPC text field", () => {
+  it("serializes the exact submit contract inside the public Agent Session text field", () => {
     const text = serializeCreatorAgentSubmitV1(submitV1);
 
     expect(text).toBe(JSON.stringify(submitV1));
@@ -77,7 +77,7 @@ describe("SillyOS Creator Agent product admission", () => {
     expect(getterCalls).toBe(0);
   });
 
-  it("rejects malformed and oversized engine RPC submit text", () => {
+  it("rejects malformed and oversized public Agent Session submit text", () => {
     expect(admitCreatorAgentSubmitTextV1("not json")).toEqual({
       kind: "rejected",
       path: "/",

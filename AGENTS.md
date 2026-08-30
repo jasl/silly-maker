@@ -39,8 +39,12 @@ Read only the documents relevant to the change:
   `docs/engine/plans/2026-08-30-sillyos-neutral-engine-handback.md`: it
   promoted only the transport/provider-neutral Session/Run
   client and connector to public `@sillymaker/agent/session`; raw request/wire,
-  Agent Host, UiArtifact and deterministic fake remain private, and the SillyOS
-  downstream migration has not yet been handed off. No successor lane is active.
+  Agent Host, UiArtifact and deterministic fake remain private. SillyOS has
+  completed its downstream connector migration without widening that public
+  contract or activating a successor lane. The downstream review records one
+  inactive neutral candidate for reporting asynchronous post-ready connection
+  loss; the current product fallback remains local and no Engine API change is
+  authorized.
   The preceding completed lane is
   `docs/engine/plans/2026-08-29-production-mod-v1.md`: it promoted the selected
   build-time trusted Mod contract to public `@sillymaker/composition/mod`, kept
@@ -203,10 +207,10 @@ Read only the documents relevant to the change:
   single-companion bridge: the complete Template Author graph excludes Agent/RPC,
   while Engine Lab selects the private Agent companion explicitly. The Studio
   manifest keeps a workspace Agent dependency for that opt-in entry, but final
-  module/source structural exclusion is proved. The active 2026-08-30 handback
-  lane later promotes only the semantic Session/Run client/connector at
+  module/source structural exclusion is proved. The completed 2026-08-30 handback
+  lane later promoted only the semantic Session/Run client/connector at
   `@sillymaker/agent/session`; Host/UiArtifact/fake remain private and SillyOS has
-  not yet migrated. AR5 Browser physical evidence is
+  since completed its product-owned downstream migration. AR5 Browser physical evidence is
   intentionally limited to contract-level R1 rejection/retry, shared-presentation
   Player R2 + Authoring R1, and Application R3 recovery; deeper Agent/currentness
   details stay in unit/headless contracts. The one-off paired performance runner

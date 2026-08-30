@@ -1,7 +1,7 @@
 # Neutral Agent Session/Run 与 SillyOS Engine Handback 计划
 
-状态：**2026-08-30 经所有者接受并完成 M0–M3 的公共 Agent Session/Run engine slice；SillyOS
-产品迁移等待其并行 UI foundation worktree 完成后 handoff，当前没有自动激活的后继。**
+状态：**2026-08-30 经所有者接受并完成 M0–M3 的公共 Agent Session/Run engine slice；
+SillyOS 随后完成独立 downstream handoff，当前没有自动激活的后继。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口。本计划以
 SillyOS 的真实产品实现作为第二消费者证据，但交付边界必须保持 GUI 应用、游戏和 provider 中立。落盘的
@@ -85,19 +85,24 @@ transport-neutral Session/Run seam 提升为受支持公共合同的真实第二
   private import 残留和无依据通用框架；
 - 完成后把本计划记为 engine slice closed；SillyOS downstream handoff 保持独立、可继续执行的清单。
 
-## 4. SillyOS downstream handoff checklist
+## 4. SillyOS downstream handoff record
 
-此清单等待并行 UI foundation worktree 完成后执行，不是 M0–M3 关闭门槛：
+此清单不是 M0–M3 关闭门槛。并行 UI foundation 和 DS1 关闭后，已按原边界执行：
 
-1. handoff 或接管 SillyOS task，先保留其已完成 UI foundation 与 dirty-state ownership；
+1. 以命名恢复分支保留完整 DS1 提交基线，并在干净 worktree 上吸收引擎提交；
 2. Browser Pi connector 和 Creator Agent port 改用 `@sillymaker/agent/session`，删除
    `@sillymaker/agent/internal` 的 RPC imports；
-3. 产品 connector 映射自己的 Worker request/response/event wire；Engine 不认识 Worker protocol；
+3. 产品 connector 保留自己的 Worker request/response/event wire；Engine 不认识 Worker protocol；
 4. 当前固定 Creator 提示继续由产品 connector 拥有；Program bootstrap 与 resource message part 只有在真实
    Program/附件纵切确定合同后才单独激活；
 5. Program candidate 由 `output_data` 到达并由 SillyOS admission；普通文本由 `output_text_delta` 到达；
-6. 重跑 SillyOS Provider/Worker/currentness/cancel/forget/close 与 UI foundation evidence；
-7. 只有真实迁移完成后，才把 SillyOS DESIGN/PLAN/README 中的 private-engine 表述改成 delivered public contract。
+6. SillyOS Provider/Worker/currentness/cancel/forget/close 与 UI foundation evidence 作为产品候选门继续验证；
+7. SillyOS DESIGN/PLAN/README 与引擎当前文档已改为 delivered public Session 消费者，同时保留
+   private Host/`UiArtifact` 和产品 Worker wire 的边界；
+8. downstream 候选通过 SillyOS 77 个文件 / 640 个单元测试、Chromium + WebKit 产品 E2E 51 项通过 / 1 项
+   runner 条件式 characterization 跳过、三类 Browser artifact build/security check，以及仓库总检查的 475 个文件 /
+   6,198 个测试；pinned React Doctor 从 10 errors / 58 warnings 收敛为 0 errors / 54 项已逐类审阅的
+   warnings，未为清零 heuristic 重写产品状态机。
 
 ## 5. 条件式后续候选
 
@@ -105,6 +110,7 @@ transport-neutral Session/Run seam 提升为受支持公共合同的真实第二
 
 | Candidate                            | 激活证据                                                                              | 最小中立提升                                                                    | Stop rule                                                     |
 | ------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Asynchronous connection loss         | 已 ready 且无 pending call 时，真实 connector 可异步失去底层连接                      | connector 发出一次中立 closed signal；client 统一 generation fencing 与 status  | 不暴露 Worker、credential、provider、workspace 或产品恢复策略 |
 | Session bootstrap / resource message | 一个真实 Program process 需固定 revision，或一个真实附件纵切不能由 connector 局部表达 | versioned bootstrap 或 immutable opaque resource reference，分别 admission      | 不暴露 prompt、路径、URL、Blob、provider 或产品 storage       |
 | Multi-attachment Host intake         | 翻译 Program 需要一次选择多个真实文件                                                 | bounded `selectMany`，保留名称、媒体类型、每文件与总字节预算                    | 一旦需要目录/VFS/数据库，退回 SillyOS 产品层                  |
 | OpenUI / UiArtifact                  | 一个真实翻译流程完成动态 UI 闭环                                                      | immutable revision、catalog identity、CAS/currentness、intent routing、fallback | 不把 OpenUI schema、产品组件或业务 mutation 放进 Base         |
@@ -153,5 +159,11 @@ ABA 复用，以及 reconnect/concurrent-dispose 对同一 async close barrier �
 - 独立 diff review 的 terminal-before-observer、same-session ABA、in-flight close join 与 concurrent dispose
   findings 均有先失败后通过的回归。
 
-本关闭记录不宣称 SillyOS 已迁移，也不激活 §5 的 bootstrap、附件、OpenUI、portal、Mod restore 或
-resource-source 候选。后续 handoff 应从 §4 继续，而不是重新定义 Engine Session/Run。
+本 M0–M3 关闭证据在当时不宣称 SillyOS 已迁移。随后的 downstream handoff 已按 §4
+完成，不重新定义 Engine Session/Run，也不激活 §5 的 bootstrap、附件、OpenUI、portal、Mod
+restore 或 resource-source 候选。
+
+downstream 终审同时确认 asynchronous connection loss 是一个中立 handback 候选：当前公共
+`AgentSessionConnectorV1` 只有 event sink，无法在 ready 后且没有 pending operation 时通知 client
+连接已丢失；SillyOS 目前用产品私有 `onConnectionLost` callback 正确兜底。此发现不阻塞当前产品迁移，
+也不授权本分支扩公共 API；应在后续独立 Engine lane 先以纯 connector 复现，再决定是否激活 §5 对应候选。

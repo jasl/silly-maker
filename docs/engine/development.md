@@ -363,8 +363,9 @@ Authoring R1, and Application R3 reload/recovery. Dirty Authoring and the explic
 held Agent are checked as visible behavior; internal Host/session/run/connection/Artifact identity,
 CAS, and detailed failure/currentness stay in the focused unit/headless suites. None of these is
 real-backend, OpenUI/A2UI, persistence, Desktop, or universal physical failure/rollback evidence.
-Keep `features.md` aligned with the public Session contract while describing the Host/UiArtifact
-vertical slice and SillyOS downstream migration as private or pending.
+Keep `features.md` aligned with the public Session contract. Describe the Host/UiArtifact vertical
+slice as private and the SillyOS downstream connector as a product-owned public-Session consumer;
+never present its Worker wire, Pi/provider binding, or Program semantics as Engine API.
 
 ### Addressable runtime unit workflow
 

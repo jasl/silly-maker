@@ -142,8 +142,10 @@ origin；静态 Cloudflare Worker 不接收、同步或备份，换 origin 或�
   Host、`UiArtifact` admission/renderer、deterministic fake、conversation persistence、tool/permission、
   OpenUI/A2UI 或 external-effect authority。Engine Lab 的 private Host 仅把中立 `output_data` 解释为
   `UiArtifact`；该语义不属于 Session 合同。
-- SillyOS 的并行产品实现提供了 promotion 压力，但 downstream connector 迁移尚未 handoff。当前公共合同
-  因此不能被描述为已经接通 Pi/provider、Program bootstrap、附件、数据库或动态 UI 产品闭环。
+- SillyOS 已完成 downstream connector 迁移：Browser connector 使用公共 Session 语义
+  调用映射产品私有 Worker wire，Creator facade 再将中立 `output_data` 解释为已准入的
+  Program candidate。这是真实 Pi/provider 产品消费者证据，但不把 Worker/provider wire、
+  Program bootstrap、附件、数据库、tool 或动态 UI 提升为引擎合同。
 
 ## Internal composition kernel
 

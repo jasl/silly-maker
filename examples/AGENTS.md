@@ -62,8 +62,15 @@ framework, Workspace/API, or engine change. DS1c-3 then converges the explicit
 built-in/custom Provider catalog row, separates credential persistence from the
 optional point-in-time connection diagnostic, removes the repeated Vault panel
 heading, and shares one closed presentational collection-state recipe without
-creating an async-state or Settings framework. DS1d–DS1e own full surface
-migration, dead styles, responsive/visual fixtures, and final closure.
+creating an async-state or Settings framework. DS1d–DS1e then completed the
+surface-style ownership split, removed dead shared variants, and closed the
+responsive/visual evidence. DS1 is closed locally. The product has since
+completed the downstream handoff to public `@sillymaker/agent/session`: the
+Engine owns transport/provider-neutral Session/Run lifecycle and currentness;
+the SillyOS Browser connector still owns its Worker wire and Pi binding, while
+the Creator facade owns Program-candidate admission, product run correlation,
+Repository/Workspace CAS, and durable terminal projection. Private Agent Host,
+`UiArtifact`, and deterministic-fake APIs remain unselected.
 Product-scoped Tailwind
 CSS 4 utilities run without Preflight or
 global generated theme/property output. Shadcn-derived focused Radix

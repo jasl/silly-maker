@@ -45,7 +45,7 @@ export interface ProgramProposalV1 extends ProgramProposalReferenceV1 {
   readonly status: ProgramProposalStatusV1;
 }
 
-/** Product payload serialized into the engine Agent RPC submit text field. */
+/** Product payload serialized into the public Agent Session submit text field. */
 export interface CreatorAgentSubmitV1 {
   readonly revision: 1;
   readonly proposalId: string;

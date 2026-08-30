@@ -194,8 +194,9 @@ At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
 S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2/N3, the original S3, S3-R1,
 D1, P1-B1d reasoning effort, E0 engine-baseline absorption, and DS1 are closed
 locally. The current local source is rebased onto engine baseline
-`31461f362129e6192f70553a261ada225c2abf8b`. No subsequent product or Mod phase
-is active. The current build-matched
+`1bef892822a88dccc8752ce5c44c846753e2ea8a` and has completed the downstream
+handoff to public `@sillymaker/agent/session`. No subsequent product or Mod
+phase is active. The current build-matched
 three-origin artifact and fixed Vault Worker are deployed from commit
 `a17c3490c9940bb43fc8718df485322c2dee1052` (Sandbox
 `fb703131-3e37-4e7d-95f4-5b7afa9160cd`, Broker
@@ -515,25 +516,25 @@ each engine). Desktop and 390px in-app Browser inspection found no horizontal
 overflow. DS1d–DS1e remained active at that checkpoint and are now closed.
 
 DS1d delivered the product-surface ownership split without changing information
-architecture or domain contracts. Creator (`95a6ba85`, with IME follow-up
-`fd443eea`), Settings (`018b84fe`), Provider Settings (`c3ea0d32`), Chat
-(`88efc015`), Workspace View (`35dc3c75`), and Activity (`817051f3`, with
-localized event copy in `dc17ab75`) now load explicit surface styles after the
+architecture or domain contracts. Creator (`cac56d83`, with IME follow-up
+`3cfc0807`), Settings (`80e933ad`), Provider Settings (`27122b1e`), Chat
+(`d5120879`), Workspace View (`21a9fb9b`), and Activity (`2db5e631`, with
+localized event copy in `0f21a46c`) now load explicit surface styles after the
 shared recipes. The residual stylesheet no longer contains those surface
 selectors. Product vocabulary stays in those concrete surfaces instead of a
 generic page or workflow framework.
 
 DS1e closes the local lane with unused shared-control option removal
-(`6b4acba7`), dark semantic contrast qualification (`9d5bfe6a`), ordinary
-Retry convergence (`96416f8c`), bounded preference-admission cleanup
-(`c51d87c7`), and retention of the real warning/danger proposal Badge consumers
-(`01f0a310`). The
+(`f27463f7`), dark semantic contrast qualification (`5c555595`), ordinary
+Retry convergence (`999f4a23`), bounded preference-admission cleanup
+(`bd358f99`), and retention of the real warning/danger proposal Badge consumers
+(`a32499d9`). The
 responsive evidence covers 1600×1000, 1280×800, 1024×520, a documented 200%
 CSS-pixel reflow proxy, the 768/767 mode boundary, 390×844, and 320×568; it also
 covers pointer and keyboard pane resizing, long mixed English/Chinese content,
 modal reachability, 44px phone navigation targets, and page-overflow guards.
 Three representative workspace states have exact Chromium and WebKit CSS-pixel
-goldens (`1d4fdd6e`, corrected to faithful viewport capture in `83a0a816`), and
+goldens (`a71ffdea`, corrected to faithful viewport capture in `0e11f83b`), and
 the focused dual-engine DS1 set passes 14/14. A separate Chromium touch project
 proves touch input; WebKit evidence is narrow-layout rather than touch-device
 qualification. Same-viewport in-app Browser comparisons over Creator Home,
@@ -559,6 +560,52 @@ settings information architecture, Creator composers, workpiece layouts, and
 product-specific component recipes stay in `examples/silly-os`. Product-only
 Tailwind/Radix dependencies do not enter the engine packages merely because
 SillyOS uses them.
+
+### E1 — public Agent Session downstream handoff (closed locally 2026-08-30)
+
+After DS1 closed, the branch rebased onto exact engine commit
+`1bef892822a88dccc8752ce5c44c846753e2ea8a` and replaced its dependency on the
+removed private Agent RPC aliases with the focused public
+`@sillymaker/agent/session` contract. The Engine client owns only
+transport/provider-neutral connection, Session/Run lifecycle, currentness,
+ordered stream admission, cancel/reconnect diagnostics, and awaited disposal.
+
+The product boundary remains narrower than the old generic raw request seam:
+
+1. `BrowserPiWorkerConnectorV1` implements the public semantic
+   `start`/`submit`/`cancel`/`close` connection while retaining the private
+   Worker envelope, request IDs, Pi configuration, credential handoff,
+   workspace/network ports, and submit-response/event ordering inside SillyOS;
+2. the fixed Worker emits neutral `output_text_delta`, `output_data`, and Run
+   terminal events; `output_data` remains inert Strict JSON until the Creator
+   facade admits it as a Program revision candidate;
+3. `CreatorAgentPortV1` continues to own product-run/Pi-run correlation,
+   Repository and Workspace currentness/CAS, proposal streaming state, and
+   durable terminal projection; a fatal invalid/oversized/gapped record retires
+   that ordered Browser connector before any later product run can start; and
+4. private Agent Host, `UiArtifact`, deterministic fake, bootstrap/resource
+   messages, OpenUI, Mod composition, and every later product phase remain
+   inactive.
+
+This handoff changes no user-visible workflow and adds no new SillyMaker API.
+The fixed Pi loop, Provider/model/tool authority, Browser Worker protocol,
+Program semantics, and Workspace execution remain product-owned adapters around
+the neutral Engine Session seam.
+
+Final downstream evidence is 77 SillyOS test files / 640 tests, 51 passing
+Chromium + WebKit product E2E cases with one expected runner-conditional
+characterization skip, all three Browser artifact build/security checks, and the
+complete repository check at 475 files / 6,198 tests. Pinned React Doctor
+finishes with 0 errors and 54 reviewed warnings; ordered filesystem/lifecycle
+work and bounded state machines were not rewritten merely to satisfy heuristics.
+
+The final boundary audit found one neutral, non-blocking Engine handback
+candidate: a connector can lose an already-ready connection asynchronously when
+there is no pending operation, while the public Session connector currently has
+no closed signal. SillyOS retains its product-private `onConnectionLost`
+fallback. This branch does not extend the public API; a later Engine lane must
+first reproduce the behavior with a pure connector and own any client status /
+generation-fencing contract.
 
 ### M0 — first SillyOS public Mod consumer (inactive and evidence-gated)
 
@@ -2624,15 +2671,20 @@ companion transport lands. This launcher is useful for development and Desktop;
 deployed Browser configuration uses the P1-B UI and never reads server `.env`,
 desktop process environment, or CLI arguments.
 
-`CreatorAgentPortV1` remains the product facade. Its single engine-projection
-adapter may reuse the workspace-private `@sillymaker/agent/internal` currentness
-implementation only where its existing contract fits exactly. Its types do not
-enter Program data or become the SillyOS wire, and they are not promoted as a
-public Agent ABI. The complete internal Agent Host is not used merely because a
-Program proposal is not a generated UI artifact.
+`CreatorAgentPortV1` remains the product facade. The Browser connector implements
+the public `@sillymaker/agent/session` semantic connection while keeping the
+product-private Worker envelope, Pi binding, credentials, workspace/network
+ports, and request correlation inside SillyOS. The Engine client owns only
+Session/Run lifecycle, currentness, ordered stream admission, cancel/reconnect,
+diagnostics, and awaited disposal. The Creator facade interprets admitted
+`output_data` as a Program candidate and retains product-run correlation,
+Repository/Workspace CAS, and durable terminal projection. None of those
+product types becomes the SillyOS wire or a public Agent ABI, and the private
+Agent Host is not selected merely because a Program proposal is not a generated
+UI artifact.
 
 The companion still owns the real network/raw transport, server-side admission,
-Pi JSONL parsing, and child-process correlation; the private engine package does
+Pi JSONL parsing, and child-process correlation; the public Agent Session package does
 not provide those pieces. It buffers Pi stream records until the matching prompt
 response settles as accepted and only then forwards that run's first event. It
 maps records into text, the one named Creator tool result, final, failure, and

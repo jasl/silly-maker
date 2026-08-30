@@ -1799,40 +1799,58 @@ test("a follow-up creates a new exact Program revision for review", async ({ dur
   await expect(page.getByText("Created Program proposal v2", { exact: true })).toBeVisible();
 });
 
-test("two pages keep the durable winner when one submits a stale revision", async ({ durableProgramPage: page }) => {
+test("a second page cold-reopens the durable winner while one owns its Workspace", async ({ durableProgramPage: page }) => {
   const firstWorkspace = await openTranslationWorkspaceV1(page);
   const programId = await readProgramIdV1(firstWorkspace);
 
-  const stalePage = await page.context().newPage();
-  await stalePage.goto(sillyOsTargetUrlV1("?locale=en"));
-  await expectProgramStorageReadyV1(stalePage);
-  const staleWorkspace = await openRecentTranslationProgramV1(stalePage, {
+  const secondPage = await page.context().newPage();
+  await secondPage.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
+  await expectProgramStorageReadyV1(secondPage);
+  await initializePiTestV1(secondPage, "sillyos-workspace-contender-key");
+  const secondWorkspace = await openRecentTranslationProgramV1(secondPage, {
     programId,
     revision: 1,
     status: "Preview",
   });
 
-  const winningFollowUp = "Preserve the winner selected by the first page.";
-  await page.getByRole("textbox", { name: "Ask for a change…" }).fill(winningFollowUp);
-  await page.getByRole("button", { name: "Send" }).click();
-  await expectProgramStorageReadyV1(page);
-  await expect(firstWorkspace).toHaveAttribute("data-program-revision", "2");
+  const first = { page, workspace: firstWorkspace };
+  const second = { page: secondPage, workspace: secondWorkspace };
+  await expect.poll(async () => {
+    return (await Promise.all(
+      [first, second].map(async ({ workspace }) =>
+        String(await workspace.getAttribute("data-execution-workspace-state")) + ":" +
+        (await workspace.getAttribute("data-execution-workspace-diagnostic") ?? "")
+      ),
+    )).sort();
+  }).toEqual(["failed:workspace_busy", "open:"]);
+  const owner = await firstWorkspace.getAttribute("data-execution-workspace-state") === "open"
+    ? first
+    : second;
+  const contender = owner === first ? second : first;
 
-  const staleFollowUp = "This stale page must not replace the durable winner.";
-  await stalePage.getByRole("textbox", { name: "Ask for a change…" }).fill(staleFollowUp);
-  await stalePage.getByRole("button", { name: "Send" }).click();
-  await expect(stalePage.locator('[data-program-storage-state="failed"]')).toBeVisible();
-  await expect(
-    stalePage.getByRole("alert").filter({
-      hasText: "Another page updated this Program. The durable version has been reopened.",
-    }),
-  ).toBeVisible();
-  await expect(staleWorkspace).toHaveAttribute("data-program-revision", "2");
-  await expect(stalePage.getByText(winningFollowUp, { exact: true })).toBeVisible();
-  await expect(
-    stalePage.locator('[data-chat-role="user"]').getByText(staleFollowUp, { exact: true }),
-  ).toHaveCount(0);
-  await stalePage.close();
+  const winningFollowUp = "Preserve the winner selected by the first page.";
+  await owner.page.getByRole("textbox", { name: "Ask for a change…" }).fill(winningFollowUp);
+  await owner.page.getByRole("button", { name: "Send" }).click();
+  await expectProgramStorageReadyV1(owner.page);
+  await expect(owner.workspace).toHaveAttribute("data-program-revision", "2");
+
+  await contender.page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
+  await expectProgramStorageReadyV1(contender.page);
+  await initializePiTestV1(contender.page, "sillyos-stale-contender-reopen-key");
+  await openRecentTranslationProgramV1(contender.page, {
+    programId,
+    revision: 2,
+    status: "Preview",
+  });
+  await expect(contender.workspace).toHaveAttribute("data-execution-workspace-state", "failed");
+  await expect(contender.workspace).toHaveAttribute(
+    "data-execution-workspace-diagnostic",
+    "workspace_busy",
+  );
+  await expect(contender.page.getByRole("textbox", { name: "Ask for a change…" })).toBeDisabled();
+  await expect(contender.workspace).toHaveAttribute("data-program-revision", "2");
+  await expect(contender.page.getByText(winningFollowUp, { exact: true })).toBeVisible();
+  await secondPage.close();
 });
 
 test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the independent Workspace Sandbox without retaining its test key", async ({ durableProgramPage: page }) => {

@@ -2,13 +2,16 @@
 
 import { readFile } from "node:fs/promises";
 
-import { createAgentRpcClientInternalV1 } from "@sillymaker/agent/internal";
+import {
+  createAgentSessionClientV1,
+  type AgentSessionStreamEventV1,
+} from "@sillymaker/agent/session";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { browserPiDistributionIdentityV1 } from "../agent/browser-pi-distribution.ts";
 import {
   createDefaultBrowserPiWorkerV1,
-  createBrowserPiWorkerRawTransportV1,
+  createBrowserPiWorkerConnectorV1,
   type BrowserPiWorkerLikeV1,
 } from "../agent/browser-pi-transport.ts";
 import {
@@ -1554,6 +1557,7 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   emitRunFailure(
     code: "cancelled" | "pi_failed",
     piRunId: string = this.latestPiRunId ?? "",
+    sequence = 1,
   ): void {
     this.emit({
       revision: 1,
@@ -1563,7 +1567,7 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
         code,
         sessionId: "controlled.session.1",
         runId: piRunId,
-        sequence: 1,
+        sequence,
       },
     });
   }
@@ -1607,10 +1611,10 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   emitCompleted(run: CreatorAgentRunRequestV1, text: string): void {
     const runId = this.latestPiRunId ?? "";
     const records = [
-      { kind: "artifact_chunk", text },
+      { kind: "output_text_delta", text },
       {
-        kind: "artifact_complete",
-        candidate: {
+        kind: "output_data",
+        value: {
           revision: 1,
           proposalId: run.proposalId,
           programId: run.programId,
@@ -1635,7 +1639,7 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
     });
   }
 
-  emitArtifactChunks(
+  emitTextDeltas(
     count: number,
     firstSequence: number,
     piRunId: string = this.latestPiRunId ?? "",
@@ -1645,7 +1649,7 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
         revision: 1,
         kind: "rpc_record",
         record: {
-          kind: "artifact_chunk",
+          kind: "output_text_delta",
           text: "late",
           sessionId: "controlled.session.1",
           runId: piRunId,
@@ -2147,7 +2151,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       workspaceAuthority,
       5,
     );
-    runtime.receive(rpcRequestV1(6, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(6, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 6 && message.ok
@@ -2155,7 +2159,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     );
     runtime.receive(rpcRequestV1(7, {
       revision: 1,
-      requestId: 2,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -2210,7 +2213,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     runtime.receive(rpcRequestV1(9, {
       revision: 1,
-      requestId: 3,
       method: "cancel",
       params: { sessionId: "sillyos.session.1", runId: "sillyos.run.1" },
     }));
@@ -2504,7 +2506,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     expect(JSON.stringify(messages)).not.toContain("HTTP 401");
     expect(probeState.signal?.aborted).toBe(false);
 
-    runtime.receive(rpcRequestV1(44, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(44, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 44 && message.ok
@@ -2697,7 +2699,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
-    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(3, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 3 && message.ok
@@ -2705,7 +2707,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     );
     runtime.receive(rpcRequestV1(4, {
       revision: 1,
-      requestId: 2,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -2774,8 +2775,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     expect(records.map((record) => record.sequence)).toEqual(
       records.map((_record, index) => index + 1),
     );
-    expect(records.filter((record) => record.kind === "artifact_chunk")).toHaveLength(1);
-    expect(records.find((record) => record.kind === "artifact_complete")?.candidate).toEqual({
+    expect(records.filter((record) => record.kind === "output_text_delta")).toHaveLength(1);
+    expect(records.find((record) => record.kind === "output_data")?.value).toEqual({
       ...submitV1,
       requirement: submitV1.text,
     });
@@ -2784,7 +2785,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const persistenceProbe = `${deterministicPersistenceReadPrefixV1}${submitV1.text}`;
     runtime.receive(rpcRequestV1(5, {
       revision: 1,
-      requestId: 3,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -2843,7 +2843,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
-    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(3, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 3 && message.ok
@@ -2853,7 +2853,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const editText = `${deterministicEditProbePrefixV1}preserve this exact final text.`;
     runtime.receive(rpcRequestV1(4, {
       revision: 1,
-      requestId: 2,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -2950,7 +2949,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
-    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(3, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 3 && message.ok
@@ -2960,7 +2959,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const bashText = `${deterministicBashProbePrefixV1}write and search one exact file.`;
     runtime.receive(rpcRequestV1(4, {
       revision: 1,
-      requestId: 2,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -3076,7 +3074,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
-    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(3, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 3 && message.ok
@@ -3086,7 +3084,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const fileOpsText = `${deterministicFileOpsProbePrefixV1}prove the exact durable tree.`;
     runtime.receive(rpcRequestV1(4, {
       revision: 1,
-      requestId: 2,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -3190,7 +3187,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
-    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(3, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 3 && message.ok
@@ -3200,7 +3197,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const grepText = `${deterministicGrepProbePrefixV1}find this exact line.`;
     runtime.receive(rpcRequestV1(4, {
       revision: 1,
-      requestId: 2,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -3272,7 +3268,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
-    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(3, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 3 && message.ok
@@ -3281,7 +3277,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
 
     runtime.receive(rpcRequestV1(4, {
       revision: 1,
-      requestId: 2,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -3299,7 +3294,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
 
     runtime.receive(rpcRequestV1(5, {
       revision: 1,
-      requestId: 3,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -3350,7 +3344,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
 
     runtime.receive(rpcRequestV1(7, {
       revision: 1,
-      requestId: 4,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -3400,7 +3393,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     });
     runtime.receive(connectionTestRequestV1(99, null));
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
-    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(3, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 3 && message.ok
@@ -3408,7 +3401,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     );
     runtime.receive(rpcRequestV1(4, {
       revision: 1,
-      requestId: 2,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -3417,7 +3409,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     }, execution));
     runtime.receive(rpcRequestV1(5, {
       revision: 1,
-      requestId: 3,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -3471,7 +3462,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
 
     runtime.receive(rpcRequestV1(7, {
       revision: 1,
-      requestId: 4,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -3499,7 +3489,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     );
     runtime.receive(rpcRequestV1(8, {
       revision: 1,
-      requestId: 5,
       method: "cancel",
       params: { sessionId: "sillyos.session.1", runId: "sillyos.run.3" },
     }));
@@ -3619,7 +3608,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         message.response.method === "replace_network_access"
       )
     );
-    runtime.receive(rpcRequestV1(6, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(6, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 6 && message.ok
@@ -3634,7 +3623,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     ): void => {
       runtime.receive(rpcRequestV1(requestId, {
         revision: 1,
-        requestId,
         method: "submit",
         params: {
           sessionId,
@@ -3688,7 +3676,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       workspaceAuthority,
       10,
     );
-    runtime.receive(rpcRequestV1(11, { revision: 1, requestId: 2, method: "start" }));
+    runtime.receive(rpcRequestV1(11, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 11 && message.ok
@@ -3763,7 +3751,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       workspaceAuthority,
       2,
     );
-    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(3, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 3 && message.ok
@@ -3771,7 +3759,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     );
     runtime.receive(rpcRequestV1(4, {
       revision: 1,
-      requestId: 2,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -3842,7 +3829,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       workspaceSessionId: execution.workspaceSessionId,
       enabled: true,
     }));
-    runtime.receive(rpcRequestV1(4, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(4, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       [3, 4].every((requestId) =>
         messages.some((message) =>
@@ -3854,7 +3841,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const downloadText = `${deterministicDownloadProbePrefixV1}${url}`;
     runtime.receive(rpcRequestV1(8, {
       revision: 1,
-      requestId: 3,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -3940,7 +3926,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       workspaceSessionId: execution.workspaceSessionId,
       enabled: true,
     }));
-    runtime.receive(rpcRequestV1(4, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(4, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       [3, 4].every((requestId) =>
         messages.some((message) =>
@@ -3951,7 +3937,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     );
     runtime.receive(rpcRequestV1(5, {
       revision: 1,
-      requestId: 2,
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
@@ -4025,7 +4010,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       workspaceAuthority,
       2,
     );
-    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    runtime.receive(rpcRequestV1(3, { revision: 1, method: "start" }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 3 && message.ok
@@ -4036,7 +4021,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const submitFetchV1 = (requestId: number, proposalId: string): void => {
       runtime.receive(rpcRequestV1(requestId, {
         revision: 1,
-        requestId,
         method: "submit",
         params: {
           sessionId: "sillyos.session.1",
@@ -4751,7 +4735,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
   it("hands one recovered key directly from Vault to the endpoint-specific Worker", async () => {
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const workers: InMemoryBrowserPiWorkerV1[] = [];
-    const transport = createBrowserPiWorkerRawTransportV1({
+    const connector = createBrowserPiWorkerConnectorV1({
       runtime: "pi_provider",
       selection: availableSelectionV1,
       workspaceAuthority,
@@ -4769,7 +4753,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       baseUrl: "https://api.openai.com/v1",
     };
     const calls: unknown[] = [];
-    await expect(transport.configureCredentialHandoff({
+    await expect(connector.configureCredentialHandoff({
       binding,
       async handoff(receivedBinding, handoffId, deliveryPort) {
         calls.push({ binding: structuredClone(receivedBinding), handoffId });
@@ -4803,11 +4787,11 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(JSON.stringify(workers[0]?.posted))
       .not.toContain("credential_vault_handoff_delivery");
 
-    await expect(transport.configureCredentialHandoff({
+    await expect(connector.configureCredentialHandoff({
       binding: { ...binding, baseUrl: "https://api.openai.com/v2" },
       handoff: async () => undefined,
     })).resolves.toEqual({ kind: "unavailable", reason: "failed" });
-    await transport.forget();
+    await connector.forget();
     await workspaceAuthority.dispose();
   });
 
@@ -4818,7 +4802,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const started = new Promise<void>((resolve) => {
       callbackStarted = resolve;
     });
-    const transport = createBrowserPiWorkerRawTransportV1({
+    const connector = createBrowserPiWorkerConnectorV1({
       runtime: "pi_provider",
       selection: availableSelectionV1,
       workspaceAuthority,
@@ -4830,7 +4814,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
         return worker;
       },
     });
-    const configuring = transport.configureCredentialHandoff({
+    const configuring = connector.configureCredentialHandoff({
       binding: {
         bindingId: "builtin:openai",
         credentialKind: "api_key",
@@ -4842,7 +4826,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       },
     });
     await started;
-    await transport.forget();
+    await connector.forget();
     await expect(configuring).resolves.toEqual({ kind: "unavailable", reason: "failed" });
     expect(workers).toHaveLength(1);
     expect(workers[0]?.terminated).toBe(true);
@@ -4851,7 +4835,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
 
   it("configures once, starts before an optional test, settles submit first, and terminates", async () => {
     let worker: InMemoryBrowserPiWorkerV1 | null = null;
-    const transport = createBrowserPiWorkerRawTransportV1({
+    const connector = createBrowserPiWorkerConnectorV1({
       runtime: "deterministic_test",
       workspaceAuthority: testWorkspaceAuthorityV1(),
       openNetworkBroker: openTestNetworkBrokerV1,
@@ -4860,13 +4844,17 @@ describe("SillyOS Browser Pi transport and product port", () => {
         return worker as BrowserPiWorkerLikeV1;
       },
     });
-    const client = createAgentRpcClientInternalV1({ transport });
+    const client = createAgentSessionClientV1({ connector });
     const settlement: boolean[] = [];
+    const events: AgentSessionStreamEventV1[] = [];
     let submitSettled = false;
-    client.subscribeStream(() => settlement.push(submitSettled));
+    client.subscribeStream((event) => {
+      settlement.push(submitSettled);
+      events.push(event);
+    });
 
     expect(worker).toBeNull();
-    await expect(transport.configureCredential("sentinel-browser-key")).resolves.toEqual({
+    await expect(connector.configureCredential("sentinel-browser-key")).resolves.toEqual({
       kind: "configured",
       effectiveReasoningEffort: "off",
     });
@@ -4876,9 +4864,9 @@ describe("SillyOS Browser Pi transport and product port", () => {
       kind: "started",
       sessionId: "sillyos.session.1",
     });
-    await expect(transport.testConnection()).resolves.toEqual({ kind: "ready" });
+    await expect(connector.testConnection()).resolves.toEqual({ kind: "ready" });
     await expect(
-      transport.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+      connector.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
     ).resolves.toMatchObject({
       phase: "open",
       programId: submitV1.programId,
@@ -4893,8 +4881,15 @@ describe("SillyOS Browser Pi transport and product port", () => {
       return result;
     });
     await expect(submitted).resolves.toEqual({ kind: "submitted", runId: "sillyos.run.1" });
-    await waitUntilV1(() => settlement.length > 0);
+    await waitUntilV1(() => events.some((event) => event.kind === "run_completed"));
     expect(settlement.every(Boolean)).toBe(true);
+    expect(events.map((event) => event.kind)).toEqual([
+      "output_text_delta",
+      "output_data",
+      "run_completed",
+    ]);
+    const data = events.find((event) => event.kind === "output_data");
+    expect(data?.value).toEqual({ ...submitV1, requirement: submitV1.text });
     expect(worker).not.toBeNull();
     const posted = (worker as unknown as InMemoryBrowserPiWorkerV1).posted;
     expect(posted.filter((message) => JSON.stringify(message).includes("sentinel-browser-key")))
@@ -4904,12 +4899,12 @@ describe("SillyOS Browser Pi transport and product port", () => {
 
     await client.dispose();
     expect((worker as unknown as InMemoryBrowserPiWorkerV1).terminated).toBe(true);
-    await transport.forget();
+    await connector.forget();
   });
 
   it("sends a model-only selection envelope and keeps the credential inside the configured Worker", async () => {
     let worker: InMemoryBrowserPiWorkerV1 | null = null;
-    const transport = createBrowserPiWorkerRawTransportV1({
+    const connector = createBrowserPiWorkerConnectorV1({
       runtime: "pi_provider",
       selection: copilotAnthropicSelectionV1,
       workspaceAuthority: testWorkspaceAuthorityV1(),
@@ -4919,14 +4914,14 @@ describe("SillyOS Browser Pi transport and product port", () => {
         return worker as BrowserPiWorkerLikeV1;
       },
     });
-    await expect(transport.configureCredential("transport-selection-key")).resolves.toEqual({
+    await expect(connector.configureCredential("transport-selection-key")).resolves.toEqual({
       kind: "configured",
       effectiveReasoningEffort: resolveBrowserPiReasoningEffortV1(
         copilotAnthropicSelectionV1,
         "medium",
       ),
     });
-    await expect(transport.setReasoningEffort("max")).resolves.toEqual({
+    await expect(connector.setReasoningEffort("max")).resolves.toEqual({
       kind: "selected",
       preferredReasoningEffort: "max",
       effectiveReasoningEffort: resolveBrowserPiReasoningEffortV1(
@@ -4934,7 +4929,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
         "max",
       ),
     });
-    await expect(transport.selectModel(copilotCompletionsSelectionV1)).resolves.toEqual({
+    await expect(connector.selectModel(copilotCompletionsSelectionV1)).resolves.toEqual({
       kind: "selected",
       selection: copilotCompletionsSelectionV1,
       effectiveReasoningEffort: resolveBrowserPiReasoningEffortV1(
@@ -4959,37 +4954,37 @@ describe("SillyOS Browser Pi transport and product port", () => {
     });
     expect(posted.filter((message) => JSON.stringify(message).includes("transport-selection-key")))
       .toHaveLength(1);
-    await transport.forget();
+    await connector.forget();
   });
 
   it("fences Pi and rejects pending work when the Workspace Host becomes fatal", async () => {
     const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
     const worker = new ControllableBrowserPiWorkerV1();
-    const transport = createBrowserPiWorkerRawTransportV1({
+    const connector = createBrowserPiWorkerConnectorV1({
       runtime: "deterministic_test",
       workspaceAuthority,
       openNetworkBroker: openTestNetworkBrokerV1,
       workerFactory: () => worker,
     });
     const failures: unknown[] = [];
-    transport.subscribeWorkspaceFailures(() => {
+    connector.subscribeWorkspaceFailures(() => {
       throw new Error("Workspace failure observation must remain observational");
     });
-    transport.subscribeWorkspaceFailures((failure) => failures.push(failure));
-    const client = createAgentRpcClientInternalV1({ transport });
+    connector.subscribeWorkspaceFailures((failure) => failures.push(failure));
+    const client = createAgentSessionClientV1({ connector });
 
-    await expect(transport.configureCredential("sentinel-browser-key")).resolves.toEqual({
+    await expect(connector.configureCredential("sentinel-browser-key")).resolves.toEqual({
       kind: "configured",
       effectiveReasoningEffort: "off",
     });
-    await expect(transport.testConnection()).resolves.toEqual({ kind: "ready" });
+    await expect(connector.testConnection()).resolves.toEqual({ kind: "ready" });
     await expect(client.connect()).resolves.toEqual({ kind: "ready" });
     await expect(client.start()).resolves.toEqual({
       kind: "started",
       sessionId: "controlled.session.1",
     });
     await expect(
-      transport.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+      connector.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
     ).resolves.toMatchObject({ phase: "open", generation: 1 });
     worker.dropSubmitResponses = true;
     const submitted = client.submit({
@@ -5002,7 +4997,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
 
     await expect(submitted).resolves.toEqual({
       kind: "unavailable",
-      diagnostic: { code: "rpc.request_failed", path: "/request" },
+      diagnostic: { code: "agent_session.operation_failed", path: "/operation" },
     });
     expect(failures).toEqual([{
       revision: 1,
@@ -5016,7 +5011,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(workspaceAuthority.closeWorkspaceCalls).toBe(0);
 
     await client.dispose();
-    await transport.forget();
+    await connector.forget();
     expect(failures).toHaveLength(1);
     expect(workspaceAuthority.detachWorkspaceEnvironmentCalls).toEqual([workspaceSessionIdV1]);
     expect(workspaceAuthority.disposeCalls).toBe(0);
@@ -5280,6 +5275,58 @@ describe("SillyOS Browser Pi transport and product port", () => {
     await port.dispose();
   });
 
+  it("fails a product run on a fatal gap in the ordered Browser connector", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    let connectionLosses = 0;
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => worker,
+      onConnectionLost: () => {
+        connectionLosses += 1;
+      },
+    });
+    await configureAndTestProductPortV1(port);
+    await openProductWorkspaceV1(port);
+    const run = productRunV1({ agentRunId: "agent.run.session-gap" });
+    await expect(port.submit(run)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: run.agentRunId,
+    });
+
+    worker.emitTextDeltas(1, 1);
+    worker.emitTextDeltas(1, 3);
+    worker.emitRunFailure("pi_failed", undefined, 4);
+
+    await waitUntilV1(() => port.getSnapshot().terminalRuns.length === 1);
+    expect(port.getSnapshot()).toMatchObject({
+      phase: "failed",
+      activeRunId: null,
+      diagnostic: { code: "protocol_invalid", path: "/sequence" },
+      terminalRuns: [{
+        run,
+        outcome: "failed",
+        diagnosticCode: "protocol_invalid",
+      }],
+    });
+    expect(worker.terminated).toBe(true);
+    expect(connectionLosses).toBe(1);
+    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
+
+    const retry = productRunV1({ agentRunId: "agent.run.after-session-gap" });
+    await expect(port.submit(retry)).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "protocol_invalid", path: "/sequence" },
+    });
+    worker.emitRunFailure("pi_failed", undefined, 2);
+    expect(port.getSnapshot()).toMatchObject({
+      phase: "failed",
+      activeRunId: null,
+      terminalRuns: [],
+    });
+    await port.dispose();
+  });
+
   it("maps an authoritative remote failure exactly once", async () => {
     const worker = new ControllableBrowserPiWorkerV1();
     const port = createBrowserCreatorAgentPortV1({
@@ -5370,7 +5417,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(JSON.stringify(port.getSnapshot().terminalRuns)).not.toContain("controlled.session.1");
     expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
     expect(port.acknowledgeTerminal(run.agentRunId)).toBe(false);
-    worker.emitArtifactChunks(2_049, 2, piRunId);
+    worker.emitTextDeltas(2_049, 2, piRunId);
     expect(port.getSnapshot()).toMatchObject({ phase: "ready", terminalRuns: [] });
     await port.dispose();
   });

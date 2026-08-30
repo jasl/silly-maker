@@ -92,8 +92,9 @@ live predecessor；R2 disposal 开始后的 release failure 是 terminal。relea
 [Neutral Agent Session/Run 与 SillyOS Engine Handback](plans/2026-08-30-sillyos-neutral-engine-handback.md)。
 它增加了 public `@sillymaker/agent/session`，只提升 semantic Session/Run client、connector/
 connection、status/result/stream contracts、currentness 与 awaited disposal；raw request/wire/provider、
-Agent Host、`UiArtifact` 与 deterministic fake 保持 private。SillyOS 的 downstream connector 迁移等待
-其并行 UI-foundation worktree handoff，不属于已关闭 engine slice；当前没有自动激活的后继或条件式候选。
+Agent Host、`UiArtifact` 与 deterministic fake 保持 private。SillyOS 随后已完成产品自有
+downstream connector handoff，不会改写已关闭 engine slice 的边界。终审仅记录 ready 后异步
+connection loss 通知这一项未激活的中立候选；当前没有自动激活的后继，也没有授权公共 API 改动。
 
 此前完成的有界 lane 是
 [Production Mod V1](plans/2026-08-29-production-mod-v1.md)：focused public
@@ -758,7 +759,8 @@ events。raw request/request ID/wire/provider 与 connection generation 不公�
 `output_data` 解释成 `UiArtifact`。fake 不保存文件、不提交 authoritative state、不执行 external effect，
 因此没有激活独立 approval/receipt subsystem。真实后台/LLM、provider connector、`UiArtifact`
 persistence 与具体 OpenUI/A2UI adapter 必须由后续 owner-selected 产品计划单独激活，不能从 Track G
-直接领取；SillyOS downstream migration 也尚未 handoff。
+直接领取。SillyOS 已使用产品自有 connector 完成公共 Session 消费者迁移，但该迁移
+未激活上述 bootstrap、附件、OpenUI 或其他候选。
 required service 不可用时，依赖 domain 不得谎报 ready，但 GUI 必须保留诊断和 retry；外部
 service 不是 plugin，也不取得 Session/FilePort authority。AR5 只 promotion 这份 fake seam 的 Browser
 GUI Host/build/lifetime/performance evidence，不把上述 defer 偷渡为 live capability。已关闭的

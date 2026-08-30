@@ -30,7 +30,7 @@ import {
 } from "./browser-pi-provider-runtime-bridge.js";
 import { createDeterministicPiAgentV1 } from "./browser-pi-runtime-bridge.js";
 import {
-  admitBrowserPiEngineRequestV1,
+  admitBrowserPiWorkerSessionRequestV1,
   admitBrowserPiWorkerInboundMessageV1,
   browserPiSelectionEndpointOriginV1,
   type BrowserPiWorkerAnyOutboundMessageV1,
@@ -352,7 +352,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     if (failure !== null) {
       emitRecord(run, { kind: "run_failed", code: failure });
     } else {
-      emitRecord(run, { kind: "artifact_complete", candidate: run.candidate });
+      emitRecord(run, { kind: "output_data", value: run.candidate });
       emitRecord(run, { kind: "run_completed" });
     }
     run.terminal = true;
@@ -589,7 +589,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
           return;
         }
         run.draft += delta;
-        emitRecord(run, { kind: "artifact_chunk", text: delta });
+        emitRecord(run, { kind: "output_text_delta", text: delta });
       },
     };
     let agent: PiAgentPortV1;
@@ -629,7 +629,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   };
 
   type SubmitRequestV1 = Extract<
-    NonNullable<ReturnType<typeof admitBrowserPiEngineRequestV1>>,
+    NonNullable<ReturnType<typeof admitBrowserPiWorkerSessionRequestV1>>,
     { method: "submit" }
   >;
 
@@ -1356,7 +1356,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       respondRpcFailure(message.requestId, "not_initialized");
       return;
     }
-    const request = admitBrowserPiEngineRequestV1(message.record);
+    const request = admitBrowserPiWorkerSessionRequestV1(message.record);
     if (request === null) {
       respondRpcFailure(message.requestId, "invalid_request");
       return;

@@ -451,7 +451,9 @@ envelope stale rather than rebasing it.
 The Host/UiArtifact path is a dev-only Engine Lab vertical slice, not a public Agent product or
 renderer surface. The focused public Session contract has no real transport/backend/LLM,
 wire-protocol promise, Agent persistence, tool/permission system, OpenUI/A2UI adapter, Effect
-Broker, or Desktop HMR. SillyOS has not yet completed its downstream connector migration. Chromium and WebKit physical
+Broker, or Desktop HMR. SillyOS now consumes that contract through a product-owned Browser
+connector and Creator facade; its Worker wire, Pi/provider binding, Program candidate admission,
+and Repository/Workspace currentness remain outside the Engine Session API. Chromium and WebKit physical
 HMR retain three contract-level cases: an incompatible Authoring R1 candidate rejects and a
 compatible retry succeeds while the dirty Authoring sibling and explicitly selected held Agent stay
 usable; a shared presentation change publishes Player R2 plus Authoring R1 without losing the dirty

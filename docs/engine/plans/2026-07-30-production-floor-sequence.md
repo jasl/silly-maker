@@ -30,8 +30,9 @@ Session/Run seam 提升为 focused public `@sillymaker/agent/session`：connecto
 `(sessionId, runId)` currentness、连续 stream admission 和 disposal fence；公共 stream 只有
 `output_text_delta`、bounded Strict JSON `output_data`、`run_completed` 与 `run_failed`。raw request
 envelope、request ID、Worker/provider wire 和 connection generation 不进入公共合同；Agent Host、
-`UiArtifact` admission/renderer 与 deterministic fake 仍为 private。SillyOS downstream migration 等待其
-并行 UI-foundation worktree handoff，不是已关闭 engine slice 的关闭门槛；当前未自动激活后继。
+`UiArtifact` admission/renderer 与 deterministic fake 仍为 private。SillyOS 随后已完成独立
+downstream connector handoff；它保留产品私有 Worker/Pi/Program 语义，未改写已关闭
+engine slice 的边界，也未自动激活后继。
 
 2026-08-29 所有者接受并完成
 [Production Mod V1](2026-08-29-production-mod-v1.md) M0–M4。它把上一轮已经证明的 private、
