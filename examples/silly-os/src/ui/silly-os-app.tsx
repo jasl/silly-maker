@@ -111,6 +111,7 @@ import "./design-system/components.css";
 import "./collection-state.css";
 import "./composer-model-picker.css";
 import "./creator-home.css";
+import "./settings.css";
 import "./silly-os.css";
 import "./design-system/tailwind.css";
 

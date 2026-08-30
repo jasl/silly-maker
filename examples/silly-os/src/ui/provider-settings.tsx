@@ -1074,7 +1074,7 @@ function CredentialVaultPanelV1({
       aria-label={copy.credentialVaultTitle}
     >
       <StatusV1
-        className={`provider-settings__vault-status is-${vault.phase}`}
+        className="provider-settings__vault-status"
         variant={statusVariant}
         icon={statusIcon}
         role={vault.phase === "failed" || vault.phase === "unavailable"

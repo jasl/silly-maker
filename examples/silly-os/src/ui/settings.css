@@ -1,0 +1,658 @@
+/* SPDX-License-Identifier: MIT */
+/* stylelint-disable no-descending-specificity -- Settings regions stay readable and use
+   product-namespaced selectors; later regions do not override earlier component contracts. */
+
+/* Settings shell shared by General, Providers, and Credential Vault. */
+.silly-os-settings {
+  display: grid;
+  grid-template-rows: var(--sos-topbar-height) minmax(0, 1fr);
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden;
+  background: var(--sos-bg);
+}
+
+.silly-os-settings__topbar {
+  grid-row: 1;
+  padding-inline: 14px;
+}
+
+.silly-os-settings__topbar-leading {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.silly-os-settings__crumb {
+  flex: 0 0 auto;
+  color: var(--sos-ink-muted);
+  font-size: 18px;
+}
+
+.silly-os-settings__title {
+  min-inline-size: 0;
+  padding: 4px 6px;
+  overflow: hidden;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.silly-os-settings__body {
+  display: grid;
+  grid-row: 2;
+  grid-template-columns: 196px minmax(0, 1fr);
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+.silly-os-settings__navigation {
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 18px 10px;
+  overflow: auto;
+  border-inline-end: 1px solid var(--sos-line);
+  background: var(--sos-surface-raised);
+}
+
+.silly-os-settings__navigation nav {
+  display: grid;
+  gap: 4px;
+}
+
+.silly-os-settings__navigation button {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: 40px;
+  padding: 8px 10px;
+  gap: 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--sos-ink-soft);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 620;
+  text-align: start;
+}
+
+.silly-os-settings__navigation button:hover {
+  color: var(--sos-ink);
+  background: var(--sos-surface-muted);
+}
+
+.silly-os-settings__navigation button.is-active {
+  border-color: var(--sos-accent-line);
+  color: var(--sos-accent-dark);
+  background: var(--sos-accent-soft);
+}
+
+.silly-os-settings__content {
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden;
+  background: var(--sos-surface);
+}
+
+.silly-os-settings__standalone {
+  block-size: 100%;
+  padding: 34px clamp(22px, 5vw, 64px) 48px;
+  overflow: auto;
+}
+
+.silly-os-settings__standalone > header,
+.silly-os-settings__standalone > .provider-settings__section,
+.silly-os-settings__preference-card,
+.silly-os-settings__data-card {
+  inline-size: min(100%, 880px);
+  margin-inline: auto;
+}
+
+.silly-os-settings__standalone > header {
+  display: flex;
+  align-items: flex-start;
+  padding-block-end: 24px;
+  gap: 12px;
+  border-block-end: 1px solid var(--sos-line);
+}
+
+.silly-os-settings__standalone > header > svg {
+  flex: 0 0 auto;
+  margin-block-start: 3px;
+  color: var(--sos-accent-dark);
+}
+
+.silly-os-settings__standalone > header h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 720;
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+}
+
+.silly-os-settings__standalone > header p,
+.silly-os-settings__preference-card p,
+.silly-os-settings__data-card p {
+  margin: 5px 0 0;
+  color: var(--sos-ink-soft);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+/* General preferences and data management. */
+.silly-os-settings__preference-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-start: 28px;
+  padding: 18px;
+  gap: 20px;
+  border: 1px solid var(--sos-line);
+  border-radius: 12px;
+  background: var(--sos-surface-raised);
+}
+
+.silly-os-settings__preference-card > .sos-card__header {
+  display: block;
+}
+
+.silly-os-settings__preference-card > .sos-card__content {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.silly-os-settings__data-card {
+  margin-block-start: 16px;
+  padding: 20px;
+  border: 1px solid var(--sos-line);
+  border-radius: 12px;
+  background: var(--sos-surface-raised);
+}
+
+.silly-os-settings__data-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+
+.silly-os-settings__data-heading > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 34px;
+  block-size: 34px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  color: var(--sos-accent-dark);
+  background: var(--sos-accent-soft);
+}
+
+.silly-os-settings__data-heading h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 720;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+}
+
+.silly-os-settings__storage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-block-start: 18px;
+  gap: 10px;
+}
+
+.silly-os-settings__storage-estimate {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-inline-size: 0;
+  padding: 14px;
+  gap: 14px;
+  border: 1px solid var(--sos-line);
+  border-radius: 10px;
+  background: var(--sos-surface);
+}
+
+.silly-os-settings__storage-estimate > div:first-child,
+.silly-os-settings__storage-value {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+}
+
+.silly-os-settings__storage-estimate > div:first-child {
+  gap: 4px;
+}
+
+.silly-os-settings__storage-estimate > div:first-child strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.silly-os-settings__storage-estimate small,
+.silly-os-settings__storage-summary small {
+  color: var(--sos-ink-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.silly-os-settings__storage-value {
+  align-items: flex-end;
+  flex: 0 0 auto;
+  gap: 4px;
+  text-align: end;
+}
+
+.silly-os-settings__storage-value strong {
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.silly-os-settings__storage-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-start: 12px;
+  gap: 16px;
+}
+
+.silly-os-settings__storage-summary > div {
+  min-inline-size: 0;
+}
+
+.silly-os-settings__storage-summary p {
+  display: flex;
+  align-items: baseline;
+  margin: 0 0 3px;
+  gap: 7px;
+}
+
+.silly-os-settings__storage-summary p span {
+  color: var(--sos-ink-soft);
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.silly-os-settings__storage-summary p strong {
+  font-size: 12px;
+}
+
+.silly-os-settings__clear-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-start: 18px;
+  padding-block-start: 18px;
+  gap: 18px;
+  border-block-start: 1px solid var(--sos-line);
+}
+
+.silly-os-settings__clear-row > div {
+  min-inline-size: 0;
+}
+
+.silly-os-settings__clear-row strong {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.silly-os-settings__clear-error {
+  margin-block-start: 12px;
+}
+
+.silly-os-settings__clear-dialog {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  inline-size: min(100%, 500px);
+  max-block-size: min(680px, calc(100dvh - 40px));
+  padding: 22px;
+  gap: 14px;
+  overflow: auto;
+  border: 1px solid var(--sos-line-strong);
+  border-radius: 16px;
+  outline: none;
+  background: var(--sos-surface);
+  box-shadow: 0 24px 80px var(--sos-shadow-color-strong);
+}
+
+.silly-os-settings__clear-dialog-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: 11px;
+  color: var(--sos-danger);
+  background: var(--sos-danger-soft);
+}
+
+.silly-os-settings__clear-dialog-copy h2 {
+  margin: 1px 0 0;
+  font-size: 18px;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+}
+
+.silly-os-settings__clear-dialog-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  margin-block-start: 4px;
+  gap: 8px;
+}
+
+/* Credential Vault. Provider connection controls remain in their own surface. */
+.provider-settings__vault {
+  padding: 18px;
+  border: 1px solid var(--sos-line);
+  border-radius: 12px;
+  background: var(--sos-surface);
+}
+
+.provider-settings__vault-mode {
+  margin-block-start: 12px;
+  padding: 11px;
+  border: 1px solid var(--sos-line);
+  border-radius: 9px;
+  background: var(--sos-surface-raised);
+}
+
+.provider-settings__vault-mode > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.provider-settings__vault-mode strong {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.provider-settings__vault-mode span {
+  display: inline-flex;
+  min-block-size: 22px;
+  align-items: center;
+  padding-inline: 8px;
+  border: 1px solid var(--sos-success-line);
+  border-radius: 999px;
+  color: var(--sos-success);
+  background: var(--sos-teal-soft);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.provider-settings__vault-mode span[data-vault-mode="password"] {
+  border-color: var(--sos-info-line);
+  color: var(--sos-info);
+  background: var(--sos-info-soft);
+}
+
+.provider-settings__vault-mode span[data-vault-mode="unavailable"] {
+  border-color: var(--sos-line-strong);
+  color: var(--sos-ink-muted);
+  background: var(--sos-surface-muted);
+}
+
+.provider-settings__vault-mode p,
+.provider-settings__vault-security-notice {
+  margin: 7px 0 0;
+  color: var(--sos-ink-soft);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.provider-settings__vault-protection-actions {
+  display: grid;
+  margin-block-start: 12px;
+  gap: 10px;
+}
+
+.provider-settings__vault-protection-actions > button {
+  justify-self: start;
+}
+
+.provider-settings__vault-security-notice {
+  padding: 10px 11px;
+  border-inline-start: 3px solid var(--sos-info-line);
+  border-radius: 0 8px 8px 0;
+  background: var(--sos-accent-softer);
+}
+
+.provider-settings__vault-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+  margin-block-start: 12px;
+  gap: 8px;
+}
+
+.provider-settings__vault-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-column: span 2;
+}
+
+.provider-settings__vault-fields[data-field-count="one"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.provider-settings__vault-form > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--sos-danger);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.provider-settings__vault-bindings {
+  margin-block-start: 12px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--sos-line);
+}
+
+.provider-settings__vault-bindings > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.provider-settings__vault-bindings > div strong {
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.provider-settings__vault-bindings > div span {
+  color: var(--sos-ink-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.provider-settings__vault-bindings > p {
+  margin: 8px 0 0;
+  color: var(--sos-ink-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.provider-settings__vault-bindings ul {
+  display: grid;
+  margin: 8px 0 0;
+  padding: 0;
+  gap: 6px;
+  list-style: none;
+}
+
+.provider-settings__vault-bindings li {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  padding: 7px 8px;
+  gap: 8px;
+  border: 1px solid var(--sos-line);
+  border-radius: 8px;
+  background: var(--sos-surface-raised);
+}
+
+.provider-settings__vault-bindings li > span {
+  display: flex;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.provider-settings__vault-bindings code,
+.provider-settings__vault-bindings small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-settings__vault-bindings code {
+  color: var(--sos-ink-soft);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9px;
+}
+
+.provider-settings__vault-bindings small {
+  color: var(--sos-ink-muted);
+  font-size: 9px;
+}
+
+@media (width <= 767px) {
+  .silly-os-settings__topbar .silly-os-brand__name,
+  .silly-os-settings__crumb {
+    display: none;
+  }
+
+  .silly-os-settings__back {
+    flex: 0 0 44px;
+    inline-size: 44px;
+    block-size: 44px;
+  }
+
+  .silly-os-settings__body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .silly-os-settings__navigation {
+    padding: 7px 8px;
+    overflow: auto hidden;
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--sos-line);
+    scrollbar-width: none;
+  }
+
+  .silly-os-settings__navigation nav {
+    display: flex;
+    inline-size: max-content;
+    gap: 5px;
+  }
+
+  .silly-os-settings__navigation button {
+    inline-size: auto;
+    min-block-size: 40px;
+    padding-inline: 11px;
+    white-space: nowrap;
+  }
+
+  .silly-os-settings__content {
+    min-block-size: 0;
+  }
+
+  .silly-os-settings__standalone {
+    padding: 22px 14px max(32px, var(--silly-safe-area-block-end));
+  }
+
+  .silly-os-settings__standalone > header {
+    padding-block-end: 20px;
+  }
+
+  .silly-os-settings__preference-card {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    margin-block-start: 22px;
+    padding: 14px;
+  }
+
+  .silly-os-settings__preference-card > .sos-card__content {
+    justify-content: flex-start;
+  }
+
+  .silly-os-settings__data-card {
+    padding: 14px;
+  }
+
+  .silly-os-settings__storage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .silly-os-settings__storage-summary,
+  .silly-os-settings__clear-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .silly-os-settings__storage-summary .sos-button,
+  .silly-os-settings__clear-row .sos-button {
+    inline-size: 100%;
+    min-block-size: 44px;
+  }
+
+  .silly-os-settings__clear-dialog {
+    inline-size: 100%;
+    max-block-size: calc(100dvh - 24px);
+    padding: 18px;
+    border-radius: 15px;
+  }
+
+  .silly-os-settings__clear-dialog-actions .sos-button {
+    min-block-size: 44px;
+    flex: 1;
+  }
+
+  .provider-settings__vault {
+    padding: 14px;
+  }
+
+  .provider-settings__vault-status,
+  .provider-settings__vault-form {
+    grid-template-columns: 1fr;
+  }
+
+  .provider-settings__vault-fields {
+    grid-template-columns: 1fr;
+    grid-column: auto;
+  }
+
+  .provider-settings__vault-status > svg {
+    display: none;
+  }
+
+  .provider-settings__vault-form input,
+  .provider-settings__vault-form button {
+    min-block-size: 44px;
+    font-size: 16px;
+  }
+
+  .provider-settings__vault-bindings li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

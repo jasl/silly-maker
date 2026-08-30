@@ -44,14 +44,18 @@ describe("SillyOS design-system foundation", () => {
   });
 
   it("keeps component colors behind semantic tokens", async () => {
-    const [productCss, creatorHomeCss, composerModelPickerCss, componentCss] = await Promise.all([
-      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
-      readFile(resolve(productRootV1, "ui/creator-home.css"), "utf8"),
-      readFile(resolve(productRootV1, "ui/composer-model-picker.css"), "utf8"),
-      readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
-    ]);
+    const [productCss, creatorHomeCss, composerModelPickerCss, settingsCss, componentCss] =
+      await Promise.all([
+        readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+        readFile(resolve(productRootV1, "ui/creator-home.css"), "utf8"),
+        readFile(resolve(productRootV1, "ui/composer-model-picker.css"), "utf8"),
+        readFile(resolve(productRootV1, "ui/settings.css"), "utf8"),
+        readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
+      ]);
 
-    expect(`${productCss}\n${creatorHomeCss}\n${composerModelPickerCss}\n${componentCss}`)
+    expect(
+      `${productCss}\n${creatorHomeCss}\n${composerModelPickerCss}\n${settingsCss}\n${componentCss}`,
+    )
       .not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/iu);
     expect(productCss).toContain("var(--sos-surface)");
     expect(componentCss).toContain(".sos-button");
@@ -118,6 +122,52 @@ describe("SillyOS design-system foundation", () => {
     expect(legacyCss).toContain(
       ".chat-composer__primary-actions > .creator-composer__model-picker",
     );
+  });
+
+  it("keeps Settings surface styles separate from Provider detail ownership", async () => {
+    const [app, providers, componentCss, settingsCss, legacyCss] = await Promise.all([
+      readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
+      readFile(resolve(productRootV1, "ui/provider-settings.tsx"), "utf8"),
+      readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/settings.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+    ]);
+
+    expect(app.indexOf('import "./design-system/components.css";')).toBeLessThan(
+      app.indexOf('import "./settings.css";'),
+    );
+    expect(app.indexOf('import "./creator-home.css";')).toBeLessThan(
+      app.indexOf('import "./settings.css";'),
+    );
+    expect(app.indexOf('import "./settings.css";')).toBeLessThan(
+      app.indexOf('import "./silly-os.css";'),
+    );
+    expect(componentCss).toContain(".sos-card");
+    expect(settingsCss).toContain(".silly-os-settings {");
+    expect(settingsCss).toContain(".silly-os-settings__preference-card {");
+    expect(settingsCss).toContain(".provider-settings__vault {");
+    const unavailableRuleStart = settingsCss.indexOf(
+      '.provider-settings__vault-mode span[data-vault-mode="unavailable"]',
+    );
+    const unavailableRule = settingsCss.slice(
+      unavailableRuleStart,
+      settingsCss.indexOf("}", unavailableRuleStart) + 1,
+    );
+    expect(unavailableRuleStart).toBeGreaterThanOrEqual(0);
+    expect(unavailableRule).toContain("border-color: var(--sos-line-strong);");
+    expect(unavailableRule).toContain("color: var(--sos-ink-muted);");
+    expect(unavailableRule).toContain("background: var(--sos-surface-muted);");
+    expect(providers).not.toContain("is-${vault.phase}");
+    expect(settingsCss).not.toContain("silly-os-settings__dialog-layer");
+    expect(settingsCss).not.toContain("silly-os-settings__dialog-backdrop");
+    expect(settingsCss).not.toContain("nth-of-type(2)");
+    expect(legacyCss).not.toMatch(/(^|\n)\s*\.silly-os-settings(?:\b|__)/u);
+    expect(legacyCss).not.toMatch(/(^|\n)\s*\.provider-settings__vault(?:\b|[-_])/u);
+    expect(legacyCss).not.toContain("silly-os-settings__dialog-layer");
+    expect(legacyCss).not.toContain("silly-os-settings__dialog-backdrop");
+    expect(legacyCss).toContain(".provider-settings {");
+    expect(legacyCss).toContain(".provider-settings__credential {");
+    expect(legacyCss).toContain(".provider-settings__connection-model {");
   });
 
   it("routes multiline and durable export progress through the shared physical layer", async () => {
