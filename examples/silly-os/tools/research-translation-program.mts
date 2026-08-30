@@ -2,7 +2,7 @@
 
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type AssistantMessage, getSupportedThinkingLevels, Type } from "@earendil-works/pi-ai";
+import { type AssistantMessage, getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 
 import {
@@ -15,16 +15,21 @@ import {
   type TranslationBatchRequestV1,
 } from "../src/product/translation/translation-batch-protocol.ts";
 import {
-  createTranslationBatchUserPromptV1,
   translationBatchOutputTokenEnvelopeV1,
-  translationBatchToolNameV1,
   translationProgramPromptRevisionV1,
-  translationProgramSystemPromptV1,
 } from "../src/agent/builtin-program-packages/translation-current.ts";
 import {
   sanitizeResearchErrorV1,
   sanitizeResearchProviderMessageV1,
 } from "./research-evidence-sanitizer.ts";
+import {
+  createTranslationResearchDynamicPromptV1,
+  translationResearchStablePrefixV1,
+  translationResearchSystemPromptV1,
+  translationResearchToolV1,
+  type TranslationResearchPromptConditionV1,
+  translationSemanticObservationsV1,
+} from "./research-translation-prompt-conditions.ts";
 
 interface ResearchProfileV1 {
   readonly id: "deepseek" | "openrouter";
@@ -34,6 +39,7 @@ interface ResearchProfileV1 {
 }
 
 type ResearchConditionV1 = "baseline" | "confirmed-plan";
+type ResearchCacheRetentionV1 = "none" | "short";
 
 interface CorpusCaseV1 {
   readonly id: string;
@@ -152,7 +158,7 @@ const confirmedContextByCaseAndLocatorV1: Readonly<
 
 function usageV1(): never {
   console.error(
-    "Usage: deno task research:translation -- <deepseek|openrouter> [--condition <baseline|confirmed-plan>] [--output <ignored-json-path>]",
+    "Usage: deno task research:translation -- <deepseek|openrouter> [--prompt-condition <current|clean-room>] [--condition <baseline|confirmed-plan>] [--cache-retention <none|short>] [--case <case-id>] [--repeat <count>] [--session-id <stable-id>] [--output <evidence-json-path>]",
   );
   Deno.exit(2);
 }
@@ -160,6 +166,11 @@ function usageV1(): never {
 function parseArgumentsV1(): {
   readonly profile: ResearchProfileV1;
   readonly condition: ResearchConditionV1;
+  readonly promptCondition: TranslationResearchPromptConditionV1;
+  readonly cacheRetention: ResearchCacheRetentionV1;
+  readonly corpusCases: readonly CorpusCaseV1[];
+  readonly repeat: number;
+  readonly sessionId: string;
   readonly output: string;
 } {
   const args = Deno.args[0] === "--" ? Deno.args.slice(1) : Deno.args;
@@ -167,11 +178,51 @@ function parseArgumentsV1(): {
   if (profileId !== "deepseek" && profileId !== "openrouter") usageV1();
   let output: string | null = null;
   let condition: ResearchConditionV1 = "baseline";
+  let promptCondition: TranslationResearchPromptConditionV1 = "current";
+  let cacheRetention: ResearchCacheRetentionV1 = "none";
+  let repeat = 1;
+  let sessionId: string | null = null;
+  const selectedCaseIds = new Set<string>();
   for (let index = 1; index < args.length; index += 1) {
     if (args[index] === "--condition" && args[index + 1] !== undefined) {
       const candidate = args[index + 1];
       if (candidate !== "baseline" && candidate !== "confirmed-plan") usageV1();
       condition = candidate;
+      index += 1;
+      continue;
+    }
+    if (args[index] === "--prompt-condition" && args[index + 1] !== undefined) {
+      const candidate = args[index + 1];
+      if (candidate !== "current" && candidate !== "clean-room") usageV1();
+      promptCondition = candidate;
+      index += 1;
+      continue;
+    }
+    if (args[index] === "--cache-retention" && args[index + 1] !== undefined) {
+      const candidate = args[index + 1];
+      if (candidate !== "none" && candidate !== "short") usageV1();
+      cacheRetention = candidate;
+      index += 1;
+      continue;
+    }
+    if (args[index] === "--case" && args[index + 1] !== undefined) {
+      const candidate = args[index + 1];
+      if (!corpusCasesV1.some((corpusCase) => corpusCase.id === candidate)) usageV1();
+      selectedCaseIds.add(candidate);
+      index += 1;
+      continue;
+    }
+    if (args[index] === "--repeat" && args[index + 1] !== undefined) {
+      const candidate = Number(args[index + 1]);
+      if (!Number.isSafeInteger(candidate) || candidate < 1) usageV1();
+      repeat = candidate;
+      index += 1;
+      continue;
+    }
+    if (args[index] === "--session-id" && args[index + 1] !== undefined) {
+      const candidate = args[index + 1];
+      if (candidate.length === 0 || candidate !== candidate.trim()) usageV1();
+      sessionId = candidate;
       index += 1;
       continue;
     }
@@ -182,9 +233,18 @@ function parseArgumentsV1(): {
     index += 1;
   }
   const timestamp = new Date().toISOString().replaceAll(":", "-");
+  const selectedCases = selectedCaseIds.size === 0
+    ? corpusCasesV1
+    : corpusCasesV1.filter((corpusCase) => selectedCaseIds.has(corpusCase.id));
   return {
     profile: profilesV1[profileId],
     condition,
+    promptCondition,
+    cacheRetention,
+    corpusCases: selectedCases,
+    repeat,
+    sessionId: sessionId ??
+      `sillyos.translation-research.${profileId}.${promptCondition}.${condition}`,
     output: output ?? resolve(evidenceDirectoryV1, `${profileId}-${timestamp}.json`),
   };
 }
@@ -227,28 +287,6 @@ async function repositoryWorkingTreeDirtyV1(): Promise<boolean | null> {
 async function sha256V1(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function translationToolV1(unitCount: number) {
-  return {
-    name: translationBatchToolNameV1,
-    description:
-      "Submit the complete ordered target text for one admitted SillyOS translation batch.",
-    parameters: Type.Object({
-      targets: Type.Array(
-        Type.Object({
-          unitId: Type.String(),
-          target: Type.String({ minLength: 1 }),
-        }, { additionalProperties: false }),
-        { minItems: unitCount, maxItems: unitCount },
-      ),
-      ambiguities: Type.Array(Type.Object({
-        unitId: Type.String(),
-        question: Type.String({ minLength: 1 }),
-      }, { additionalProperties: false })),
-    }, { additionalProperties: false }),
-    constrainedSampling: { type: "json_schema", strict: "prefer" } as const,
-  };
 }
 
 function structuralProjectionV1(document: PreparedTranslationDocumentV1) {
@@ -302,7 +340,7 @@ function terminalToolCallV1(message: AssistantMessage):
     };
   }
   const [toolCall] = toolCalls;
-  if (toolCall.name !== translationBatchToolNameV1) {
+  if (toolCall.name !== translationResearchToolV1.name) {
     return {
       kind: "failure",
       code: `unexpected_tool:${toolCall.name}`,
@@ -319,9 +357,42 @@ function nonToolTextCharactersV1(message: AssistantMessage): number {
   );
 }
 
+function usageEvidenceV1(usage: AssistantMessage["usage"]) {
+  return {
+    ...usage,
+    cacheReadTokens: usage.cacheRead,
+    cacheWriteTokens: usage.cacheWrite,
+  };
+}
+
+function rawAssistantEvidenceV1(message: AssistantMessage, apiKey: string) {
+  return {
+    role: message.role,
+    content: message.content,
+    api: message.api,
+    provider: message.provider,
+    model: message.model,
+    responseModel: message.responseModel ?? null,
+    responseId: message.responseId ?? null,
+    diagnostics: message.diagnostics ?? [],
+    usage: usageEvidenceV1(message.usage),
+    stopReason: message.stopReason,
+    rawStopReason: message.rawStopReason ?? null,
+    endTurn: message.endTurn ?? null,
+    errorMessage: message.errorMessage === undefined
+      ? null
+      : sanitizeResearchProviderMessageV1(message.errorMessage, apiKey),
+    timestamp: message.timestamp,
+  };
+}
+
 async function runCorpusCaseV1(input: {
   readonly profile: ResearchProfileV1;
   readonly condition: ResearchConditionV1;
+  readonly promptCondition: TranslationResearchPromptConditionV1;
+  readonly cacheRetention: ResearchCacheRetentionV1;
+  readonly sessionId: string;
+  readonly repeatIndex: number;
   readonly apiKey: string;
   readonly model: NonNullable<ReturnType<ReturnType<typeof builtinModels>["getModel"]>>;
   readonly corpusCase: CorpusCaseV1;
@@ -336,6 +407,7 @@ async function runCorpusCaseV1(input: {
   if (document.exportTranslation === null) {
     return {
       corpusCase: input.corpusCase.id,
+      repeat: input.repeatIndex,
       sourceSha256,
       outcome: "deterministic_floor_failed",
       capability: document.capability,
@@ -364,53 +436,128 @@ async function runCorpusCaseV1(input: {
       };
     }),
   };
-  const userPrompt = createTranslationBatchUserPromptV1(request);
-  const tool = translationToolV1(document.sourceUnits.length);
+  const systemPrompt = translationResearchSystemPromptV1(input.promptCondition);
+  const dynamicPrompt = createTranslationResearchDynamicPromptV1(request);
+  const tool = translationResearchToolV1;
   const maxTokens = translationBatchOutputTokenEnvelopeV1(document.sourceUnits.length);
-  const requestSha256 = await sha256V1(JSON.stringify({
-    systemPrompt: translationProgramSystemPromptV1,
-    userPrompt,
+  const requestOptions = {
+    sessionId: input.sessionId,
+    reasoning: "low" as const,
+    toolChoice: "auto" as const,
+    temperature: 0,
+    transport: "sse" as const,
+    cacheRetention: input.cacheRetention,
+    maxTokens,
+    timeoutMs: requestTimeoutMillisecondsV1,
+    maxRetries: 0,
+  };
+  const requestStructure = {
+    orderedSegments: [
+      "system_prompt",
+      "stable_completion_tool",
+      "stable_workflow_prefix",
+      "dynamic_batch_context",
+    ],
+    systemPrompt,
+    messages: [
+      {
+        role: "user" as const,
+        segment: "stable_workflow_prefix",
+        content: translationResearchStablePrefixV1,
+      },
+      {
+        role: "user" as const,
+        segment: "dynamic_batch_context",
+        content: dynamicPrompt,
+      },
+    ],
+    tools: [tool],
+    options: requestOptions,
+  };
+  const stableRequestPrefix = {
+    systemPrompt,
     tool,
-    settings: {
-      reasoning: "low",
-      temperature: 0,
-      transport: "sse",
-      cacheRetention: "none",
-      maxTokens,
-      maxRetries: 0,
+    stableWorkflowPrefix: translationResearchStablePrefixV1,
+  };
+  const [
+    requestSha256,
+    systemPromptSha256,
+    stableWorkflowPrefixSha256,
+    dynamicPayloadSha256,
+    toolDefinitionSha256,
+    stableRequestPrefixSha256,
+  ] = await Promise.all([
+    sha256V1(JSON.stringify(requestStructure)),
+    sha256V1(systemPrompt),
+    sha256V1(translationResearchStablePrefixV1),
+    sha256V1(dynamicPrompt),
+    sha256V1(JSON.stringify(tool)),
+    sha256V1(JSON.stringify(stableRequestPrefix)),
+  ]);
+  const requestEvidence = {
+    ...requestStructure,
+    hashes: {
+      requestSha256,
+      systemPromptSha256,
+      stableWorkflowPrefixSha256,
+      dynamicPayloadSha256,
+      toolDefinitionSha256,
+      stableRequestPrefixSha256,
     },
-  }));
+    dynamicShape: {
+      sourceUnitCount: request.units.length,
+      glossaryEntryCount: request.glossary.length,
+      contextUnitCount: request.units.filter((unit) => unit.context !== null).length,
+    },
+  };
 
   const startedAt = performance.now();
   const resultContext = {
     corpusCase: input.corpusCase.id,
+    repeat: input.repeatIndex,
     sourceSha256,
     requestSha256,
     sourceUnitCount: document.sourceUnits.length,
     reasoningSetting: "low" as const,
     maxTokens,
+    sessionId: input.sessionId,
+    cacheRetention: input.cacheRetention,
+    promptCondition: input.promptCondition,
+    request: requestEvidence,
   };
   try {
+    const requestTimestamp = Date.now();
     const assistant = await modelRegistryV1.completeSimple(input.model, {
-      systemPrompt: translationProgramSystemPromptV1,
+      systemPrompt,
       messages: [{
         role: "user",
-        content: userPrompt,
-        timestamp: Date.now(),
+        content: translationResearchStablePrefixV1,
+        timestamp: requestTimestamp,
+      }, {
+        role: "user",
+        content: dynamicPrompt,
+        timestamp: requestTimestamp,
       }],
       tools: [tool],
     }, {
       apiKey: input.apiKey,
       reasoning: "low",
+      sessionId: input.sessionId,
       toolChoice: "auto",
       temperature: 0,
       transport: "sse",
-      cacheRetention: "none",
+      cacheRetention: input.cacheRetention,
       maxTokens,
       timeoutMs: requestTimeoutMillisecondsV1,
       maxRetries: 0,
     });
     const latencyMilliseconds = Math.round(performance.now() - startedAt);
+    const rawAssistant = rawAssistantEvidenceV1(assistant, input.apiKey);
+    const usage = usageEvidenceV1(assistant.usage);
+    const cacheUsage = {
+      cacheReadTokens: assistant.usage.cacheRead,
+      cacheWriteTokens: assistant.usage.cacheWrite,
+    };
     if (
       assistant.provider !== input.profile.providerId || assistant.model !== input.profile.modelId
     ) {
@@ -423,6 +570,9 @@ async function runCorpusCaseV1(input: {
         model: assistant.model,
         responseModel: assistant.responseModel ?? null,
         latencyMilliseconds,
+        usage,
+        cacheUsage,
+        rawAssistant,
       } as const;
     }
     if (assistant.stopReason === "error") {
@@ -434,7 +584,9 @@ async function runCorpusCaseV1(input: {
         provider: assistant.provider,
         model: assistant.model,
         responseModel: assistant.responseModel ?? null,
-        usage: assistant.usage,
+        usage,
+        cacheUsage,
+        rawAssistant,
         nonToolTextCharacters: nonToolTextCharactersV1(assistant),
       } as const;
     }
@@ -449,7 +601,9 @@ async function runCorpusCaseV1(input: {
         provider: assistant.provider,
         model: assistant.model,
         responseModel: assistant.responseModel ?? null,
-        usage: assistant.usage,
+        usage,
+        cacheUsage,
+        rawAssistant,
         nonToolTextCharacters: toolCall.nonToolTextCharacters,
       } as const;
     }
@@ -465,7 +619,9 @@ async function runCorpusCaseV1(input: {
         provider: assistant.provider,
         model: assistant.model,
         responseModel: assistant.responseModel ?? null,
-        usage: assistant.usage,
+        usage,
+        cacheUsage,
+        rawAssistant,
       } as const;
     }
     const exported = document.exportTranslation(admitted.candidate.targets, {
@@ -481,7 +637,9 @@ async function runCorpusCaseV1(input: {
         provider: assistant.provider,
         model: assistant.model,
         responseModel: assistant.responseModel ?? null,
-        usage: assistant.usage,
+        usage,
+        cacheUsage,
+        rawAssistant,
       } as const;
     }
     const reopened = prepareTranslationDocumentV1({
@@ -492,6 +650,10 @@ async function runCorpusCaseV1(input: {
     const structuralRoundTrip = reopened.exportTranslation !== null &&
       JSON.stringify(structuralProjectionV1(reopened)) ===
         JSON.stringify(structuralProjectionV1(document));
+    const semanticObservations = translationSemanticObservationsV1(
+      request,
+      admitted.candidate.targets,
+    );
     return {
       ...resultContext,
       outcome: structuralRoundTrip ? "candidate_exported" : "structural_round_trip_failed",
@@ -502,13 +664,24 @@ async function runCorpusCaseV1(input: {
         request,
         admitted.candidate.targets,
       ),
+      semanticObservations,
+      semanticObservationSummary: {
+        satisfied: semanticObservations.filter((observation) =>
+          observation.result === "satisfied"
+        ).length,
+        concerns: semanticObservations.filter((observation) =>
+          observation.result === "concern"
+        ).length,
+      },
       exportedText: exported.text,
       latencyMilliseconds,
       stopReason: assistant.stopReason,
       provider: assistant.provider,
       model: assistant.model,
       responseModel: assistant.responseModel ?? null,
-      usage: assistant.usage,
+      usage,
+      cacheUsage,
+      rawAssistant,
       nonToolTextCharacters: toolCall.nonToolTextCharacters,
     } as const;
   } catch (error) {
@@ -521,7 +694,16 @@ async function runCorpusCaseV1(input: {
   }
 }
 
-const { profile, condition, output } = parseArgumentsV1();
+const {
+  profile,
+  condition,
+  promptCondition,
+  cacheRetention,
+  corpusCases,
+  repeat,
+  sessionId,
+  output,
+} = parseArgumentsV1();
 const apiKey = Deno.env.get(profile.apiKeyEnvironmentVariable);
 if (apiKey === undefined || apiKey.length === 0) {
   console.error(`Missing ${profile.apiKeyEnvironmentVariable}; no request was sent.`);
@@ -539,14 +721,29 @@ if (!getSupportedThinkingLevels(model).includes("low")) {
 }
 
 const results = [];
-for (const corpusCase of corpusCasesV1) {
-  results.push(await runCorpusCaseV1({ profile, condition, apiKey, model, corpusCase }));
+for (const corpusCase of corpusCases) {
+  for (let repeatIndex = 1; repeatIndex <= repeat; repeatIndex += 1) {
+    results.push(
+      await runCorpusCaseV1({
+        profile,
+        condition,
+        promptCondition,
+        cacheRetention,
+        sessionId,
+        repeatIndex,
+        apiKey,
+        model,
+        corpusCase,
+      }),
+    );
+  }
 }
 
 const evidence = {
-  schema: "sillyos.translation-program-research.v1",
-  scope: "model_protocol_smoke",
+  schema: "sillyos.translation-program-research.v2",
+  scope: "prompt_ab_and_cache_research",
   condition,
+  promptCondition,
   recordedAt: new Date().toISOString(),
   repositoryRevision: await repositoryRevisionV1(),
   workingTreeDirty: await repositoryWorkingTreeDirtyV1(),
@@ -560,10 +757,15 @@ const evidence = {
     reasoning: "low",
     temperature: 0,
     transport: "sse",
-    cacheRetention: "none",
+    cacheRetention,
+    sessionId,
     toolChoice: "auto",
     timeoutMilliseconds: requestTimeoutMillisecondsV1,
     maxRetries: 0,
+  },
+  selection: {
+    cases: corpusCases.map((corpusCase) => corpusCase.id),
+    repeat,
   },
   results,
 };
@@ -576,7 +778,12 @@ console.log(JSON.stringify(
     route: evidence.route,
     outcomes: results.map((result) => ({
       corpusCase: result.corpusCase,
+      repeat: result.repeat,
       outcome: result.outcome,
+      cacheUsage: "cacheUsage" in result ? result.cacheUsage : null,
+      semanticObservationSummary: "semanticObservationSummary" in result
+        ? result.semanticObservationSummary
+        : null,
     })),
   },
   null,

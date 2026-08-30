@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-export const builtinCreatorProgramDefinitionReferenceV1 = "sillyos.builtin.creator@1" as const;
+/** Compatibility generation, not a Program Definition content revision. */
+export const builtinCreatorProgramCompatibilityReferenceV1 = "sillyos.builtin.creator@1" as const;
 export const builtinCreatorProgramIdV1 = "sillyos.builtin.creator" as const;
 
 /**
@@ -25,7 +26,11 @@ export interface ProgramDefinitionReferenceV1 {
   readonly revision: number;
 }
 
-/** Immutable reusable Program content; the harness reference remains opaque. */
+/**
+ * Immutable reusable Program content. `harnessReference` is an opaque
+ * execution-compatibility generation; refreshed SillyOS code may select a
+ * newer implementation that supports the same reference.
+ */
 export interface ProgramDefinitionRevisionV1 extends ProgramDefinitionReferenceV1 {
   readonly schemaVersion: 1;
   readonly kind: ProgramDefinitionKindV1;
@@ -412,7 +417,7 @@ export function createBuiltinCreatorProgramDefinitionRevisionV1(): ProgramDefini
     kind: "creator",
     name: "Creator",
     purpose: "Create and revise reusable SillyOS Programs with explicit human review.",
-    harnessReference: builtinCreatorProgramDefinitionReferenceV1,
+    harnessReference: builtinCreatorProgramCompatibilityReferenceV1,
     capabilityIds: [],
   };
 }

@@ -1504,6 +1504,7 @@ export function createCreatorControllerV1(input: {
             kind: "prepared",
             run: {
               agentRunId: attemptId,
+              executionCompatibilityReference: active.definition.harnessReference,
               processId: active.process.processId,
               processAttemptGeneration: generation,
               workspaceCheckpointId: startingCheckpoint.workspaceCheckpointId,
@@ -1646,6 +1647,7 @@ export function createCreatorControllerV1(input: {
             kind: "prepared",
             run: {
               agentRunId: attemptId,
+              executionCompatibilityReference: active.definition.harnessReference,
               processId: process.processId,
               processAttemptGeneration: generation,
               workspaceCheckpointId: startingCheckpoint.workspaceCheckpointId,

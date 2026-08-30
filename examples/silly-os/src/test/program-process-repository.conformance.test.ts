@@ -8,9 +8,8 @@ import {
 } from "../product/memory-program-process-repository.ts";
 import {
   admitProcessHeadV1,
-  builtinCreatorProgramDefinitionReferenceV1,
+  builtinCreatorProgramCompatibilityReferenceV1,
   createBuiltinCreatorProgramDefinitionRevisionV1,
-  formatProgramDefinitionReferenceV1,
   processSummaryUtf8ByteLengthV1,
   transcriptEntryUtf8ByteLengthV1,
   type ProcessAttemptBeginInputV1,
@@ -26,12 +25,13 @@ import {
 function programRevisionV1(
   revision: number,
   purpose = `Creator definition revision ${String(revision)}.`,
+  harnessReference = builtinCreatorProgramCompatibilityReferenceV1,
 ): ProgramDefinitionRevisionV1 {
   return {
     ...createBuiltinCreatorProgramDefinitionRevisionV1(),
     revision,
     purpose,
-    harnessReference: `sillyos.builtin.creator@${String(revision)}`,
+    harnessReference,
   };
 }
 
@@ -100,10 +100,6 @@ async function appendV1(
 describe("Memory Program/Process repository conformance", () => {
   it("pins a Process to Creator revision 1 when revision 2 is later published", async () => {
     const repository = createMemoryProgramProcessRepositoryV1();
-    expect(formatProgramDefinitionReferenceV1({
-      programId: "sillyos.builtin.creator",
-      revision: 1,
-    })).toBe(builtinCreatorProgramDefinitionReferenceV1);
     await repository.publishProgramDefinitionRevision(programRevisionV1(1));
     const process = await createProcessV1({
       repository,
@@ -119,6 +115,14 @@ describe("Memory Program/Process repository conformance", () => {
     expect(
       (await repository.loadProgramDefinitionRevision("sillyos.builtin.creator", 2))?.revision,
     ).toBe(2);
+    expect(
+      (await repository.loadProgramDefinitionRevision("sillyos.builtin.creator", 1))
+        ?.harnessReference,
+    ).toBe(builtinCreatorProgramCompatibilityReferenceV1);
+    expect(
+      (await repository.loadProgramDefinitionRevision("sillyos.builtin.creator", 2))
+        ?.harnessReference,
+    ).toBe(builtinCreatorProgramCompatibilityReferenceV1);
   });
 
   it("keeps two Processes and their transcript frontiers independent", async () => {

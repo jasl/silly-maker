@@ -61,7 +61,8 @@ import type {
   BrowserProgramWorkspaceFatalV1,
 } from "../product/browser-program-workspace-authority.ts";
 import {
-  serializeBrowserPiCreatorAgentDispatchV1 as serializeCreatorAgentSubmitV1,
+  creatorProgramHarnessReferenceV1,
+  serializeBrowserPiCreatorAgentDispatchV1,
   serializeBrowserPiTranslationAgentDispatchV1,
 } from "../agent/browser-pi-agent-dispatch.ts";
 import {
@@ -385,11 +386,19 @@ const submitV1: CreatorAgentSubmitV1 = {
   text: "Make review explicit.",
 };
 
+function serializeCreatorAgentSubmitV1(submit: CreatorAgentSubmitV1): string {
+  return serializeBrowserPiCreatorAgentDispatchV1({
+    executionCompatibilityReference: creatorProgramHarnessReferenceV1,
+    submit,
+  });
+}
+
 function productRunV1(
   overrides: Partial<CreatorAgentRunRequestV1> = {},
 ): CreatorAgentRunRequestV1 {
   return {
     agentRunId: "agent.run.product.1",
+    executionCompatibilityReference: creatorProgramHarnessReferenceV1,
     processId: "process.creator.product.1",
     processAttemptGeneration: 1,
     workspaceCheckpointId: "checkpoint.workspace.preview.1",
@@ -1783,6 +1792,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       params: {
         sessionId: "sillyos.session.1",
         text: serializeBrowserPiTranslationAgentDispatchV1({
+          executionCompatibilityReference: translationProgramHarnessReferenceV1,
           programId: submitV1.programId,
           request: {
             sourceLocale: "zh-CN",
@@ -1838,6 +1848,60 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       message.kind === "rpc_record" &&
       (message.record as Readonly<Record<string, unknown>>).kind === "output_text_delta"
     )).toBe(false);
+
+    runtime.dispose();
+    await workspaceAuthority.dispose();
+  });
+
+  it("settles submit when a shipped Program package cannot load", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+      loadBuiltinProgramPackage: () =>
+        Promise.reject(new TypeError("synthetic shipped Program package failure")),
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "deterministic_test",
+      selection: null,
+      preferredReasoningEffort: "medium",
+      credential: { kind: "api_key", value: "sentinel-browser-key" },
+    });
+    const execution = await attachRuntimeWorkspaceV1(
+      runtime,
+      messages,
+      workspaceAuthority,
+      2,
+    );
+    runtime.receive(rpcRequestV1(3, { revision: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 3 && message.ok
+      )
+    );
+    runtime.receive(rpcRequestV1(4, {
+      revision: 1,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1(submitV1),
+      },
+    }, execution));
+
+    await waitUntilV1(() =>
+      messages.some((message) => message.kind === "rpc_response" && message.requestId === 4)
+    );
+    expect(messages.find((message) => message.kind === "rpc_response" && message.requestId === 4))
+      .toEqual({
+        revision: 1,
+        kind: "rpc_response",
+        requestId: 4,
+        ok: false,
+        code: "program_package_unavailable",
+      });
 
     runtime.dispose();
     await workspaceAuthority.dispose();
@@ -4600,6 +4664,12 @@ describe("SillyOS Browser Pi transport and product port", () => {
         diagnostic: { code: "submit_invalid", path: "/run" },
       });
     await expect(port.submit(productRunV1({ workspaceGeneration: 0 }))).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "submit_invalid", path: "/run" },
+    });
+    await expect(port.submit(productRunV1({
+      executionCompatibilityReference: "sillyos.builtin.creator@999",
+    }))).resolves.toEqual({
       kind: "unavailable",
       diagnostic: { code: "submit_invalid", path: "/run" },
     });

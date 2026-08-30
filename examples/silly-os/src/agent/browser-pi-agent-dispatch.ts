@@ -2,14 +2,14 @@
 
 import { admitCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
 import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
-import { builtinCreatorProgramDefinitionReferenceV1 } from "../product/program-process-repository.ts";
+import { builtinCreatorProgramCompatibilityReferenceV1 } from "../product/program-process-repository.ts";
 import {
   admitTranslationBatchRequestV1,
   translationProgramHarnessReferenceV1,
   type TranslationBatchRequestV1,
 } from "../product/translation/translation-batch-protocol.ts";
 
-export const creatorProgramHarnessReferenceV1 = builtinCreatorProgramDefinitionReferenceV1;
+export const creatorProgramHarnessReferenceV1 = builtinCreatorProgramCompatibilityReferenceV1;
 
 export interface BrowserPiCreatorAgentDispatchV1 {
   readonly revision: 1;
@@ -118,22 +118,28 @@ function serializeDispatchV1(value: BrowserPiAgentDispatchV1): string {
   return JSON.stringify(admitted.value);
 }
 
-export function serializeBrowserPiCreatorAgentDispatchV1(value: CreatorAgentSubmitV1): string {
+export function serializeBrowserPiCreatorAgentDispatchV1(input: {
+  readonly executionCompatibilityReference: string;
+  readonly submit: CreatorAgentSubmitV1;
+}): string {
   return serializeDispatchV1({
     revision: 1,
-    harnessReference: creatorProgramHarnessReferenceV1,
-    programId: value.programId,
-    submit: value,
+    harnessReference: input
+      .executionCompatibilityReference as typeof creatorProgramHarnessReferenceV1,
+    programId: input.submit.programId,
+    submit: input.submit,
   });
 }
 
 export function serializeBrowserPiTranslationAgentDispatchV1(input: {
+  readonly executionCompatibilityReference: string;
   readonly programId: string;
   readonly request: TranslationBatchRequestV1;
 }): string {
   return serializeDispatchV1({
     revision: 1,
-    harnessReference: translationProgramHarnessReferenceV1,
+    harnessReference: input
+      .executionCompatibilityReference as typeof translationProgramHarnessReferenceV1,
     programId: input.programId,
     request: input.request,
   });

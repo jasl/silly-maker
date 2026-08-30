@@ -50,6 +50,12 @@ export interface CreatorAgentSubmitV1 {
 /** Product-owned identity and exact Program base for one accepted Creator run. */
 export interface CreatorAgentRunRequestV1 {
   readonly agentRunId: string;
+  /**
+   * Opaque compatibility generation copied from the Process-pinned Program
+   * Definition. A refreshed product resolves its latest compatible built-in
+   * implementation and never falls back from an unknown reference.
+   */
+  readonly executionCompatibilityReference: string;
   /** Exact durable Process whose attempt owns this run. */
   readonly processId: string;
   /** Monotonic within the Process and fenced again at terminal commit. */

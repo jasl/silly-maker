@@ -5,3 +5,5 @@ This repository is MIT-licensed; project-owned media assets are dedicated to the
 The SillyOS portable workspace export includes client-zip 2.5.0, Copyright 2020 David Junger, under the MIT license in LICENSES/client-zip-MIT.txt.
 
 The SillyOS Browser Workspace Host Worker includes just-bash 3.4.2, Copyright 2025 Vercel Inc., under the Apache License 2.0 in LICENSES/just-bash-Apache-2.0.txt.
+
+The experimental SillyOS born-digital PDF harness includes PDF.js 6.3.289, Copyright 2024 Mozilla Foundation, under the Apache License 2.0 in LICENSES/pdfjs-Apache-2.0.txt.

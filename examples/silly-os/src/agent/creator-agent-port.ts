@@ -338,6 +338,7 @@ function exactRecordV1(
 function normalizeCreatorAgentRunV1(value: unknown): NormalizedCreatorAgentRunV1 | null {
   const record = exactRecordV1(value, [
     "agentRunId",
+    "executionCompatibilityReference",
     "processId",
     "processAttemptGeneration",
     "workspaceCheckpointId",
@@ -351,6 +352,8 @@ function normalizeCreatorAgentRunV1(value: unknown): NormalizedCreatorAgentRunV1
   if (
     record === null || typeof record.agentRunId !== "string" ||
     !identifierPatternV1.test(record.agentRunId) ||
+    typeof record.executionCompatibilityReference !== "string" ||
+    record.executionCompatibilityReference.length === 0 ||
     typeof record.processId !== "string" || !identifierPatternV1.test(record.processId) ||
     typeof record.processAttemptGeneration !== "number" ||
     !Number.isSafeInteger(record.processAttemptGeneration) ||
@@ -372,6 +375,7 @@ function normalizeCreatorAgentRunV1(value: unknown): NormalizedCreatorAgentRunV1
   if (admitted.kind === "rejected") return null;
   const run = Object.freeze({
     agentRunId: record.agentRunId,
+    executionCompatibilityReference: record.executionCompatibilityReference,
     processId: record.processId,
     processAttemptGeneration: record.processAttemptGeneration,
     workspaceCheckpointId: record.workspaceCheckpointId,
@@ -1883,7 +1887,10 @@ export function createBrowserCreatorAgentPortV1(
       try {
         // Product-only Process/Workspace currentness and Repository identity
         // never cross the Pi RPC boundary.
-        serializedSubmit = serializeBrowserPiCreatorAgentDispatchV1(normalized.submit);
+        serializedSubmit = serializeBrowserPiCreatorAgentDispatchV1({
+          executionCompatibilityReference: normalized.run.executionCompatibilityReference,
+          submit: normalized.submit,
+        });
       } catch {
         removeTrackedRunV1(tracked);
         refreshFacadeV1();

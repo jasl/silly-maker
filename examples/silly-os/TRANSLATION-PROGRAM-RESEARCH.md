@@ -192,11 +192,15 @@ runtime or tool implementation.
 The Program owns the reusable workflow, domain schema/operations, and
 Program-owned UI definitions. A Process owns the actual translation records,
 Conversation, user input, mutable work, review decisions, and exported
-artifacts. It must pin the accepted Program revision so later Program edits do
-not rewrite that package beneath the Process. This Program-content rule is
-distinct from a SillyOS software update: after refresh, a Process may use bug
-fixes and compatible capability improvements in the current harness
-implementation.
+artifacts. It retains the immutable Definition content and compatibility
+requirement that created it, so removing the Program from the current catalog
+does not erase or silently reinterpret the Process. After refresh, a built-in
+Program normally uses the newest SillyOS-shipped implementation compatible with
+that requirement. The current prototype loader updates only its Agent
+instructions, prompt projection, completion/admission, tool selection, and run
+policy. Workflow, packaged scripts, and Program-owned UI join that rule only
+when the formal Program package actually owns those facets. Committed Process
+records are never rewritten by that update.
 
 The first implementation slice only co-locates the two current build-known
 built-in Program packages. Creator and Translation each own their current
@@ -206,13 +210,13 @@ envelope. Translation keeps `sillyos.harness.translation@1` while its current
 system-prompt revision is 5. The Worker resolves the selected built-in package
 before beginning an Agent run and does not fall back from an unknown reference.
 
-This remains bootstrap structure rather than the final dynamic Program package
-format: today's persisted `harnessReference` still doubles as the built-in
-package selector, and these built-in instructions remain ordinary application
-code that may improve with SillyOS. P5-B must separate a durable Program package
-revision and its resources from the fixed SillyOS harness contract. The Process
-pins that dynamic package content; refreshed SillyOS code may improve the
-compatible static harness without silently replacing it.
+This remains bootstrap structure rather than the final externally authored
+Program package format. Today's persisted `harnessReference` selects a
+compatibility generation, not an exact built-in source revision; the built-in
+implementation may improve with SillyOS. P5-B must separately retain the exact
+content of an externally authored package so a removed package cannot strand a
+Process, while its compatibility marker selects a current fixed harness able to
+execute that content.
 
 The current lookup is only over shipped modules. Its dynamic imports defer
 module initialization, while the Vite Worker IIFE still includes the package
@@ -270,6 +274,26 @@ exact authoritative records rather than become another checkpoint schema.
 Pi session compaction cannot become the sole copy of terminology, review state,
 or progress, and SillyOS must be able to start a fresh model attempt from the
 pinned Program plus durable Process state.
+
+## Optional Program and Process settings
+
+A Program may publish a closed settings schema and complete defaults. The first
+research form uses JSON Schema plus raw JSON editing; a schema-rendered form can
+reuse the same admission contract later. Program preferences establish the
+fallback for every later attempt whose Process has no admitted override, while
+a Process may supply its own document. Each attempt captures one immutable
+effective snapshot, so a settings edit affects only later attempts or batches.
+
+Settings are deliberately non-blocking. Missing settings use defaults; malformed
+JSON falls back; and missing or invalid fields fall back to the next valid
+Program or built-in value with exact diagnostics. Only a complete, schema-valid
+canonical document is a persistence candidate, so invalid input never replaces
+the last saved preference. The Program may expose model-selection references
+for translation, semantic review, or OCR roles, but Provider credentials,
+available routes, and text/image capability admission remain SillyOS-owned.
+The research candidate and normalizer live under
+`research/translation/program-candidate/`; they are not yet a general settings
+repository or product UI.
 
 ## Tool packages, CodeAct, and structured Review
 
@@ -662,3 +686,86 @@ Revision-5 request digests are condition-specific:
 | `release-guide.md`      | `6b06176d3de697ee41909d9a5eb7eb55ada85bd5290c6b3a87997aae3b172a1d` | `7f7f4edb95b9b47fda87ee73c366a484b0512823228bbdc26f20aa6ccad1ab6d` |
 | `platform-night.srt`    | `993dcdc6648288d7485235a74a112ac01ab19c618cc1ecc15369f6804ed41bfc` | `3784d680a2ce0ac8de0156e713df65c1db9117febe61a74ead8692a08897eff0` |
 | `station-dialogue.json` | `898dbdfafb1c4241aa38c8754cbda15688d6d8943e9fc45e89546287d7f862d2` | `436bbba8220a1751e4964c92cfc3059597f958970d48e1cfb0dca7106fb386cb` |
+
+## Skill-package and prompt-condition feasibility closure
+
+The 2026-08-31 follow-up tested the proposed Program split rather than adding
+another production prompt revision. It kept one stable completion schema and
+request prefix, then compared the current revision-5 prompt with an
+independently authored workflow prompt that first asks the model to account for
+actors, actions, objects, possession, quantity, time, causality, and protected
+structure. Each of the four corpus cases ran once through each prompt condition
+and configured route.
+
+| Configured route / prompt condition | Exported | Rejected | Recorded latency | Input | Cache read | Output | Total tokens | Pi cost observation |
+| ----------------------------------- | -------: | -------: | ---------------: | ----: | ---------: | -----: | -----------: | ------------------: |
+| DeepSeek / current                  |      4/4 |        0 |        25,022 ms | 2,374 |      4,992 |  3,999 |       11,365 |        0.0014660576 |
+| DeepSeek / clean-room               |      3/4 |        1 |        22,590 ms | 2,946 |      2,688 |  3,662 |        9,296 |        0.0014453264 |
+| OpenRouter / current                |      4/4 |        0 |        12,388 ms | 6,695 |          0 |    858 |        7,553 |        0.0007166250 |
+| OpenRouter / clean-room             |      4/4 |        0 |       203,148 ms | 5,001 |          0 |  9,038 |       14,039 |        0.0026345750 |
+
+The matrix contains 16 real calls, 15 exported candidates, one deterministic
+rejection, and 42,253 provider-reported total tokens. Reasoning is a subset of
+output and is not added again. Pi's `usage.cost.total` records no currency, so
+the table does not call it USD or an invoice. Provider-reported response-model
+identity remained unavailable.
+
+The current prompt was structurally more stable, but both routes repeatedly
+reduced the supplied station/light possessive relationship to a location
+relationship. Even an explicit confirmed-plan fact did not repair that
+reliably. The clean-room condition preserved that relationship in both routes,
+but it also produced unnecessary ambiguities, one variable-count agreement
+miss, and one correctly rejected DeepSeek candidate that inserted whitespace
+before an `adjacentBefore` protected token. This evidence supports a
+Process-owned pre-translation meaning ledger for actor/object/relationship and
+quantity facts. It does not support replacing the production prompt wholesale,
+removing deterministic admission, or cancelling human Review.
+
+The request layout now keeps system instructions, one invariant tool schema,
+and a stable workflow prefix before dynamic project facts and units. Repeated
+DeepSeek requests reported cache reads; the observed OpenRouter route did not.
+DeepSeek still reported cache reads when Pi requested `cacheRetention: none`,
+so that setting is not evidence that provider automatic caching was disabled.
+The runner records this behavior rather than turning it into a Program
+guarantee. One OpenRouter clean-room request took 158,533 ms despite a requested
+120,000 ms timeout; this streaming route therefore has no proved hard wall-clock
+deadline from that option alone.
+
+The checked-in research candidate also exercises the non-model parts of the
+Program design:
+
+- `PROGRAM.md`, selectively loaded references and prompts, a manifest, complete
+  settings defaults, and one fixed QuickJS script form a cohesive Skill-like
+  package without installing another runtime;
+- the fixed script prepares bounded pending work, selects only matching
+  glossary entries, validates protected tokens and locked terminology, commits
+  to a successor project, and verifies completeness without overwriting source.
+  Commit first re-derives the exact pending units, source/context metadata, and
+  glossary from the current Project, so an outdated or mismatched batch cannot
+  publish into the wrong source units and later batches retain their global
+  unit order. This is ordinary mutable-work consistency, not a provenance or
+  supply-chain mechanism;
+- settings are optional and non-blocking. Missing settings use defaults;
+  malformed JSON falls back; valid fields in a partial document may influence
+  only the current attempt while missing or invalid fields fall back. Only a
+  complete diagnostic-free canonical Process document is eligible to replace a
+  saved preference;
+- the closed Creator blueprint was admitted twice by each configured route and
+  selected every required workflow stage, deterministic asset, reference,
+  model role, setting, compatibility reference, and human workbench without
+  inventing a capability;
+- the born-digital PDF adapter lazily loads PDF.js in a dedicated same-origin
+  Worker, copies the input bytes, emits stable text units plus a separate source
+  map, and truthfully labels the result `pdf_text_reflow`. It does not deliver
+  OCR, password UI, layout-preserving PDF translation, or PDF round-trip output.
+  The formal SillyOS production graph contains neither the lazy PDF core nor its
+  Worker until a future product journey selects that adapter.
+
+These experiments are sufficient to begin the formal P5-B Program slice. They
+do not themselves ship a Translation Process, settings UI, PDF upload journey,
+structured Review workbench, committed-batch resume, or final exporter. P5-B
+should first promote the package as one product-owned Translation Program and
+wire Intake, confirmed planning/meaning facts, one bounded batch, structured
+human Review, deterministic commit, and resume. A generic workflow engine,
+Program SDK, OCR pipeline, or generated-UI vocabulary remains outside that
+first product slice.

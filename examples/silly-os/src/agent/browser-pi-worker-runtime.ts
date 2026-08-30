@@ -165,12 +165,15 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   readonly providerFetch: BrowserPiProviderFetchV1;
   readonly probeProviderSelection?: typeof probeBrowserPiProviderSelectionV1;
   readonly createProviderAgent?: typeof createBrowserPiProviderAgentV1;
+  readonly loadBuiltinProgramPackage?: typeof loadBrowserBuiltinProgramPackageV1;
   readonly downloadOuterDeadlineMilliseconds?: number;
   readonly credentialHandoffDeadlineMilliseconds?: number;
 }): BrowserPiWorkerRuntimePortV1 {
   const probeProviderSelection = input.probeProviderSelection ??
     probeBrowserPiProviderSelectionV1;
   const createProviderAgent = input.createProviderAgent ?? createBrowserPiProviderAgentV1;
+  const loadBuiltinProgramPackage = input.loadBuiltinProgramPackage ??
+    loadBrowserBuiltinProgramPackageV1;
   const downloadOuterDeadlineMilliseconds = input.downloadOuterDeadlineMilliseconds ??
     browserPiDownloadOuterDeadlineMillisecondsV1;
   const credentialHandoffDeadlineMilliseconds = input.credentialHandoffDeadlineMilliseconds ??
@@ -228,7 +231,11 @@ export function createBrowserPiWorkerRuntimeV1(input: {
 
   const respondRpcFailure = (
     requestId: number,
-    code: "not_initialized" | "invalid_request" | "session_mismatch",
+    code:
+      | "not_initialized"
+      | "invalid_request"
+      | "session_mismatch"
+      | "program_package_unavailable",
   ): void => {
     post(Object.freeze({ revision: 1, kind: "rpc_response", requestId, ok: false, code }));
   };
@@ -508,6 +515,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   };
 
   const createRun = async (
+    programPackage: BrowserBuiltinProgramPackageV1,
     dispatch: BrowserPiAgentDispatchV1,
     execution: BrowserPiWorkerExecutionBindingV1,
     sessionId: string,
@@ -525,10 +533,6 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     ) {
       return null;
     }
-    const programPackage = await loadBrowserBuiltinProgramPackageV1(
-      dispatch.harnessReference,
-    );
-    if (programPackage === null) return null;
     const begun = await client.beginAgentRun({
       binding: execution,
       piSessionId: sessionId,
@@ -709,8 +713,20 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         ...execution,
         expectedGeneration: descriptorAfterDrain.generation,
       });
+    let programPackage: BrowserBuiltinProgramPackageV1 | null;
+    try {
+      programPackage = await loadBuiltinProgramPackage(dispatch.harnessReference);
+    } catch {
+      respondRpcFailure(requestId, "program_package_unavailable");
+      return;
+    }
+    if (programPackage === null) {
+      respondRpcFailure(requestId, "invalid_request");
+      return;
+    }
     const runId = `sillyos.run.${String(nextRunId++)}`;
     const run = await createRun(
+      programPackage,
       dispatch,
       effectiveExecution,
       request.params.sessionId,

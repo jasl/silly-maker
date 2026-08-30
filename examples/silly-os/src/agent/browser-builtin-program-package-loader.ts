@@ -28,12 +28,10 @@ export async function loadBrowserBuiltinProgramPackageV1(
   if (loaded !== undefined) return loaded;
   const load = selectedPackageLoadersV1.get(reference);
   if (load === undefined) return null;
-  try {
-    const candidate = await load();
-    if (candidate.reference !== reference) return null;
-    loadedPackagesV1.set(reference, candidate);
-    return candidate;
-  } catch {
-    return null;
+  const candidate = await load();
+  if (candidate.reference !== reference) {
+    throw new TypeError("Built-in Program package reference does not match its loader key");
   }
+  loadedPackagesV1.set(reference, candidate);
+  return candidate;
 }

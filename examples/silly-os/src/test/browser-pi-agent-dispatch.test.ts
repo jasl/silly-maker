@@ -31,11 +31,14 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
   it("round-trips the Creator and Translation harnesses through distinct exact envelopes", () => {
     const creator = admitBrowserPiAgentDispatchTextV1(
       serializeBrowserPiCreatorAgentDispatchV1({
-        revision: 1,
-        proposalId: "proposal.1",
-        programId: "program.creator.1",
-        baseProgramRevision: 1,
-        text: "Create a translation Program.",
+        executionCompatibilityReference: creatorProgramHarnessReferenceV1,
+        submit: {
+          revision: 1,
+          proposalId: "proposal.1",
+          programId: "program.creator.1",
+          baseProgramRevision: 1,
+          text: "Create a translation Program.",
+        },
       }),
     );
     expect(creator).toMatchObject({
@@ -48,6 +51,7 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
 
     const translation = admitBrowserPiAgentDispatchTextV1(
       serializeBrowserPiTranslationAgentDispatchV1({
+        executionCompatibilityReference: translationProgramHarnessReferenceV1,
         programId: "program.translation.1",
         request: translationRequestV1,
       }),
@@ -65,6 +69,7 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
 
   it("rejects unknown harnesses, cross-Program Creator payloads, and malformed translation units", () => {
     const validText = serializeBrowserPiTranslationAgentDispatchV1({
+      executionCompatibilityReference: translationProgramHarnessReferenceV1,
       programId: "program.translation.1",
       request: translationRequestV1,
     });
@@ -73,6 +78,19 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
       ...valid,
       harnessReference: "sillyos.harness.unknown@1",
     }))).toEqual({ kind: "rejected" });
+
+    expect(() =>
+      serializeBrowserPiCreatorAgentDispatchV1({
+        executionCompatibilityReference: "sillyos.builtin.creator@999",
+        submit: {
+          revision: 1,
+          proposalId: "proposal.1",
+          programId: "program.creator.1",
+          baseProgramRevision: 1,
+          text: "Do not fall back.",
+        },
+      })
+    ).toThrow("sillyos.browser_pi_agent_dispatch.invalid");
 
     expect(admitBrowserPiAgentDispatchTextV1(JSON.stringify({
       revision: 1,

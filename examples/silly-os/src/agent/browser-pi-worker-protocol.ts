@@ -310,7 +310,11 @@ export interface BrowserPiWorkerRpcFailureV1 {
   readonly kind: "rpc_response";
   readonly requestId: number;
   readonly ok: false;
-  readonly code: "not_initialized" | "invalid_request" | "session_mismatch";
+  readonly code:
+    | "not_initialized"
+    | "invalid_request"
+    | "session_mismatch"
+    | "program_package_unavailable";
 }
 
 export interface BrowserPiWorkerRpcRecordV1 {
@@ -1422,7 +1426,7 @@ export function admitBrowserPiWorkerOutboundMessageV1(
   if (
     base.ok === false &&
     (base.code === "not_initialized" || base.code === "invalid_request" ||
-      base.code === "session_mismatch")
+      base.code === "session_mismatch" || base.code === "program_package_unavailable")
   ) {
     return {
       revision: 1,

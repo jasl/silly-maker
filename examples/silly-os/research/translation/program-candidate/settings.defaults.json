@@ -1,0 +1,14 @@
+{
+  "targetLocale": "en",
+  "defaultStyle": "Natural target-language prose that preserves source meaning and voice.",
+  "reviewPolicy": "every_batch",
+  "modelRoles": {
+    "translate": null,
+    "review": null,
+    "ocr": null
+  },
+  "pdf": {
+    "ocr": "off",
+    "output": "bilingual_markdown"
+  }
+}

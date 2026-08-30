@@ -11,20 +11,25 @@ import {
 } from "../agent/browser-pi-worker-protocol.ts";
 import { browserPiDistributionIdentityV1 } from "../agent/browser-pi-distribution.ts";
 import {
+  creatorProgramHarnessReferenceV1,
   serializeBrowserPiCreatorAgentDispatchV1,
   serializeBrowserPiTranslationAgentDispatchV1,
 } from "../agent/browser-pi-agent-dispatch.ts";
+import { translationProgramHarnessReferenceV1 } from "../product/translation/translation-batch-protocol.ts";
 
 const programIdV1 = "program.workspace.preview.1";
 const workspaceIdV1 = "workspace.preview.1";
 const workspaceSessionIdV1 = "workspace.session.1";
 
 const submitTextV1 = serializeBrowserPiCreatorAgentDispatchV1({
-  revision: 1,
-  proposalId: "workspace.preview.1.proposal.1",
-  programId: programIdV1,
-  baseProgramRevision: 1,
-  text: "Create one reviewable artifact.",
+  executionCompatibilityReference: creatorProgramHarnessReferenceV1,
+  submit: {
+    revision: 1,
+    proposalId: "workspace.preview.1.proposal.1",
+    programId: programIdV1,
+    baseProgramRevision: 1,
+    text: "Create one reviewable artifact.",
+  },
 });
 
 const submitRecordV1 = {
@@ -469,6 +474,7 @@ describe("Browser Pi Worker protocol", () => {
       params: {
         sessionId: "pi.session.1",
         text: serializeBrowserPiTranslationAgentDispatchV1({
+          executionCompatibilityReference: translationProgramHarnessReferenceV1,
           programId: programIdV1,
           request: {
             sourceLocale: "zh-CN",

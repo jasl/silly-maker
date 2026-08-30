@@ -1,0 +1,28 @@
+{
+  "schema": "sillyos.program-package.research.v1",
+  "programId": "sillyos.translation",
+  "packageRevision": 1,
+  "harnessCompatibility": {
+    "id": "sillyos.harness.translation",
+    "revision": 1
+  },
+  "entry": "PROGRAM.md",
+  "references": [
+    "references/translation-rules.md"
+  ],
+  "prompts": [
+    "prompts/translate.md"
+  ],
+  "settings": {
+    "schema": "settings.schema.json",
+    "defaults": "settings.defaults.json"
+  },
+  "scripts": [
+    "scripts/translation-project.js"
+  ],
+  "requiredCapabilities": [
+    "workspace.text.v1",
+    "quickjs.sync.v1",
+    "translation.batch.v1"
+  ]
+}

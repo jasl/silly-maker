@@ -197,11 +197,16 @@ directories, a second README, dynamic dependencies, and an internal package
 manager are not part of the denominator.
 
 SillyOS workflow controllers own stage transitions, context planning,
-checkpoints, and recovery. For one attempt, the execution projection combines
-the pinned Program revision with the current compatible harness implementation
-to bind instructions/resources and model-visible tool availability. A Program
-revision remains durable product content; a refreshed SillyOS release may
-improve the fixed harness behind the same compatibility contract.
+checkpoints, and recovery. A Process retains the exact immutable Definition
+content and execution-compatibility requirement that created it, so removing a
+Program from the current catalog cannot erase that Process. After a refresh,
+however, a built-in Program normally runs the newest SillyOS-shipped
+implementation that satisfies that compatibility requirement. The current
+prototype loader updates only Agent instructions, prompt projection,
+completion/admission, selected tools, and run policy. Workflow, packaged
+scripts, and Program-owned UI join that rule only after a formal package
+actually owns those facets. Already committed transcript, decisions, artifacts,
+and checkpoints are never rewritten.
 The Agent/model performs semantic judgment under those instructions and the
 admitted Profile; the human owns final Profile, ambiguity, review, and acceptance
 decisions. Product admission, repositories, and Workspace authority own
@@ -211,6 +216,19 @@ API and not a second Agent loop. Skills/resources carry reusable domain
 procedures and examples and may package fixed scripts; scripts execute only
 through admitted tool or Workspace boundaries. The app and structured domain
 records remain the human-facing product and durable authority.
+
+A Program may also expose optional settings as a closed schema with defaults.
+Program preferences provide the fallback for every later attempt whose Process
+has no admitted override; a Process may provide its own document, and an
+attempt captures one immutable effective settings snapshot when it begins.
+Later edits affect only later attempts or batches. Settings are
+best-effort input, not an execution precondition: absence uses defaults; invalid
+JSON falls back; and missing or invalid fields fall back to the next valid
+Program or built-in default while producing diagnostics. Only a complete
+schema-valid canonical document may replace a saved preference. Provider
+credentials and model capability admission remain SillyOS authorities; a
+Program setting may name translate, review, or OCR model-selection references,
+but it cannot grant itself a Provider or capability.
 
 Mechanical work belongs in deterministic tools or Workspace scripts whenever
 practical: parsing, normalization, splitting, counting, lookup, comparison,
@@ -4762,15 +4780,21 @@ selection remains P3b work; it is not retroactively folded into persistence.
 slice reproduced by the P5 translation study. The research contract, clean-room
 reference boundary, dual-model matrix, and staged gates live in
 [TRANSLATION-PROGRAM-RESEARCH.md](./TRANSLATION-PROGRAM-RESEARCH.md). P5-A has
-recorded model-protocol evidence through both named routes, but this activation
-does not product-qualify either route or claim a complete Pi capability
-composition, CodeAct workflow, fixed-script package, or OpenUI mapping.
+recorded model-protocol evidence through both named routes. A cohesive
+research-only package now also proves one fixed QuickJS script, optional
+best-effort settings with complete defaults, a closed Creator blueprint, and a
+lazy born-digital PDF text adapter. This activation does not product-qualify
+either route or claim a complete Pi capability composition, shipped CodeAct
+workflow, formal Program SDK, OCR pipeline, or OpenUI mapping.
 
 Generalize only after Pi, storage, and the P3 tool are real consumers. A reviewed
-Program revision durably identifies its Program-owned instructions, resources,
-and configuration so a later Program edit does not rewrite an existing Process.
-Separately, its harness reference selects a compatible SillyOS execution
-contract whose implementation may improve when the application updates. Browser composes public
+Program Definition revision durably identifies immutable declarative content
+and preserves the Process even if the catalog later removes that Program.
+Separately, its harness reference is an execution-compatibility generation.
+After refresh it selects the newest compatible SillyOS-shipped Program
+implementation. For the current two prototypes this selection covers only the
+Agent-package facets listed below; workflow, scripts, and Program-owned UI are
+future formal-package facets. Browser composes public
 `AgentTool` values and admitted resources directly; Desktop maps the same
 capability cores through its proven extension/resource route and Pi tool
 allowlists. Availability is reported truthfully per target. Pi remains the only
@@ -4811,14 +4835,16 @@ Translation remains on its existing compatibility reference while its current
 system-prompt revision is 5. The Worker resolves the selected built-in package
 before starting an Agent run and does not fall back from an unknown reference.
 
-This is bootstrap cleanup, not the final dynamic Program package contract. The
-current persisted `harnessReference` still doubles as the selector for these two
-built-ins; their instructions and policy remain ordinary application code and
-may improve when SillyOS updates. A later real Program package must instead
-separate its durable, Process-pinned package revision/resources from the fixed
-SillyOS harness contract. Refreshing may improve that compatible harness, but
-must not silently replace the pinned dynamic Program content. Capability IDs
-remain descriptive Program data rather than a second tool grant authority.
+This is bootstrap cleanup, not the final externally authored Program package
+contract. The persisted `harnessReference` is a compatibility selector for the
+two built-ins, not their source-code revision. Their compatible instructions,
+prompt projection, completion/admission, selected tools, and run policy may
+improve when SillyOS updates. A
+later externally authored package still needs durable retained content so a
+deleted package cannot strand its Processes; its manifest must separately state
+which current fixed-harness compatibility generation can execute it.
+Capability IDs remain descriptive Program data rather than a second tool grant
+authority.
 
 The explicit dynamic imports defer package-module initialization until first
 selection. The current Vite Worker IIFE still includes both package modules in
@@ -4836,11 +4862,14 @@ request backed by the real consumer, not permission to create a second runtime.
 
 **Current status (2026-08-31):** P5 remains active in P5-A through P5-D order.
 P5-A is complete with the deterministic original four-format corpus,
-round-trip laboratory, secret-safe research runner, and recorded prompt-v4/v5
-model-protocol evidence through both named routes, including a confirmed-plan
-ablation. The build-known Creator / Translation Program-package colocation
-cleanup is also complete; Translation's compatibility reference remains `@1`
-and its current prompt revision is 5.
+round-trip laboratory, secret-safe research runner, recorded prompt-v4/v5
+model-protocol evidence, a current-versus-clean-room prompt matrix, the
+research-only Skill-like package/fixed-script/settings candidate, the closed
+Creator blueprint experiment, and a lazy born-digital PDF text-adapter
+experiment. The evidence supports beginning the formal P5-B product slice
+without replacing the production prompt wholesale. The build-known Creator /
+Translation Program-package colocation cleanup is also complete; Translation's
+compatibility reference remains `@1` and its current prompt revision is 5.
 P5-B through P5-D remain incomplete:
 neither route nor an ordinary Translation product journey is qualified.
 Process-owned Workspace, Host import, and Browser Translation dispatch exist
