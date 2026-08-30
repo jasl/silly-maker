@@ -76,6 +76,24 @@ interface DurableProgramPageFixturesV1 {
   readonly durableProgramPage: Page;
 }
 
+const durableProgramConsoleErrorsV1 = new WeakMap<Page, string[]>();
+
+/** Consumes only an exact console error deliberately produced by test tooling. */
+export function consumeExpectedDurableProgramConsoleErrorsV1(
+  page: Page,
+  message: string,
+): number {
+  const errorsV1 = durableProgramConsoleErrorsV1.get(page);
+  if (errorsV1 === undefined) {
+    throw new Error("durable Program page diagnostics are unavailable");
+  }
+  const matchingIndexesV1 = errorsV1.flatMap((candidateV1, indexV1) =>
+    candidateV1 === message ? [indexV1] : []
+  );
+  for (const indexV1 of matchingIndexesV1.toReversed()) errorsV1.splice(indexV1, 1);
+  return matchingIndexesV1.length;
+}
+
 export const test = base.extend<
   { pageDiagnostics: PageDiagnosticsV1 } & DurableProgramPageFixturesV1
 >({
@@ -130,7 +148,7 @@ export const test = base.extend<
     },
     { auto: true },
   ],
-  durableProgramPage: async ({ browserName, playwright }, use, testInfo) => {
+  durableProgramPage: async ({ browserName, hasTouch, playwright, viewport }, use, testInfo) => {
     if (browserName !== "chromium" && browserName !== "webkit") {
       throw new Error(`unsupported durable Program browser: ${browserName}`);
     }
@@ -144,7 +162,8 @@ export const test = base.extend<
     try {
       const context = await browserType.launchPersistentContext(profileDirectory, {
         headless: true,
-        viewport: { width: 1280, height: 720 },
+        hasTouch,
+        viewport: viewport ?? { width: 1280, height: 720 },
       });
       const observedPages = new Set<Page>();
       const observePage = (observedPage: Page): void => {
@@ -159,10 +178,12 @@ export const test = base.extend<
       for (const existingPage of context.pages()) observePage(existingPage);
       const durablePage = context.pages()[0] ?? await context.newPage();
       observePage(durablePage);
+      durableProgramConsoleErrorsV1.set(durablePage, consoleErrors);
 
       try {
         await use(durablePage);
       } finally {
+        durableProgramConsoleErrorsV1.delete(durablePage);
         await context.close();
       }
     } finally {

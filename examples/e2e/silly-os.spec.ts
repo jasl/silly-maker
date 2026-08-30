@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 import {
+  consumeExpectedDurableProgramConsoleErrorsV1,
   expect,
   sillyOsNetworkBrokerTargetV1,
   sillyOsTargetUrlV1,
@@ -563,9 +564,42 @@ async function expectNoPageOverflowV1(page: Page): Promise<void> {
   expect(overflow.body).toBeLessThanOrEqual(1);
 }
 
+async function expectInsideVisualViewportV1(page: Page, locator: Locator): Promise<void> {
+  const [boxV1, viewportV1] = await Promise.all([
+    locator.boundingBox(),
+    page.evaluate(() => ({ height: innerHeight, width: innerWidth })),
+  ]);
+  expect(boxV1).not.toBeNull();
+  expect(boxV1?.x ?? Number.NEGATIVE_INFINITY).toBeGreaterThanOrEqual(-1);
+  expect(boxV1?.y ?? Number.NEGATIVE_INFINITY).toBeGreaterThanOrEqual(-1);
+  expect((boxV1?.x ?? 0) + (boxV1?.width ?? 0)).toBeLessThanOrEqual(viewportV1.width + 1);
+  expect((boxV1?.y ?? 0) + (boxV1?.height ?? 0)).toBeLessThanOrEqual(viewportV1.height + 1);
+}
+
+async function settleVisualFixtureV1(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolveV1) => requestAnimationFrame(() => resolveV1()));
+    await new Promise<void>((resolveV1) => requestAnimationFrame(() => resolveV1()));
+    (document.activeElement as HTMLElement | null)?.blur();
+  });
+}
+
+async function expectVisualSnapshotV1(locatorV1: Locator, nameV1: string): Promise<void> {
+  const screenshotV1 = await locatorV1.screenshot({
+    animations: "allow",
+    caret: "initial",
+  });
+  expect(screenshotV1).toMatchSnapshot(nameV1);
+}
+
 const openAIResponsesProbeUrlV1 = "https://api.openai.com/v1/responses";
 const browserProviderSettingsStorageKeyV2 = "sillymaker.example-silly-os.provider-settings.v2";
 const browserProductPreferencesStorageKeyV1 = "sillymaker.example-silly-os.product-preferences.v1";
+const webkitScreenshotStyleCspErrorV1 =
+  "Refused to apply a stylesheet because its hash, its nonce, or 'unsafe-inline' does not appear in the style-src directive of the Content Security Policy.";
+const webkitScreenshotDefaultStyleCspErrorV1 =
+  "Refused to apply a stylesheet because its hash, its nonce, or 'unsafe-inline' appears in neither the style-src directive nor the default-src directive of the Content Security Policy.";
 
 interface OpenAIResponsesProbeRequestV1 {
   readonly method: string;
@@ -935,9 +969,17 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   expect(clearAllWarningLayout.whiteSpace).not.toBe("nowrap");
   expect(clearAllWarningLayout.scrollWidth).toBeLessThanOrEqual(clearAllWarningLayout.clientWidth);
   await expect(clearAllDataDialog.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await page.setViewportSize({ width: 1_024, height: 520 });
+  await expectInsideVisualViewportV1(page, clearAllDataDialog);
+  await expectInsideVisualViewportV1(
+    page,
+    clearAllDataDialog.getByRole("button", { name: "Clear all data" }),
+  );
+  await expectNoPageOverflowV1(page);
   await page.keyboard.press("Escape");
   await expect(clearAllDataDialog).toHaveCount(0);
   await expect(clearAllDataButton).toBeFocused();
+  await page.setViewportSize({ width: 390, height: 844 });
   await settingsVault.click();
   const vaultPanel = page.locator('[data-vault-phase="unlocked"]');
   await expect(vaultPanel).toBeVisible();
@@ -2622,11 +2664,23 @@ test("desktop workspace keeps its minimum geometry and keyboard-resizable split"
   expect(workpieceBox?.width ?? 0).toBeGreaterThanOrEqual(400);
 
   const initialWidth = Number(await separator.getAttribute("aria-valuenow"));
+  const separatorBox = await separator.boundingBox();
+  if (separatorBox === null) throw new TypeError("expected visible Workspace separator");
+  await page.mouse.move(
+    separatorBox.x + separatorBox.width / 2,
+    separatorBox.y + separatorBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(separatorBox.x + 32, separatorBox.y + separatorBox.height / 2);
+  await page.mouse.up();
+  await expect.poll(async () => Number(await separator.getAttribute("aria-valuenow")))
+    .toBeGreaterThanOrEqual(initialWidth + 24);
+  const pointerWidth = Number(await separator.getAttribute("aria-valuenow"));
   await separator.focus();
   await separator.press("ArrowRight");
-  await expect(separator).toHaveAttribute("aria-valuenow", String(initialWidth + 8));
+  await expect(separator).toHaveAttribute("aria-valuenow", String(pointerWidth + 8));
   await separator.press("Shift+ArrowRight");
-  await expect(separator).toHaveAttribute("aria-valuenow", String(initialWidth + 40));
+  await expect(separator).toHaveAttribute("aria-valuenow", String(pointerWidth + 40));
   await separator.press("Home");
   await expect(separator).toHaveAttribute("aria-valuenow", "280");
 
@@ -2636,20 +2690,124 @@ test("desktop workspace keeps its minimum geometry and keyboard-resizable split"
   await expectNoPageOverflowV1(page);
 });
 
-test("workspace switches cleanly at the desktop and mobile boundary", async ({ durableProgramPage: page }) => {
-  await page.setViewportSize({ width: 768, height: 700 });
+test("workspace preserves its responsive geometry across the DS1 viewport matrix", async ({ durableProgramPage: page }) => {
+  await page.setViewportSize({ width: 1_600, height: 1_000 });
   const workspace = await openTranslationWorkspaceV1(page);
-  await expect(workspace).toHaveAttribute("data-workspace-layout", "dual-pane");
-  await expect(page.locator('[data-workspace-pane="chat"]')).toBeVisible();
-  await expect(page.locator('[data-workspace-pane="workpiece"]')).toBeVisible();
-  await expectNoPageOverflowV1(page);
+  const topbar = page.locator(".program-workspace__topbar");
+  const chat = page.locator('[data-workspace-pane="chat"]');
+  const workpiece = page.locator('[data-workspace-pane="workpiece"]');
+  const toolbar = page.locator(".workpiece-pane__toolbar");
+  const separator = page.getByRole("separator", {
+    name: "Resize conversation and workpiece panes",
+  });
+  const navigation = page.getByRole("navigation", { name: "Workspace views" });
+  const composer = page.locator(".chat-composer");
+  const casesV1 = [
+    { width: 1_600, height: 1_000, layout: "dual-pane", topbarHeight: 56 },
+    { width: 1_280, height: 800, layout: "dual-pane", topbarHeight: 56 },
+    { width: 1_024, height: 520, layout: "dual-pane", topbarHeight: 56 },
+    // Half the CSS-pixel viewport is the maintained 200% reflow proxy.
+    { width: 800, height: 500, layout: "dual-pane", topbarHeight: 56 },
+    { width: 768, height: 700, layout: "dual-pane", topbarHeight: 56 },
+    { width: 767, height: 700, layout: "single-pane", topbarHeight: 52 },
+    { width: 390, height: 844, layout: "single-pane", topbarHeight: 52 },
+    { width: 320, height: 568, layout: "single-pane", topbarHeight: 52 },
+  ] as const;
 
-  await page.setViewportSize({ width: 767, height: 700 });
-  await expect(workspace).toHaveAttribute("data-workspace-layout", "single-pane");
-  await expect(page.getByRole("navigation", { name: "Workspace views" })).toBeVisible();
-  await expect(page.locator('[data-workspace-pane="chat"]')).toBeVisible();
-  await expect(page.locator('[data-workspace-pane="workpiece"]')).toBeHidden();
+  for (const fixtureV1 of casesV1) {
+    await page.setViewportSize({ width: fixtureV1.width, height: fixtureV1.height });
+    await expect(workspace).toHaveAttribute("data-workspace-layout", fixtureV1.layout);
+    expect(Math.round((await topbar.boundingBox())?.height ?? 0)).toBe(fixtureV1.topbarHeight);
+    await expectNoPageOverflowV1(page);
+
+    if (fixtureV1.layout === "dual-pane") {
+      await expect(chat).toBeVisible();
+      await expect(workpiece).toBeVisible();
+      await expect(separator).toBeVisible();
+      expect((await chat.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(280);
+      expect((await workpiece.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(400);
+      expect(Math.round((await separator.boundingBox())?.width ?? 0)).toBe(1);
+      expect(Math.round((await toolbar.boundingBox())?.height ?? 0)).toBe(48);
+    } else {
+      await expect(navigation).toBeVisible();
+      await navigation.getByRole("button", { name: "Chat" }).click();
+      await expect(chat).toBeVisible();
+      await expect(workpiece).toBeHidden();
+      for (const buttonV1 of await navigation.getByRole("button").all()) {
+        expect((await buttonV1.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      }
+      await navigation.getByRole("button", { name: "View" }).click();
+      await expect(workpiece).toBeVisible();
+      expect(Math.round((await toolbar.boundingBox())?.height ?? 0)).toBe(48);
+      await expectInsideVisualViewportV1(page, workpiece);
+      await navigation.getByRole("button", { name: "Chat" }).click();
+    }
+
+    await expectInsideVisualViewportV1(page, composer);
+    await expectNoPageOverflowV1(page);
+  }
+});
+
+test("long bilingual Creator follow-up remains readable and contained", async ({ durableProgramPage: page }) => {
+  await page.setViewportSize({ width: 1_280, height: 800 });
+  await openTranslationWorkspaceV1(page);
+  const textV1 =
+    "Keep the English character voice consistent across a deliberately long instruction, 保持中文角色语气和术语一致，and preserve mixed-script identifiers such as station_海边-42 without clipping or forcing page-level horizontal scrolling.";
+  await page.getByRole("textbox", { name: "Ask for a change…" }).fill(textV1);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText(textV1, { exact: true })).toBeVisible();
   await expectNoPageOverflowV1(page);
+});
+
+test("@ds1-visual Workspace keeps its representative desktop and phone compositions", async (
+  { durableProgramPage: page },
+  testInfo,
+) => {
+  test.setTimeout(120_000);
+  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+  await page.addInitScript(
+    ([storageKeyV1, serializedV1]) => {
+      localStorage.setItem(storageKeyV1, serializedV1);
+    },
+    [
+      browserProductPreferencesStorageKeyV1,
+      JSON.stringify({ revision: 1, locale: "en", theme: "dark" }),
+    ] as const,
+  );
+  await page.setViewportSize({ width: 1_600, height: 1_000 });
+  const workspace = await openTranslationWorkspaceV1(page);
+  await page.locator("[data-workspace-review] code").evaluateAll((elementsV1) => {
+    for (const elementV1 of elementsV1) {
+      elementV1.textContent = "sillyos.fixture.00000000-0000-4000-8000-000000000000";
+    }
+  });
+
+  await settleVisualFixtureV1(page);
+  await expectVisualSnapshotV1(workspace, "ds1-desktop-workspace.png");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const navigation = page.getByRole("navigation", { name: "Workspace views" });
+  await navigation.getByRole("button", { name: "Chat" }).click();
+  await settleVisualFixtureV1(page);
+  await expectVisualSnapshotV1(workspace, "ds1-phone-chat.png");
+
+  await navigation.getByRole("button", { name: "View" }).click();
+  await settleVisualFixtureV1(page);
+  await expectVisualSnapshotV1(workspace, "ds1-phone-view.png");
+
+  if (testInfo.project.name === "webkit") {
+    expect(
+      consumeExpectedDurableProgramConsoleErrorsV1(page, webkitScreenshotStyleCspErrorV1),
+      "WebKit must report each rejected Playwright screenshot stylesheet",
+    ).toBe(3);
+    expect(
+      consumeExpectedDurableProgramConsoleErrorsV1(
+        page,
+        webkitScreenshotDefaultStyleCspErrorV1,
+      ),
+      "WebKit must report both fallback refusals for each screenshot stylesheet",
+    ).toBe(6);
+  }
 });
 
 test("full-screen workpiece exits with Escape and restores focus", async ({ durableProgramPage: page }) => {
@@ -2672,8 +2830,14 @@ test("full-screen workpiece exits with Escape and restores focus", async ({ dura
   await expectNoPageOverflowV1(page);
 });
 
-test("@mobile portrait uses one navigable pane without page overflow", async ({ durableProgramPage: page }) => {
+test("@mobile portrait uses one navigable pane without page overflow", async (
+  { durableProgramPage: page },
+  testInfo,
+) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  if (testInfo.project.name === "mobile-portrait") {
+    expect(await page.evaluate(() => navigator.maxTouchPoints)).toBeGreaterThan(0);
+  }
   const workspace = await openTranslationWorkspaceV1(page);
   await expect(workspace).toHaveAttribute("data-workspace-layout", "single-pane");
 
