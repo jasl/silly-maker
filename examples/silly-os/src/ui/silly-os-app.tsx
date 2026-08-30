@@ -109,6 +109,8 @@ import type { WorkpieceWorkspaceExportV1 } from "./workpiece-pane.tsx";
 import "./design-system/tokens.css";
 import "./design-system/components.css";
 import "./collection-state.css";
+import "./composer-model-picker.css";
+import "./creator-home.css";
 import "./silly-os.css";
 import "./design-system/tailwind.css";
 

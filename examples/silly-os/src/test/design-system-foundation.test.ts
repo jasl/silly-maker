@@ -44,13 +44,15 @@ describe("SillyOS design-system foundation", () => {
   });
 
   it("keeps component colors behind semantic tokens", async () => {
-    const productCss = await readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8");
-    const componentCss = await readFile(
-      resolve(productRootV1, "ui/design-system/components.css"),
-      "utf8",
-    );
+    const [productCss, creatorHomeCss, composerModelPickerCss, componentCss] = await Promise.all([
+      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/creator-home.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/composer-model-picker.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
+    ]);
 
-    expect(`${productCss}\n${componentCss}`).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/iu);
+    expect(`${productCss}\n${creatorHomeCss}\n${composerModelPickerCss}\n${componentCss}`)
+      .not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/iu);
     expect(productCss).toContain("var(--sos-surface)");
     expect(componentCss).toContain(".sos-button");
     expect(componentCss).toContain(".sos-input");
@@ -76,6 +78,46 @@ describe("SillyOS design-system foundation", () => {
     expect(componentCss).toContain("min-block-size: var(--silly-control-min-size);");
     expect(textButtonRule).toContain("white-space: normal");
     expect(textButtonRule).not.toMatch(/(^|\s)block-size:/u);
+  });
+
+  it("keeps the shared composer picker before its Creator Home surface owner", async () => {
+    const [app, legacyCss, creatorHomeCss, composerModelPickerCss] = await Promise.all([
+      readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
+      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/creator-home.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/composer-model-picker.css"), "utf8"),
+    ]);
+
+    expect(app.indexOf('import "./collection-state.css";')).toBeLessThan(
+      app.indexOf('import "./composer-model-picker.css";'),
+    );
+    expect(app.indexOf('import "./composer-model-picker.css";')).toBeLessThan(
+      app.indexOf('import "./creator-home.css";'),
+    );
+    expect(app.indexOf('import "./creator-home.css";')).toBeLessThan(
+      app.indexOf('import "./silly-os.css";'),
+    );
+    expect(app.indexOf('import "./silly-os.css";')).toBeLessThan(
+      app.indexOf('import "./design-system/tailwind.css";'),
+    );
+
+    expect(creatorHomeCss).toContain(".creator-home {");
+    expect(creatorHomeCss).toContain(".pi-agent-setup {");
+    expect(creatorHomeCss).toContain(".creator-composer {");
+    expect(creatorHomeCss).not.toMatch(/(^|\n)\s*\.creator-composer__(?:model|reasoning)/u);
+    expect(composerModelPickerCss).toContain(".creator-composer__model-picker {");
+    expect(composerModelPickerCss).not.toMatch(/(^|\n)\s*\.creator-home(?:\b|__)/u);
+    expect(legacyCss).not.toMatch(/(^|\n)\s*\.creator-home(?:\b|__)/u);
+    expect(legacyCss).not.toMatch(/(^|\n)\s*\.pi-agent-setup(?:\b|__)/u);
+    expect(legacyCss).not.toMatch(/(^|\n)\s*\.creator-composer(?:\s|,|\{)/u);
+    expect(legacyCss).not.toMatch(
+      /(^|\n)\s*\.creator-composer__(?:actions|primary-actions)(?:\b|\s|,|\{)/u,
+    );
+    expect(legacyCss).not.toMatch(/(^|\n)\s*\.creator-composer__(?:model|reasoning)/u);
+    expect(legacyCss).toContain(".chat-composer .creator-composer__model-picker");
+    expect(legacyCss).toContain(
+      ".chat-composer__primary-actions > .creator-composer__model-picker",
+    );
   });
 
   it("routes multiline and durable export progress through the shared physical layer", async () => {
