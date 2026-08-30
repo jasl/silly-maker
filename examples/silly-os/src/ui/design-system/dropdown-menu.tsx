@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
-import { Check, ChevronRight, Circle } from "lucide-react";
+import { ChevronRight, Circle } from "lucide-react";
 import { type ComponentProps, type ReactNode } from "react";
 
 import { useSillyOsOverlayHostV1 } from "./overlay-host.tsx";
@@ -14,7 +14,6 @@ export function DropdownMenuV1(
   return <DropdownMenuPrimitive.Root {...props} modal={false} />;
 }
 export const DropdownMenuTriggerV1 = DropdownMenuPrimitive.Trigger;
-export const DropdownMenuGroupV1 = DropdownMenuPrimitive.Group;
 export const DropdownMenuSubV1 = DropdownMenuPrimitive.Sub;
 export const DropdownMenuRadioGroupV1 = DropdownMenuPrimitive.RadioGroup;
 
@@ -156,28 +155,5 @@ export function DropdownMenuSeparatorV1({
       className={cnV1("sos:-mx-0.5 sos:my-1 sos:h-px sos:bg-border", className)}
       {...props}
     />
-  );
-}
-
-export function DropdownMenuCheckboxItemV1({
-  className,
-  children,
-  ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>): ReactNode {
-  return (
-    <DropdownMenuPrimitive.CheckboxItem
-      className={cnV1(
-        "sos:relative sos:flex sos:min-h-control sos:cursor-default sos:select-none sos:items-center sos:gap-2 sos:rounded-control sos:py-2 sos:pr-2.5 sos:pl-8 sos:text-sm sos:outline-none sos:focus:bg-accent-soft",
-        className,
-      )}
-      {...props}
-    >
-      <span className="sos:absolute sos:left-2.5 sos:flex sos:size-4 sos:items-center sos:justify-center">
-        <DropdownMenuPrimitive.ItemIndicator>
-          <Check className="sos:size-4" aria-hidden="true" />
-        </DropdownMenuPrimitive.ItemIndicator>
-      </span>
-      {children}
-    </DropdownMenuPrimitive.CheckboxItem>
   );
 }
