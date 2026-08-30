@@ -42,6 +42,7 @@ async function openCreatorHomeV1(page: Page): Promise<void> {
 
 async function openTranslationWorkspaceV1(page: Page): Promise<Locator> {
   await openCreatorHomeV1(page);
+  await initializePiTestV1(page, "silly-os-e2e-key");
   await page.getByRole("textbox", { name: "What would you like to make?" }).fill(
     translationIntentV1,
   );
@@ -1339,21 +1340,11 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
 
   await page.setViewportSize({ width: 1024, height: 844 });
   await expect(workspace).toHaveAttribute("data-workspace-layout", "dual-pane");
-  const projectProgress = page.getByRole("progressbar", { name: "Project progress" });
-  await expect(projectProgress).toBeVisible();
-  await expect(projectProgress).toHaveClass(/\bsilly-progress-meter\b/u);
-  await expect(projectProgress).toHaveClass(/\bsos-progress\b/u);
-  await expect(projectProgress).toHaveAttribute("aria-valuetext", "68%");
-  const projectProgressGeometry = await projectProgress.evaluate((element) => ({
-    blockSize: getComputedStyle(element).blockSize,
-    height: element.getBoundingClientRect().height,
-    minBlockSize: getComputedStyle(element).minBlockSize,
-  }));
-  expect(projectProgressGeometry).toEqual({
-    blockSize: "4px",
-    height: 4,
-    minBlockSize: "0px",
-  });
+  await expect(
+    page.getByRole("heading", { name: "No visual workpiece has been published yet" }),
+  ).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Source" })).toHaveCount(0);
+  await expect(page.getByRole("progressbar", { name: "Project progress" })).toHaveCount(0);
   const desktopChatShell = page.locator(".program-workspace__chat-shell");
   const desktopSeparator = page.getByRole("separator", {
     name: "Resize conversation and workpiece panes",
@@ -1657,12 +1648,17 @@ test("Creator Home persists and reopens an exact accepted Program", async ({ dur
   await expect(page.getByText("Program accepted", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Accept program" })).toHaveCount(0);
 
-  await page.getByRole("tab", { name: "Source" }).click();
-  await expect(page.getByLabel("Program preview source")).toContainText("defineProgram");
+  await expect(page.getByRole("tab", { name: "View" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(
+    page.getByRole("heading", { name: "No visual workpiece has been published yet" }),
+  ).toBeVisible();
 
   await page.getByRole("tab", { name: "Capabilities" }).click();
   await expect(page.getByRole("heading", { name: "Capabilities" })).toBeVisible();
-  await expect(page.getByText("Not connected", { exact: true })).toBeVisible();
+  await expect(page.getByText("Deterministic test wiring", { exact: true })).toBeVisible();
 
   await page.getByRole("tab", { name: "Activity" }).click();
   await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
@@ -1689,8 +1685,8 @@ test("Creator Home persists and reopens an exact accepted Program", async ({ dur
   await expect(page.getByText(translationIntentV1, { exact: true })).toBeVisible();
   await expect(page.getByText("Program accepted", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Accept program" })).toHaveCount(0);
-  await page.getByRole("tab", { name: "Source" }).click();
-  await expect(page.getByLabel("Program preview source")).toContainText("revision: 1");
+  await expect(workspace).toHaveAttribute("data-program-revision", "1");
+  await expect(page.getByRole("tab", { name: "Source" })).toHaveCount(0);
   await page.getByRole("tab", { name: "Activity" }).click();
   await expect(page.getByText("Accepted Program proposal v1", { exact: true })).toBeVisible();
 });
@@ -1740,16 +1736,18 @@ test("a follow-up creates a new exact Program revision for review", async ({ dur
     page.locator('[data-chat-role="user"]').getByText(followUp, { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText(/I incorporated that follow-up into .* proposal v2/u),
+    page.locator('[data-chat-role="creator"]').getByText(
+      "Deterministic test proposal ready.",
+      { exact: true },
+    ).last(),
   ).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
   await expect(page.getByRole("button", { name: "Accept program" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Reject proposal" })).toBeVisible();
 
-  await page.getByRole("tab", { name: "Source" }).click();
-  const source = page.getByLabel("Program preview source");
-  await expect(source).toContainText("revision: 2");
-  await expect(source).toContainText(followUp);
+  await expect(page.getByRole("main", { name: "SillyOS program workspace" }))
+    .toHaveAttribute("data-program-revision", "2");
+  await expect(page.getByRole("tab", { name: "Source" })).toHaveCount(0);
 
   await page.getByRole("tab", { name: "Activity" }).click();
   await expect(page.getByText("Rejected Program proposal v1", { exact: true })).toBeVisible();
@@ -1854,9 +1852,8 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   if (continuation === null) throw new Error("Ordinary Program lost its Workspace continuation");
   await expectOrdinaryWorkspaceSandboxV1(page, continuation, followUp);
 
-  await page.getByRole("tab", { name: "Source" }).click();
-  await expect(page.getByLabel("Program preview source")).toContainText("revision: 2");
-  await expect(page.getByLabel("Program preview source")).toContainText(followUp);
+  await expect(workspace).toHaveAttribute("data-program-revision", "2");
+  await expect(page.getByRole("tab", { name: "Source" })).toHaveCount(0);
   await page.getByRole("tab", { name: "Capabilities" }).click();
   await expect(page.getByText("Deterministic test wiring", { exact: true })).toBeVisible();
   await expect(page.getByText("Program workspace checkpoint", { exact: true })).toBeVisible();
@@ -1878,7 +1875,7 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   });
   await expect(recentProgram).toHaveAttribute("data-program-id", programId);
   await expect(recentProgram).toContainText("v2 · Preview");
-  await expect(recentProgram).toBeDisabled();
+  await expect(recentProgram).toBeEnabled();
 
   const reloadedKeyInput = page.getByLabel("Synthetic test key (memory only)");
   await reloadedKeyInput.fill(sentinel);
@@ -1919,10 +1916,8 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   await expect(reopenedWorkspace).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
   await expectOrdinaryWorkspaceSandboxV1(page, continuation, followUp);
 
-  await page.getByRole("tab", { name: "Source" }).click();
-  await expect(page.getByLabel("Program preview source")).toContainText("revision: 3");
-  await expect(page.getByLabel("Program preview source")).toContainText(followUp);
-  await expect(page.getByLabel("Program preview source")).toContainText(persistenceProbe);
+  await expect(reopenedWorkspace).toHaveAttribute("data-program-revision", "3");
+  await expect(page.getByRole("tab", { name: "Source" })).toHaveCount(0);
 
   const completedAggregate = await readDurableProgramV3(page, programId);
   if (completedAggregate === null) throw new Error("expected durable Program aggregate");
