@@ -611,7 +611,7 @@ function ProgramActivityV1({
             <span className="program-activity__line" aria-hidden="true" />
             <div>
               <strong>{item.summary}</strong>
-              <small>{item.kind.replaceAll("_", " ")}</small>
+              <small>{copy.activityKindLabels[item.kind]}</small>
             </div>
           </li>
         ))}

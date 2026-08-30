@@ -21,6 +21,18 @@ export type SillyOsLocaleV1 = (typeof sillyOsLocaleRegistryV1)[number]["value"];
 
 const defaultSillyOsLocaleV1: SillyOsLocaleV1 = "en";
 
+export interface SillyOsActivityKindLabelsV1 {
+  readonly intent_submitted: string;
+  readonly follow_up_submitted: string;
+  readonly proposal_created: string;
+  readonly proposal_revised: string;
+  readonly proposal_accepted: string;
+  readonly proposal_rejected: string;
+  readonly agent_run_failed: string;
+  readonly agent_run_cancelled: string;
+  readonly agent_run_replaced: string;
+}
+
 export interface SillyOsCopyV1 {
   readonly locale: SillyOsLocaleV1;
   readonly productName: string;
@@ -52,6 +64,7 @@ export interface SillyOsCopyV1 {
   readonly previewTab: string;
   readonly capabilitiesTab: string;
   readonly activityTab: string;
+  readonly activityKindLabels: SillyOsActivityKindLabelsV1;
   readonly fullscreen: string;
   readonly exitFullscreen: string;
   readonly closePreview: string;
@@ -323,6 +336,17 @@ const englishV1: SillyOsCopyV1 = {
   previewTab: "View",
   capabilitiesTab: "Capabilities",
   activityTab: "Activity",
+  activityKindLabels: {
+    intent_submitted: "Intent submitted",
+    follow_up_submitted: "Follow-up submitted",
+    proposal_created: "Proposal created",
+    proposal_revised: "Proposal revised",
+    proposal_accepted: "Proposal accepted",
+    proposal_rejected: "Proposal rejected",
+    agent_run_failed: "Agent run failed",
+    agent_run_cancelled: "Agent run cancelled",
+    agent_run_replaced: "Agent run replaced",
+  },
   fullscreen: "Open full screen",
   exitFullscreen: "Exit full screen",
   closePreview: "Close workpiece",
@@ -646,6 +670,17 @@ const chineseV1: SillyOsCopyV1 = {
   previewTab: "界面",
   capabilitiesTab: "能力",
   activityTab: "活动",
+  activityKindLabels: {
+    intent_submitted: "已提交初始意图",
+    follow_up_submitted: "已提交后续修改",
+    proposal_created: "已创建方案",
+    proposal_revised: "已修订方案",
+    proposal_accepted: "已接受方案",
+    proposal_rejected: "已拒绝方案",
+    agent_run_failed: "Agent 运行失败",
+    agent_run_cancelled: "已取消 Agent 运行",
+    agent_run_replaced: "已替换 Agent 运行",
+  },
   fullscreen: "全屏打开",
   exitFullscreen: "退出全屏",
   closePreview: "关闭工作界面",

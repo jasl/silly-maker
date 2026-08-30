@@ -73,10 +73,10 @@ const executionWorkspaceV1: WorkpieceExecutionWorkspaceV1 = {
   diagnostic: null,
 };
 
-function renderWorkpieceV1(activeTab: WorkpieceTabV1) {
+function renderWorkpieceV1(activeTab: WorkpieceTabV1, locale: "en" | "zh-CN" = "en") {
   return render(
     <WorkpiecePaneV1
-      copy={getSillyOsCopyV1("en")}
+      copy={getSillyOsCopyV1(locale)}
       program={programV1}
       proposal={proposalV1}
       activity={activityV1}
@@ -149,5 +149,14 @@ describe("SillyOS truthful Workpiece presentation", () => {
       screen.getByText("Last write: succeeded / changed · /workspace/output/chapter-01.txt"),
     ).toBeVisible();
     expect(screen.getByText("Accepted the exact revision 7 proposal.")).toBeVisible();
+    expect(screen.getByText("Proposal accepted")).toBeVisible();
+  });
+
+  it("projects Activity kinds through the active locale instead of exposing internal enums", () => {
+    renderWorkpieceV1("activity", "zh-CN");
+
+    expect(screen.getByText("已接受方案")).toBeVisible();
+    expect(screen.queryByText("proposal accepted")).toBeNull();
+    expect(screen.queryByText("proposal_accepted")).toBeNull();
   });
 });
