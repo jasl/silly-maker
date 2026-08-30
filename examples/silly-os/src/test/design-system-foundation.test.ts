@@ -51,6 +51,7 @@ describe("SillyOS design-system foundation", () => {
       settingsCss,
       chatCss,
       workspaceViewCss,
+      activityCss,
       componentCss,
     ] = await Promise.all([
       readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
@@ -59,11 +60,12 @@ describe("SillyOS design-system foundation", () => {
       readFile(resolve(productRootV1, "ui/settings.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/chat.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/workspace-view.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/activity.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
     ]);
 
     expect(
-      `${productCss}\n${creatorHomeCss}\n${composerModelPickerCss}\n${settingsCss}\n${chatCss}\n${workspaceViewCss}\n${componentCss}`,
+      `${productCss}\n${creatorHomeCss}\n${composerModelPickerCss}\n${settingsCss}\n${chatCss}\n${workspaceViewCss}\n${activityCss}\n${componentCss}`,
     )
       .not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/iu);
     expect(productCss).toContain("var(--sos-surface)");
@@ -224,7 +226,7 @@ describe("SillyOS design-system foundation", () => {
     expect(legacyCss).toContain("@keyframes silly-os-spin");
   });
 
-  it("keeps Workspace View styles separate from Activity and shared runtime status", async () => {
+  it("keeps Workspace View shared status baselines separate from residual runtime status", async () => {
     const [app, workspaceViewCss, legacyCss] = await Promise.all([
       readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
       readFile(resolve(productRootV1, "ui/workspace-view.css"), "utf8"),
@@ -262,11 +264,48 @@ describe("SillyOS design-system foundation", () => {
     expect(legacyCss).not.toMatch(
       /(^|\n)\s*(?:\.program-workspace(?:\b|__)|\.workpiece-pane(?:\b|__)|\.workpiece-workspace-export(?:\b|__)|\.program-canvas(?:\b|__)|\.program-surface(?:\b|__)|\.program-workpiece-empty(?:\b|__)|\.program-capabilities(?:\b|__)|\.program-execution-workspace(?:\b|__)|\.program-browser-storage(?:\b|__))/u,
     );
-    expect(legacyCss).toContain(".program-activity {");
-    expect(legacyCss).toContain(".program-activity h2 {");
-    expect(legacyCss).toContain(".program-activity header p {");
-    expect(legacyCss).toContain(".program-activity > .program-execution-workspace {");
-    expect(legacyCss).toContain(".program-activity > .program-browser-storage {");
+    expect(legacyCss).toContain("@keyframes silly-os-spin");
+    expect(legacyCss).toContain(".program-storage-status {");
+  });
+
+  it("keeps Activity placement after Workspace View without reviving dead copy", async () => {
+    const [app, activityCss, workspaceViewCss, legacyCss] = await Promise.all([
+      readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
+      readFile(resolve(productRootV1, "ui/activity.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/workspace-view.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+    ]);
+
+    expect(app.indexOf('import "./workspace-view.css";')).toBeLessThan(
+      app.indexOf('import "./activity.css";'),
+    );
+    expect(app.indexOf('import "./activity.css";')).toBeLessThan(
+      app.indexOf('import "./silly-os.css";'),
+    );
+    expect(app.indexOf('import "./silly-os.css";')).toBeLessThan(
+      app.indexOf('import "./design-system/tailwind.css";'),
+    );
+
+    expect(activityCss).toContain(".program-activity {");
+    expect(activityCss).toContain(".program-activity h2 {");
+    expect(activityCss).toContain(".program-activity > header {");
+    expect(activityCss).toContain(".program-activity > .program-execution-workspace {");
+    expect(activityCss).toContain(".program-activity > .program-browser-storage {");
+    expect(activityCss).toContain(".program-activity__sequence {");
+    expect(activityCss).toContain(".program-activity__line {");
+    expect(activityCss).toContain("@container workpiece-body (width < 620px)");
+    expect(activityCss).not.toContain(".program-activity header p");
+    expect(activityCss).not.toContain(".program-capabilities");
+    expect(activityCss).not.toMatch(/(^|\n)\s*\.program-execution-workspace(?:\s|,|\{)/u);
+    expect(activityCss).not.toMatch(/(^|\n)\s*\.program-browser-storage(?:\s|,|\{)/u);
+    expect(activityCss).not.toContain("@keyframes silly-os-spin");
+    expect(activityCss).not.toContain(".program-storage-status");
+
+    expect(workspaceViewCss).toContain(".program-execution-workspace {");
+    expect(workspaceViewCss).toContain(".program-browser-storage {");
+    expect(workspaceViewCss).not.toContain(".program-activity");
+    expect(legacyCss).not.toMatch(/(^|\n)\s*\.program-activity(?:\b|__)/u);
+    expect(legacyCss).not.toContain(".program-activity header p");
     expect(legacyCss).toContain("@keyframes silly-os-spin");
     expect(legacyCss).toContain(".program-storage-status {");
   });

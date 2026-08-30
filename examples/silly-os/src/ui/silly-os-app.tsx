@@ -114,6 +114,7 @@ import "./creator-home.css";
 import "./settings.css";
 import "./chat.css";
 import "./workspace-view.css";
+import "./activity.css";
 import "./silly-os.css";
 import "./design-system/tailwind.css";
 

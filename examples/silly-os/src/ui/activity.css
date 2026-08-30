@@ -1,0 +1,112 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Activity */
+
+.program-activity {
+  inline-size: min(100% - 40px, 1040px);
+  min-inline-size: 0;
+  margin: 30px auto;
+}
+
+.program-activity h2 {
+  margin: 6px 0;
+  font-size: 26px;
+  line-height: 1.25;
+  letter-spacing: -0.03em;
+}
+
+.program-activity > header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.program-activity > header > svg {
+  flex: 0 0 auto;
+  margin-block-start: 9px;
+  color: var(--sos-accent-dark);
+}
+
+.program-activity > .program-execution-workspace {
+  margin-block-start: 18px;
+}
+
+.program-activity > .program-browser-storage {
+  margin-block-start: 8px;
+}
+
+.program-activity ol {
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.program-activity li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px 16px minmax(0, 1fr);
+  min-block-size: 74px;
+  gap: 12px;
+}
+
+.program-activity__sequence {
+  padding-block-start: 1px;
+  color: var(--sos-ink-muted);
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.program-activity__line {
+  position: relative;
+  display: block;
+  inline-size: 1px;
+  block-size: 100%;
+  margin-inline: auto;
+  background: var(--sos-line);
+}
+
+.program-activity__line::before {
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-start: 50%;
+  inline-size: 9px;
+  block-size: 9px;
+  border: 2px solid var(--sos-surface);
+  border-radius: 50%;
+  background: var(--sos-teal);
+  box-shadow: 0 0 0 1px var(--sos-success-line);
+  content: "";
+  transform: translateX(-50%);
+}
+
+.program-activity li:last-child .program-activity__line {
+  background: linear-gradient(var(--sos-line) 0 20px, transparent 20px);
+}
+
+.program-activity li > div {
+  display: flex;
+  min-inline-size: 0;
+  padding-block-end: 20px;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.program-activity li strong {
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.program-activity li small {
+  color: var(--sos-ink-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+@container workpiece-body (width < 620px) {
+  .program-activity {
+    inline-size: calc(100% - 20px);
+    margin-block: 10px;
+  }
+}
