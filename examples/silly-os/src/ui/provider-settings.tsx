@@ -774,7 +774,7 @@ function GeneralSettingsV1({
                 <strong>{copy.settingsClearAllTitle}</strong>
                 <p>{copy.settingsClearAllDescription}</p>
               </div>
-              <AlertDialogTriggerV1 asChild>
+              <AlertDialogTriggerV1>
                 <Button
                   type="button"
                   variant="destructive"
@@ -821,12 +821,12 @@ function GeneralSettingsV1({
                   : null}
               </div>
               <div className="silly-os-settings__clear-dialog-actions">
-                <AlertDialogCancelV1 asChild>
+                <AlertDialogCancelV1>
                   <Button type="button" variant="secondary" disabled={clearBusy}>
                     {copy.settingsClearAllCancel}
                   </Button>
                 </AlertDialogCancelV1>
-                <AlertDialogActionV1 asChild>
+                <AlertDialogActionV1>
                   <Button
                     type="button"
                     variant="destructive"

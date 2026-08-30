@@ -282,12 +282,6 @@
   gap: 6px;
 }
 
-.sos-field[data-orientation="horizontal"] {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--silly-space-4);
-}
-
 .sos-field__label,
 .sos-field-set__legend {
   color: var(--sos-ink);
@@ -440,18 +434,6 @@
   border-color: var(--sos-success-line);
   color: var(--sos-success);
   background: var(--sos-success-soft);
-}
-
-.sos-badge[data-variant="warning"] {
-  border-color: var(--sos-warning-line);
-  color: var(--sos-warning);
-  background: var(--sos-warning-soft);
-}
-
-.sos-badge[data-variant="danger"] {
-  border-color: var(--sos-danger-line);
-  color: var(--sos-danger);
-  background: var(--sos-danger-soft);
 }
 
 .sos-tabs {

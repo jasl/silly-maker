@@ -74,10 +74,8 @@ function requireChildElementV1(children: ReactNode): ReactElement<ComponentProps
 }
 
 export function AlertDialogTriggerV1({
-  asChild: _asChild,
   children,
 }: {
-  readonly asChild?: boolean;
   readonly children: ReactNode;
 }): ReactNode {
   const dialog = useAlertDialogV1();
@@ -94,10 +92,8 @@ export function AlertDialogTriggerV1({
 }
 
 export function AlertDialogCancelV1({
-  asChild: _asChild,
   children,
 }: {
-  readonly asChild?: boolean;
   readonly children: ReactNode;
 }): ReactNode {
   const dialog = useAlertDialogV1();
@@ -112,10 +108,8 @@ export function AlertDialogCancelV1({
 }
 
 export function AlertDialogActionV1({
-  asChild: _asChild,
   children,
 }: {
-  readonly asChild?: boolean;
   readonly children: ReactNode;
 }): ReactNode {
   const dialog = useAlertDialogV1();

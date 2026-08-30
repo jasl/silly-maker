@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 import { type ComponentProps, type ReactNode } from "react";
 
-import type { StatusVariantV1 } from "./status.tsx";
 import { cnV1 } from "./utils.ts";
+
+export type BadgeVariantV1 = "neutral" | "success";
 
 export function BadgeV1({
   className,
   variant = "neutral",
   ...props
-}: ComponentProps<"span"> & { readonly variant?: StatusVariantV1 }): ReactNode {
+}: ComponentProps<"span"> & { readonly variant?: BadgeVariantV1 }): ReactNode {
   return (
     <span
       data-slot="badge"

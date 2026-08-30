@@ -41,16 +41,14 @@ export function DropdownMenuContentV1({
 
 export function DropdownMenuItemV1({
   className,
-  inset,
   ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.Item> & { readonly inset?: boolean }): ReactNode {
+}: ComponentProps<typeof DropdownMenuPrimitive.Item>): ReactNode {
   return (
     <DropdownMenuPrimitive.Item
       data-slot="dropdown-menu-item"
-      data-inset={inset || undefined}
       className={cnV1(
         "sos:relative sos:flex sos:min-h-control sos:cursor-default sos:select-none sos:items-center sos:gap-2 sos:rounded-control sos:px-2.5 sos:py-2 sos:text-sm sos:outline-none",
-        "sos:focus:bg-accent-soft sos:focus:text-foreground sos:data-[disabled]:pointer-events-none sos:data-[disabled]:opacity-45 sos:data-[inset]:pl-8",
+        "sos:focus:bg-accent-soft sos:focus:text-foreground sos:data-[disabled]:pointer-events-none sos:data-[disabled]:opacity-45",
         className,
       )}
       {...props}
@@ -60,19 +58,15 @@ export function DropdownMenuItemV1({
 
 export function DropdownMenuSubTriggerV1({
   className,
-  inset,
   children,
   ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.SubTrigger> & {
-  readonly inset?: boolean;
-}): ReactNode {
+}: ComponentProps<typeof DropdownMenuPrimitive.SubTrigger>): ReactNode {
   return (
     <DropdownMenuPrimitive.SubTrigger
       data-slot="dropdown-menu-sub-trigger"
-      data-inset={inset || undefined}
       className={cnV1(
         "sos:flex sos:min-h-control sos:cursor-default sos:select-none sos:items-center sos:gap-2 sos:rounded-control sos:px-2.5 sos:py-2 sos:text-sm sos:outline-none",
-        "sos:focus:bg-accent-soft sos:data-[state=open]:bg-accent-soft sos:data-[inset]:pl-8",
+        "sos:focus:bg-accent-soft sos:data-[state=open]:bg-accent-soft",
         className,
       )}
       {...props}
@@ -129,15 +123,13 @@ export function DropdownMenuRadioItemV1({
 
 export function DropdownMenuLabelV1({
   className,
-  inset,
   ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.Label> & { readonly inset?: boolean }): ReactNode {
+}: ComponentProps<typeof DropdownMenuPrimitive.Label>): ReactNode {
   return (
     <DropdownMenuPrimitive.Label
       data-slot="dropdown-menu-label"
-      data-inset={inset || undefined}
       className={cnV1(
-        "sos:px-2.5 sos:py-1.5 sos:text-xs sos:[font-weight:600] sos:text-muted-foreground sos:data-[inset]:pl-8",
+        "sos:px-2.5 sos:py-1.5 sos:text-xs sos:[font-weight:600] sos:text-muted-foreground",
         className,
       )}
       {...props}
