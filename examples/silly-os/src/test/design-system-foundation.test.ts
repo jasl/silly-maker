@@ -49,6 +49,7 @@ describe("SillyOS design-system foundation", () => {
       creatorHomeCss,
       composerModelPickerCss,
       settingsCss,
+      providerSettingsCss,
       chatCss,
       workspaceViewCss,
       activityCss,
@@ -58,6 +59,7 @@ describe("SillyOS design-system foundation", () => {
       readFile(resolve(productRootV1, "ui/creator-home.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/composer-model-picker.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/settings.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/provider-settings.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/chat.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/workspace-view.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/activity.css"), "utf8"),
@@ -65,10 +67,11 @@ describe("SillyOS design-system foundation", () => {
     ]);
 
     expect(
-      `${productCss}\n${creatorHomeCss}\n${composerModelPickerCss}\n${settingsCss}\n${chatCss}\n${workspaceViewCss}\n${activityCss}\n${componentCss}`,
+      `${productCss}\n${creatorHomeCss}\n${composerModelPickerCss}\n${settingsCss}\n${providerSettingsCss}\n${chatCss}\n${workspaceViewCss}\n${activityCss}\n${componentCss}`,
     )
       .not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/iu);
-    expect(productCss).toContain("var(--sos-surface)");
+    expect(productCss).toContain("var(--sos-surface-translucent)");
+    expect(providerSettingsCss).toContain("var(--sos-surface)");
     expect(componentCss).toContain(".sos-button");
     expect(componentCss).toContain(".sos-input");
     expect(componentCss).toContain(".sos-status");
@@ -132,13 +135,15 @@ describe("SillyOS design-system foundation", () => {
   });
 
   it("keeps Settings surface styles separate from Provider detail ownership", async () => {
-    const [app, providers, componentCss, settingsCss, legacyCss] = await Promise.all([
-      readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
-      readFile(resolve(productRootV1, "ui/provider-settings.tsx"), "utf8"),
-      readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
-      readFile(resolve(productRootV1, "ui/settings.css"), "utf8"),
-      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
-    ]);
+    const [app, providers, componentCss, settingsCss, providerSettingsCss, legacyCss] =
+      await Promise.all([
+        readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
+        readFile(resolve(productRootV1, "ui/provider-settings.tsx"), "utf8"),
+        readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
+        readFile(resolve(productRootV1, "ui/settings.css"), "utf8"),
+        readFile(resolve(productRootV1, "ui/provider-settings.css"), "utf8"),
+        readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+      ]);
 
     expect(app.indexOf('import "./design-system/components.css";')).toBeLessThan(
       app.indexOf('import "./settings.css";'),
@@ -147,12 +152,24 @@ describe("SillyOS design-system foundation", () => {
       app.indexOf('import "./settings.css";'),
     );
     expect(app.indexOf('import "./settings.css";')).toBeLessThan(
-      app.indexOf('import "./silly-os.css";'),
+      app.indexOf('import "./provider-settings.css";'),
+    );
+    expect(app.indexOf('import "./provider-settings.css";')).toBeLessThan(
+      app.indexOf('import "./chat.css";'),
     );
     expect(componentCss).toContain(".sos-card");
     expect(settingsCss).toContain(".silly-os-settings {");
     expect(settingsCss).toContain(".silly-os-settings__preference-card {");
     expect(settingsCss).toContain(".provider-settings__vault {");
+    expect(providerSettingsCss).toContain(".provider-settings {");
+    expect(providerSettingsCss).toContain(".provider-settings__credential {");
+    expect(providerSettingsCss).toContain(".provider-settings__connection-model {");
+    expect(providerSettingsCss).toContain(".provider-settings__collection-state {");
+    expect(providerSettingsCss).toContain("@media (width <= 767px)");
+    expect(providerSettingsCss).not.toContain(".provider-settings__vault");
+    expect(providerSettingsCss).not.toContain(
+      ".provider-settings__detail-heading > .provider-settings__availability",
+    );
     const unavailableRuleStart = settingsCss.indexOf(
       '.provider-settings__vault-mode span[data-vault-mode="unavailable"]',
     );
@@ -170,11 +187,9 @@ describe("SillyOS design-system foundation", () => {
     expect(settingsCss).not.toContain("nth-of-type(2)");
     expect(legacyCss).not.toMatch(/(^|\n)\s*\.silly-os-settings(?:\b|__)/u);
     expect(legacyCss).not.toMatch(/(^|\n)\s*\.provider-settings__vault(?:\b|[-_])/u);
+    expect(legacyCss).not.toMatch(/(^|\n)\s*\.provider-settings(?:\b|__)/u);
     expect(legacyCss).not.toContain("silly-os-settings__dialog-layer");
     expect(legacyCss).not.toContain("silly-os-settings__dialog-backdrop");
-    expect(legacyCss).toContain(".provider-settings {");
-    expect(legacyCss).toContain(".provider-settings__credential {");
-    expect(legacyCss).toContain(".provider-settings__connection-model {");
   });
 
   it("keeps Chat surface styles separate from Program and Workpiece chrome", async () => {

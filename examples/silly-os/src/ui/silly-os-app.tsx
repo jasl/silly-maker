@@ -112,6 +112,7 @@ import "./collection-state.css";
 import "./composer-model-picker.css";
 import "./creator-home.css";
 import "./settings.css";
+import "./provider-settings.css";
 import "./chat.css";
 import "./workspace-view.css";
 import "./activity.css";
