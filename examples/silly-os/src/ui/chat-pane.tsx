@@ -20,6 +20,7 @@ import type {
   ProgramProposalV1,
 } from "../product/contracts.ts";
 import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
+import { isComposerCompositionKeyV1 } from "./composer-keyboard.ts";
 import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
 import { CreatorReadinessNoticeV1 } from "./creator-readiness-notice.tsx";
 import type { CreatorReadinessRecoveryTargetV1, CreatorReadinessV1 } from "./creator-readiness.ts";
@@ -474,7 +475,7 @@ export function ChatPaneV1({
           disabled={agentInteractionPending}
           onChange={(event) => setDraft(event.currentTarget.value)}
           onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing) return;
+            if (isComposerCompositionKeyV1(event.nativeEvent)) return;
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               submitV1();

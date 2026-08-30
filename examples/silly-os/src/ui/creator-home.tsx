@@ -15,6 +15,7 @@ import { type FormEvent, type ReactNode, useRef, useState } from "react";
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
 import type { PreviewProgramKindV1, ProgramProposalStatusV1 } from "../product/contracts.ts";
 import type { SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
+import { isComposerCompositionKeyV1 } from "./composer-keyboard.ts";
 import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
 import { CollectionStateV1 } from "./collection-state.tsx";
 import { CreatorReadinessNoticeV1 } from "./creator-readiness-notice.tsx";
@@ -208,7 +209,7 @@ export function CreatorHomeV1({
               placeholder={copy.creatorPlaceholder}
               onChange={(event) => setIntent(event.currentTarget.value)}
               onKeyDown={(event) => {
-                if (event.nativeEvent.isComposing) return;
+                if (isComposerCompositionKeyV1(event.nativeEvent)) return;
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
                   submitV1();
