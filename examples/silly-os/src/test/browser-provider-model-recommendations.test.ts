@@ -68,7 +68,9 @@ describe("Browser Provider recommended model defaults", () => {
     if (catalog.phase !== "ready") throw new Error("expected ready catalog");
 
     const refs = recommendedBrowserProviderBuiltinModelRefsV1(catalog.providers);
-    expect(refs).toHaveLength(132);
+    // The regression this test owns was an old 128-result truncation. The
+    // upstream Pi catalog is data, so its exact current count is not a product
+    // contract and must not need a source edit on every catalog refresh.
     expect(refs.length).toBeGreaterThan(128);
     expect(refs).toContainEqual({
       providerId: "baseten",

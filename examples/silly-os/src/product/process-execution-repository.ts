@@ -213,7 +213,7 @@ export function normalizeProcessExecutionLeaseReleaseInputV1(
 
 function normalizeProcessExecutionTerminalInputWithOutcomeV1(
   value: ProcessExecutionTerminalInputV1,
-  expectedOutcome: "completed" | "non_completed",
+  expectedOutcome: "completed" | "non_completed" | "any",
 ): ProcessExecutionTerminalInputV1 {
   const row = exactRecordV1(value, ["lease", "observedAt", "transcript"]);
   const lease = normalizeProcessExecutionLeaseV1(row.lease as ProcessExecutionLeaseV1);
@@ -228,22 +228,21 @@ function normalizeProcessExecutionTerminalInputWithOutcomeV1(
     transcript.attemptBinding.generation !== lease.generation ||
     terminal === null || terminal.attemptId !== lease.attemptId ||
     terminal.generation !== lease.generation ||
-    (expectedOutcome === "completed"
-      ? terminal.outcome !== "completed"
-      : terminal.outcome === "completed") ||
+    (expectedOutcome === "completed" && terminal.outcome !== "completed") ||
+    (expectedOutcome === "non_completed" && terminal.outcome === "completed") ||
     (row.observedAt >= lease.expiresAt && terminal.outcome !== "interrupted")
   ) throw new TypeError("invalid Process execution terminal input");
   return { lease, observedAt: row.observedAt, transcript };
 }
 
-/** A Process-only terminal cannot publish a successful Program successor. */
+/** Shape-only admission; the repository checks whether this Process kind may complete alone. */
 export function normalizeProcessExecutionTerminalInputV1(
   value: ProcessExecutionTerminalInputV1,
 ): ProcessExecutionTerminalInputV1 {
-  return normalizeProcessExecutionTerminalInputWithOutcomeV1(value, "non_completed");
+  return normalizeProcessExecutionTerminalInputWithOutcomeV1(value, "any");
 }
 
-/** A Program successor terminal is the sole admitted completed outcome. */
+/** A Program-successor transaction requires a completed terminal. */
 export function normalizeProcessExecutionCompletedTerminalInputV1(
   value: ProcessExecutionTerminalInputV1,
 ): ProcessExecutionTerminalInputV1 {

@@ -152,6 +152,21 @@ function fakeHostV1(): FakeHostV1 {
       sessions.set(workspaceSessionId, snapshot);
       return snapshot;
     },
+    async importFile(input) {
+      events.push("host:import");
+      const volume = volumeForSessionV1(input.workspaceSessionId);
+      if (
+        volume.checkpointId !== input.expectedCheckpointId ||
+        volume.generation !== input.expectedGeneration
+      ) throw new Error("fake.workspace_stale");
+      void input.path;
+      void input.bytes;
+      volume.generation += 1;
+      volume.checkpointId = `checkpoint.${volume.anchor.volumeId}.${String(volume.generation)}`;
+      const snapshot = openSnapshotV1(volume, input.workspaceSessionId);
+      sessions.set(input.workspaceSessionId, snapshot);
+      return { changed: true, snapshot };
+    },
     async queryWorkspace(workspaceSessionId) {
       events.push("host:query");
       const snapshot = sessions.get(workspaceSessionId);

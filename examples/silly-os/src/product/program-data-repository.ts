@@ -76,6 +76,15 @@ export interface ProgramDataRepositoryV1 extends
   createProgramWithProcess(
     input: ProgramProcessCreateBundleInputV1,
   ): Promise<ProgramProcessCreateCompositeCommitResultV1>;
+  /**
+   * Atomically publishes a non-Creator Process, its first transcript checkpoint,
+   * and the exact identity of the Workspace volume owned by that Process. The
+   * Host creates and adopts the volume outside this IndexedDB transaction.
+   */
+  createProcessWithWorkspace(
+    input: ProcessWorkspaceCreateBundleInputV1,
+  ): Promise<ProcessWorkspaceCreateCompositeCommitResultV1>;
+  loadProcessWorkspaceBinding(processId: string): Promise<ProcessWorkspaceBindingV1 | null>;
   /** Atomically publishes one Program revision and its exact Process transcript outcome. */
   applyProgramRevisionWithProcessTranscript(
     input: ProgramProcessRevisionBundleInputV1,
@@ -112,6 +121,21 @@ export interface ProgramDataRepositoryV1 extends
 export interface ProgramProcessCreateBundleInputV1 {
   readonly catalog: ProgramCatalogCreateInputV1;
   readonly process: ProcessCreateInputV1;
+  readonly transcript: ProcessTranscriptAppendInputV1;
+}
+
+/** Durable identity of the Workspace volume owned by one Process. */
+export interface ProcessWorkspaceBindingV1 {
+  readonly revision: 1;
+  readonly processId: string;
+  readonly workspaceId: string;
+  readonly volumeId: string;
+  readonly workspaceFormat: 1;
+}
+
+export interface ProcessWorkspaceCreateBundleInputV1 {
+  readonly process: ProcessCreateInputV1;
+  readonly workspace: ProcessWorkspaceBindingV1;
   readonly transcript: ProcessTranscriptAppendInputV1;
 }
 
@@ -155,6 +179,57 @@ export function normalizeProgramProcessCreateBundleInputV1(
     process.createdAt > transcript.updatedAt || catalog.updatedAt > transcript.updatedAt
   ) throw new TypeError("invalid Program/Process create bundle");
   return { catalog, process, transcript };
+}
+
+const processWorkspaceIdentifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+
+export function cloneProcessWorkspaceBindingV1(
+  value: ProcessWorkspaceBindingV1,
+): ProcessWorkspaceBindingV1 {
+  if (
+    value === null || typeof value !== "object" || Array.isArray(value) ||
+    Reflect.ownKeys(value).length !== 5 ||
+    !Reflect.ownKeys(value).every((key) =>
+      typeof key === "string" &&
+      ["revision", "processId", "workspaceId", "volumeId", "workspaceFormat"].includes(key)
+    ) || value.revision !== 1 || value.workspaceFormat !== 1 ||
+    !processWorkspaceIdentifierPatternV1.test(value.processId) ||
+    !processWorkspaceIdentifierPatternV1.test(value.workspaceId) ||
+    !processWorkspaceIdentifierPatternV1.test(value.volumeId)
+  ) throw new TypeError("invalid Process Workspace binding");
+  return {
+    revision: 1,
+    processId: value.processId,
+    workspaceId: value.workspaceId,
+    volumeId: value.volumeId,
+    workspaceFormat: 1,
+  };
+}
+
+export function normalizeProcessWorkspaceCreateBundleInputV1(
+  value: ProcessWorkspaceCreateBundleInputV1,
+): ProcessWorkspaceCreateBundleInputV1 {
+  if (
+    value === null || typeof value !== "object" || Array.isArray(value) ||
+    Reflect.ownKeys(value).length !== 3 ||
+    !Reflect.ownKeys(value).every((key) =>
+      typeof key === "string" && ["process", "workspace", "transcript"].includes(key)
+    )
+  ) throw new TypeError("invalid Process/Workspace create bundle");
+  const process = normalizeProcessCreateInputV1(value.process);
+  const workspace = cloneProcessWorkspaceBindingV1(value.workspace);
+  const transcript = normalizeProcessTranscriptAppendInputV1(value.transcript);
+  const checkpoint = transcript.checkpoint;
+  const lastEntry = transcript.entries.at(-1)!;
+  if (
+    process.subjectProgramId === null || workspace.processId !== process.processId ||
+    transcript.processId !== process.processId || transcript.expectedProcessRevision !== 1 ||
+    transcript.expectedTranscriptFrontier !== 0 || transcript.attemptBinding !== null ||
+    transcript.terminalAttemptReceipt !== null || transcript.entries[0]?.sequence !== 1 ||
+    checkpoint === null || checkpoint.workspaceId !== workspace.workspaceId ||
+    checkpoint.throughSequence !== lastEntry.sequence || process.createdAt > transcript.updatedAt
+  ) throw new TypeError("invalid Process/Workspace create bundle");
+  return { process, workspace, transcript };
 }
 
 export function normalizeProgramProcessRevisionBundleInputV1(
@@ -243,6 +318,31 @@ export type ProgramProcessExecutionCompositeCommitResultV1 =
     readonly programDefinition: ProgramDefinitionReferenceV1;
   };
 
+export type ProcessWorkspaceCreateCompositeCommitResultV1 =
+  | {
+    readonly kind: "committed" | "unchanged";
+    readonly process: ProcessHeadV1;
+    readonly workspace: ProcessWorkspaceBindingV1;
+    readonly entries: readonly TranscriptEntryV1[];
+  }
+  | {
+    readonly kind: "conflict";
+    readonly currentProcess: ProcessHeadV1 | null;
+    readonly currentWorkspace: ProcessWorkspaceBindingV1 | null;
+  }
+  | {
+    readonly kind: "program_definition_missing";
+    readonly programDefinition: ProgramDefinitionReferenceV1;
+  }
+  | {
+    readonly kind: "subject_program_missing";
+    readonly subjectProgramId: string;
+  }
+  | {
+    readonly kind: "workspace_volume_owned";
+    readonly owner: ProcessWorkspaceBindingV1;
+  };
+
 export type ProgramDataRepositoryOperationV1 =
   | "initialize"
   | "list_programs"
@@ -256,6 +356,8 @@ export type ProgramDataRepositoryOperationV1 =
   | "apply_program_revision"
   | "decide_program_proposal"
   | "create_program_with_process"
+  | "create_process_with_workspace"
+  | "load_process_workspace_binding"
   | "apply_program_revision_with_process_transcript"
   | "decide_program_with_process_transcript"
   | "publish_program_definition_revision"

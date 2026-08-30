@@ -12,6 +12,13 @@ import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.l
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 
 import { browserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
+import { creatorProgramHarnessReferenceV1 } from "./browser-pi-agent-dispatch.ts";
+import {
+  translationBatchToolNameV1,
+  translationBatchOutputTokenEnvelopeV1,
+  translationProgramHarnessReferenceV1,
+  translationProgramSystemPromptV1,
+} from "../product/translation/translation-batch-protocol.ts";
 import {
   getBrowserPiProviderRouteAvailabilityV1,
   isBrowserPiProviderRouteConfigurableV1,
@@ -26,10 +33,46 @@ Pass one concise requirement that preserves the full intent of the user message.
 SillyOS itself binds that requirement to the current proposal identity and original text.
 After the tool succeeds, reply with one short sentence explaining that the revision is ready for human review.`;
 
+const creatorOutputEnvelopeTokensV1 = 2_048;
+const creatorProviderRequestTimeoutMillisecondsV1 = 30_000;
+// Prompt revision 4 observed an admitted OpenRouter batch at 132,893 ms.
+// Three minutes covers that measured route plus transport settlement without
+// weakening Creator's established short-request deadline.
+const translationProviderRequestTimeoutMillisecondsV1 = 180_000;
+
 let cachedProvidersV1;
 
-export function browserPiCreatorToolChoiceV1(proposed) {
+export function browserPiCompletionToolChoiceV1(proposed) {
   return proposed ? "none" : "auto";
+}
+
+export function browserPiAgentProviderTimeoutMillisecondsV1(dispatch) {
+  if (dispatch.harnessReference === creatorProgramHarnessReferenceV1) {
+    return creatorProviderRequestTimeoutMillisecondsV1;
+  }
+  if (dispatch.harnessReference === translationProgramHarnessReferenceV1) {
+    return translationProviderRequestTimeoutMillisecondsV1;
+  }
+  throw new TypeError("Unknown SillyOS Agent harness");
+}
+
+/**
+ * Keeps Creator on its established compact envelope. Translation uses the
+ * measured research envelope plus one target allowance per admitted unit, then
+ * respects the exact selected model capability instead of imposing a document
+ * or Program size policy here.
+ */
+export function browserPiAgentMaximumOutputTokensV1(dispatch, modelMaximumTokens) {
+  if (!Number.isSafeInteger(modelMaximumTokens) || modelMaximumTokens <= 0) {
+    throw new TypeError("Pi model maximum output tokens are invalid");
+  }
+  const requested = dispatch.harnessReference === creatorProgramHarnessReferenceV1
+    ? creatorOutputEnvelopeTokensV1
+    : dispatch.harnessReference === translationProgramHarnessReferenceV1
+    ? translationBatchOutputTokenEnvelopeV1(dispatch.request.units.length)
+    : null;
+  if (requested === null) throw new TypeError("Unknown SillyOS Agent harness");
+  return Math.min(modelMaximumTokens, requested);
 }
 
 function providersV1() {
@@ -217,31 +260,38 @@ export function createBrowserPiProviderAgentV1(input) {
   ) {
     throw new Error("Selected Pi Provider/model is unavailable in SillyOS Browser");
   }
-  const boundedModel = {
-    ...resolved.model,
-    maxTokens: Math.min(resolved.model.maxTokens, 2_048),
-  };
   const effectiveReasoningEffort = resolveBrowserPiReasoningEffortV1(
     input.selection,
     input.reasoningEffort,
   );
+  const boundedModel = {
+    ...resolved.model,
+    maxTokens: browserPiAgentMaximumOutputTokensV1(input.dispatch, resolved.model.maxTokens),
+  };
 
   let apiKey = input.apiKey;
+  const harnessReference = input.dispatch.harnessReference;
+  const completionToolName = harnessReference === creatorProgramHarnessReferenceV1
+    ? "sillyos_propose_program_revision"
+    : harnessReference === translationProgramHarnessReferenceV1
+    ? translationBatchToolNameV1
+    : null;
+  if (completionToolName === null) throw new TypeError("Unknown SillyOS Agent harness");
   const agent = createPiAgentV1({
-    submit: input.submit,
+    dispatch: input.dispatch,
     workspaceTools: input.workspaceTools,
     onCandidate: input.onCandidate,
     onTextDelta: input.onTextDelta,
     streamFn: (selectedModel, context, options) => {
       const proposed = context.messages.some((message) =>
         message.role === "toolResult" &&
-        message.toolName === "sillyos_propose_program_revision"
+        message.toolName === completionToolName
       );
       return resolved.provider.streamSimple(selectedModel, context, {
         ...options,
         maxRetries: 0,
-        timeoutMs: 30_000,
-        toolChoice: browserPiCreatorToolChoiceV1(proposed),
+        timeoutMs: browserPiAgentProviderTimeoutMillisecondsV1(input.dispatch),
+        toolChoice: browserPiCompletionToolChoiceV1(proposed),
         transport: "sse",
         fetch: input.fetch,
       });
@@ -249,7 +299,9 @@ export function createBrowserPiProviderAgentV1(input) {
     getApiKey: (providerId) => providerId === resolved.provider.id ? apiKey : undefined,
     model: boundedModel,
     reasoningEffort: effectiveReasoningEffort,
-    systemPrompt: creatorSystemPromptV1,
+    systemPrompt: harnessReference === creatorProgramHarnessReferenceV1
+      ? creatorSystemPromptV1
+      : translationProgramSystemPromptV1,
   });
   return {
     prompt: agent.prompt,

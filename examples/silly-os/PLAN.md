@@ -4616,6 +4616,13 @@ selection remains P3b work; it is not retroactively folded into persistence.
 
 ### P4 — Pi extension composition and OpenUI mapping
 
+**Activation status (2026-08-31):** P4 is active only as the smallest shared
+slice reproduced by the P5 translation study. The research contract, clean-room
+reference boundary, dual-model matrix, and staged gates live in
+[TRANSLATION-PROGRAM-RESEARCH.md](./TRANSLATION-PROGRAM-RESEARCH.md). This
+activation does not claim that either named model route, Pi capability
+composition, or an OpenUI mapping has passed.
+
 Generalize only after Pi, storage, and the P3 tool are real consumers. A reviewed
 Program revision selects a closed, version-pinned set of Pi capabilities,
 skills, prompts, models, and enabled tool names. Browser composes public
@@ -4657,6 +4664,15 @@ plus public browser `AgentTool`/Agent inputs, that is an upstream Pi capability
 request backed by the real consumer, not permission to create a second runtime.
 
 ### P5 — translation Program
+
+**Current status (2026-08-31):** P5 remains active in P5-A through P5-D order.
+P5-A is complete with the deterministic original four-format corpus,
+round-trip laboratory, secret-safe research runner, and a bounded prompt-v4
+model-protocol smoke. P5-B through P5-D remain incomplete: no named model route
+or ordinary Translation product journey is qualified. Process-owned Workspace,
+Host import, and Browser Translation dispatch exist only as explicitly
+unconsumed next-slice substrate. See
+[TRANSLATION-PROGRAM-RESEARCH.md](./TRANSLATION-PROGRAM-RESEARCH.md).
 
 Make translation the first complete product consumer. Its denominator is one
 real import-to-export journey: ordered source units, one-to-one mapping,

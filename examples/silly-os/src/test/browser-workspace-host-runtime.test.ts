@@ -791,6 +791,100 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     await runtime.dispose();
   });
 
+  it("imports an admitted binary file into the open candidate without a Pi payload ceiling", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    let checkpointOrdinal = 1;
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.import.1",
+      createCheckpointId: () => `checkpoint.import.${String(++checkpointOrdinal)}`,
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const created = lastV1(controls);
+    if (!created.ok || created.response.method !== "create_candidate") {
+      throw new Error("expected candidate response");
+    }
+    const anchor = created.response.candidate.anchor;
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+
+    const bytes = new Uint8Array(256 * 1024 + 1);
+    bytes[0] = 17;
+    bytes[bytes.byteLength - 1] = 23;
+    await runtime.receiveControl(controlRequestV1(3, {
+      method: "import_file",
+      workspaceSessionId: "workspace-session.import.1",
+      expectedCheckpointId: "checkpoint.1",
+      expectedGeneration: 1,
+      path: "imports/source.bin",
+      bytes,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      ok: true,
+      response: {
+        method: "import_file",
+        changed: true,
+        snapshot: {
+          checkpointId: "checkpoint.import.2",
+          descriptor: { generation: 2 },
+        },
+      },
+    });
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    const imported = volume?.files.get("imports/source.bin");
+    expect(imported).toBeInstanceOf(Uint8Array);
+    expect(imported?.byteLength).toBe(bytes.byteLength);
+    expect(imported?.[0]).toBe(17);
+    expect(imported?.at(-1)).toBe(23);
+
+    await runtime.receiveControl(controlRequestV1(4, {
+      method: "import_file",
+      workspaceSessionId: "workspace-session.import.1",
+      expectedCheckpointId: "checkpoint.import.2",
+      expectedGeneration: 2,
+      path: "imports/source.bin",
+      bytes,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      ok: true,
+      response: {
+        method: "import_file",
+        changed: false,
+        snapshot: {
+          checkpointId: "checkpoint.import.2",
+          descriptor: { generation: 2 },
+        },
+      },
+    });
+
+    await runtime.receiveControl(controlRequestV1(5, {
+      method: "import_file",
+      workspaceSessionId: "workspace-session.import.1",
+      expectedCheckpointId: "checkpoint.1",
+      expectedGeneration: 1,
+      path: "imports/stale.bin",
+      bytes: new Uint8Array(),
+    }));
+    expect(lastV1(controls)).toMatchObject({ ok: false, code: "workspace_mismatch" });
+    expect(volume?.files.has("imports/stale.bin")).toBe(false);
+
+    await runtime.receiveControl(controlRequestV1(6, {
+      method: "import_file",
+      workspaceSessionId: "workspace-session.import.1",
+      expectedCheckpointId: "checkpoint.import.2",
+      expectedGeneration: 2,
+      path: "../escape.bin",
+      bytes: new Uint8Array(),
+    }));
+    expect(lastV1(controls)).toMatchObject({ ok: false, code: "invalid_request" });
+    await runtime.dispose();
+  });
+
   it("stages Broker chunks before publishing one current download mutation", async () => {
     const opened = await openDownloadWorkspaceV1("workspace-session.download");
     const sink = new FakeMessagePortV1();

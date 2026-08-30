@@ -96,7 +96,7 @@ describe("SillyOS Browser Pi catalog port", () => {
     expect(result.kind).toBe("ready");
     if (result.kind !== "ready") throw new Error("expected catalog");
     expect(result.catalog.providers).toHaveLength(40);
-    expect(result.catalog.providers.flatMap(({ models }) => models)).toHaveLength(1_312);
+    expect(result.catalog.providers.flatMap(({ models }) => models)).toHaveLength(1_290);
     const availableProviders = result.catalog.providers.filter(({ availability }) =>
       availability === "available"
     );
@@ -108,20 +108,20 @@ describe("SillyOS Browser Pi catalog port", () => {
         `${provider.id}/${model.id}`
       )
     );
-    expect(availableModels).toHaveLength(1_032);
+    expect(availableModels).toHaveLength(1_015);
     expect(availableModels).toEqual(expect.arrayContaining([
       "anthropic/claude-sonnet-4-5",
       "deepseek/deepseek-v4-pro",
       "google/gemini-2.5-pro",
       "openai/gpt-4.1-mini",
-      "openrouter/google/gemini-2.5-flash",
+      "openrouter/z-ai/glm-5.3-flash",
       "xai/grok-4.5",
     ]));
     expect(
       result.catalog.providers.flatMap((provider) => provider.models).filter(({ availability }) =>
         availability === "unavailable"
       ),
-    ).toHaveLength(280);
+    ).toHaveLength(275);
     expect(result.catalog.providers.find(({ id }) => id === "mistral")?.availability).toBe(
       "unavailable",
     );

@@ -76,7 +76,7 @@ Program 网络开关控制。S2-N3 已通过完整 521 项 SillyOS 单元套件�
 `a17c3490` 三 origin artifact；artifact availability 不提升上述行为资格。
 
 另有一个只在 `?agent=pi-test` 出现的 B0a 验证入口：它会把产品 lockfile 固定的
-`pi-agent-core` / `pi-ai` 0.84.3 懒加载进 Dedicated Worker，通过 typed RPC 运行真实
+`pi-agent-core` / `pi-ai` 0.84.4 懒加载进 Dedicated Worker，通过 typed RPC 运行真实
 Pi `Agent`、确定性本地 provider 和唯一的 `sillyos_propose_program_revision`
 `AgentTool`，并让一次 follow-up 产生精确的 v2 proposal。这个入口只接受合成测试值；
 它不会请求 LLM，也不会把测试值写入 React state、URL、日志、网络请求、Program 数据或
@@ -212,9 +212,14 @@ database，因此普通 Program 生命周期与导出不会拥有或混入凭据
 中把普通 Program 的唯一 Authority 切到独立 Sandbox origin：控制面创建精确 origin frame
 transport，Sandbox 内固定 Host Worker 独占 OPFS、
 snapshot/export 与 volume 生命周期，旧控制-origin Host Worker 和 fallback 已删除。物理 Product
-Repository V9 已用规范化 Program/Process/Conversation stores、Process execution lease
-与单一 `process_commits` operation-receipt authority 清洁替换旧 preview aggregate，
-并保留 Program-scoped Workspace continuation 与缺行即默认关闭的 network-access row。
+Repository V10 建立在已完成的 V9 clean replacement 上：规范化
+Program/Process/Conversation stores、Process execution lease 与单一
+`process_commits` operation-receipt authority 保持不变，并新增唯一
+`process_workspace_bindings`，把一个非 Creator Process 精确绑定到自己的
+Workspace/OPFS volume。Program-scoped Workspace continuation 与缺行即默认关闭的
+network-access row 仍是不同 authority。Process、首个 transcript checkpoint 和 binding
+可在一个 IndexedDB transaction 中提交；OPFS volume 的物理创建仍由 Sandbox Host
+单独拥有，不伪装成跨 IndexedDB/OPFS transaction。
 预览数据库以 row-blind reset 切换，不读取或迁移旧 aggregate/授权。旧控制-origin
 OPFS bytes 可能仍由浏览器保留，但产品不再可达，也不会把它们作为迁移输入。
 
@@ -391,8 +396,11 @@ reload。单独的 Chromium/WebKit qualification 各 3/3
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
 防截断和视觉验收矩阵见 [DESIGN.md](./DESIGN.md)。从真实 Pi typed RPC、产品数据库、
 Pi 工具到 workspace runtime 的转发、Pi 能力组合、OpenUI 到 SillyMaker 组件映射，
-再到翻译/写作/角色扮演产品的分阶段路径见 [PLAN.md](./PLAN.md)。当前 Browser
-workspace 已交付独立 origin 的单一工作卷、受限 shell/QJS，以及
+再到翻译/写作/角色扮演产品的分阶段路径见 [PLAN.md](./PLAN.md)。Translation P5-A
+只完成了四格式确定性 round-trip laboratory 和双路线 model-protocol smoke；Process
+Workspace、Host import 与 Browser dispatch 仍是未接入普通 UI 的后续 substrate，不代表
+Translation Program 已可用或任一路线已通过资格。当前 Browser workspace 已交付独立 origin
+的单一工作卷、受限 shell/QJS，以及
 `mkdir`/`touch`/`cp`/`mv`/`rm` 文件操作；更广的执行 profile 仍是研究门。每个变更 entry
 独立推进 generation，复合命令是保留已完成前缀的 best-effort 操作而非原子事务；空目录可冷重开，
 但 portable ZIP 与 immutable snapshot V1 仍只保存文件。WASM 是可选执行机制，不是产品契约。
@@ -651,7 +659,7 @@ production 仍是 self-hosted external style，不把 nonce 变成发布策略�
 
 仓库另带一个 **尚未连接 Creator UI** 的原始 Pi RPC 启动器，用来验证 provider、model、
 凭据与固定隔离参数。它绝不搜索 `PATH`，也不接受 Pi 命令或路径覆盖；只解析本产品在
-`package.json` 与根 lockfile 中固定的 `@earendil-works/pi-coding-agent@0.84.3` CLI
+`package.json` 与根 lockfile 中固定的 `@earendil-works/pi-coding-agent@0.84.4` CLI
 artifact，并使用当前 Deno executable 启动。依赖未物化或不是普通文件时，会在
 dry-run/启动前明确失败，不会回退到机器上已安装的 `pi`。未来 Desktop 包也必须把同一
 固定 package closure 物化进产品。这条路线与 Browser 中单独固定、懒加载的
@@ -694,7 +702,7 @@ provider，启动器不另造 provider-to-key 映射。`--list-models` 不是无
 ```sh
 deno task --quiet pi:rpc -- \
   --provider openrouter \
-  --model openai/gpt-5.4 \
+  --model z-ai/glm-5.3-flash \
   --api-key ...
 ```
 
@@ -812,8 +820,8 @@ deno run -A npm:vitest run \
 | `src/workspace/browser-workspace-sandbox-build-identity.ts`     | control/bootstrap/Host 共用的 product-derived build identity admission         |
 | `src/workspace/browser-workspace-sandbox-download-protocol.ts`  | Sandbox Host 到 bootstrap frame 的私有 download request/receipt                |
 | `src/workspace-sandbox/`                                        | Sandbox 文档 bootstrap 与同 origin 固定 Host Worker                            |
-| `src/product/indexeddb-program-data-repository.ts`              | physical Product Repository V9 与 Program/Process 原子事务                     |
-| `src/product/browser-program-data-repository.ts`                | V9 Worker client、响应 identity 与 outcome-unknown fencing                     |
+| `src/product/indexeddb-program-data-repository.ts`              | physical Product Repository V10 与 Program/Process 原子事务                    |
+| `src/product/browser-program-data-repository.ts`                | V10 Worker client、响应 identity 与 outcome-unknown fencing                    |
 | `src/companion/pi-rpc-startup.ts`                               | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要                     |
 | `src/application/`                                              | Browser/Deno 共用的 React 产品入口与工作区表现                                 |
 | `src/test/browser-pi-worker.test.ts`                            | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown                    |

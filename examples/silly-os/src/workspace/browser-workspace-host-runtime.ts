@@ -361,6 +361,7 @@ interface SessionStateV1 {
   reservedReceiptSlots: number;
   environment: EnvironmentAttachmentV1 | null;
   exportOperation: ExportOperationV1 | null;
+  importOperation: boolean;
   snapshotOperation: boolean;
   publicationFence: ProgramWorkspaceSnapshotReceiptV1 | null;
   closeDrain: Promise<void> | null;
@@ -2397,7 +2398,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
       }
       if (
         session.activeRun !== null || session.exportOperation !== null ||
-        session.snapshotOperation || session.publicationFence !== null
+        session.importOperation || session.snapshotOperation || session.publicationFence !== null
       ) {
         environmentFailure(session, request.requestId, "run_busy");
         return;
@@ -2824,6 +2825,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         session.usedRunIds.clear();
         session.activeRun = null;
         session.reservedReceiptSlots = 0;
+        session.importOperation = false;
         session.snapshotOperation = false;
         session.publicationFence = null;
         sessions.delete(session.workspaceSessionId);
@@ -3029,6 +3031,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
           reservedReceiptSlots: 0,
           environment: null,
           exportOperation: null,
+          importOperation: false,
           snapshotOperation: false,
           publicationFence: null,
           closeDrain: null,
@@ -3052,6 +3055,90 @@ export function createBrowserWorkspaceHostRuntimeV1(
     if (session === undefined) {
       closeTransferredPorts(transferredPorts);
       controlFailure(requestId, "workspace_mismatch");
+      return;
+    }
+    if (record.method === "import_file") {
+      if (
+        session.phase !== "open" || !session.accepting || session.lease === null ||
+        session.activeRun !== null || session.exportOperation !== null ||
+        session.importOperation || session.snapshotOperation || session.publicationFence !== null
+      ) {
+        controlFailure(requestId, "workspace_busy");
+        return;
+      }
+      if (
+        record.expectedCheckpointId !== session.head.checkpointId ||
+        record.expectedGeneration !== session.head.generation
+      ) {
+        controlFailure(requestId, "workspace_mismatch");
+        return;
+      }
+      const path = normalizedPathV1(record.path);
+      if (isFileErrorV1(path) || path.relative.length === 0) {
+        controlFailure(requestId, "invalid_request");
+        return;
+      }
+      session.importOperation = true;
+      try {
+        const nextCheckpointId = createCheckpointId();
+        if (!validIdentityV1(nextCheckpointId)) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Checkpoint identity factory returned an invalid identity",
+          );
+        }
+        const result = await session.lease.replaceFile({
+          path: path.relative,
+          source: sourceFromBytes(record.bytes, path.absolute),
+          expectedHead: session.head,
+          nextCheckpointId,
+          signal: new AbortController().signal,
+        });
+        const admittedHead = durableHeadV1(result.head, session.anchor);
+        if (admittedHead === null) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "volume_corrupt",
+            "Workspace file import returned an invalid durable head",
+          );
+        }
+        if (result.changed) {
+          if (
+            admittedHead.generation !== session.head.generation + 1 ||
+            admittedHead.checkpointId !== nextCheckpointId
+          ) {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "volume_corrupt",
+              "Workspace file import did not publish the exact successor head",
+            );
+          }
+          session.head = admittedHead;
+        } else if (!sameHeadV1(admittedHead, session.head)) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "volume_corrupt",
+            "Same-byte workspace file import changed its durable head",
+          );
+        }
+        postControl({
+          revision: 1,
+          kind: "control_response",
+          requestId,
+          ok: true,
+          response: {
+            method: "import_file",
+            changed: result.changed,
+            snapshot: snapshot(session),
+          },
+        });
+      } catch (error) {
+        controlFailure(
+          requestId,
+          error instanceof DOMException && error.name === "QuotaExceededError"
+            ? "capacity_exceeded"
+            : storageFailureCodeV1(error),
+        );
+      } finally {
+        session.importOperation = false;
+      }
       return;
     }
     if (record.method === "query_workspace") {

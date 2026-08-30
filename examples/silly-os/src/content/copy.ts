@@ -388,7 +388,7 @@ const englishV1: SillyOsCopyV1 = {
   mobileNavigation: "Workspace views",
   piTestTitle: "Browser Pi wiring check",
   piTestDescription:
-    "Runs the product-pinned Pi 0.84.3 Agent with a deterministic local provider. It does not contact an LLM or validate a real provider key.",
+    "Runs the product-pinned Pi 0.84.4 Agent with a deterministic local provider. It does not contact an LLM or validate a real provider key.",
   piTestKeyLabel: "Synthetic test key (memory only)",
   piTestKeyPlaceholder: "Enter a disposable test value",
   piTestInitialize: "Initialize Pi test",
@@ -721,7 +721,7 @@ const chineseV1: SillyOsCopyV1 = {
   mobileNavigation: "工作区视图",
   piTestTitle: "浏览器 Pi 接线检查",
   piTestDescription:
-    "使用产品固定的 Pi 0.84.3 Agent 和确定性本地 provider；不会连接 LLM，也不会校验真实 provider key。",
+    "使用产品固定的 Pi 0.84.4 Agent 和确定性本地 provider；不会连接 LLM，也不会校验真实 provider key。",
   piTestKeyLabel: "合成测试 key（仅内存）",
   piTestKeyPlaceholder: "输入可随时丢弃的测试值",
   piTestInitialize: "初始化 Pi 测试",

@@ -18,6 +18,7 @@ import {
   type ProgramProcessCreateBundleInputV1,
   type ProgramProcessDecisionBundleInputV1,
   type ProgramProcessRevisionBundleInputV1,
+  type ProcessWorkspaceCreateBundleInputV1,
 } from "../product/program-data-repository.ts";
 import {
   admitProgramDataRepositoryWorkerRequestEnvelopeV1,
@@ -31,6 +32,7 @@ import {
   createBuiltinCreatorProgramDefinitionRevisionV1,
   transcriptEntryUtf8ByteLengthV1,
   type ProcessCheckpointV1,
+  type ProgramDefinitionRevisionV1,
   type TranscriptEntryV1,
 } from "../product/program-process-repository.ts";
 import type { PreviewProgramV1 } from "../product/contracts.ts";
@@ -193,6 +195,57 @@ function createBundleV1(
       attemptBinding: null,
       entries: [entryV1({ processId, sequence: 1, role: "user" })],
       checkpoint: null,
+      terminalAttemptReceipt: null,
+      updatedAt: 2,
+    },
+  };
+}
+
+function translationDefinitionV1(): ProgramDefinitionRevisionV1 {
+  return {
+    schemaVersion: 1,
+    programId: "sillyos.builtin.translation",
+    revision: 1,
+    kind: "translation",
+    name: "Translation",
+    purpose: "Translate one admitted Process Workspace.",
+    harnessReference: "sillyos.harness.translation@1",
+    capabilityIds: [],
+  };
+}
+
+function processWorkspaceBundleV1(
+  processId: string,
+  subjectProgramId = "program.translation",
+): ProcessWorkspaceCreateBundleInputV1 {
+  return {
+    process: {
+      processId,
+      programDefinition: { programId: "sillyos.builtin.translation", revision: 1 },
+      subjectProgramId,
+      createdAt: 1,
+    },
+    workspace: {
+      revision: 1,
+      processId,
+      workspaceId: `workspace.${processId}`,
+      volumeId: `volume.${processId}`,
+      workspaceFormat: 1,
+    },
+    transcript: {
+      processId,
+      expectedProcessRevision: 1,
+      expectedTranscriptFrontier: 0,
+      commitId: `commit.${processId}.create-workspace`,
+      attemptBinding: null,
+      entries: [entryV1({ processId, sequence: 1, role: "system" })],
+      checkpoint: {
+        checkpointId: `process.checkpoint.${processId}.1`,
+        throughSequence: 1,
+        workspaceId: `workspace.${processId}`,
+        workspaceCheckpointId: `workspace.checkpoint.${processId}.1`,
+        workspaceGeneration: 1,
+      },
       terminalAttemptReceipt: null,
       updatedAt: 2,
     },
@@ -402,6 +455,39 @@ async function seedProcessV1(
 }
 
 describe("Program data repository Worker boundary", () => {
+  it("round-trips an atomic translation Process Workspace creation", async () => {
+    const loopback = createLoopbackWorkerV1({
+      repository: createTestProgramDataRepositoryV1(),
+    });
+    const repository = createBrowserProgramDataRepositoryV1({
+      createWorker: () => loopback.worker,
+    });
+    await repository.initialize();
+    await repository.publishProgramDefinitionRevision(
+      createBuiltinCreatorProgramDefinitionRevisionV1(),
+    );
+    await repository.createProgramWithProcess(
+      createBundleV1("program.translation", "process.translation-creator-wire"),
+    );
+    await repository.publishProgramDefinitionRevision(translationDefinitionV1());
+    const bundle = processWorkspaceBundleV1("process.translation-wire");
+    expect(await repository.createProcessWithWorkspace(bundle)).toMatchObject({
+      kind: "committed",
+      process: { revision: 2, checkpoint: { throughSequence: 1 } },
+      workspace: { volumeId: "volume.process.translation-wire" },
+      entries: [{ sequence: 1 }],
+    });
+    expect(await repository.createProcessWithWorkspace(bundle)).toMatchObject({
+      kind: "unchanged",
+      workspace: { processId: "process.translation-wire" },
+    });
+    expect(await repository.loadProcessWorkspaceBinding("process.translation-wire")).toEqual(
+      bundle.workspace,
+    );
+    await repository.dispose();
+    await loopback.runtime.dispose();
+  });
+
   it("round-trips Catalog pages, accepted decisions, rich Process transcript, and network state", async () => {
     const loopback = createLoopbackWorkerV1({
       repository: createTestProgramDataRepositoryV1(),
@@ -912,7 +998,7 @@ describe("Program data repository Worker boundary", () => {
           },
         },
       }).kind,
-    ).toBe("rejected");
+    ).toBe("admitted");
     const terminal = await repository.commitProcessExecutionTerminal(terminalInput);
     if (terminal.kind !== "committed") throw new Error("expected Process execution terminal");
     expect(
@@ -970,6 +1056,40 @@ describe("Program data repository Worker boundary", () => {
         },
       ).kind,
     ).toBe("rejected");
+    await repository.publishProgramDefinitionRevision(translationDefinitionV1());
+    const processWorkspaceInput = processWorkspaceBundleV1(
+      "process.workspace-wire-binding",
+      "program.wire-binding",
+    );
+    const processWorkspaceResult = await repository.createProcessWithWorkspace(
+      processWorkspaceInput,
+    );
+    if (processWorkspaceResult.kind !== "committed") {
+      throw new Error("expected Process Workspace commit");
+    }
+    expect(
+      admitSuccessResponseV1(
+        { method: "create_process_with_workspace", input: processWorkspaceInput },
+        processWorkspaceResult,
+      ).kind,
+    ).toBe("admitted");
+    for (
+      const candidateProcess of [
+        {
+          ...processWorkspaceResult.process,
+          programDefinition: { programId: "sillyos.builtin.other", revision: 1 },
+        },
+        { ...processWorkspaceResult.process, subjectProgramId: "program.other" },
+        { ...processWorkspaceResult.process, createdAt: 2 },
+      ]
+    ) {
+      expect(
+        admitSuccessResponseV1(
+          { method: "create_process_with_workspace", input: processWorkspaceInput },
+          { ...processWorkspaceResult, process: candidateProcess },
+        ).kind,
+      ).toBe("rejected");
+    }
     const impossibleMissingDefinition = {
       kind: "program_definition_missing",
       programDefinition: compositeInput.process.programDefinition,
@@ -1328,6 +1448,45 @@ describe("Program data repository Worker boundary", () => {
       kind: "unchanged",
       record: { head: { repositoryRevision: 1 } },
       process: { revision: 2, transcriptFrontier: 1 },
+    });
+    await second.dispose();
+  });
+
+  it("fences a delivered Process Workspace and exact-replays it through a new Worker", async () => {
+    const indexedDB = new IDBFactory();
+    const firstLoopback = createLoopbackWorkerV1({
+      repository: createTestProgramDataRepositoryV1({ indexedDB }),
+      throwResponse: (message) => message.record.method === "create_process_with_workspace",
+    });
+    const first = createBrowserProgramDataRepositoryV1({
+      createWorker: () => firstLoopback.worker,
+    });
+    await first.publishProgramDefinitionRevision(
+      createBuiltinCreatorProgramDefinitionRevisionV1(),
+    );
+    await first.createProgramWithProcess(
+      createBundleV1("program.workspace-replay", "process.workspace-replay-creator"),
+    );
+    await first.publishProgramDefinitionRevision(translationDefinitionV1());
+    const bundle = processWorkspaceBundleV1(
+      "process.workspace-replay",
+      "program.workspace-replay",
+    );
+    await expect(first.createProcessWithWorkspace(bundle)).rejects.toMatchObject({
+      code: "outcome_unknown",
+      operation: "create_process_with_workspace",
+    });
+
+    const secondLoopback = createLoopbackWorkerV1({
+      repository: createTestProgramDataRepositoryV1({ indexedDB }),
+    });
+    const second = createBrowserProgramDataRepositoryV1({
+      createWorker: () => secondLoopback.worker,
+    });
+    expect(await second.createProcessWithWorkspace(bundle)).toMatchObject({
+      kind: "unchanged",
+      process: { processId: bundle.process.processId, revision: 2 },
+      workspace: bundle.workspace,
     });
     await second.dispose();
   });

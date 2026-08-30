@@ -101,6 +101,20 @@ async function executeRequestV1(
       value: await repository.createProgramWithProcess(request.input),
     };
   }
+  if (method === "create_process_with_workspace") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.createProcessWithWorkspace(request.input),
+    };
+  }
+  if (method === "load_process_workspace_binding") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.loadProcessWorkspaceBinding(request.processId),
+    };
+  }
   if (method === "apply_program_revision_with_process_transcript") {
     return {
       kind: "success",

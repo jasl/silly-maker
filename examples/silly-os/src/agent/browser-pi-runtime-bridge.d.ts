@@ -2,6 +2,7 @@
 
 import type { AgentTool } from "./pi-workspace-runtime-bridge.js";
 
+import type { BrowserPiAgentDispatchV1 } from "./browser-pi-agent-dispatch.ts";
 import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
 import type { BrowserPiReasoningEffortV1 } from "./browser-pi-worker-protocol.ts";
 
@@ -32,7 +33,7 @@ export interface PiAgentPortV1 {
 }
 
 export interface PiAgentRunInputV1 {
-  readonly submit: CreatorAgentSubmitV1;
+  readonly dispatch: BrowserPiAgentDispatchV1;
   readonly workspaceTools: readonly AgentTool[];
   readonly onTextDelta: (delta: string) => void;
   readonly onCandidate: (candidate: unknown) => void | Promise<void>;
@@ -68,5 +69,8 @@ export type DeterministicPiAgentPortV1 = PiAgentPortV1;
 export function createPiAgentV1(input: PiAgentRuntimeInputV1): PiAgentPortV1;
 
 export function createDeterministicPiAgentV1(
-  input: PiAgentRunInputV1 & { readonly runNumber: number },
+  input: Omit<PiAgentRunInputV1, "dispatch"> & {
+    readonly submit: CreatorAgentSubmitV1;
+    readonly runNumber: number;
+  },
 ): PiAgentPortV1;

@@ -10,7 +10,6 @@ import {
 import {
   admitCreatorAgentSubmitV1,
   admitCreatorProgramRevisionCandidateV1,
-  serializeCreatorAgentSubmitV1,
 } from "../product/creator-agent-admission.ts";
 import {
   creatorAgentFinalReplyMaximumCharactersV1,
@@ -33,6 +32,7 @@ import {
   browserPiDistributionIdentityV1,
   type BrowserPiDistributionIdentityV1,
 } from "./browser-pi-distribution.ts";
+import { serializeBrowserPiCreatorAgentDispatchV1 } from "./browser-pi-agent-dispatch.ts";
 import type {
   WorkspaceExecutionDescriptorV1,
   WorkspaceMutationReceiptV1,
@@ -1883,7 +1883,7 @@ export function createBrowserCreatorAgentPortV1(
       try {
         // Product-only Process/Workspace currentness and Repository identity
         // never cross the Pi RPC boundary.
-        serializedSubmit = serializeCreatorAgentSubmitV1(normalized.submit);
+        serializedSubmit = serializeBrowserPiCreatorAgentDispatchV1(normalized.submit);
       } catch {
         removeTrackedRunV1(tracked);
         refreshFacadeV1();

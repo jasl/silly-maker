@@ -4,4 +4,4 @@
 // runtime. The adjacent declaration exposes only the test behavior exercised by
 // SillyOS instead of importing every bundled Provider SDK type into the root
 // repository typecheck.
-export { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai";
+export { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai";

@@ -61,7 +61,9 @@ import {
 } from "./program-network-access.ts";
 import {
   createProgramDataRepositoryFailureV1,
+  cloneProcessWorkspaceBindingV1,
   isProgramDataRepositoryFailureV1,
+  normalizeProcessWorkspaceCreateBundleInputV1,
   normalizeProgramProcessCreateBundleInputV1,
   normalizeProgramProcessDecisionBundleInputV1,
   normalizeProgramProcessExecutionRevisionBundleInputV1,
@@ -76,6 +78,8 @@ import {
   type ProgramProcessDecisionBundleInputV1,
   type ProgramProcessExecutionCompositeCommitResultV1,
   type ProgramProcessRevisionBundleInputV1,
+  type ProcessWorkspaceBindingV1,
+  type ProcessWorkspaceCreateCompositeCommitResultV1,
 } from "./program-data-repository.ts";
 import {
   cloneProcessExecutionLeaseV1,
@@ -91,9 +95,26 @@ import {
 import type { PreviewProgramV1 } from "./contracts.ts";
 
 export const programDataDatabaseNameV1 = "sillymaker.example-silly-os.programs";
-export const programDataDatabaseVersionV1 = 9;
+export const programDataDatabaseVersionV1 = 10;
 
 export const programDataStoreNamesV1 = [
+  "catalog_commits",
+  "process_commits",
+  "process_execution_leases",
+  "process_workspace_bindings",
+  "processes",
+  "program_decisions",
+  "program_definitions",
+  "program_heads",
+  "program_network_access",
+  "program_revisions",
+  "transcript_entries",
+  "workspace_continuations",
+] as const;
+
+// Historical schemas remain exact literals. Deriving V9 by subtracting a V10
+// store from the current set would silently make a future V11 store part of V9.
+const programDataV9StoreNamesV1 = [
   "catalog_commits",
   "process_commits",
   "process_execution_leases",
@@ -261,46 +282,67 @@ function createV9StoresV1(database: IDBDatabase): void {
   database.createObjectStore("program_network_access", { keyPath: "programId" });
 }
 
-function hasExactV9SchemaV1(database: IDBDatabase): boolean {
+function createProcessWorkspaceBindingsStoreV1(database: IDBDatabase): void {
+  const bindings = database.createObjectStore("process_workspace_bindings", {
+    keyPath: "processId",
+  });
+  bindings.createIndex("by_volume_id", "volumeId", { unique: true });
+}
+
+function createV10StoresV1(database: IDBDatabase): void {
+  createV9StoresV1(database);
+  createProcessWorkspaceBindingsStoreV1(database);
+}
+
+function hasExactV9StoresV1(transaction: IDBTransaction): boolean {
+  return exactStoreV1(transaction.objectStore("program_definitions"), [
+    "programId",
+    "revision",
+  ]) &&
+    exactStoreV1(transaction.objectStore("program_heads"), "programId", [{
+      name: "by_updated_at",
+      keyPath: ["updatedAt", "programId"],
+      unique: false,
+    }]) &&
+    exactStoreV1(transaction.objectStore("program_revisions"), ["programId", "revision"]) &&
+    exactStoreV1(transaction.objectStore("program_decisions"), [
+      "programId",
+      "proposalId",
+      "programRevision",
+    ], [{
+      name: "by_program_revision",
+      keyPath: ["programId", "programRevision"],
+      unique: true,
+    }]) &&
+    exactStoreV1(transaction.objectStore("catalog_commits"), ["programId", "commitId"]) &&
+    exactStoreV1(transaction.objectStore("processes"), "processId", [{
+      name: "by_subject_updated_at",
+      keyPath: ["subjectKey", "updatedAt", "processId"],
+      unique: false,
+    }]) &&
+    exactStoreV1(transaction.objectStore("transcript_entries"), ["processId", "sequence"], [{
+      name: "by_process_entry_id",
+      keyPath: ["processId", "entryId"],
+      unique: true,
+    }]) &&
+    exactStoreV1(transaction.objectStore("process_commits"), ["processId", "commitId"]) &&
+    exactStoreV1(transaction.objectStore("process_execution_leases"), "processId") &&
+    exactStoreV1(transaction.objectStore("workspace_continuations"), "programId") &&
+    exactStoreV1(transaction.objectStore("program_network_access"), "programId");
+}
+
+function hasExactV10SchemaV1(database: IDBDatabase): boolean {
   try {
     if (
-      database.version !== 9 || !exactNamesV1(database.objectStoreNames, programDataStoreNamesV1)
+      database.version !== 10 || !exactNamesV1(database.objectStoreNames, programDataStoreNamesV1)
     ) return false;
     const transaction = database.transaction(programDataStoreNamesV1, "readonly");
-    return exactStoreV1(transaction.objectStore("program_definitions"), [
-      "programId",
-      "revision",
-    ]) &&
-      exactStoreV1(transaction.objectStore("program_heads"), "programId", [{
-        name: "by_updated_at",
-        keyPath: ["updatedAt", "programId"],
-        unique: false,
-      }]) &&
-      exactStoreV1(transaction.objectStore("program_revisions"), ["programId", "revision"]) &&
-      exactStoreV1(transaction.objectStore("program_decisions"), [
-        "programId",
-        "proposalId",
-        "programRevision",
-      ], [{
-        name: "by_program_revision",
-        keyPath: ["programId", "programRevision"],
+    return hasExactV9StoresV1(transaction) &&
+      exactStoreV1(transaction.objectStore("process_workspace_bindings"), "processId", [{
+        name: "by_volume_id",
+        keyPath: "volumeId",
         unique: true,
-      }]) &&
-      exactStoreV1(transaction.objectStore("catalog_commits"), ["programId", "commitId"]) &&
-      exactStoreV1(transaction.objectStore("processes"), "processId", [{
-        name: "by_subject_updated_at",
-        keyPath: ["subjectKey", "updatedAt", "processId"],
-        unique: false,
-      }]) &&
-      exactStoreV1(transaction.objectStore("transcript_entries"), ["processId", "sequence"], [{
-        name: "by_process_entry_id",
-        keyPath: ["processId", "entryId"],
-        unique: true,
-      }]) &&
-      exactStoreV1(transaction.objectStore("process_commits"), ["processId", "commitId"]) &&
-      exactStoreV1(transaction.objectStore("process_execution_leases"), "processId") &&
-      exactStoreV1(transaction.objectStore("workspace_continuations"), "programId") &&
-      exactStoreV1(transaction.objectStore("program_network_access"), "programId");
+      }]);
   } catch {
     return false;
   }
@@ -328,7 +370,7 @@ function resetExactLegacyV1(request: IDBOpenDBRequest, oldVersion: number): void
     }
   }
   for (const name of expected) request.result.deleteObjectStore(name);
-  createV9StoresV1(request.result);
+  createV10StoresV1(request.result);
 }
 
 function resetExactV8V1(request: IDBOpenDBRequest): void {
@@ -338,13 +380,23 @@ function resetExactV8V1(request: IDBOpenDBRequest): void {
   }
   const expected = [
     "agent_run_receipts",
-    ...programDataStoreNamesV1.filter((name) => name !== "process_execution_leases"),
+    ...programDataV9StoreNamesV1.filter((name) => name !== "process_execution_leases"),
   ];
   if (!exactNamesV1(request.result.objectStoreNames, expected)) {
     throw createProgramDataRepositoryFailureV1("schema_invalid", "initialize");
   }
   for (const name of expected) request.result.deleteObjectStore(name);
-  createV9StoresV1(request.result);
+  createV10StoresV1(request.result);
+}
+
+function upgradeExactV9V1(request: IDBOpenDBRequest): void {
+  const transaction = request.transaction;
+  if (
+    transaction === null ||
+    !exactNamesV1(request.result.objectStoreNames, programDataV9StoreNamesV1) ||
+    !hasExactV9StoresV1(transaction)
+  ) throw createProgramDataRepositoryFailureV1("schema_invalid", "initialize");
+  createProcessWorkspaceBindingsStoreV1(request.result);
 }
 
 function domExceptionNameV1(value: unknown): string | null {
@@ -404,7 +456,7 @@ function openDatabaseV1(input: {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest;
     try {
-      request = input.indexedDB.open(input.databaseName, 9);
+      request = input.indexedDB.open(input.databaseName, 10);
     } catch (error) {
       reject(mapFailureV1(error, input.operation));
       return;
@@ -422,15 +474,16 @@ function openDatabaseV1(input: {
         return;
       }
       try {
-        if (event.newVersion !== 9 || ![0, 4, 5, 6, 7, 8].includes(event.oldVersion)) {
+        if (event.newVersion !== 10 || ![0, 4, 5, 6, 7, 8, 9].includes(event.oldVersion)) {
           throw createProgramDataRepositoryFailureV1("schema_invalid", input.operation);
         }
         if (event.oldVersion === 0) {
           if (request.result.objectStoreNames.length !== 0) {
             throw createProgramDataRepositoryFailureV1("schema_invalid", input.operation);
           }
-          createV9StoresV1(request.result);
+          createV10StoresV1(request.result);
         } else if (event.oldVersion === 8) resetExactV8V1(request);
+        else if (event.oldVersion === 9) upgradeExactV9V1(request);
         else resetExactLegacyV1(request, event.oldVersion);
       } catch (error) {
         upgradeFailure = error;
@@ -447,7 +500,7 @@ function openDatabaseV1(input: {
         database.close();
         return;
       }
-      if (!hasExactV9SchemaV1(database)) {
+      if (!hasExactV10SchemaV1(database)) {
         database.close();
         rejectOnce(createProgramDataRepositoryFailureV1("schema_invalid", input.operation));
         return;
@@ -540,6 +593,17 @@ function storedContinuationV1(
 ): ProgramCatalogContinuationV1 {
   try {
     return cloneProgramCatalogContinuationV1(value as ProgramCatalogContinuationV1);
+  } catch {
+    throw createProgramDataRepositoryFailureV1("schema_invalid", operation);
+  }
+}
+
+function storedProcessWorkspaceBindingV1(
+  value: unknown,
+  operation: ProgramDataRepositoryOperationV1,
+): ProcessWorkspaceBindingV1 {
+  try {
+    return cloneProcessWorkspaceBindingV1(value as ProcessWorkspaceBindingV1);
   } catch {
     throw createProgramDataRepositoryFailureV1("schema_invalid", operation);
   }
@@ -2170,6 +2234,161 @@ export function createIndexedDbProgramDataRepositoryV1(
       );
     },
 
+    async createProcessWithWorkspace(rawInput) {
+      const input = normalizeProcessWorkspaceCreateBundleInputV1(rawInput);
+      const subjectProgramId = input.process.subjectProgramId;
+      if (subjectProgramId === null) {
+        throw new TypeError("Process Workspace creation requires a subject Program");
+      }
+      const digest = await digestV1(input);
+      const operation = "create_process_with_workspace" as const;
+      return await runV1(
+        operation,
+        [
+          "program_definitions",
+          "program_decisions",
+          "program_heads",
+          "program_revisions",
+          "processes",
+          "transcript_entries",
+          "process_commits",
+          "process_workspace_bindings",
+        ],
+        "readwrite",
+        async (transaction): Promise<ProcessWorkspaceCreateCompositeCommitResultV1> => {
+          const bindings = transaction.objectStore("process_workspace_bindings");
+          const current = await Promise.all([
+            loadProcessTxV1(transaction, input.process.processId, operation),
+            requestResultV1(bindings.get(input.process.processId)),
+            requestResultV1(bindings.index("by_volume_id").get(input.workspace.volumeId)),
+            requestResultV1(
+              transaction.objectStore("process_commits").get([
+                input.process.processId,
+                input.transcript.commitId,
+              ]),
+            ),
+          ]);
+          const [currentProcess, workspaceRow, volumeOwnerRow, processCommitRow] = current;
+          const currentWorkspace = workspaceRow === undefined
+            ? null
+            : storedProcessWorkspaceBindingV1(workspaceRow, operation);
+          const volumeOwner = volumeOwnerRow === undefined
+            ? null
+            : storedProcessWorkspaceBindingV1(volumeOwnerRow, operation);
+          if (volumeOwner !== null && volumeOwner.processId !== input.process.processId) {
+            return { kind: "workspace_volume_owned", owner: volumeOwner };
+          }
+          let initialProcess: ProcessHeadV1 | undefined;
+          if (processCommitRow === undefined) {
+            if (currentProcess !== null || currentWorkspace !== null) {
+              return { kind: "conflict", currentProcess, currentWorkspace };
+            }
+            const [definitionRow, subjectProgram] = await Promise.all([
+              requestResultV1(
+                transaction.objectStore("program_definitions").get([
+                  input.process.programDefinition.programId,
+                  input.process.programDefinition.revision,
+                ]),
+              ),
+              loadCatalogRecordV1(transaction, subjectProgramId, operation),
+            ]);
+            if (definitionRow === undefined) {
+              return {
+                kind: "program_definition_missing",
+                programDefinition: input.process.programDefinition,
+              };
+            }
+            let definition: ProgramDefinitionRevisionV1;
+            try {
+              definition = cloneProgramDefinitionRevisionV1(
+                definitionRow as ProgramDefinitionRevisionV1,
+              );
+            } catch {
+              throw createProgramDataRepositoryFailureV1("schema_invalid", operation);
+            }
+            if (definition.kind === "creator") {
+              throw new TypeError("Process Workspace creation requires a non-Creator definition");
+            }
+            if (subjectProgram === null) {
+              return { kind: "subject_program_missing", subjectProgramId };
+            }
+            if (subjectProgram.head.programId !== subjectProgramId) {
+              throw createProgramDataRepositoryFailureV1("schema_invalid", operation);
+            }
+            initialProcess = cloneProcessHeadV1({
+              schemaVersion: 1,
+              processId: input.process.processId,
+              revision: 1,
+              programDefinition: input.process.programDefinition,
+              subjectProgramId: input.process.subjectProgramId,
+              status: "active",
+              transcriptFrontier: 0,
+              activeAttempt: null,
+              lastTerminalAttempt: null,
+              checkpoint: null,
+              createdAt: input.process.createdAt,
+              updatedAt: input.process.createdAt,
+            });
+          } else if (currentProcess === null || currentWorkspace === null) {
+            throw createProgramDataRepositoryFailureV1("schema_invalid", operation);
+          }
+          const process = await prepareProcessTranscriptAppendV1({
+            transaction,
+            value: input.transcript,
+            digest,
+            repositoryOperation: operation,
+            ...(initialProcess === undefined ? {} : { initialProcess }),
+          });
+          if (
+            process.kind === "conflict" ||
+            currentWorkspace !== null &&
+              !exactJsonValuesEqualV1(currentWorkspace, input.workspace)
+          ) return { kind: "conflict", currentProcess, currentWorkspace };
+          if (process.kind === "unchanged") {
+            if (currentWorkspace === null) {
+              throw createProgramDataRepositoryFailureV1("schema_invalid", operation);
+            }
+            return {
+              kind: "unchanged",
+              process: process.process,
+              workspace: currentWorkspace,
+              entries: process.entries,
+            };
+          }
+          if (currentWorkspace !== null) {
+            return { kind: "conflict", currentProcess, currentWorkspace };
+          }
+          await Promise.all([
+            process.write(),
+            requestResultV1(bindings.add(input.workspace)),
+          ]);
+          return {
+            kind: "committed",
+            process: process.process,
+            workspace: input.workspace,
+            entries: process.entries,
+          };
+        },
+      );
+    },
+
+    async loadProcessWorkspaceBinding(rawProcessId) {
+      const processId = normalizeProcessIdV1(rawProcessId);
+      return await runV1(
+        "load_process_workspace_binding",
+        ["process_workspace_bindings"],
+        "readonly",
+        async (transaction) => {
+          const row = await requestResultV1(
+            transaction.objectStore("process_workspace_bindings").get(processId),
+          );
+          return row === undefined
+            ? null
+            : storedProcessWorkspaceBindingV1(row, "load_process_workspace_binding");
+        },
+      );
+    },
+
     async applyProgramRevisionWithProcessTranscript(rawInput) {
       const input = normalizeProgramProcessRevisionBundleInputV1(rawInput);
       const [catalogDigest, processDigest] = await Promise.all([
@@ -2912,9 +3131,46 @@ export function createIndexedDbProgramDataRepositoryV1(
       const operation = "commit_process_execution_terminal" as const;
       return await runV1(
         operation,
-        ["processes", "transcript_entries", "process_commits", "process_execution_leases"],
+        [
+          "program_definitions",
+          "processes",
+          "transcript_entries",
+          "process_commits",
+          "process_execution_leases",
+        ],
         "readwrite",
         async (transaction) => {
+          if (input.transcript.terminalAttemptReceipt?.outcome === "completed") {
+            const process = await loadProcessTxV1(
+              transaction,
+              input.transcript.processId,
+              operation,
+            );
+            if (process !== null) {
+              const definitionRow = await requestResultV1(
+                transaction.objectStore("program_definitions").get([
+                  process.programDefinition.programId,
+                  process.programDefinition.revision,
+                ]),
+              );
+              if (definitionRow === undefined) {
+                throw createProgramDataRepositoryFailureV1("schema_invalid", operation);
+              }
+              let definition: ProgramDefinitionRevisionV1;
+              try {
+                definition = cloneProgramDefinitionRevisionV1(
+                  definitionRow as ProgramDefinitionRevisionV1,
+                );
+              } catch {
+                throw createProgramDataRepositoryFailureV1("schema_invalid", operation);
+              }
+              if (definition.kind === "creator") {
+                throw new TypeError(
+                  "A Creator Process must publish a completed terminal with its Program successor",
+                );
+              }
+            }
+          }
           const prepared = await prepareExecutionTerminalV1({
             transaction,
             value: input,

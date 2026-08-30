@@ -6,9 +6,11 @@ import {
   normalizeProgramProcessCreateBundleInputV1,
   normalizeProgramProcessExecutionRevisionBundleInputV1,
   normalizeProgramProcessRevisionBundleInputV1,
+  normalizeProcessWorkspaceCreateBundleInputV1,
   type ProgramProcessCreateBundleInputV1,
   type ProgramProcessExecutionRevisionBundleInputV1,
   type ProgramProcessRevisionBundleInputV1,
+  type ProcessWorkspaceCreateBundleInputV1,
 } from "../product/program-data-repository.ts";
 import { normalizeProcessExecutionTerminalInputV1 } from "../product/process-execution-repository.ts";
 
@@ -132,6 +134,49 @@ function revisionBundleV1(): ProgramProcessRevisionBundleInputV1 {
   };
 }
 
+function processWorkspaceBundleV1(): ProcessWorkspaceCreateBundleInputV1 {
+  return {
+    process: {
+      processId: "process.translation.one",
+      programDefinition: { programId: "sillyos.builtin.translation", revision: 1 },
+      subjectProgramId: "program.one",
+      createdAt: 1,
+    },
+    workspace: {
+      revision: 1,
+      processId: "process.translation.one",
+      workspaceId: "workspace.translation.one",
+      volumeId: "volume.translation.one",
+      workspaceFormat: 1,
+    },
+    transcript: {
+      processId: "process.translation.one",
+      expectedProcessRevision: 1,
+      expectedTranscriptFrontier: 0,
+      commitId: "commit.translation.create",
+      attemptBinding: null,
+      entries: [{
+        schemaVersion: 1,
+        processId: "process.translation.one",
+        sequence: 1,
+        entryId: "entry.translation.one",
+        role: "user",
+        state: "committed",
+        parts: [{ kind: "text_markdown", partId: "part.translation.one", markdown: "File" }],
+      }],
+      checkpoint: {
+        checkpointId: "process-checkpoint.translation.one",
+        throughSequence: 1,
+        workspaceId: "workspace.translation.one",
+        workspaceCheckpointId: "workspace-checkpoint.translation.one",
+        workspaceGeneration: 1,
+      },
+      terminalAttemptReceipt: null,
+      updatedAt: 2,
+    },
+  };
+}
+
 function executionRevisionBundleV1(): ProgramProcessExecutionRevisionBundleInputV1 {
   const revision = revisionBundleV1();
   return {
@@ -219,7 +264,7 @@ describe("Program/Process composite admission", () => {
     ).toThrow("invalid Program/Process execution revision bundle");
   });
 
-  it("reserves completed for the Program-successor terminal", () => {
+  it("admits terminal shape independently from the repository's Process-kind policy", () => {
     const completed = executionRevisionBundleV1();
     expect(() => normalizeProgramProcessExecutionRevisionBundleInputV1(completed)).not.toThrow();
     expect(() =>
@@ -228,7 +273,7 @@ describe("Program/Process composite admission", () => {
         observedAt: completed.observedAt,
         transcript: completed.transcript,
       })
-    ).toThrow("invalid Process execution terminal input");
+    ).not.toThrow();
 
     for (const outcome of ["failed", "cancelled", "replaced", "interrupted"] as const) {
       const nonCompleted = executionRevisionBundleV1();
@@ -246,6 +291,30 @@ describe("Program/Process composite admission", () => {
         })
       ).toThrow("invalid Process execution terminal input");
     }
+  });
+
+  it("binds a Process, initial checkpoint, and Workspace identity", () => {
+    expect(normalizeProcessWorkspaceCreateBundleInputV1(processWorkspaceBundleV1())).toMatchObject({
+      process: { processId: "process.translation.one" },
+      workspace: { workspaceId: "workspace.translation.one" },
+      transcript: { checkpoint: { throughSequence: 1 } },
+    });
+    const mismatched = processWorkspaceBundleV1();
+    expect(() =>
+      normalizeProcessWorkspaceCreateBundleInputV1({
+        ...mismatched,
+        workspace: { ...mismatched.workspace, workspaceId: "workspace.other" },
+      })
+    ).toThrow("invalid Process/Workspace create bundle");
+    expect(() =>
+      normalizeProcessWorkspaceCreateBundleInputV1({
+        ...mismatched,
+        process: {
+          ...mismatched.process,
+          programDefinition: { programId: "sillyos.builtin.creator", revision: 1 },
+        },
+      })
+    ).not.toThrow();
   });
 
   it("keeps deterministic non-attempt revisions valid without a Process checkpoint", () => {

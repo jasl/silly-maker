@@ -10,13 +10,16 @@ import {
   admitBrowserPiWorkerWorkspaceOutboundMessageV1,
 } from "../agent/browser-pi-worker-protocol.ts";
 import { browserPiDistributionIdentityV1 } from "../agent/browser-pi-distribution.ts";
-import { serializeCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
+import {
+  serializeBrowserPiCreatorAgentDispatchV1,
+  serializeBrowserPiTranslationAgentDispatchV1,
+} from "../agent/browser-pi-agent-dispatch.ts";
 
 const programIdV1 = "program.workspace.preview.1";
 const workspaceIdV1 = "workspace.preview.1";
 const workspaceSessionIdV1 = "workspace.session.1";
 
-const submitTextV1 = serializeCreatorAgentSubmitV1({
+const submitTextV1 = serializeBrowserPiCreatorAgentDispatchV1({
   revision: 1,
   proposalId: "workspace.preview.1.proposal.1",
   programId: programIdV1,
@@ -459,6 +462,42 @@ describe("Browser Pi Worker protocol", () => {
       execution: executionBindingV1,
     });
     if (admitted?.kind === "rpc_request") expect(admitted.record).toBe(submitRecordV1);
+
+    const translationSubmitRecord = {
+      revision: 1,
+      method: "submit",
+      params: {
+        sessionId: "pi.session.1",
+        text: serializeBrowserPiTranslationAgentDispatchV1({
+          programId: programIdV1,
+          request: {
+            sourceLocale: "zh-CN",
+            targetLocale: "en",
+            documentPurpose: "Fictional dialogue.",
+            style: "Natural.",
+            glossary: [],
+            units: [{
+              unitId: "translation.unit.000001",
+              order: 0,
+              locator: "line/1",
+              context: null,
+              durationMilliseconds: null,
+              source: "你好。",
+              protectedSegments: [],
+            }],
+          },
+        }),
+      },
+    } as const;
+    expect(
+      admitBrowserPiWorkerInboundMessageV1(
+        rpcEnvelopeV1(translationSubmitRecord, executionBindingV1),
+      ),
+    ).toMatchObject({
+      kind: "rpc_request",
+      record: translationSubmitRecord,
+      execution: executionBindingV1,
+    });
 
     expect(admitBrowserPiWorkerInboundMessageV1(rpcEnvelopeV1(submitRecordV1))).toBeNull();
     expect(

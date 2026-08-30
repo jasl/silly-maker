@@ -27,6 +27,8 @@ class FakeWorkerV1 {
   readonly throwMethods = new Set<string>();
   readonly exportPorts = new Map<string, MessagePort>();
   readonly exportInbound: unknown[] = [];
+  readonly importRecords: Readonly<Record<string, unknown>>[] = [];
+  readonly importTransfers: Transferable[][] = [];
   startExportPhase: "open" | "closed" = "open";
   preparedSnapshot: ProgramWorkspaceSnapshotReceiptV1 | null = null;
   retainedSnapshot: ProgramWorkspaceSnapshotReceiptV1 | null = null;
@@ -54,6 +56,10 @@ class FakeWorkerV1 {
     const method = request.record.method;
     if (typeof method !== "string") throw new Error("expected method");
     this.methods.push(method);
+    if (method === "import_file") {
+      this.importRecords.push(request.record);
+      this.importTransfers.push(transfer);
+    }
     if (this.throwMethods.has(method)) throw new Error("synthetic post failure");
     if (this.dropMethods.has(method)) return;
     const snapshot = {
@@ -115,6 +121,16 @@ class FakeWorkerV1 {
       }
       : method === "discard_candidate"
       ? { method, volumeId: anchor.volumeId }
+      : method === "import_file"
+      ? {
+        method,
+        changed: true,
+        snapshot: {
+          ...snapshot,
+          checkpointId: "checkpoint.preview.2",
+          descriptor: { ...descriptor, generation: 2 },
+        },
+      }
       : method === "prepare_snapshot"
       ? { method, receipt: this.preparedSnapshot }
       : method === "query_snapshot_candidate"
@@ -337,6 +353,57 @@ describe("SillyOS Browser Workspace Host page port", () => {
     expect(lockPort).toMatchObject({ active: false, acquisitions: 1, releases: 1 });
     port.dispose();
     expect(worker.terminated).toBe(true);
+  });
+
+  it("transfers an owned file payload and returns the exact imported successor", async () => {
+    const worker = new FakeWorkerV1();
+    const port = createBrowserWorkspaceHostPagePortV1({ transport: worker });
+    const source = new Uint8Array([0, 1, 2, 255]);
+
+    await expect(port.importFile({
+      workspaceSessionId: "workspace-session.preview.1",
+      expectedCheckpointId: "checkpoint.preview.1",
+      expectedGeneration: 1,
+      path: "imports/source.bin",
+      bytes: source,
+    })).resolves.toMatchObject({
+      changed: true,
+      snapshot: {
+        checkpointId: "checkpoint.preview.2",
+        descriptor: { generation: 2 },
+      },
+    });
+
+    const record = worker.importRecords[0];
+    const transferred = worker.importTransfers[0];
+    if (record === undefined || transferred === undefined) {
+      throw new Error("expected imported file transfer");
+    }
+    expect(record).toMatchObject({
+      method: "import_file",
+      path: "imports/source.bin",
+      expectedCheckpointId: "checkpoint.preview.1",
+      expectedGeneration: 1,
+    });
+    expect(record.bytes).toBeInstanceOf(Uint8Array);
+    expect(record.bytes).not.toBe(source);
+    expect([...source]).toEqual([0, 1, 2, 255]);
+    expect(transferred).toHaveLength(1);
+    expect(transferred[0]).toBe((record.bytes as Uint8Array).buffer);
+    port.dispose();
+
+    const lostWorker = new FakeWorkerV1();
+    lostWorker.dropMethods.add("import_file");
+    const lostPort = createBrowserWorkspaceHostPagePortV1({ transport: lostWorker });
+    const lost = lostPort.importFile({
+      workspaceSessionId: "workspace-session.preview.1",
+      expectedCheckpointId: "checkpoint.preview.1",
+      expectedGeneration: 1,
+      path: "imports/source.bin",
+      bytes: source,
+    });
+    lostWorker.fail("messageerror");
+    await expect(lost).rejects.toMatchObject({ code: "outcome_unknown" });
   });
 
   it("bounds lost mutation outcomes and distinguishes a lost query without deleting a candidate", async () => {

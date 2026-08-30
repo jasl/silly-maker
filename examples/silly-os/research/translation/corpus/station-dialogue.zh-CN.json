@@ -1,0 +1,40 @@
+{
+  "schema": "sillyos.translation-document.v1",
+  "sourceLocale": "zh-CN",
+  "targetLocale": null,
+  "metadata": {
+    "title": "雾灯站换班",
+    "route": "night"
+  },
+  "entries": [
+    {
+      "id": "station.shift.001",
+      "text": "欢迎回来，{operatorName}。",
+      "context": "值班员向刚回到控制室的同事问候。",
+      "locked": false,
+      "metadata": {
+        "speaker": "lin-cheng",
+        "emotion": "relieved"
+      }
+    },
+    {
+      "id": "station.shift.002",
+      "text": "SIGNAL-A7",
+      "context": "画面上的设备编号。",
+      "locked": true,
+      "metadata": {
+        "speaker": "system"
+      }
+    },
+    {
+      "id": "station.shift.003",
+      "text": "今晚的“回声”比昨天更近了。<wait:600>",
+      "context": "回声是项目代号，不是普通声音。",
+      "locked": false,
+      "metadata": {
+        "speaker": "zhou-yao",
+        "emotion": "uneasy"
+      }
+    }
+  ]
+}

@@ -7,20 +7,26 @@ import {
   createWriteTool,
 } from "./pi-workspace-runtime-bridge.js";
 
-import {
-  admitCreatorAgentSubmitTextV1,
-  admitCreatorProgramRevisionCandidateV1,
-} from "../product/creator-agent-admission.ts";
+import { admitCreatorProgramRevisionCandidateV1 } from "../product/creator-agent-admission.ts";
 import {
   creatorAgentFinalReplyMaximumCharactersV1,
-  type CreatorAgentSubmitV1,
   type CreatorProgramRevisionCandidateV1,
 } from "../product/contracts.ts";
+import {
+  admitTranslationBatchCandidateV1,
+  createTranslationBatchUserPromptV1,
+  translationProgramHarnessReferenceV1,
+  type TranslationBatchCandidateV1,
+} from "../product/translation/translation-batch-protocol.ts";
 import {
   type WorkspaceExecutionDescriptorV1,
   type WorkspaceMutationRecordV1,
 } from "../workspace/index.ts";
 import { browserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
+import {
+  creatorProgramHarnessReferenceV1,
+  type BrowserPiAgentDispatchV1,
+} from "./browser-pi-agent-dispatch.ts";
 import {
   createBrowserPiProviderAgentV1,
   isBrowserPiSelectionAvailableV1,
@@ -95,7 +101,8 @@ interface ActivePiRunV1 {
   readonly networkAbort: AbortController;
   sequence: number;
   draft: string;
-  candidate: CreatorProgramRevisionCandidateV1 | null;
+  readonly dispatch: BrowserPiAgentDispatchV1;
+  candidate: CreatorProgramRevisionCandidateV1 | TranslationBatchCandidateV1 | null;
   candidateFailure:
     | "candidate_invalid"
     | "candidate_context_mismatch"
@@ -403,7 +410,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     if (
       activeRun !== run || run.terminal || run.requestedFailure !== null ||
       run.networkAbort.signal.aborted
-    ) throw new Error("Creator run was cancelled");
+    ) throw new Error("Agent run was cancelled");
     const access = networkAccessCache;
     if (
       access === null || access.programId !== run.programId ||
@@ -431,7 +438,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     if (
       activeRun !== run || run.terminal || run.requestedFailure !== null ||
       run.networkAbort.signal.aborted
-    ) throw new Error("Creator run was cancelled");
+    ) throw new Error("Agent run was cancelled");
     return Object.freeze({
       status: result.status,
       contentType: result.contentType,
@@ -497,7 +504,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     if (
       activeRun !== run || run.terminal || run.requestedFailure !== null ||
       run.networkAbort.signal.aborted
-    ) throw new Error("Creator run was cancelled");
+    ) throw new Error("Agent run was cancelled");
     return Object.freeze({
       status: result.status,
       contentType: result.contentType,
@@ -508,7 +515,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   };
 
   const createRun = async (
-    submit: CreatorAgentSubmitV1,
+    dispatch: BrowserPiAgentDispatchV1,
     execution: BrowserPiWorkerExecutionBindingV1,
     sessionId: string,
     runId: string,
@@ -533,54 +540,70 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     if (begun.kind !== "started") return null;
     const workspaceRun = begun.run;
     let run!: ActivePiRunV1;
-    const workspaceTools = createBrowserPiWorkspaceToolsV1([
-      () => bindPiWorkspaceReadToolV1(createReadTool(), workspaceRun),
-      () => bindPiWorkspaceWriteToolV1(createWriteTool(), workspaceRun),
-      () => bindPiWorkspaceEditToolV1(createEditTool(), workspaceRun),
-      () => bindPiWorkspaceBashToolV1(createBashTool(), workspaceRun),
-      () => createPiWorkspaceGrepToolV1(workspaceRun),
-      () =>
-        createPiFetchUrlToolV1({
-          execute: (toolCallId, url, signal) => executeFetchUrlV1(run, toolCallId, url, signal),
-        }),
-      () =>
-        createPiDownloadToolV1({
-          execute: (toolCallId, downloadInput, signal) =>
-            executeDownloadV1(run, toolCallId, downloadInput, signal),
-        }),
-    ]);
+    // Translation owns one closed unit-batch completion tool. It does not
+    // inherit Creator's mutable Workspace/network capability set merely by
+    // sharing the Pi transport and currentness boundary.
+    const workspaceTools = dispatch.harnessReference === creatorProgramHarnessReferenceV1
+      ? createBrowserPiWorkspaceToolsV1([
+        () => bindPiWorkspaceReadToolV1(createReadTool(), workspaceRun),
+        () => bindPiWorkspaceWriteToolV1(createWriteTool(), workspaceRun),
+        () => bindPiWorkspaceEditToolV1(createEditTool(), workspaceRun),
+        () => bindPiWorkspaceBashToolV1(createBashTool(), workspaceRun),
+        () => createPiWorkspaceGrepToolV1(workspaceRun),
+        () =>
+          createPiFetchUrlToolV1({
+            execute: (toolCallId, url, signal) => executeFetchUrlV1(run, toolCallId, url, signal),
+          }),
+        () =>
+          createPiDownloadToolV1({
+            execute: (toolCallId, downloadInput, signal) =>
+              executeDownloadV1(run, toolCallId, downloadInput, signal),
+          }),
+      ])
+      : Object.freeze([]);
     const agentInput = {
-      submit,
+      dispatch,
       workspaceTools,
       reasoningEffort: resolveBrowserPiReasoningEffortV1(selection, preferredReasoningEffort),
       onCandidate(value: unknown): void {
         if (activeRun !== run || run.terminal || run.requestedFailure !== null) {
-          throw new Error("Creator run was cancelled");
+          throw new Error("Agent run was cancelled");
         }
         if (run.candidate !== null) {
           run.candidateFailure = "candidate_duplicate";
-          throw new Error("Only one Program revision candidate is allowed");
+          throw new Error("Only one Agent completion candidate is allowed");
         }
-        const admitted = admitCreatorProgramRevisionCandidateV1(value);
+        if (dispatch.harnessReference === creatorProgramHarnessReferenceV1) {
+          const admitted = admitCreatorProgramRevisionCandidateV1(value);
+          if (admitted.kind === "rejected") {
+            run.candidateFailure = "candidate_invalid";
+            throw new TypeError(`Invalid Program revision candidate${admitted.path}`);
+          }
+          const submit = dispatch.submit;
+          if (
+            admitted.value.revision !== submit.revision ||
+            admitted.value.proposalId !== submit.proposalId ||
+            admitted.value.programId !== submit.programId ||
+            admitted.value.baseProgramRevision !== submit.baseProgramRevision ||
+            admitted.value.text !== submit.text
+          ) {
+            run.candidateFailure = "candidate_context_mismatch";
+            throw new TypeError(
+              "Program revision candidate does not match the admitted submit context",
+            );
+          }
+          run.candidate = admitted.value;
+          return;
+        }
+        const admitted = admitTranslationBatchCandidateV1(value, dispatch.request);
         if (admitted.kind === "rejected") {
           run.candidateFailure = "candidate_invalid";
-          throw new TypeError(`Invalid Program revision candidate${admitted.path}`);
+          throw new TypeError(`Invalid translation batch candidate: ${admitted.reason}`);
         }
-        if (
-          admitted.value.revision !== submit.revision ||
-          admitted.value.proposalId !== submit.proposalId ||
-          admitted.value.programId !== submit.programId ||
-          admitted.value.baseProgramRevision !== submit.baseProgramRevision ||
-          admitted.value.text !== submit.text
-        ) {
-          run.candidateFailure = "candidate_context_mismatch";
-          throw new TypeError(
-            "Program revision candidate does not match the admitted submit context",
-          );
-        }
-        run.candidate = Object.freeze(admitted.value);
+        run.candidate = admitted.candidate;
       },
       onTextDelta(delta: string): void {
+        if (dispatch.harnessReference === translationProgramHarnessReferenceV1) return;
         if (
           activeRun !== run || run.terminal || run.requestedFailure !== null || delta.length === 0
         ) return;
@@ -595,14 +618,27 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     let agent: PiAgentPortV1;
     try {
       const runNumber = Number(runId.slice(runId.lastIndexOf(".") + 1));
-      agent = (runtime === "deterministic_test"
-        ? createDeterministicPiAgentV1({ ...agentInput, runNumber })
-        : createProviderAgent({
+      if (runtime === "deterministic_test") {
+        if (dispatch.harnessReference !== creatorProgramHarnessReferenceV1) {
+          workspaceRun.finish();
+          return null;
+        }
+        agent = createDeterministicPiAgentV1({
+          submit: dispatch.submit,
+          workspaceTools: agentInput.workspaceTools,
+          reasoningEffort: agentInput.reasoningEffort,
+          onCandidate: agentInput.onCandidate,
+          onTextDelta: agentInput.onTextDelta,
+          runNumber,
+        });
+      } else {
+        agent = createProviderAgent({
           ...agentInput,
           apiKey,
           selection: selection as BrowserPiModelSelectionV1,
           fetch: input.providerFetch,
-        })) as PiAgentPortV1;
+        }) as PiAgentPortV1;
+      }
     } catch {
       workspaceRun.finish();
       return null;
@@ -611,6 +647,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       sessionId,
       runId,
       agent,
+      dispatch,
       workspaceRun,
       workspaceSessionId: execution.workspaceSessionId,
       admittedWorkspaceGeneration: execution.expectedGeneration,
@@ -637,14 +674,14 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     requestId: number,
     request: SubmitRequestV1,
     execution: BrowserPiWorkerExecutionBindingV1,
+    dispatch: BrowserPiAgentDispatchV1,
   ): Promise<void> => {
     if (disposed) return;
     if (activeSessionId === null || request.params.sessionId !== activeSessionId) {
       respondRpcFailure(requestId, "session_mismatch");
       return;
     }
-    const admittedSubmit = admitCreatorAgentSubmitTextV1(request.params.text);
-    if (admittedSubmit.kind === "rejected") {
+    if (dispatch.programId !== execution.programId) {
       respondRpcFailure(requestId, "invalid_request");
       return;
     }
@@ -689,7 +726,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       });
     const runId = `sillyos.run.${String(nextRunId++)}`;
     const run = await createRun(
-      admittedSubmit.value,
+      dispatch,
       effectiveExecution,
       request.params.sessionId,
       runId,
@@ -706,7 +743,10 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       ok: true,
       response: Object.freeze({ kind: "submitted", runId }),
     }));
-    run.settlement = Promise.resolve().then(() => settleRun(run, admittedSubmit.value.text));
+    const promptText = dispatch.harnessReference === creatorProgramHarnessReferenceV1
+      ? dispatch.submit.text
+      : createTranslationBatchUserPromptV1(dispatch.request);
+    run.settlement = Promise.resolve().then(() => settleRun(run, promptText));
   };
 
   type WorkspaceRequestV1 = Extract<
@@ -1399,11 +1439,11 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       void requestRunFailure(run, "cancelled");
       return;
     }
-    if (!("execution" in message)) {
+    if (!("execution" in message) || !("dispatch" in message)) {
       respondRpcFailure(message.requestId, "invalid_request");
       return;
     }
-    enqueue(() => handleSubmit(message.requestId, request, message.execution));
+    enqueue(() => handleSubmit(message.requestId, request, message.execution, message.dispatch));
   };
 
   return {

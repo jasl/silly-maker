@@ -51,10 +51,12 @@ import {
   type ProgramNetworkAccessV1,
 } from "./program-network-access.ts";
 import {
+  cloneProcessWorkspaceBindingV1,
   normalizeProgramProcessCreateBundleInputV1,
   normalizeProgramProcessDecisionBundleInputV1,
   normalizeProgramProcessExecutionRevisionBundleInputV1,
   normalizeProgramProcessRevisionBundleInputV1,
+  normalizeProcessWorkspaceCreateBundleInputV1,
   type ProgramDataProcessOperationExpectationV1,
   type ProgramDataRepositoryFailureCodeV1,
   type ProgramDataRepositoryOperationV1,
@@ -65,6 +67,9 @@ import {
   type ProgramProcessExecutionCompositeCommitResultV1,
   type ProgramProcessExecutionRevisionBundleInputV1,
   type ProgramProcessRevisionBundleInputV1,
+  type ProcessWorkspaceBindingV1,
+  type ProcessWorkspaceCreateCompositeCommitResultV1,
+  type ProcessWorkspaceCreateBundleInputV1,
 } from "./program-data-repository.ts";
 import {
   normalizeProcessExecutionAcquireInputV1,
@@ -110,6 +115,11 @@ export type ProgramDataRepositoryWorkerRequestV1 =
     readonly method: "create_program_with_process";
     readonly input: ProgramProcessCreateBundleInputV1;
   }
+  | {
+    readonly method: "create_process_with_workspace";
+    readonly input: ProcessWorkspaceCreateBundleInputV1;
+  }
+  | { readonly method: "load_process_workspace_binding"; readonly processId: string }
   | {
     readonly method: "apply_program_revision_with_process_transcript";
     readonly input: ProgramProcessRevisionBundleInputV1;
@@ -184,6 +194,8 @@ interface ProgramDataRepositoryWorkerSuccessValueMapV1 {
   readonly list_accepted_program_decisions: ProgramCatalogAcceptedDecisionListPageV1;
   readonly load_workspace_continuation: ProgramCatalogContinuationV1 | null;
   readonly create_program_with_process: ProgramProcessCreateCompositeCommitResultV1;
+  readonly create_process_with_workspace: ProcessWorkspaceCreateCompositeCommitResultV1;
+  readonly load_process_workspace_binding: ProcessWorkspaceBindingV1 | null;
   readonly apply_program_revision_with_process_transcript: ProgramProcessCompositeCommitResultV1;
   readonly decide_program_with_process_transcript: ProgramProcessCompositeCommitResultV1;
   readonly publish_program_definition_revision: ProgramDefinitionPublishResultV1;
@@ -447,7 +459,8 @@ function admitRequestRecordV1(
   if (
     processLoad !== null &&
     (processLoad.method === "load_process" ||
-      processLoad.method === "load_process_execution_lease")
+      processLoad.method === "load_process_execution_lease" ||
+      processLoad.method === "load_process_workspace_binding")
   ) {
     const processId = normalizeProcessIdWireV1(processLoad.processId);
     return processId === null
@@ -510,6 +523,8 @@ function admitRequestRecordV1(
     normalized = normalizeExactV1(call.input, normalizeProgramCatalogAcceptedDecisionListInputV1);
   } else if (call.method === "create_program_with_process") {
     normalized = normalizeExactV1(call.input, normalizeProgramProcessCreateBundleInputV1);
+  } else if (call.method === "create_process_with_workspace") {
+    normalized = normalizeExactV1(call.input, normalizeProcessWorkspaceCreateBundleInputV1);
   } else if (call.method === "apply_program_revision_with_process_transcript") {
     normalized = normalizeExactV1(call.input, normalizeProgramProcessRevisionBundleInputV1);
   } else if (call.method === "decide_program_with_process_transcript") {
@@ -815,6 +830,87 @@ function cloneProgramProcessCompositeResultV1(
       kind: "program_definition_missing",
       programDefinition: { programId: missingProgramId, revision: missingRevision },
     };
+}
+
+function cloneProcessWorkspaceCreateResultV1(
+  value: unknown,
+  request: Extract<
+    ProgramDataRepositoryWorkerRequestV1,
+    { readonly method: "create_process_with_workspace" }
+  >,
+): ProcessWorkspaceCreateCompositeCommitResultV1 | null {
+  const processId = request.input.process.processId;
+  const result = exactRecordV1(value, ["kind", "process", "workspace", "entries"]);
+  if (result !== null && (result.kind === "committed" || result.kind === "unchanged")) {
+    const process = admitProcessHeadV1(result.process);
+    const workspace = cloneExactV1(result.workspace, cloneProcessWorkspaceBindingV1);
+    if (
+      process.kind === "rejected" || process.value.processId !== processId ||
+      !exactDataEqualV1(
+        process.value.programDefinition,
+        request.input.process.programDefinition,
+      ) ||
+      process.value.subjectProgramId !== request.input.process.subjectProgramId ||
+      process.value.createdAt !== request.input.process.createdAt ||
+      workspace === null || workspace.processId !== processId ||
+      !exactDataEqualV1(workspace, request.input.workspace) ||
+      !Array.isArray(result.entries)
+    ) return null;
+    const entries: TranscriptEntryV1[] = [];
+    for (const candidate of result.entries) {
+      const entry = admitTranscriptEntryV1(candidate);
+      if (entry.kind === "rejected" || entry.value.processId !== processId) return null;
+      entries.push(entry.value);
+    }
+    return !exactDataEqualV1(entries, request.input.transcript.entries)
+      ? null
+      : { kind: result.kind, process: process.value, workspace, entries };
+  }
+  const conflict = exactRecordV1(value, ["kind", "currentProcess", "currentWorkspace"]);
+  if (conflict?.kind === "conflict") {
+    const currentProcess = conflict.currentProcess === null
+      ? null
+      : admitProcessHeadV1(conflict.currentProcess);
+    const currentWorkspace = conflict.currentWorkspace === null
+      ? null
+      : cloneExactV1(conflict.currentWorkspace, cloneProcessWorkspaceBindingV1);
+    if (
+      currentProcess !== null &&
+        (currentProcess.kind === "rejected" || currentProcess.value.processId !== processId) ||
+      conflict.currentWorkspace !== null &&
+        (currentWorkspace === null || currentWorkspace.processId !== processId)
+    ) return null;
+    return {
+      kind: "conflict",
+      currentProcess: currentProcess?.kind === "admitted" ? currentProcess.value : null,
+      currentWorkspace,
+    };
+  }
+  const missing = exactRecordV1(value, ["kind", "programDefinition"]);
+  if (missing?.kind === "program_definition_missing") {
+    const definition = exactRecordV1(missing.programDefinition, ["programId", "revision"]);
+    const programId = normalizeProgramIdWireV1(definition?.programId);
+    const revision = normalizeRevisionWireV1(definition?.revision);
+    return programId === request.input.process.programDefinition.programId &&
+        revision === request.input.process.programDefinition.revision
+      ? { kind: "program_definition_missing", programDefinition: { programId, revision } }
+      : null;
+  }
+  const subjectMissing = exactRecordV1(value, ["kind", "subjectProgramId"]);
+  if (subjectMissing?.kind === "subject_program_missing") {
+    const subjectProgramId = normalizeProgramIdWireV1(subjectMissing.subjectProgramId);
+    return subjectProgramId !== null &&
+        subjectProgramId === request.input.process.subjectProgramId
+      ? { kind: "subject_program_missing", subjectProgramId }
+      : null;
+  }
+  const volumeOwned = exactRecordV1(value, ["kind", "owner"]);
+  if (volumeOwned?.kind !== "workspace_volume_owned") return null;
+  const owner = cloneExactV1(volumeOwned.owner, cloneProcessWorkspaceBindingV1);
+  return owner !== null && owner.volumeId === request.input.workspace.volumeId &&
+      owner.processId !== processId
+    ? { kind: "workspace_volume_owned", owner }
+    : null;
 }
 
 function cloneExecutionLeaseV1(value: unknown): ProcessExecutionLeaseV1 | null {
@@ -1333,6 +1429,17 @@ function admitSuccessValueV1(
   if (method === "create_program_with_process") {
     const result = cloneProgramProcessCompositeResultV1(value, request);
     return result === null ? null : { kind: "success", method, value: result };
+  }
+  if (method === "create_process_with_workspace") {
+    const result = cloneProcessWorkspaceCreateResultV1(value, request);
+    return result === null ? null : { kind: "success", method, value: result };
+  }
+  if (method === "load_process_workspace_binding") {
+    if (value === null) return { kind: "success", method, value: null };
+    const workspace = cloneExactV1(value, cloneProcessWorkspaceBindingV1);
+    return workspace?.processId === request.processId
+      ? { kind: "success", method, value: workspace }
+      : null;
   }
   if (
     method === "apply_program_revision_with_process_transcript" ||

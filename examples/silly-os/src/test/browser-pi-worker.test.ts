@@ -60,13 +60,17 @@ import type {
   BrowserProgramWorkspaceAuthorityV1,
   BrowserProgramWorkspaceFatalV1,
 } from "../product/browser-program-workspace-authority.ts";
-import { serializeCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
+import {
+  serializeBrowserPiCreatorAgentDispatchV1 as serializeCreatorAgentSubmitV1,
+  serializeBrowserPiTranslationAgentDispatchV1,
+} from "../agent/browser-pi-agent-dispatch.ts";
 import {
   admitCredentialVaultHandoffReadyV2,
   createCredentialVaultHandoffDeliveryV2,
 } from "../credential/credential-vault-protocol.ts";
 import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
 import type { CreatorAgentRunRequestV1, CreatorAgentSubmitV1 } from "../product/contracts.ts";
+import { translationProgramHarnessReferenceV1 } from "../product/translation/translation-batch-protocol.ts";
 import {
   applyProgramNetworkAccessMutationV1,
   cloneProgramNetworkAccessV1,
@@ -1723,6 +1727,122 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
 }
 
 describe("SillyOS Browser Pi Worker runtime", () => {
+  it("dispatches the build-known Translation harness and keeps extra assistant text inert", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const prompts: string[] = [];
+    const harnesses: string[] = [];
+    const workspaceToolCounts: number[] = [];
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+      createProviderAgent: (input) => {
+        harnesses.push(input.dispatch.harnessReference);
+        workspaceToolCounts.push(input.workspaceTools.length);
+        return {
+          async prompt(text) {
+            prompts.push(text);
+            await input.onCandidate({
+              targets: [{
+                unitId: "translation.unit.000001",
+                target: "Welcome back, ⟦SM:0⟧.",
+              }],
+              ambiguities: [],
+            });
+            input.onTextDelta("This explanatory sentence is not product output.");
+            return { stopReason: "stop" };
+          },
+          abort() {},
+          dispose() {},
+        };
+      },
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "pi_provider",
+      selection: availableSelectionV1,
+      preferredReasoningEffort: "medium",
+      credential: { kind: "api_key", value: "translation-test-key" },
+    });
+    const execution = await attachRuntimeWorkspaceV1(
+      runtime,
+      messages,
+      workspaceAuthority,
+      2,
+    );
+    runtime.receive(rpcRequestV1(3, { revision: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 3 && message.ok
+      )
+    );
+    runtime.receive(rpcRequestV1(4, {
+      revision: 1,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeBrowserPiTranslationAgentDispatchV1({
+          programId: submitV1.programId,
+          request: {
+            sourceLocale: "zh-CN",
+            targetLocale: "en",
+            documentPurpose: "Fictional game dialogue.",
+            style: "Natural and concise.",
+            glossary: [],
+            units: [{
+              unitId: "translation.unit.000001",
+              order: 0,
+              locator: "line/1",
+              context: null,
+              durationMilliseconds: null,
+              source: "欢迎回来，⟦SM:0⟧。",
+              protectedSegments: [{
+                token: "⟦SM:0⟧",
+                kind: "placeholder",
+                source: "{name}",
+              }],
+            }],
+          },
+        }),
+      },
+    }, execution));
+
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
+      )
+    );
+    expect(harnesses).toEqual([translationProgramHarnessReferenceV1]);
+    expect(workspaceToolCounts).toEqual([0]);
+    expect(JSON.parse(prompts[0] ?? "null")).toMatchObject({
+      schema: "sillyos.translation-batch-request.v1",
+      sourceLocale: "zh-CN",
+      targetLocale: "en",
+    });
+    expect(messages).toContainEqual(expect.objectContaining({
+      kind: "rpc_record",
+      record: expect.objectContaining({
+        kind: "output_data",
+        value: {
+          targets: [{
+            unitId: "translation.unit.000001",
+            target: "Welcome back, ⟦SM:0⟧.",
+          }],
+          ambiguities: [],
+        },
+      }),
+    }));
+    expect(messages.some((message) =>
+      message.kind === "rpc_record" &&
+      (message.record as Readonly<Record<string, unknown>>).kind === "output_text_delta"
+    )).toBe(false);
+
+    runtime.dispose();
+    await workspaceAuthority.dispose();
+  });
+
   it("admits the qualified native Workspace tools for deterministic and live Pi runtimes", () => {
     const calls: string[] = [];
     const factories = ["read", "write", "edit", "bash", "grep"].map((tool) => () => {
@@ -2653,7 +2773,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     expect(
       response.catalog.providers.reduce((count, provider) => count + provider.models.length, 0),
     )
-      .toBe(1_312);
+      .toBe(1_290);
     const projected = response.catalog.providers.flatMap((provider) =>
       provider.models.map((model) => ({
         providerId: provider.id,
@@ -2662,17 +2782,17 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       }))
     );
     const available = projected.filter(({ availability }) => availability === "available");
-    expect(available).toHaveLength(1_032);
+    expect(available).toHaveLength(1_015);
     expect(available).toEqual(expect.arrayContaining([
       { providerId: "anthropic", modelId: "claude-sonnet-4-5", availability: "available" },
       {
         providerId: "openrouter",
-        modelId: "google/gemini-2.5-flash",
+        modelId: "z-ai/glm-5.3-flash",
         availability: "available",
       },
     ]));
     expect(projected.filter(({ availability }) => availability === "unavailable")).toHaveLength(
-      280,
+      275,
     );
 
     const selectedAnthropicModel = {

@@ -60,7 +60,7 @@ describe("SillyOS Pi RPC development startup", () => {
     });
 
     expect(spec).toMatchObject({
-      artifactVersion: "0.84.3",
+      artifactVersion: "0.84.4",
       directory: "/workspace/project",
       piAgentDirectory: "/workspace/project/tmp/sillyos-pi-agent",
       mode: "rpc",
@@ -106,7 +106,7 @@ describe("SillyOS Pi RPC development startup", () => {
     });
 
     expect(spec).toMatchObject({
-      artifactVersion: "0.84.3",
+      artifactVersion: "0.84.4",
       piAgentDirectory: "/isolated/pi",
       mode: "list_models",
       credentialSource: "pi_auth_or_environment",

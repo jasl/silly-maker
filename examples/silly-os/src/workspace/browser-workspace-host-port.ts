@@ -85,6 +85,11 @@ export interface BrowserWorkspaceHostExportReadyV1
   readonly generation: number;
 }
 
+export interface BrowserWorkspaceHostImportFileResultV1 {
+  readonly changed: boolean;
+  readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
+}
+
 export type BrowserWorkspaceHostExportResultV1 =
   | ({
     readonly kind: "released";
@@ -109,6 +114,13 @@ export interface BrowserWorkspaceHostPagePortV1 {
   openWorkspace(
     anchor: BrowserWorkspaceVolumeAnchorWireV1,
   ): Promise<BrowserWorkspaceHostSnapshotWireV1>;
+  importFile(input: {
+    readonly workspaceSessionId: string;
+    readonly expectedCheckpointId: string;
+    readonly expectedGeneration: number;
+    readonly path: string;
+    readonly bytes: Uint8Array;
+  }): Promise<BrowserWorkspaceHostImportFileResultV1>;
   queryWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1>;
   attachEnvironment(input: {
     readonly workspaceSessionId: string;
@@ -413,6 +425,33 @@ export function createBrowserWorkspaceHostPagePortV1(
       const opened = await snapshotResponse({ method: "open_workspace", anchor });
       candidateBootstrapKeys.delete(anchor.volumeId);
       return opened;
+    },
+
+    async importFile(input) {
+      const bytes = input.bytes.slice();
+      const response = await request(
+        { method: "import_file", ...input, bytes },
+        [bytes.buffer],
+      );
+      if (response.method !== "import_file") {
+        throw new BrowserWorkspaceHostControlErrorV1(
+          "invalid_response",
+          "Workspace Host omitted its imported file successor",
+        );
+      }
+      const exactSuccessor = response.snapshot.phase === "open" &&
+        response.snapshot.descriptor.workspaceSessionId === input.workspaceSessionId &&
+        (response.changed
+          ? response.snapshot.descriptor.generation === input.expectedGeneration + 1
+          : response.snapshot.checkpointId === input.expectedCheckpointId &&
+            response.snapshot.descriptor.generation === input.expectedGeneration);
+      if (!exactSuccessor) {
+        throw new BrowserWorkspaceHostControlErrorV1(
+          "invalid_response",
+          "Workspace Host returned an inexact imported file successor",
+        );
+      }
+      return { changed: response.changed, snapshot: response.snapshot };
     },
 
     queryWorkspace(workspaceSessionId) {

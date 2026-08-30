@@ -16,7 +16,7 @@ import {
 
 export const browserWorkspaceHostProtocolRevisionV1 = 1 as const;
 export const browserWorkspaceFormatRevisionV1 = 1 as const;
-/** Current Pi 0.84.3 whole-value read/write payload guard, never an OPFS file or volume limit. */
+/** Current Pi 0.84.4 whole-value read/write payload guard, never an OPFS file or volume limit. */
 export const browserWorkspaceNativePiToolPayloadMaximumBytesV1 = 256 * 1024;
 export const browserWorkspaceHostReceiptMaximumV1 = 32;
 export const browserWorkspaceHostPathMaximumUtf8BytesV1 = 512;
@@ -198,6 +198,14 @@ export type BrowserWorkspaceHostControlRequestRecordV1 =
   | { readonly method: "open_workspace"; readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 }
   | { readonly method: "discard_candidate"; readonly volumeId: string }
   | {
+    readonly method: "import_file";
+    readonly workspaceSessionId: string;
+    readonly expectedCheckpointId: string;
+    readonly expectedGeneration: number;
+    readonly path: string;
+    readonly bytes: Uint8Array;
+  }
+  | {
     readonly method: "start_export";
     readonly exportId: string;
     readonly workspaceSessionId: string;
@@ -312,6 +320,11 @@ export interface BrowserWorkspaceHostControlSuccessResponseV1 {
     | {
       readonly method: "create_candidate";
       readonly candidate: BrowserWorkspaceVolumeCandidateWireV1;
+    }
+    | {
+      readonly method: "import_file";
+      readonly changed: boolean;
+      readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
     }
     | { readonly method: "discard_candidate"; readonly volumeId: string };
 }
@@ -775,6 +788,36 @@ export function admitBrowserWorkspaceHostControlRequestV1(
       kind: "control_request",
       requestId: envelope.requestId,
       record: { method: "discard_candidate", volumeId: discard.volumeId },
+    };
+  }
+  const importedFile = exactRecordV1(envelope.record, [
+    "method",
+    "workspaceSessionId",
+    "expectedCheckpointId",
+    "expectedGeneration",
+    "path",
+    "bytes",
+  ]);
+  if (
+    importedFile !== null && importedFile.method === "import_file" &&
+    identifierV1(importedFile.workspaceSessionId) &&
+    identifierV1(importedFile.expectedCheckpointId) &&
+    positiveSafeIntegerV1(importedFile.expectedGeneration) &&
+    isBrowserWorkspaceHostNormalizedPathV1(importedFile.path) &&
+    importedFile.bytes instanceof Uint8Array
+  ) {
+    return {
+      revision: 1,
+      kind: "control_request",
+      requestId: envelope.requestId,
+      record: {
+        method: "import_file",
+        workspaceSessionId: importedFile.workspaceSessionId,
+        expectedCheckpointId: importedFile.expectedCheckpointId,
+        expectedGeneration: importedFile.expectedGeneration,
+        path: importedFile.path,
+        bytes: importedFile.bytes,
+      },
     };
   }
   const startExport = exactRecordV1(envelope.record, [
@@ -1438,6 +1481,28 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
         requestId: success.requestId,
         ok: true,
         response: { method: "create_candidate", candidate: admittedCandidate },
+      };
+    }
+    const importedFile = exactRecordV1(success.response, [
+      "method",
+      "changed",
+      "snapshot",
+    ]);
+    const importedSnapshot = importedFile === null ? null : admitSnapshotV1(importedFile.snapshot);
+    if (
+      importedFile !== null && importedFile.method === "import_file" &&
+      typeof importedFile.changed === "boolean" && importedSnapshot !== null
+    ) {
+      return {
+        revision: 1,
+        kind: "control_response",
+        requestId: success.requestId,
+        ok: true,
+        response: {
+          method: "import_file",
+          changed: importedFile.changed,
+          snapshot: importedSnapshot,
+        },
       };
     }
     const discarded = exactRecordV1(success.response, ["method", "volumeId"]);

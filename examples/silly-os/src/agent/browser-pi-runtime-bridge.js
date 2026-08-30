@@ -4,6 +4,11 @@ import { Agent } from "@earendil-works/pi-agent-core";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall, Type } from "@earendil-works/pi-ai";
 
 import { creatorAgentTextMaximumCharactersV1 } from "../product/contracts.ts";
+import {
+  translationBatchToolNameV1,
+  translationProgramHarnessReferenceV1,
+} from "../product/translation/translation-batch-protocol.ts";
+import { creatorProgramHarnessReferenceV1 } from "./browser-pi-agent-dispatch.ts";
 import { piNetworkDisabledErrorCodeV1 } from "./pi-network-tool-binder.ts";
 
 export const creatorProgramRevisionToolNameV1 = "sillyos_propose_program_revision";
@@ -53,30 +58,79 @@ const creatorProgramRevisionToolSchemaV1 = Type.Object(
   { additionalProperties: false },
 );
 
-function createPiAgentV1(input) {
-  const tool = {
-    name: creatorProgramRevisionToolNameV1,
-    label: "Propose Program revision",
+const translationBatchToolSchemaV1 = Type.Object(
+  {
+    targets: Type.Array(Type.Object(
+      {
+        unitId: Type.String({ minLength: 1 }),
+        target: Type.String({ minLength: 1 }),
+      },
+      { additionalProperties: false },
+    )),
+    ambiguities: Type.Array(Type.Object(
+      {
+        unitId: Type.String({ minLength: 1 }),
+        question: Type.String({ minLength: 1 }),
+      },
+      { additionalProperties: false },
+    )),
+  },
+  { additionalProperties: false },
+);
+
+function createCompletionToolV1(input) {
+  if (input.dispatch.harnessReference === creatorProgramHarnessReferenceV1) {
+    return {
+      name: creatorProgramRevisionToolNameV1,
+      label: "Propose Program revision",
+      description:
+        "Propose one concise Program requirement. SillyOS binds it to the current reviewed revision.",
+      parameters: creatorProgramRevisionToolSchemaV1,
+      execute: async (_toolCallId, params, signal) => {
+        if (signal?.aborted) throw new Error("Creator run was cancelled");
+        const submit = input.dispatch.submit;
+        const candidate = {
+          revision: 1,
+          proposalId: submit.proposalId,
+          programId: submit.programId,
+          baseProgramRevision: submit.baseProgramRevision,
+          text: submit.text,
+          requirement: params.requirement,
+        };
+        await input.onCandidate(candidate);
+        return {
+          content: [{ type: "text", text: "Program revision candidate recorded for review." }],
+          details: candidate,
+        };
+      },
+    };
+  }
+  if (input.dispatch.harnessReference !== translationProgramHarnessReferenceV1) {
+    throw new TypeError("Unknown SillyOS Agent harness");
+  }
+  return {
+    name: translationBatchToolNameV1,
+    label: "Submit translation batch",
     description:
-      "Propose one concise Program requirement. SillyOS binds it to the current reviewed revision.",
-    parameters: creatorProgramRevisionToolSchemaV1,
+      "Submit one complete translation candidate for the exact admitted batch and its ambiguities.",
+    parameters: translationBatchToolSchemaV1,
     execute: async (_toolCallId, params, signal) => {
-      if (signal?.aborted) throw new Error("Creator run was cancelled");
+      if (signal?.aborted) throw new Error("Translation run was cancelled");
       const candidate = {
-        revision: 1,
-        proposalId: input.submit.proposalId,
-        programId: input.submit.programId,
-        baseProgramRevision: input.submit.baseProgramRevision,
-        text: input.submit.text,
-        requirement: params.requirement,
+        targets: params.targets,
+        ambiguities: params.ambiguities,
       };
       await input.onCandidate(candidate);
       return {
-        content: [{ type: "text", text: "Program revision candidate recorded for review." }],
+        content: [{ type: "text", text: "Translation batch candidate recorded." }],
         details: candidate,
       };
     },
   };
+}
+
+function createPiAgentV1(input) {
+  const tool = createCompletionToolV1(input);
   const agent = new Agent({
     streamFn: input.streamFn,
     ...(input.getApiKey === undefined ? {} : { getApiKey: input.getApiKey }),
@@ -463,7 +517,16 @@ export function createDeterministicPiAgentV1(input) {
   }
 
   return createPiAgentV1({
-    ...input,
+    dispatch: {
+      revision: 1,
+      harnessReference: creatorProgramHarnessReferenceV1,
+      programId: input.submit.programId,
+      submit: input.submit,
+    },
+    workspaceTools: input.workspaceTools,
+    onCandidate: input.onCandidate,
+    onTextDelta: input.onTextDelta,
+    reasoningEffort: input.reasoningEffort,
     streamFn: faux.provider.streamSimple,
     model: faux.getModel(),
     systemPrompt:

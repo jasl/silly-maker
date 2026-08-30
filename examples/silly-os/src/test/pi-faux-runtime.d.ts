@@ -2,7 +2,16 @@
 
 import type { PiStreamFnV1 } from "../agent/browser-pi-runtime-bridge.js";
 
-export function fauxAssistantMessage(text: string): unknown;
+export function fauxAssistantMessage(
+  content: unknown,
+  options?: { readonly stopReason?: "stop" | "length" | "toolUse" | "error" | "aborted" },
+): unknown;
+
+export function fauxToolCall(
+  name: string,
+  argumentsValue: Readonly<Record<string, unknown>>,
+  options?: { readonly id?: string },
+): unknown;
 
 export function fauxProvider(input: {
   readonly models: readonly {

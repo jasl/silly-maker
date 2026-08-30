@@ -7,6 +7,7 @@ import type {
   BrowserPiReasoningEffortV1,
 } from "./browser-pi-worker-protocol.ts";
 import type { BrowserPiProviderFetchV1 } from "./browser-pi-provider-fetch-guard.ts";
+import type { BrowserPiAgentDispatchV1 } from "./browser-pi-agent-dispatch.ts";
 
 export function projectBrowserPiProviderCatalogV1(): BrowserPiProviderCatalogWireV1;
 
@@ -28,7 +29,16 @@ export function probeBrowserPiProviderSelectionV1(input: {
   readonly fetch: BrowserPiProviderFetchV1;
 }): Promise<boolean>;
 
-export function browserPiCreatorToolChoiceV1(proposed: boolean): "auto" | "none";
+export function browserPiCompletionToolChoiceV1(proposed: boolean): "auto" | "none";
+
+export function browserPiAgentProviderTimeoutMillisecondsV1(
+  dispatch: BrowserPiAgentDispatchV1,
+): number;
+
+export function browserPiAgentMaximumOutputTokensV1(
+  dispatch: BrowserPiAgentDispatchV1,
+  modelMaximumTokens: number,
+): number;
 
 export function createBrowserPiProviderAgentV1(
   input: PiAgentRunInputV1 & {

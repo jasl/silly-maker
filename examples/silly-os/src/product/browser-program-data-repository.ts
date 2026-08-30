@@ -18,6 +18,7 @@ import {
   type ProgramProcessCreateBundleInputV1,
   type ProgramProcessDecisionBundleInputV1,
   type ProgramProcessRevisionBundleInputV1,
+  type ProcessWorkspaceCreateBundleInputV1,
 } from "./program-data-repository.ts";
 import type {
   ProcessExecutionAcquireInputV1,
@@ -68,6 +69,7 @@ interface PendingCallV1 {
 
 function isMutationMethodV1(method: ProgramDataRepositoryWorkerRequestV1["method"]): boolean {
   return method === "create_program_with_process" ||
+    method === "create_process_with_workspace" ||
     method === "apply_program_revision_with_process_transcript" ||
     method === "decide_program_with_process_transcript" ||
     method === "publish_program_definition_revision" ||
@@ -316,6 +318,20 @@ export function createBrowserProgramDataRepositoryV1(
       const response = await callV1({ method: "create_program_with_process", input });
       if (response.method !== "create_program_with_process") {
         throw new TypeError("invalid Program/Process create response");
+      }
+      return response.value;
+    },
+    async createProcessWithWorkspace(input: ProcessWorkspaceCreateBundleInputV1) {
+      const response = await callV1({ method: "create_process_with_workspace", input });
+      if (response.method !== "create_process_with_workspace") {
+        throw new TypeError("invalid Process/Workspace create response");
+      }
+      return response.value;
+    },
+    async loadProcessWorkspaceBinding(processId: string) {
+      const response = await callV1({ method: "load_process_workspace_binding", processId });
+      if (response.method !== "load_process_workspace_binding") {
+        throw new TypeError("invalid Process Workspace binding response");
       }
       return response.value;
     },

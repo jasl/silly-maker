@@ -12,6 +12,7 @@ import type {
   ProgramProcessDecisionBundleInputV1,
   ProgramProcessExecutionRevisionBundleInputV1,
   ProgramProcessRevisionBundleInputV1,
+  ProcessWorkspaceCreateBundleInputV1,
 } from "../product/program-data-repository.ts";
 import type {
   ProcessExecutionAcquireInputV1,
@@ -23,6 +24,7 @@ import {
   createBuiltinCreatorProgramDefinitionRevisionV1,
   type ProcessAttemptBeginInputV1,
   type ProcessTranscriptAppendInputV1,
+  type ProgramDefinitionRevisionV1,
   type TranscriptEntryV1,
 } from "../product/program-process-repository.ts";
 import type { PreviewProgramV1 } from "../product/contracts.ts";
@@ -68,6 +70,28 @@ function transactionDoneV1(transaction: IDBTransaction): Promise<void> {
     transaction.addEventListener("abort", () => reject(transaction.error), { once: true });
     transaction.addEventListener("error", () => reject(transaction.error), { once: true });
   });
+}
+
+function createV9SchemaV1(database: IDBDatabase): void {
+  database.createObjectStore("program_definitions", { keyPath: ["programId", "revision"] });
+  const heads = database.createObjectStore("program_heads", { keyPath: "programId" });
+  heads.createIndex("by_updated_at", ["updatedAt", "programId"]);
+  database.createObjectStore("program_revisions", { keyPath: ["programId", "revision"] });
+  const decisions = database.createObjectStore("program_decisions", {
+    keyPath: ["programId", "proposalId", "programRevision"],
+  });
+  decisions.createIndex("by_program_revision", ["programId", "programRevision"], { unique: true });
+  database.createObjectStore("catalog_commits", { keyPath: ["programId", "commitId"] });
+  const processes = database.createObjectStore("processes", { keyPath: "processId" });
+  processes.createIndex("by_subject_updated_at", ["subjectKey", "updatedAt", "processId"]);
+  const transcripts = database.createObjectStore("transcript_entries", {
+    keyPath: ["processId", "sequence"],
+  });
+  transcripts.createIndex("by_process_entry_id", ["processId", "entryId"], { unique: true });
+  database.createObjectStore("process_commits", { keyPath: ["processId", "commitId"] });
+  database.createObjectStore("process_execution_leases", { keyPath: "processId" });
+  database.createObjectStore("workspace_continuations", { keyPath: "programId" });
+  database.createObjectStore("program_network_access", { keyPath: "programId" });
 }
 
 function programV1(programId: string, revision: number): PreviewProgramV1 {
@@ -230,6 +254,65 @@ function createBundleV1(
   };
 }
 
+function translationDefinitionV1(): ProgramDefinitionRevisionV1 {
+  return nonCreatorDefinitionV1("translation");
+}
+
+function nonCreatorDefinitionV1(
+  kind: "translation" | "writing" | "roleplay" | "general",
+): ProgramDefinitionRevisionV1 {
+  return {
+    schemaVersion: 1,
+    programId: `sillyos.builtin.${kind}`,
+    revision: 1,
+    kind,
+    name: kind,
+    purpose: `Run one admitted ${kind} Process Workspace.`,
+    harnessReference: `sillyos.harness.${kind}@1`,
+    capabilityIds: [],
+  };
+}
+
+function processWorkspaceBundleV1(
+  programId: string,
+  processId: string,
+  definition = translationDefinitionV1(),
+): ProcessWorkspaceCreateBundleInputV1 {
+  const workspaceId = `workspace.${programId}`;
+  return {
+    process: {
+      processId,
+      programDefinition: { programId: definition.programId, revision: definition.revision },
+      subjectProgramId: programId,
+      createdAt: 1,
+    },
+    workspace: {
+      revision: 1,
+      processId,
+      workspaceId,
+      volumeId: `volume.${processId}`,
+      workspaceFormat: 1,
+    },
+    transcript: {
+      processId,
+      expectedProcessRevision: 1,
+      expectedTranscriptFrontier: 0,
+      commitId: `commit.${processId}.create-workspace`,
+      attemptBinding: null,
+      entries: [entryV1(processId, 1, "system", "Source imported.")],
+      checkpoint: {
+        checkpointId: `process-checkpoint.${processId}.1`,
+        throughSequence: 1,
+        workspaceId,
+        workspaceCheckpointId: `workspace-checkpoint.${processId}.1`,
+        workspaceGeneration: 1,
+      },
+      terminalAttemptReceipt: null,
+      updatedAt: 2,
+    },
+  };
+}
+
 function revisionBundleV1(
   programId: string,
   processId: string,
@@ -369,7 +452,7 @@ function executionTerminalV1(input: {
   };
 }
 
-describe("IndexedDB Program data repository V9", () => {
+describe("IndexedDB Program data repository V10", () => {
   it("creates the exact normalized schema and indexes null subjects without scanning", async () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
@@ -389,6 +472,11 @@ describe("IndexedDB Program data repository V9", () => {
       .toBe(true);
     expect(transaction.objectStore("program_decisions").index("by_program_revision").unique)
       .toBe(true);
+    const workspaceVolumeIndex = transaction.objectStore("process_workspace_bindings").index(
+      "by_volume_id",
+    );
+    expect(workspaceVolumeIndex.keyPath).toBe("volumeId");
+    expect(workspaceVolumeIndex.unique).toBe(true);
     database.close();
   });
 
@@ -427,6 +515,29 @@ describe("IndexedDB Program data repository V9", () => {
     });
   }
 
+  it("additively upgrades exact V9 storage without discarding durable definitions", async () => {
+    const indexedDB = new IDBFactory();
+    const old = await openRawV1(indexedDB, 9, createV9SchemaV1);
+    const write = old.transaction("program_definitions", "readwrite");
+    write.objectStore("program_definitions").add(translationDefinitionV1());
+    await transactionDoneV1(write);
+    old.close();
+
+    const repository = repositoryV1(indexedDB);
+    await repository.initialize();
+    expect(await repository.loadProgramDefinitionRevision("sillyos.builtin.translation", 1))
+      .toEqual(translationDefinitionV1());
+    expect(await repository.loadProcessWorkspaceBinding("process.absent")).toBeNull();
+    await repository.dispose();
+
+    const upgraded = await openRawV1(indexedDB, programDataDatabaseVersionV1);
+    expect(
+      upgraded.transaction("process_workspace_bindings", "readonly")
+        .objectStore("process_workspace_bindings").index("by_volume_id").unique,
+    ).toBe(true);
+    upgraded.close();
+  });
+
   it("fails closed for unknown, malformed, future, and blocked databases", async () => {
     const unknownFactory = new IDBFactory();
     (await openRawV1(unknownFactory, 3, (database) => database.createObjectStore("unknown")))
@@ -446,7 +557,7 @@ describe("IndexedDB Program data repository V9", () => {
     ).rejects.toMatchObject({ code: "schema_invalid" });
 
     const futureFactory = new IDBFactory();
-    (await openRawV1(futureFactory, 10, (database) => database.createObjectStore("future")))
+    (await openRawV1(futureFactory, 11, (database) => database.createObjectStore("future")))
       .close();
     await expect(
       repositoryV1(futureFactory).initialize(),
@@ -714,6 +825,245 @@ describe("IndexedDB Program data repository V9", () => {
     await repository.dispose();
   });
 
+  it("atomically creates isolated translation Process Workspace bindings", async () => {
+    const indexedDB = new IDBFactory();
+    const repository = repositoryV1(indexedDB);
+    await repository.publishProgramDefinitionRevision(translationDefinitionV1());
+    await createProgramV1(repository, "program.translation");
+    const first = processWorkspaceBundleV1("program.translation", "process.translation.one");
+    expect(await repository.createProcessWithWorkspace(first)).toMatchObject({
+      kind: "committed",
+      process: { revision: 2, transcriptFrontier: 1, checkpoint: { throughSequence: 1 } },
+      workspace: {
+        processId: "process.translation.one",
+        volumeId: "volume.process.translation.one",
+      },
+      entries: [{ sequence: 1 }],
+    });
+    expect(await repository.createProcessWithWorkspace(first)).toMatchObject({
+      kind: "unchanged",
+      process: { revision: 2 },
+      workspace: { volumeId: "volume.process.translation.one" },
+    });
+    expect(await repository.loadProcessWorkspaceBinding("process.translation.one")).toEqual(
+      first.workspace,
+    );
+
+    const second = processWorkspaceBundleV1("program.translation", "process.translation.two");
+    expect(await repository.createProcessWithWorkspace(second)).toMatchObject({
+      kind: "committed",
+      workspace: { volumeId: "volume.process.translation.two" },
+    });
+    expect(await repository.loadProcessWorkspaceBinding("process.translation.two")).toEqual(
+      second.workspace,
+    );
+    expect(
+      await repository.createProcessWithWorkspace({
+        ...first,
+        workspace: { ...first.workspace, volumeId: "volume.changed" },
+      }),
+    ).toMatchObject({
+      kind: "conflict",
+      currentProcess: { processId: "process.translation.one" },
+      currentWorkspace: { volumeId: "volume.process.translation.one" },
+    });
+    await repository.dispose();
+  });
+
+  it("admits one Process owner for a Workspace volume under concurrent creation", async () => {
+    const indexedDB = new IDBFactory();
+    const firstRepository = repositoryV1(indexedDB);
+    const secondRepository = repositoryV1(indexedDB);
+    await firstRepository.publishProgramDefinitionRevision(translationDefinitionV1());
+    await createProgramV1(firstRepository, "program.volume-contention");
+    const first = processWorkspaceBundleV1(
+      "program.volume-contention",
+      "process.volume-contention.one",
+    );
+    const secondBase = processWorkspaceBundleV1(
+      "program.volume-contention",
+      "process.volume-contention.two",
+    );
+    const second = {
+      ...secondBase,
+      workspace: { ...secondBase.workspace, volumeId: first.workspace.volumeId },
+    } satisfies ProcessWorkspaceCreateBundleInputV1;
+
+    const results = await Promise.all([
+      firstRepository.createProcessWithWorkspace(first),
+      secondRepository.createProcessWithWorkspace(second),
+    ]);
+    const committed = results.find((result) => result.kind === "committed");
+    const rejected = results.find((result) => result.kind === "workspace_volume_owned");
+    expect(committed?.kind).toBe("committed");
+    expect(rejected).toMatchObject({
+      kind: "workspace_volume_owned",
+      owner: {
+        processId: committed?.kind === "committed" ? committed.process.processId : "",
+        volumeId: first.workspace.volumeId,
+      },
+    });
+    const losingProcessId = committed?.kind === "committed" &&
+        committed.process.processId === first.process.processId
+      ? second.process.processId
+      : first.process.processId;
+    expect(await firstRepository.loadProcess(losingProcessId)).toBeNull();
+    expect(await firstRepository.loadProcessWorkspaceBinding(losingProcessId)).toBeNull();
+    await Promise.all([firstRepository.dispose(), secondRepository.dispose()]);
+  });
+
+  it("requires the Process subject Program to exist before publishing its Workspace", async () => {
+    const indexedDB = new IDBFactory();
+    const repository = repositoryV1(indexedDB);
+    await repository.publishProgramDefinitionRevision(translationDefinitionV1());
+    const bundle = processWorkspaceBundleV1(
+      "program.subject-missing",
+      "process.subject-missing",
+    );
+    expect(await repository.createProcessWithWorkspace(bundle)).toEqual({
+      kind: "subject_program_missing",
+      subjectProgramId: "program.subject-missing",
+    });
+    expect(await repository.loadProcess(bundle.process.processId)).toBeNull();
+    expect(await repository.loadProcessWorkspaceBinding(bundle.process.processId)).toBeNull();
+    await repository.dispose();
+  });
+
+  it("keeps Creator Process creation on the Program-successor composite path", async () => {
+    const indexedDB = new IDBFactory();
+    const repository = repositoryV1(indexedDB);
+    const creatorDefinition = createBuiltinCreatorProgramDefinitionRevisionV1();
+    await repository.publishProgramDefinitionRevision(creatorDefinition);
+    await createProgramV1(repository, "program.creator-workspace");
+    const bundle = processWorkspaceBundleV1(
+      "program.creator-workspace",
+      "process.creator-workspace",
+      creatorDefinition,
+    );
+    await expect(repository.createProcessWithWorkspace(bundle)).rejects.toThrow(
+      "Process Workspace creation requires a non-Creator definition",
+    );
+    expect(await repository.loadProcess(bundle.process.processId)).toBeNull();
+    expect(await repository.loadProcessWorkspaceBinding(bundle.process.processId)).toBeNull();
+    await repository.dispose();
+  });
+
+  it("rolls back Process, transcript, and Workspace binding together", async () => {
+    const indexedDB = new IDBFactory();
+    const repository = repositoryV1(indexedDB);
+    await repository.publishProgramDefinitionRevision(translationDefinitionV1());
+    const bundle = processWorkspaceBundleV1(
+      "program.translation-rollback",
+      "process.translation-rollback",
+    );
+    await createProgramV1(repository, "program.translation-rollback");
+    const originalAdd = FakeIDBObjectStore.prototype.add;
+    vi.spyOn(FakeIDBObjectStore.prototype, "add").mockImplementation(function (
+      this: IDBObjectStore,
+      ...args: Parameters<typeof originalAdd>
+    ) {
+      if (this.name === "process_commits") {
+        throw new DOMException("synthetic quota", "QuotaExceededError");
+      }
+      return originalAdd.apply(this, args);
+    });
+    try {
+      await expect(repository.createProcessWithWorkspace(bundle)).rejects.toMatchObject({
+        code: "quota_exceeded",
+        operation: "create_process_with_workspace",
+      });
+    } finally {
+      vi.restoreAllMocks();
+    }
+    expect(await repository.loadProcess(bundle.process.processId)).toBeNull();
+    expect(await repository.loadProcessWorkspaceBinding(bundle.process.processId)).toBeNull();
+    expect(
+      await repository.loadTranscriptPage({
+        processId: bundle.process.processId,
+        beforeSequence: null,
+        maximumBytes: 4_096,
+      }),
+    ).toBeNull();
+    expect(await repository.createProcessWithWorkspace(bundle)).toMatchObject({
+      kind: "committed",
+    });
+    await repository.dispose();
+  });
+
+  it("allows persisted non-Creator Process-only completion but keeps Creator composite-only", async () => {
+    const indexedDB = new IDBFactory();
+    const repository = repositoryV1(indexedDB);
+    const writingDefinition = nonCreatorDefinitionV1("writing");
+    await repository.publishProgramDefinitionRevision(writingDefinition);
+    await createProgramV1(repository, "program.translation");
+    await repository.createProcessWithWorkspace(
+      processWorkspaceBundleV1(
+        "program.translation",
+        "process.translation",
+        writingDefinition,
+      ),
+    );
+    const translationAcquireInput = executionAcquireV1(
+      "program.translation",
+      "process.translation",
+    );
+    const translationAcquire = await repository.acquireProcessExecution({
+      ...translationAcquireInput,
+      attempt: {
+        ...translationAcquireInput.attempt,
+        startingCheckpoint: {
+          ...translationAcquireInput.attempt.startingCheckpoint,
+          workspaceCheckpointId: "workspace-checkpoint.process.translation.1",
+        },
+      },
+    });
+    if (translationAcquire.kind === "conflict") throw new Error("expected translation lease");
+    const translationTerminal = executionTerminalV1({
+      processId: "process.translation",
+      lease: translationAcquire.lease,
+      observedAt: 20,
+      expectedProcessRevision: 3,
+      expectedTranscriptFrontier: 2,
+      sequence: 3,
+      outcome: "completed",
+      interruptionDisposition: null,
+      workspaceCheckpointId: "workspace-checkpoint.process.translation.2",
+      workspaceGeneration: 2,
+    });
+    expect(await repository.commitProcessExecutionTerminal(translationTerminal)).toMatchObject({
+      kind: "committed",
+      process: { activeAttempt: null, lastTerminalAttempt: { outcome: "completed" } },
+      operationReceipt: { terminalOutcome: "completed", programId: null },
+    });
+
+    await repository.publishProgramDefinitionRevision(
+      createBuiltinCreatorProgramDefinitionRevisionV1(),
+    );
+    await repository.createProgramWithProcess(
+      createBundleV1("program.creator-terminal", "process.creator-terminal"),
+    );
+    const creatorAcquire = await repository.acquireProcessExecution(
+      executionAcquireV1("program.creator-terminal", "process.creator-terminal"),
+    );
+    if (creatorAcquire.kind === "conflict") throw new Error("expected Creator lease");
+    const creatorTerminal = executionTerminalV1({
+      processId: "process.creator-terminal",
+      lease: creatorAcquire.lease,
+      observedAt: 20,
+      expectedProcessRevision: 3,
+      expectedTranscriptFrontier: 2,
+      sequence: 3,
+      outcome: "completed",
+      interruptionDisposition: null,
+      workspaceCheckpointId: "checkpoint.program.creator-terminal.1",
+      workspaceGeneration: 1,
+    });
+    await expect(repository.commitProcessExecutionTerminal(creatorTerminal)).rejects.toThrow(
+      "A Creator Process must publish a completed terminal with its Program successor",
+    );
+    await repository.dispose();
+  });
+
   it("fences Process execution leases across tabs and settles expiry before explicit retry", async () => {
     const indexedDB = new IDBFactory();
     const first = repositoryV1(indexedDB);
@@ -860,7 +1210,7 @@ describe("IndexedDB Program data repository V9", () => {
       workspaceGeneration: 1,
     });
     await expect(second.commitProcessExecutionTerminal(completed)).rejects.toThrow(
-      "invalid Process execution terminal input",
+      "A Creator Process must publish a completed terminal with its Program successor",
     );
     const failed = executionTerminalV1({
       processId: "process.execution",

@@ -8,7 +8,7 @@ const apiKeyMaximumLengthV1 = 64 * 1024;
 const pathMaximumLengthV1 = 4 * 1024;
 const forbiddenControlPatternV1 = /[\0\r\n]/;
 
-export const pinnedPiCodingAgentVersionV1 = "0.84.3";
+export const pinnedPiCodingAgentVersionV1 = "0.84.4";
 
 /** Resolves only the exact package declared by this product and admitted by the root lockfile. */
 export function resolvePinnedPiCodingAgentArtifactV1(): string {

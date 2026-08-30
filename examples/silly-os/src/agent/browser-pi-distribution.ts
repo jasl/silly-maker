@@ -5,11 +5,11 @@ export interface BrowserPiDistributionIdentityV1 {
   readonly packages: readonly [
     {
       readonly name: "@earendil-works/pi-agent-core";
-      readonly version: "0.84.3";
+      readonly version: "0.84.4";
     },
     {
       readonly name: "@earendil-works/pi-ai";
-      readonly version: "0.84.3";
+      readonly version: "0.84.4";
     },
   ];
 }
@@ -21,11 +21,11 @@ export const browserPiDistributionIdentityV1: BrowserPiDistributionIdentityV1 = 
     [
       Object.freeze({
         name: "@earendil-works/pi-agent-core",
-        version: "0.84.3",
+        version: "0.84.4",
       }),
       Object.freeze({
         name: "@earendil-works/pi-ai",
-        version: "0.84.3",
+        version: "0.84.4",
       }),
     ] as const,
   ),

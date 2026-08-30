@@ -74,7 +74,7 @@ async function builtinProvidersV1(): Promise<readonly PinnedPiProviderV1[]> {
 }
 
 describe("SillyOS Browser Pi Provider compatibility", () => {
-  it("pins the Browser Settings single-secret Provider shape to Pi 0.84.3", async () => {
+  it("pins the Browser Settings single-secret Provider shape to Pi 0.84.4", async () => {
     expect(browserPiSingleSecretProviderIdsV1).toEqual(expectedSingleSecretProviderIdsV1);
     const providers = await builtinProvidersV1();
     const providerById = new Map(providers.map((provider) => [provider.id, provider]));
@@ -107,7 +107,7 @@ describe("SillyOS Browser Pi Provider compatibility", () => {
     const selectedModels = providers.flatMap((provider) =>
       selectedIds.has(provider.id) ? provider.getModels().map((model) => ({ provider, model })) : []
     );
-    expect(selectedModels).toHaveLength(1_032);
+    expect(selectedModels).toHaveLength(1_015);
     expect(
       new Set(
         selectedModels.map(({ provider, model }) =>

@@ -78,7 +78,7 @@ const providerProfilesV1 = Object.freeze(
     Object.freeze({
       id: "openrouter",
       providerId: "openrouter",
-      modelId: "google/gemini-2.5-flash",
+      modelId: "z-ai/glm-5.3-flash",
       apiKeyEnvironmentVariable: "OPENROUTER_API_KEY",
       requestOrigin: "https://openrouter.ai",
       requestPathname: "/api/v1/chat/completions",

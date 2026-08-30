@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-import { admitCreatorAgentSubmitTextV1 } from "../product/creator-agent-admission.ts";
 import { admitProgramNetworkAccessV1 } from "../product/program-network-access.ts";
 import { admitCredentialVaultHandoffReadyV2 } from "../credential/credential-vault-protocol.ts";
 import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
 import { isBrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 import type { BrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
+import {
+  admitBrowserPiAgentDispatchTextV1,
+  type BrowserPiAgentDispatchV1,
+} from "./browser-pi-agent-dispatch.ts";
 
 export type BrowserPiWorkerRuntimeV1 = "deterministic_test" | "pi_provider";
 
@@ -163,6 +166,7 @@ export interface BrowserPiWorkerRpcSubmitRequestV1 {
   readonly requestId: number;
   readonly record: unknown;
   readonly execution: BrowserPiWorkerExecutionBindingV1;
+  readonly dispatch: BrowserPiAgentDispatchV1;
 }
 
 export type BrowserPiWorkerRpcRequestV1 =
@@ -1147,7 +1151,7 @@ export function admitBrowserPiWorkerInboundMessageV1(
     const request = admitBrowserPiWorkerSessionRequestV1(discriminator.record);
     if (request?.method === "submit") {
       const execution = admitExecutionBindingV1(discriminator.execution);
-      const submit = admitCreatorAgentSubmitTextV1(request.params.text);
+      const submit = admitBrowserPiAgentDispatchTextV1(request.params.text);
       if (
         execution === null || submit.kind === "rejected" ||
         execution.programId !== submit.value.programId
@@ -1158,6 +1162,7 @@ export function admitBrowserPiWorkerInboundMessageV1(
         requestId: discriminator.requestId,
         record: discriminator.record,
         execution,
+        dispatch: submit.value,
       };
     }
     // Invalid inner records still reach the existing inner admission and
@@ -1550,9 +1555,10 @@ export function admitBrowserPiWorkerSessionRequestV1(
   }
   if (base.method === "submit") {
     const params = exactDataRecordV1(base.params, ["sessionId", "text"]);
-    if (params === null || !isIdentifierV1(params.sessionId)) return null;
-    const submit = admitCreatorAgentSubmitTextV1(params.text);
-    if (submit.kind === "rejected") return null;
+    if (
+      params === null || !isIdentifierV1(params.sessionId) ||
+      typeof params.text !== "string" || params.text.length === 0
+    ) return null;
     return {
       revision: 1,
       method: "submit",

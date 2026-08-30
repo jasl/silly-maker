@@ -24,6 +24,7 @@
     "preview:network-broker": "deno run -A npm:vite preview --config vite.network-broker.config.ts",
     "preview:workspace-sandbox": "deno run -A npm:vite preview --config vite.workspace-sandbox.config.ts",
     "pi:rpc": "deno run -A ./tools/pi-rpc.mts",
+    "research:translation": "deno run --allow-env --allow-read=research/translation/corpus --allow-write=../../tmp --allow-run=git --allow-net=api.deepseek.com,openrouter.ai --allow-sys=osRelease ./tools/research-translation-program.mts",
     "qualify:browser:provider": "deno run -A --env-file=.env ./tools/qualify-browser-provider.mts",
     "qualify:browser:b1b": "deno task qualify:browser:provider b1b",
     "qualify:browser:qualified": "deno task qualify:browser:provider qualified",
@@ -34,9 +35,9 @@
     "test": "deno run -A npm:vitest run src"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "0.84.3",
-    "@earendil-works/pi-ai": "0.84.3",
-    "@earendil-works/pi-coding-agent": "0.84.3",
+    "@earendil-works/pi-agent-core": "0.84.4",
+    "@earendil-works/pi-ai": "0.84.4",
+    "@earendil-works/pi-coding-agent": "0.84.4",
     "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
     "@radix-ui/react-dropdown-menu": "2.1.24",
     "@radix-ui/react-toggle-group": "1.1.19",
