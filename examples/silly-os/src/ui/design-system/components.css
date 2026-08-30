@@ -436,6 +436,18 @@
   background: var(--sos-success-soft);
 }
 
+.sos-badge[data-variant="warning"] {
+  border-color: var(--sos-warning-line);
+  color: var(--sos-warning);
+  background: var(--sos-warning-soft);
+}
+
+.sos-badge[data-variant="danger"] {
+  border-color: var(--sos-danger-line);
+  color: var(--sos-danger);
+  background: var(--sos-danger-soft);
+}
+
 .sos-tabs {
   min-inline-size: 0;
 }

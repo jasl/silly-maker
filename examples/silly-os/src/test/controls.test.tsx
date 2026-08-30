@@ -8,6 +8,7 @@ import { createRef, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ButtonV1, IconButtonV1 } from "../ui/design-system/button.tsx";
+import { BadgeV1 } from "../ui/design-system/badge.tsx";
 import { CheckboxV1 } from "../ui/design-system/checkbox.tsx";
 import { FieldDescriptionV1, FieldLabelV1, FieldV1 } from "../ui/design-system/field.tsx";
 import { InputV1 } from "../ui/design-system/input.tsx";
@@ -151,6 +152,21 @@ describe("SillyOS design-system controls", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveAttribute("data-variant", "danger");
+  });
+
+  it("keeps compact rejected state distinct from neutral metadata", () => {
+    render(
+      <>
+        <BadgeV1 variant="warning">Preview</BadgeV1>
+        <BadgeV1 variant="danger">Proposal rejected</BadgeV1>
+      </>,
+    );
+
+    expect(screen.getByText("Preview")).toHaveAttribute("data-variant", "warning");
+    expect(screen.getByText("Proposal rejected")).toHaveAttribute(
+      "data-variant",
+      "danger",
+    );
   });
 
   it("uses one roving tab stop and wraps arrow-key navigation", async () => {

@@ -3,7 +3,7 @@ import { type ComponentProps, type ReactNode } from "react";
 
 import { cnV1 } from "./utils.ts";
 
-export type BadgeVariantV1 = "neutral" | "success";
+export type BadgeVariantV1 = "neutral" | "success" | "warning" | "danger";
 
 export function BadgeV1({
   className,
