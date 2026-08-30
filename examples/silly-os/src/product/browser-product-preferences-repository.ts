@@ -102,30 +102,21 @@ function freezeSnapshotV1(input: {
 
 function admitSnapshotV1(value: unknown): BrowserProductPreferencesSnapshotV1 | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
-  try {
-    if (Object.getPrototypeOf(value) !== Object.prototype) return null;
-    if (Object.getOwnPropertySymbols(value).length !== 0) return null;
-    const descriptors = Object.getOwnPropertyDescriptors(value);
-    const keys = Object.keys(descriptors);
-    if (
-      keys.length !== 3 ||
-      !["revision", "locale", "theme"].every((key) =>
-        Object.hasOwn(descriptors, key) && descriptors[key]?.enumerable === true &&
-        Object.hasOwn(descriptors[key] ?? {}, "value")
-      )
-    ) return null;
-    const revision = descriptors.revision?.value;
-    const locale = descriptors.locale?.value;
-    const theme = descriptors.theme?.value;
-    if (
-      revision !== browserProductPreferencesRevisionV1 ||
-      (locale !== null && !isLocaleV1(locale)) ||
-      !isThemeV1(theme)
-    ) return null;
-    return freezeSnapshotV1({ locale, theme });
-  } catch {
-    return null;
-  }
+  const keys = Object.keys(value);
+  if (
+    keys.length !== 3 ||
+    !["revision", "locale", "theme"].every((key) => Object.hasOwn(value, key))
+  ) return null;
+  const snapshot = value as Record<string, unknown>;
+  const revision = snapshot.revision;
+  const locale = snapshot.locale;
+  const theme = snapshot.theme;
+  if (
+    revision !== browserProductPreferencesRevisionV1 ||
+    (locale !== null && !isLocaleV1(locale)) ||
+    !isThemeV1(theme)
+  ) return null;
+  return freezeSnapshotV1({ locale, theme });
 }
 
 function decodeSnapshotV1(serialized: string): BrowserProductPreferencesSnapshotV1 | null {
