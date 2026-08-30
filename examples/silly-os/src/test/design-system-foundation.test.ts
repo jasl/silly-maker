@@ -44,17 +44,24 @@ describe("SillyOS design-system foundation", () => {
   });
 
   it("keeps component colors behind semantic tokens", async () => {
-    const [productCss, creatorHomeCss, composerModelPickerCss, settingsCss, componentCss] =
-      await Promise.all([
-        readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
-        readFile(resolve(productRootV1, "ui/creator-home.css"), "utf8"),
-        readFile(resolve(productRootV1, "ui/composer-model-picker.css"), "utf8"),
-        readFile(resolve(productRootV1, "ui/settings.css"), "utf8"),
-        readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
-      ]);
+    const [
+      productCss,
+      creatorHomeCss,
+      composerModelPickerCss,
+      settingsCss,
+      chatCss,
+      componentCss,
+    ] = await Promise.all([
+      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/creator-home.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/composer-model-picker.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/settings.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/chat.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
+    ]);
 
     expect(
-      `${productCss}\n${creatorHomeCss}\n${composerModelPickerCss}\n${settingsCss}\n${componentCss}`,
+      `${productCss}\n${creatorHomeCss}\n${composerModelPickerCss}\n${settingsCss}\n${chatCss}\n${componentCss}`,
     )
       .not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/iu);
     expect(productCss).toContain("var(--sos-surface)");
@@ -118,10 +125,6 @@ describe("SillyOS design-system foundation", () => {
       /(^|\n)\s*\.creator-composer__(?:actions|primary-actions)(?:\b|\s|,|\{)/u,
     );
     expect(legacyCss).not.toMatch(/(^|\n)\s*\.creator-composer__(?:model|reasoning)/u);
-    expect(legacyCss).toContain(".chat-composer .creator-composer__model-picker");
-    expect(legacyCss).toContain(
-      ".chat-composer__primary-actions > .creator-composer__model-picker",
-    );
   });
 
   it("keeps Settings surface styles separate from Provider detail ownership", async () => {
@@ -168,6 +171,58 @@ describe("SillyOS design-system foundation", () => {
     expect(legacyCss).toContain(".provider-settings {");
     expect(legacyCss).toContain(".provider-settings__credential {");
     expect(legacyCss).toContain(".provider-settings__connection-model {");
+  });
+
+  it("keeps Chat surface styles separate from Program and Workpiece chrome", async () => {
+    const [app, chatCss, legacyCss] = await Promise.all([
+      readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
+      readFile(resolve(productRootV1, "ui/chat.css"), "utf8"),
+      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+    ]);
+
+    expect(app.indexOf('import "./composer-model-picker.css";')).toBeLessThan(
+      app.indexOf('import "./chat.css";'),
+    );
+    expect(app.indexOf('import "./creator-home.css";')).toBeLessThan(
+      app.indexOf('import "./chat.css";'),
+    );
+    expect(app.indexOf('import "./settings.css";')).toBeLessThan(
+      app.indexOf('import "./chat.css";'),
+    );
+    expect(app.indexOf('import "./chat.css";')).toBeLessThan(
+      app.indexOf('import "./silly-os.css";'),
+    );
+    expect(app.indexOf('import "./silly-os.css";')).toBeLessThan(
+      app.indexOf('import "./design-system/tailwind.css";'),
+    );
+
+    expect(chatCss).toContain(".chat-pane {");
+    expect(chatCss).toContain(".chat-pane > .creator-readiness {");
+    expect(chatCss).toContain("@container chat-pane (width < 340px)");
+    expect(chatCss).toContain(".chat-message {");
+    expect(chatCss).toContain(".pi-agent-run {");
+    expect(chatCss).toContain(".network-access {");
+    expect(chatCss).toContain(".program-proposal {");
+    expect(chatCss).toContain(".program-workspace-review {");
+    expect(chatCss).toContain(".silly-os .workpiece-link {");
+    expect(chatCss).toContain(".chat-composer {");
+    expect(chatCss).toContain(".chat-composer .creator-composer__model-picker");
+    expect(chatCss).toContain(
+      ".chat-composer__primary-actions > .creator-composer__model-picker",
+    );
+    expect(chatCss).toContain("@media (width <= 767px)");
+    expect(chatCss).not.toContain("@keyframes silly-os-spin");
+    expect(chatCss).not.toMatch(/(^|\n)\s*\.program-workspace__(?:chat-shell|mobile-nav)/u);
+    expect(chatCss).not.toMatch(/(^|\n)\s*\.workpiece-pane(?:\b|__)/u);
+
+    expect(legacyCss).not.toMatch(
+      /(^|\n)\s*(?:\.chat-pane(?:\b|__)|\.chat-message(?:\b|--|__)|\.pi-agent-run(?:\b|__)|\.network-access(?:\b|__)|\.program-proposal(?:\b|__)|\.program-workspace-review(?:\b|__)|\.workpiece-link(?:\b|__)|\.chat-composer(?:\b|__))/u,
+    );
+    expect(legacyCss).not.toContain(".silly-os .workpiece-link");
+    expect(legacyCss).toContain("@keyframes silly-os-spin");
+    expect(legacyCss).toContain(".program-workspace__chat-shell {");
+    expect(legacyCss).toContain(".program-workspace__mobile-nav {");
+    expect(legacyCss).toContain(".workpiece-pane {");
   });
 
   it("routes multiline and durable export progress through the shared physical layer", async () => {
