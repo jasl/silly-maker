@@ -192,13 +192,10 @@ a native companion behind the same typed workspace boundary.
 
 At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
 S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2/N3, the original S3, S3-R1,
-D1, P1-B1d reasoning effort, and E0 engine-baseline absorption are closed. The current
-local source is rebased onto engine baseline
-`31461f362129e6192f70553a261ada225c2abf8b`. DS1 is the current active product
-phase: DS1a, DS1b, and DS1c-1 through DS1c-3 are delivered, while the remaining
-DS1d–DS1e work
-stays active-plan work. No
-Mod phase is active. The current build-matched
+D1, P1-B1d reasoning effort, E0 engine-baseline absorption, and DS1 are closed
+locally. The current local source is rebased onto engine baseline
+`31461f362129e6192f70553a261ada225c2abf8b`. No subsequent product or Mod phase
+is active. The current build-matched
 three-origin artifact and fixed Vault Worker are deployed from commit
 `a17c3490c9940bb43fc8718df485322c2dee1052` (Sandbox
 `fb703131-3e37-4e7d-95f4-5b7afa9160cd`, Broker
@@ -268,16 +265,15 @@ or deployed release. Its acceptance is the rebased product/unit/build/security
 gate plus a real computed-style Browser check for product-scope colors, normal
 and compact control geometry, focus tokens, and reduced motion.
 
-### DS1 — SillyOS component and pattern system (active; DS1a, DS1b, and DS1c-1 through DS1c-3 delivered 2026-08-30)
+### DS1 — SillyOS component and pattern system (closed locally 2026-08-30)
 
-The owner has activated DS1 as a product lane. It inventories the real Creator,
+DS1 inventories the real Creator,
 Settings, Workspace, Chat, review, progress, empty/error, and overlay states,
 then converges them in bounded screen slices while retaining the accepted
 keyboard, IME, focus, anti-clipping, responsive, reduced-motion, and mobile
-contracts. The complete lane owns product semantic tokens, component variants,
-composite patterns, content rules, accessibility states, and visual regression
-fixtures; activation is not evidence that those migrations are already
-complete.
+contracts. The completed lane owns product semantic tokens, component variants,
+composite patterns, content rules, accessibility states, and bounded visual
+regression fixtures.
 
 DS1 selects product-scoped Tailwind CSS 4 utilities with a `sos:` prefix and no
 Preflight/global reset. Tailwind is a build-time styling aid rather than a
@@ -291,7 +287,7 @@ registry and DaisyUI are not additional runtime design authorities, and
 generated global `:root`, `html`, `body`, custom-property registrations, or
 unscoped element styles are inadmissible.
 
-The active sequence is:
+The delivered sequence was:
 
 1. **DS1a — theme and chrome foundation (delivered 2026-08-30).** Add one
    product-owned preference authority for `system`, `light`, or `dark` theme
@@ -384,16 +380,18 @@ The active sequence is:
    retain role/live-region semantics and domain state. It explicitly excludes a
    generic async state machine, credential/Test coupling, Provider qualification,
    or engine API.
-4. **DS1d — surface convergence.** Migrate Creator Home, all three Settings
-   categories, Chat, Workspace View, and Activity in independently reviewable
-   slices. Each slice removes superseded selectors and recipes after its real
-   consumers move; the monolithic stylesheet is a migration source, not a
-   second permanent design system.
-5. **DS1e — closure.** Remove the remaining duplicate product controls and
-   dead styles, reconcile responsive and content fixtures, and run focused
-   component contracts plus Chromium/WebKit keyboard, contrast, theme,
-   anti-clipping, and visual-regression evidence. Only then may DS1 be marked
-   complete.
+4. **DS1d — surface convergence (delivered 2026-08-30).** Creator Home,
+   Settings, Provider Settings, Chat, Workspace View, and Activity now own their
+   independently loaded surface styles. Each slice removed superseded selectors
+   after its real consumers moved; the residual stylesheet now owns only shared
+   application/chrome and cross-surface rules rather than a second component
+   system.
+5. **DS1e — closure (delivered 2026-08-30).** The closing slices removed unused
+   component options and dead styles, converged the last ordinary Retry action,
+   simplified impossible JSON-admission defenses at the product-preference
+   parsed-storage boundary, qualified light/dark semantic contrast, and added bounded responsive
+   and visual evidence. DS1 is locally complete; no later phase is activated by
+   that closure.
 
 DS1a is deliberately bounded: it does not redesign Creator/Workspace
 information architecture, migrate every screen component, activate a Mod,
@@ -420,11 +418,9 @@ type-aware lint, Stylelint, the Browser control-plane build/security boundary,
 and the focused settings/theme/locale/menu/dialog suite in both Chromium and
 WebKit (10/10), including live `matchMedia` and cross-tab `storage` changes. A
 separate in-app Browser pass checked the dark Creator, General,
-unified menu, native modal backdrop/focus, and desktop layout. DS1 remains
-active: DS1d–DS1e still own surface,
-dead-style, and visual-fixture
-convergence, so the delivered DS1 checkpoints do not claim that all product
-components have already migrated.
+unified menu, native modal backdrop/focus, and desktop layout. At that
+checkpoint DS1 remained active because DS1d–DS1e still owned surface,
+dead-style, and visual-fixture convergence. Those later slices are now closed.
 
 DS1b-1 delivered on 2026-08-30 without changing Settings information
 architecture, Provider/credential behavior, product flows, or an engine API.
@@ -435,7 +431,8 @@ is 70 SillyOS unit files / 583 tests, root format/type-aware lint/Stylelint/
 typecheck, all three Browser artifact boundary builds, the focused theme/menu/
 Settings suite in Chromium and WebKit, and a real in-app Browser pass over
 General, Providers, Credential Vault, dark theme, and the narrow Provider
-master/detail flow. Layout and product-flow redesign remain later surface work.
+master/detail flow. Layout and product-flow redesign remained later DS1 surface
+work at that checkpoint; DS1 closure does not activate a broader redesign.
 
 DS1b-2 delivered on 2026-08-30 without changing composer behavior, Workspace
 export semantics, product layout, or an engine API. `TextareaV1` replaces the
@@ -449,8 +446,8 @@ is now 70 files
 / 586 tests; focused Chromium and WebKit rendered checks pass for both
 composers, the Program meter, and the complete cancel-then-download ZIP flow
 (4/4). All three Browser artifact boundary builds also pass for the committed
-clean identity. Loading/empty patterns, navigation, and Provider rows remain
-later bounded work.
+clean identity. Loading/empty patterns, navigation, and Provider rows remained
+later bounded DS1 work at that checkpoint.
 
 DS1b-3 closes shared physical primitive convergence on 2026-08-30 without
 changing Program network semantics, Provider model preferences, the query-gated
@@ -466,8 +463,8 @@ typecheck pass; the Provider-model and Program-network rendered flows pass in
 Chromium and WebKit (4/4); and an in-app Browser pass confirms desktop/narrow
 geometry, keyboard focus, state change, and no page overflow. All three Browser
 artifact boundaries pass before commit; the closing identity is rebuilt and
-rechecked after commit. The remaining DS1c slices and DS1d–DS1e remain active
-product work.
+rechecked after commit. At that checkpoint the remaining DS1c slices and
+DS1d–DS1e were still active product work.
 
 DS1c-1 delivered locally on 2026-08-30 without changing Pi, Provider, Vault,
 Workspace, or engine contracts. One fixed product projection now gives Creator
@@ -500,7 +497,7 @@ Capabilities, Activity, exact generation/mutation receipt, and Browser storage
 remain visible on their owning real paths. Focused UI contracts and desktop/
 mobile in-app Browser inspection cover the new boundary. No file manager,
 editor, `UiArtifact` framework, or SillyMaker engine/API surface was introduced.
-DS1d–DS1e remain active product work.
+DS1d–DS1e remained active at that checkpoint and are now closed.
 
 DS1c-3 delivered locally on 2026-08-30 without changing Provider discovery,
 credential storage, Test Connection behavior, model preference semantics, or an
@@ -515,7 +512,42 @@ motion. Focused component/contrast contracts pass (5 files / 27 tests),
 root typecheck, type-aware lint, Stylelint, and React Doctor pass, and the two
 affected built-in/custom Provider journeys pass in Chromium and WebKit (2/2 in
 each engine). Desktop and 390px in-app Browser inspection found no horizontal
-overflow. DS1d–DS1e remain active.
+overflow. DS1d–DS1e remained active at that checkpoint and are now closed.
+
+DS1d delivered the product-surface ownership split without changing information
+architecture or domain contracts. Creator (`95a6ba85`, with IME follow-up
+`fd443eea`), Settings (`018b84fe`), Provider Settings (`c3ea0d32`), Chat
+(`88efc015`), Workspace View (`35dc3c75`), and Activity (`817051f3`, with
+localized event copy in `dc17ab75`) now load explicit surface styles after the
+shared recipes. The residual stylesheet no longer contains those surface
+selectors. Product vocabulary stays in those concrete surfaces instead of a
+generic page or workflow framework.
+
+DS1e closes the local lane with unused shared-control option removal
+(`6b4acba7`), dark semantic contrast qualification (`9d5bfe6a`), ordinary
+Retry convergence (`96416f8c`), bounded preference-admission cleanup
+(`c51d87c7`), and retention of the real warning/danger proposal Badge consumers
+(`01f0a310`). The
+responsive evidence covers 1600×1000, 1280×800, 1024×520, a documented 200%
+CSS-pixel reflow proxy, the 768/767 mode boundary, 390×844, and 320×568; it also
+covers pointer and keyboard pane resizing, long mixed English/Chinese content,
+modal reachability, 44px phone navigation targets, and page-overflow guards.
+Three representative workspace states have exact Chromium and WebKit CSS-pixel
+goldens (`1d4fdd6e`, corrected to faithful viewport capture in `83a0a816`), and
+the focused dual-engine DS1 set passes 14/14. A separate Chromium touch project
+proves touch input; WebKit evidence is narrow-layout rather than touch-device
+qualification. Same-viewport in-app Browser comparisons over Creator Home,
+General, Providers, Workspace, Activity, and Phone Providers found no new
+clipping, spacing, focus, or scroll-owner blocker. React Doctor reported only a
+component-wide `prefer-useReducer` heuristic; code review rejected it because
+the counted state belongs to independent Vault, Agent, Provider, Workspace,
+network, storage, and navigation authorities with separate currentness fences.
+The closing local candidate passes 77 SillyOS unit files / 638 tests, format,
+root typecheck, type-aware lint, Stylelint, all three Browser artifact builds and
+their security-boundary checks, the focused 14/14 Chromium/WebKit matrix, and a
+separate 1/1 Chromium touch project.
+DS1 does not claim a deployed release, a full product redesign, or completion of
+later Agent/product phases.
 
 SillyMaker remains the home only for neutral primitives and interaction
 mechanics that can be reproduced without SillyOS vocabulary. A DS1 discovery
@@ -4263,8 +4295,9 @@ build its own dynamic component registry around the gap.
 The capability view projects these real Pi and UI bindings; it is not another
 runtime. The first lane uses only build-known extensions shipped with SillyOS.
 Broader Pi Package installation, a marketplace, and post-release arbitrary code
-remain separate product/distribution decisions. No public SillyMaker Mod,
-Agent, Program, or plugin ABI is introduced.
+remain separate product/distribution decisions. This lane does not introduce or
+expand the existing focused public SillyMaker Mod API, and it introduces no
+public Agent, Program, or plugin ABI.
 
 Complete Browser/Desktop Extension API parity is explicitly deferred. Browser
 does not emulate Pi's Node/TUI/CLI/exec extension surface. If a later Program
@@ -4328,8 +4361,9 @@ following:
 - unversioned or unvalidated external data;
 - Agent output mutating product state without an exact admitted receipt;
 - a fake readiness, durability, tool, translation, writing, or role-play claim;
-- a public SillyMaker Mod/Agent/Program/plugin ABI or arbitrary generated-code
-  execution (explicit pinned Pi extensions are the selected Agent mechanism);
+- an expansion beyond the focused public SillyMaker Mod API, a public Agent/
+  Program/plugin ABI, or arbitrary generated-code execution (explicit pinned Pi
+  extensions are the selected Agent mechanism);
 - a generic framework justified only by a hypothetical later product.
 
 Verification remains proportional: focused contract tests for authority and

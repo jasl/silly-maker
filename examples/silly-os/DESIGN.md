@@ -1787,8 +1787,9 @@ The complete product design system has four layers:
    each verified across the responsive and keyboard matrix below.
 
 The E0 checkpoint had only the first bounded foundation mapping and the Button
-composition. DS1a has since delivered the theme/chrome foundation described
-below. DS1b-1 then delivered the first bounded shared-control checkpoint:
+composition. DS1 has since closed locally. DS1a delivered the theme/chrome
+foundation described below. DS1b-1 then delivered the first bounded
+shared-control checkpoint:
 Button/IconButton, Input/InputGroup, Field, NativeSelect, Card, Badge, Status,
 and Tabs now have product-owned recipes over the neutral physical layer;
 Settings is their first complete stable consumer. DS1b-2 then adds the shared
@@ -1800,14 +1801,13 @@ Checkbox recipe for
 Program network access and Provider model visibility, and moves the query-gated
 test password field onto the existing Input recipe. The hidden file inputs that
 remained at DS1b-3 were removed by DS1c-1 with the filename-only attachment
-actions. The large product
-stylesheet remains a migration source rather than proof that the component/
-pattern system is complete. DS1c-3 has since added one product-specific Provider
+actions. DS1c-3 then added one product-specific Provider
 catalog row, separated credential persistence from optional point-in-time
 connection testing, removed the repeated Vault panel heading, and introduced one
 closed presentational collection-state recipe whose callers retain domain and
-announcement semantics. DS1 remains active and is not complete until DS1d–DS1e
-and their evidence close. Product
+announcement semantics. DS1d finally moved Creator, Settings, Provider
+Settings, Chat, Workspace View, and Activity out of the residual stylesheet;
+DS1e removed dead variants and closed the responsive/visual evidence. Product
 appearance and workflow stay in SillyOS; only use-case-neutral primitives or
 interaction mechanics with an independent second real consumer (or a proved
 engine-wide baseline need) may be proposed upstream.
@@ -1868,15 +1868,14 @@ generated CSS. Tailwind and product Radix
 dependencies remain inside `examples/silly-os`; their adoption neither changes
 SillyMaker's public UI API nor makes them engine dependencies.
 
-The delivered DS1a slice establishes the preference repository, cross-tab
+The delivered DS1a slice established the preference repository, cross-tab
 propagation, resolved light/dark tokens, pre-mount color scheme, internal
 overlay host, unified product menu, and matching General Settings controls. It
-must keep every currently reachable surface legible in both themes but does
-not claim that every legacy selector has become a shared component. Subsequent
-slices converge repeated controls first, then Creator/Provider/review/workpiece
-patterns, and finally complete surfaces. Once a real consumer migrates, its
-superseded hand-written control and styles are removed rather than retained as
-a permanent compatibility layer.
+kept every reachable surface legible in both themes without claiming that every
+product pattern should become a generic component. The completed sequence then
+converged repeated controls, Creator/Provider/review/workpiece patterns, and the
+concrete surfaces. Each migrated consumer removed its superseded hand-written
+control and styles rather than retaining a permanent compatibility layer.
 
 The delivered DS1b-1 slice converges stable Settings controls without freezing
 the current page layout or product flow. Component recipes own semantic state,
@@ -1979,8 +1978,18 @@ checkbox and password consumers, the existing Program-network and Provider-
 model behavior suites, and rendered checkbox geometry/interaction evidence in
 Chromium and WebKit. DS1c-3 adds focused Provider/collection semantics and
 contrast checks plus the affected built-in/custom Chromium/WebKit Settings
-journeys. Later surface stages add their own long-content
-and visual fixtures before DS1 can be called complete.
+journeys. DS1d adds structural ownership guards for the six concrete surface
+styles and removes those selectors from the residual stylesheet. DS1e adds
+light/dark opaque semantic contrast qualification, long mixed-script content,
+pointer and keyboard split resizing, modal and composer reachability, and a
+responsive matrix at 1600×1000, 1280×800, 1024×520, a documented 200%
+CSS-pixel reflow proxy, 768/767, 390×844, and 320×568. Three representative
+Workspace states have exact Chromium/WebKit CSS-pixel goldens; the focused
+dual-engine DS1 set passes 14/14, while a separate Chromium project proves
+touch input. Same-viewport in-app Browser comparisons over the maintained
+reference surfaces found no new clipping, spacing, focus, or scroll-owner
+blocker. This evidence closes DS1 locally without claiming deployment or a
+complete product redesign.
 
 ## Responsive layout contract
 
@@ -2021,7 +2030,7 @@ either pane to become narrower than its contract.
 ### Scroll ownership
 
 - The application viewport and workspace shell do not scroll.
-- Conversation messages, Program content, Source, Capabilities, Activity, and
+- Conversation messages, Program content, Capabilities, Activity, and
   tab strips own only the scroll axis they need.
 - Every flex ancestor on a scroll path declares the needed `min-width: 0` or
   `min-height: 0`.
@@ -2117,7 +2126,7 @@ evidence for the preview only.
 
 | Area               | Accepted product role                                     | Current preview evidence                                                                                                                                                                                                                                                                                                                                      | Remaining before product-ready                                                                                                                                      |
 | ------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Creator home       | Express intent and create/open a Program                  | General/Providers/Credential Vault Settings + first-install checked-model recommendation seed + persisted model multiselect/preferred model + P2 recent reopen                                                                                                                                                                                                | Deploy S3-R1; attachments and richer model preference UX                                                                                                            |
+| Creator home       | Express intent and create/open a Program                  | General/Providers/Credential Vault Settings + first-install checked-model recommendation seed + persisted model multiselect/preferred model + P2 recent reopen                                                                                                                                                                                                | Attachments and richer model preference UX                                                                                                                          |
 | Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint                                                                                                                                                                                                                                                                                             | Program-anchored artifacts                                                                                                                                          |
 | Program workspace  | One focused mutable workspace produces reviewed snapshots | Independent-origin ordinary Authority + dual-browser deterministic Pi write/read/edit/bash/file-operation evidence + S1a contention/cancel/export/scale qualification + closed bounded Q1 `qjs` evidence + one real Anthropic write/write/bash-qjs loop with exact relational Sandbox output                                                                  | Import, admitted artifacts, and broader execution profiles                                                                                                          |
 | Human review       | Accept/reject an exact proposed revision                  | Exact accepted snapshot/head + truthful divergence + winner-held stale rejection                                                                                                                                                                                                                                                                              | Rich diff and approval history                                                                                                                                      |
@@ -2192,7 +2201,8 @@ evidence corpus are recorded in
 current implementation merely because a plan names it. Provider OAuth/login,
 passphrase recovery or cross-device credential sync, an official arbitrary
 endpoint relay, arbitrary generated code, share/collaboration, background schedules, unrestricted
-guest/shell network or package installation, a public SillyMaker Mod/Program SDK, Pi Package
-marketplace/distribution, and a final Source editor remain explicitly deferred.
+guest/shell network or package installation, a broader SillyMaker Mod resolver/
+SDK/distribution/install surface, a public Program SDK, Pi Package marketplace/
+distribution, and a final Source editor remain explicitly deferred.
 Their future need does not justify placeholders or framework code in the
 Creator Preview.
