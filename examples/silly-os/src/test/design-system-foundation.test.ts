@@ -1,12 +1,35 @@
 // SPDX-License-Identifier: MIT
 
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { resolveSillyOsLocaleQueryOverrideV1 } from "../content/copy.ts";
 
 const productRootV1 = resolve(import.meta.dirname, "..");
+
+async function readUiTsxSourcesV1(directoryV1: string): Promise<
+  readonly {
+    readonly path: string;
+    readonly source: string;
+  }[]
+> {
+  const entriesV1 = await readdir(directoryV1, { withFileTypes: true });
+  const sourcesV1: { path: string; source: string }[] = [];
+  for (
+    const entryV1 of entriesV1.toSorted((leftV1, rightV1) =>
+      leftV1.name.localeCompare(rightV1.name)
+    )
+  ) {
+    const pathV1 = resolve(directoryV1, entryV1.name);
+    if (entryV1.isDirectory()) {
+      sourcesV1.push(...await readUiTsxSourcesV1(pathV1));
+    } else if (entryV1.isFile() && entryV1.name.endsWith(".tsx")) {
+      sourcesV1.push({ path: pathV1, source: await readFile(pathV1, "utf8") });
+    }
+  }
+  return sourcesV1;
+}
 
 describe("SillyOS design-system foundation", () => {
   it("binds the product theme to the Host application boundary", async () => {
@@ -345,16 +368,22 @@ describe("SillyOS design-system foundation", () => {
   });
 
   it("routes visible checkbox and password consumers through shared controls", async () => {
-    const [creator, chat, providers, checkbox, componentCss, productCss] = await Promise.all([
-      readFile(resolve(productRootV1, "ui/creator-home.tsx"), "utf8"),
-      readFile(resolve(productRootV1, "ui/chat-pane.tsx"), "utf8"),
-      readFile(resolve(productRootV1, "ui/provider-settings.tsx"), "utf8"),
-      readFile(resolve(productRootV1, "ui/design-system/checkbox.tsx"), "utf8"),
-      readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
-      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
-    ]);
+    const checkboxPathV1 = resolve(productRootV1, "ui/design-system/checkbox.tsx");
+    const [creator, chat, providers, checkbox, componentCss, productCss, uiSourcesV1] =
+      await Promise.all([
+        readFile(resolve(productRootV1, "ui/creator-home.tsx"), "utf8"),
+        readFile(resolve(productRootV1, "ui/chat-pane.tsx"), "utf8"),
+        readFile(resolve(productRootV1, "ui/provider-settings.tsx"), "utf8"),
+        readFile(checkboxPathV1, "utf8"),
+        readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
+        readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+        readUiTsxSourcesV1(resolve(productRootV1, "ui")),
+      ]);
 
-    expect(`${chat}\n${providers}`).not.toContain('type="checkbox"');
+    const rawCheckboxConsumersV1 = uiSourcesV1.filter((sourceV1) =>
+      sourceV1.path !== checkboxPathV1 && sourceV1.source.includes('type="checkbox"')
+    );
+    expect(rawCheckboxConsumersV1.map((sourceV1) => sourceV1.path)).toEqual([]);
     expect(chat).toContain("<CheckboxV1");
     expect(providers).toContain("<CheckboxV1");
     expect(checkbox).toContain('type="checkbox"');

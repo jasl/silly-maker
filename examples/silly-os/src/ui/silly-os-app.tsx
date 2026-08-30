@@ -86,6 +86,7 @@ import {
   projectCreatorReadinessV1,
   projectCreatorVaultStatusV1,
 } from "./creator-readiness.ts";
+import { ButtonV1 } from "./design-system/button.tsx";
 import { SillyOsOverlayHostV1 } from "./design-system/overlay-host.tsx";
 import { ProgramWorkspaceV1 } from "./program-workspace.tsx";
 import {
@@ -2695,13 +2696,15 @@ export function SillyOsAppV1({
                 : copy.persistenceFailure}
             </span>
             {durability.phase === "failed" && durability.recovery !== null && (
-              <button
+              <ButtonV1
                 type="button"
+                variant="ghost"
+                size="sm"
+                icon={RotateCcw}
                 onClick={() => void controller.retry()}
               >
-                <RotateCcw size={14} aria-hidden="true" />
                 {copy.retry}
-              </button>
+              </ButtonV1>
             )}
           </aside>
         )}
