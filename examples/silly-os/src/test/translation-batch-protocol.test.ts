@@ -5,10 +5,12 @@ import { describe, expect, it } from "vitest";
 import {
   admitTranslationBatchRequestV1,
   admitTranslationBatchCandidateV1,
-  createTranslationBatchUserPromptV1,
-  translationProgramSystemPromptV1,
   type TranslationBatchRequestV1,
 } from "../product/translation/translation-batch-protocol.ts";
+import {
+  createTranslationBatchUserPromptV1,
+  translationProgramSystemPromptV1,
+} from "../agent/builtin-program-packages/translation-current.ts";
 
 const requestV1: TranslationBatchRequestV1 = {
   sourceLocale: "zh-CN",

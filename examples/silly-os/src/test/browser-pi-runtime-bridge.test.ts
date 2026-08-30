@@ -8,9 +8,13 @@ import {
   type PiStreamFnV1,
 } from "../agent/browser-pi-runtime-bridge.js";
 import { creatorProgramHarnessReferenceV1 } from "../agent/browser-pi-agent-dispatch.ts";
-import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "./pi-faux-runtime.js";
+import { creatorBuiltinProgramPackageV1 } from "../agent/builtin-program-packages/creator-current.ts";
 import {
   translationBatchToolNameV1,
+  translationBuiltinProgramPackageV1,
+} from "../agent/builtin-program-packages/translation-current.ts";
+import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "./pi-faux-runtime.js";
+import {
   translationProgramHarnessReferenceV1,
 } from "../product/translation/translation-batch-protocol.ts";
 
@@ -26,26 +30,29 @@ describe("SillyOS Browser Pi runtime bridge", () => {
       observedReasoning = options?.reasoning;
       return faux.provider.streamSimple(model, context, options);
     };
-    const agent = createPiAgentV1({
-      dispatch: {
+    const dispatch = {
+      revision: 1,
+      harnessReference: creatorProgramHarnessReferenceV1,
+      programId: "program.reasoning.1",
+      submit: {
         revision: 1,
-        harnessReference: creatorProgramHarnessReferenceV1,
+        proposalId: "proposal.reasoning.1",
         programId: "program.reasoning.1",
-        submit: {
-          revision: 1,
-          proposalId: "proposal.reasoning.1",
-          programId: "program.reasoning.1",
-          baseProgramRevision: 1,
-          text: "Verify the effective reasoning effort.",
-        },
+        baseProgramRevision: 1,
+        text: "Verify the effective reasoning effort.",
       },
+    } as const;
+    const agent = createPiAgentV1({
+      instructions: creatorBuiltinProgramPackageV1.instructions,
       workspaceTools: [],
+      completionTool: creatorBuiltinProgramPackageV1.createCompletionTool({
+        dispatch,
+        onCandidate: () => {},
+      }),
       onTextDelta: () => {},
-      onCandidate: () => {},
       reasoningEffort: "high",
       streamFn,
       model: faux.getModel(),
-      systemPrompt: "Test the fixed Pi Agent reasoning path.",
     });
 
     await expect(agent.prompt("Run once.")).resolves.toEqual({ stopReason: "stop" });
@@ -71,37 +78,41 @@ describe("SillyOS Browser Pi runtime bridge", () => {
     ]);
     const candidates: unknown[] = [];
     const textDeltas: string[] = [];
+    const dispatch = {
+      revision: 1,
+      harnessReference: translationProgramHarnessReferenceV1,
+      programId: "program.translation.1",
+      request: {
+        sourceLocale: "zh-CN",
+        targetLocale: "en",
+        documentPurpose: "Fictional dialogue.",
+        style: "Natural.",
+        glossary: [],
+        units: [{
+          unitId: "translation.unit.000001",
+          order: 0,
+          locator: "line/1",
+          context: null,
+          durationMilliseconds: null,
+          source: "你好。",
+          protectedSegments: [],
+        }],
+      },
+    } as const;
+    const onCandidate = (candidate: unknown) => {
+      candidates.push(candidate);
+    };
     const agent = createPiAgentV1({
-      dispatch: {
-        revision: 1,
-        harnessReference: translationProgramHarnessReferenceV1,
-        programId: "program.translation.1",
-        request: {
-          sourceLocale: "zh-CN",
-          targetLocale: "en",
-          documentPurpose: "Fictional dialogue.",
-          style: "Natural.",
-          glossary: [],
-          units: [{
-            unitId: "translation.unit.000001",
-            order: 0,
-            locator: "line/1",
-            context: null,
-            durationMilliseconds: null,
-            source: "你好。",
-            protectedSegments: [],
-          }],
-        },
-      },
+      instructions: translationBuiltinProgramPackageV1.instructions,
       workspaceTools: [],
+      completionTool: translationBuiltinProgramPackageV1.createCompletionTool({
+        dispatch,
+        onCandidate,
+      }),
       onTextDelta: (delta) => textDeltas.push(delta),
-      onCandidate: (candidate) => {
-        candidates.push(candidate);
-      },
       reasoningEffort: "off",
       streamFn: faux.provider.streamSimple,
       model: faux.getModel(),
-      systemPrompt: "Use the exact Translation completion tool.",
     });
 
     await expect(agent.prompt("Translate the admitted batch.")).resolves.toEqual({

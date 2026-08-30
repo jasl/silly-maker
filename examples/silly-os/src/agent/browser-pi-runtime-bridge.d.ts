@@ -5,8 +5,8 @@ import type { AgentTool } from "./pi-workspace-runtime-bridge.js";
 import type { BrowserPiAgentDispatchV1 } from "./browser-pi-agent-dispatch.ts";
 import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
 import type { BrowserPiReasoningEffortV1 } from "./browser-pi-worker-protocol.ts";
+import type { BrowserBuiltinProgramPackageV1 } from "./browser-builtin-program-package.ts";
 
-export const creatorProgramRevisionToolNameV1: "sillyos_propose_program_revision";
 export const deterministicCancellationHoldPrefixV1: "Hold this deterministic run until cancelled:";
 export const deterministicPersistenceReadPrefixV1:
   "Verify the persisted workspace contains exactly: ";
@@ -34,6 +34,7 @@ export interface PiAgentPortV1 {
 
 export interface PiAgentRunInputV1 {
   readonly dispatch: BrowserPiAgentDispatchV1;
+  readonly programPackage: BrowserBuiltinProgramPackageV1;
   readonly workspaceTools: readonly AgentTool[];
   readonly onTextDelta: (delta: string) => void;
   readonly onCandidate: (candidate: unknown) => void | Promise<void>;
@@ -57,11 +58,15 @@ export type PiStreamFnV1 = (
   options?: PiSimpleStreamOptionsV1,
 ) => unknown;
 
-export interface PiAgentRuntimeInputV1 extends PiAgentRunInputV1 {
+export interface PiAgentRuntimeInputV1 {
+  readonly instructions: string;
+  readonly workspaceTools: readonly AgentTool[];
+  readonly completionTool: AgentTool;
+  readonly onTextDelta: (delta: string) => void;
+  readonly reasoningEffort: BrowserPiReasoningEffortV1;
   readonly streamFn: PiStreamFnV1;
   readonly getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
   readonly model: unknown;
-  readonly systemPrompt: string;
 }
 
 export type DeterministicPiAgentPortV1 = PiAgentPortV1;

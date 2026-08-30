@@ -109,17 +109,21 @@ import {
   resolveBrowserPiReasoningEffortV1,
 } from "../agent/browser-pi-provider-runtime-bridge.js";
 import { creatorProgramHarnessReferenceV1 } from "../agent/browser-pi-agent-dispatch.ts";
-import type { BrowserPiProviderCatalogWireV1 } from "../agent/browser-pi-worker-protocol.ts";
+import { creatorBuiltinProgramPackageV1 } from "../agent/builtin-program-packages/creator-current.ts";
 import {
   translationBatchToolNameV1,
+  translationBuiltinProgramPackageV1,
+} from "../agent/builtin-program-packages/translation-current.ts";
+import type { BrowserPiProviderCatalogWireV1 } from "../agent/browser-pi-worker-protocol.ts";
+import {
   translationProgramHarnessReferenceV1,
 } from "../product/translation/translation-batch-protocol.ts";
 
 interface CapturedAgentInputV1 {
-  readonly dispatch: { readonly harnessReference: string };
+  readonly instructions: string;
+  readonly completionTool: { readonly name: string };
   readonly model: unknown;
   readonly reasoningEffort: string;
-  readonly systemPrompt: string;
   readonly streamFn: (
     model: unknown,
     context: { readonly messages: readonly unknown[] },
@@ -188,17 +192,24 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
   });
 
   it("keeps Creator's short deadline and uses the measured Translation route envelope", () => {
-    expect(browserPiAgentProviderTimeoutMillisecondsV1(creatorDispatchV1({
-      proposalId: "proposal.timeout.1",
-      programId: "program.timeout.1",
-      baseProgramRevision: 1,
-      text: "Test the Creator timeout.",
-    }))).toBe(30_000);
-    expect(browserPiAgentProviderTimeoutMillisecondsV1(translationDispatchV1())).toBe(180_000);
+    expect(browserPiAgentProviderTimeoutMillisecondsV1(
+      creatorBuiltinProgramPackageV1,
+      creatorDispatchV1({
+        proposalId: "proposal.timeout.1",
+        programId: "program.timeout.1",
+        baseProgramRevision: 1,
+        text: "Test the Creator timeout.",
+      }),
+    )).toBe(30_000);
+    expect(browserPiAgentProviderTimeoutMillisecondsV1(
+      translationBuiltinProgramPackageV1,
+      translationDispatchV1(),
+    )).toBe(180_000);
   });
 
   it("keeps Creator compact and sizes Translation output from the admitted unit count", () => {
     expect(browserPiAgentMaximumOutputTokensV1(
+      creatorBuiltinProgramPackageV1,
       creatorDispatchV1({
         proposalId: "proposal.envelope.1",
         programId: "program.envelope.1",
@@ -207,7 +218,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
       }),
       32_768,
     )).toBe(2_048);
-    expect(browserPiAgentMaximumOutputTokensV1({
+    expect(browserPiAgentMaximumOutputTokensV1(translationBuiltinProgramPackageV1, {
       revision: 1,
       harnessReference: translationProgramHarnessReferenceV1,
       programId: "program.translation.1",
@@ -228,7 +239,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
         })),
       },
     }, 32_768)).toBe(8_704);
-    expect(browserPiAgentMaximumOutputTokensV1({
+    expect(browserPiAgentMaximumOutputTokensV1(translationBuiltinProgramPackageV1, {
       revision: 1,
       harnessReference: translationProgramHarnessReferenceV1,
       programId: "program.translation.1",
@@ -306,6 +317,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
   it("passes the neutral choice through the actual Pi streamSimple call", () => {
     createBrowserPiProviderAgentV1({
       apiKey: "test-only-key",
+      programPackage: creatorBuiltinProgramPackageV1,
       fetch,
       selection: {
         kind: "builtin",
@@ -351,6 +363,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
   it("selects the Translation prompt/tool without inheriting Creator completion behavior", () => {
     createBrowserPiProviderAgentV1({
       apiKey: "translation-test-key",
+      programPackage: translationBuiltinProgramPackageV1,
       fetch,
       selection: {
         kind: "builtin",
@@ -386,8 +399,8 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
     });
     const input = harnessV1.createdInputs.at(-1) as CapturedAgentInputV1 | undefined;
     if (input === undefined) throw new Error("Pi Agent input was not captured");
-    expect(input.dispatch.harnessReference).toBe(translationProgramHarnessReferenceV1);
-    expect(input.systemPrompt).toContain(translationBatchToolNameV1);
+    expect(input.instructions).toContain(translationBatchToolNameV1);
+    expect(input.completionTool.name).toBe(translationBatchToolNameV1);
     expect(input.model).toMatchObject({ maxTokens: 4_096 });
 
     input.streamFn(harnessV1.model, { messages: [] }, {});
@@ -474,6 +487,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
 
     createBrowserPiProviderAgentV1({
       apiKey: "same-route-agent-key",
+      programPackage: creatorBuiltinProgramPackageV1,
       fetch,
       selection: sameRouteSelection,
       dispatch: creatorDispatchV1({
@@ -511,6 +525,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
     expect(() =>
       createBrowserPiProviderAgentV1({
         apiKey: "unavailable-agent-key",
+        programPackage: creatorBuiltinProgramPackageV1,
         fetch,
         selection: unavailableSelection,
         dispatch: creatorDispatchV1({
@@ -579,6 +594,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
 
       createBrowserPiProviderAgentV1({
         apiKey: "custom-agent-key",
+        programPackage: creatorBuiltinProgramPackageV1,
         fetch,
         selection,
         dispatch: creatorDispatchV1({

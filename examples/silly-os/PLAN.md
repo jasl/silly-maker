@@ -159,22 +159,51 @@ contracts rather than gaining a privileged install path. Every Program remains
 one cohesive product unit:
 
 ```text
-Program = project + harness + agent + app
+Program = cohesive package + domain workflow + Agent profile + application UI
 ```
 
 For Agent execution, the useful package can be stated more concretely:
 
 ```text
-Program Agent package = versioned prompt + selected skills/resources
-                      + allowed tools/scripts + harness policy
+SillyOS runtime = fixed harness + VFS/Process authorities + closed UI/tool adapters
+Program package = PROGRAM.md + references + scripts + assets + workflow/profile data
+Process = pinned Program revision + user input + Conversation + mutable work/output
 ```
 
-This second equation is an execution projection, not a replacement for the
-complete Program. SillyOS workflow controllers own stage transitions, context
-planning, checkpoints, and recovery. The Pi execution package binds the prompt,
-skills/resources, and model-visible tool availability for one attempt. The
-Agent/model performs semantic judgment under those instructions and the admitted
-Profile; the human owns final Profile, ambiguity, review, and acceptance
+This is an ownership split, not a required on-disk format for every internal
+record. The harness is shipped with SillyOS and owns the Pi Agent bridge, fixed
+tool implementations, Provider transport, Workspace/VFS adapter, and available
+interpreters. A Program cannot install a Python runtime, replace the tool
+dispatcher, or add ambient Browser authority. It can require or select a subset
+of already shipped capabilities, supply instructions and resources, and carry
+scripts that execute only through those fixed interpreters.
+
+The Program package follows the useful shape of a complex Skill without copying
+Codex's package format as a new plugin system:
+
+```text
+program-name/
+|-- PROGRAM.md       required purpose, routing, workflow and constraints
+|-- references/      optional domain material loaded only for a relevant stage
+|-- scripts/         optional deterministic helpers for a shipped interpreter
+`-- assets/          optional templates/media used in inputs or generated output
+```
+
+Metadata needed for admission is normalized into a typed Program definition at
+install/revision time. The entry instructions remain concise; substantial modes
+and examples live in references; assets do not enter model context by default;
+and repeated mechanical work belongs in tested scripts. Empty placeholder
+directories, a second README, dynamic dependencies, and an internal package
+manager are not part of the denominator.
+
+SillyOS workflow controllers own stage transitions, context planning,
+checkpoints, and recovery. For one attempt, the execution projection combines
+the pinned Program revision with the current compatible harness implementation
+to bind instructions/resources and model-visible tool availability. A Program
+revision remains durable product content; a refreshed SillyOS release may
+improve the fixed harness behind the same compatibility contract.
+The Agent/model performs semantic judgment under those instructions and the
+admitted Profile; the human owns final Profile, ambiguity, review, and acceptance
 decisions. Product admission, repositories, and Workspace authority own
 validation, CAS, publication, and leases. "Harness policy" here describes that
 composition; it is not Pi's currently unimplemented `AgentHarness` convenience
@@ -192,6 +221,31 @@ Workspace boundary and produces reviewable artifacts/receipts. It does not gain
 direct Program-database authority. This division is a quality and token-ROI
 requirement, not merely an optimization.
 
+Those executable pieces may use three deliberately different forms. Stable
+product mechanics are ordinary typed TypeScript operations and remain the
+preferred form. A Program-owned script is versioned content inside the admitted
+Program revision and executes only through a fixed harness-owned interpreter or
+tool boundary. The two current built-in prototypes still come from the build
+graph and carry no such script; a later dynamic package may carry admitted
+script bytes without adding an interpreter, tool implementation, dispatcher, or
+ambient authority. An Agent-authored script is an ordinary mutable Process
+Workspace artifact and may run only through an explicitly selected Workspace
+execution profile. Each form produces candidates, artifacts, or receipts that
+the product authority must admit before publication. The current Translation
+path has not yet added a Program-owned script or Agent-authored-script profile.
+
+CodeAct remains a later, explicit workflow escalation rather than the default
+action space or an in-place capability upgrade. Browser already has bounded
+Pi `bash` plus lazy `qjs` Workspace primitives suitable for testing a first
+CodeAct slice on admitted Creator paths: guest
+JavaScript runs synchronously in a fresh bounded Worker over explicitly staged
+files, with no DOM, ambient network, Provider credentials, or product repository
+access. Translation currently selects no Workspace tools. A later real workflow
+may end a semantic attempt and start a fenced successor with a CodeAct profile,
+but this slice adds no structured CodeAct request, stage transition, fixed-script
+asset, or CodeAct package profile. Existing time, memory, file, and diff budgets
+remain real limits; long-running or asynchronous jobs require separate evidence.
+
 Browser and Deno Desktop are the product targets. Browser is the current
 implementation priority so the deployed example can become a usable local-first
 product; Desktop remains a first-class target behind the same product contracts.
@@ -200,15 +254,16 @@ responsive, keyboard, IME, focus, and anti-clipping contracts in
 [DESIGN.md](./DESIGN.md) remain the visual/product baseline while this lane adds
 real behavior.
 
-The `agent` term above means the explicitly selected Pi profile, extensions,
-skills, prompts, models, and tools that make that Program useful. A live Pi
-session and Creator Chat belong to the Creator supervisor that opens and edits a
-Program; they are not Program content. A Program has a mutable Workspace and
-names immutable reviewed Workspace snapshots, but is not identical to either
-one live Workspace instance or one conversation. SillyOS does not implement a
-second Agent loop, provider layer, tool dispatcher, session format, or extension
-system. SillyMaker remains responsible for GUI and interaction contracts; it
-does not absorb Pi, model, Program-database, or tool runtime responsibilities.
+The `Agent profile` term above means the Program-owned instructions and selected
+subset of compatible Pi/harness capabilities that make that Program useful. A
+live Pi session and Conversation belong to a Process; they are not Program
+content. A Program revision owns its package and may be created in a separate
+authoring Workspace. A Process owns the execution Workspace, user input,
+Conversation, intermediate artifacts, output, and immutable reviewed Workspace
+snapshots. SillyOS does not implement a second Agent loop, provider layer, tool
+dispatcher, session format, or extension system. SillyMaker remains responsible
+for GUI and interaction contracts; it does not absorb Pi, model,
+Program-database, or tool runtime responsibilities.
 
 Conversation history is likewise not the default model context. Each Program
 workflow must build a small, inspectable context projection from the pinned
@@ -235,14 +290,35 @@ OpenUI component and action names onto SillyMaker UI components and interaction
 contracts. OpenUI is an interchange description, not a second renderer,
 application authority, or path to arbitrary component execution.
 
+The planned Translation Review slice supplies the first concrete interaction
+pressure. Its authoritative editor should be an ordinary product React workpiece
+over typed candidate, finding, target-revision, and human-decision records.
+OpenUI may later describe a complete read-only review summary and navigation
+actions using the existing closed vocabulary. Generated UI must never own
+editable target text, finding disposition, confirmation, or export eligibility;
+a generated action can only request a typed product intent which rechecks the
+current Translation receipt before mutation.
+
 The workspace requirement is likewise behavioral rather than technological.
-Each opened Program needs a familiar coding-tool environment plus one
+Each active Process needs a familiar coding-tool environment plus one
 product-owned volume
 that coherently contains inputs, outputs, the working tree, temporary files,
-file-resident data, `AGENTS.md`, and skills. WebAssembly is a promising portable
-execution mechanism, especially in Browser, but it is not the product contract:
-the selected target adapters may combine TypeScript, Workers, Wasm payloads, or
-a native companion behind the same typed workspace boundary.
+and file-resident data. The pinned Program package, including its instructions,
+references, and scripts, is projected read-only rather than mixed into that
+mutable tree. WebAssembly is a promising portable execution mechanism,
+especially in Browser, but it is not the product contract: the selected target
+adapters may combine TypeScript, Workers, Wasm payloads, or a native companion
+behind the same typed workspace boundary.
+
+For a Process, the VFS should expose the pinned Program package as a read-only
+tree, preserve user-supplied originals as admitted input, and keep mutable
+intermediate and final artifacts in separate work/output areas. A packaged
+script runs from the Program tree in a fixed interpreter; an Agent-authored
+one-off script lives in the Process work area and does not become Program content
+unless a human explicitly reviews it into a new Program revision. The exact
+mount names and copy/deduplication strategy remain implementation details, but
+Program, input, work, and output ownership must never be inferred from one
+undifferentiated mutable directory.
 
 At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
 S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2/N3, the original S3, S3-R1,
@@ -4162,6 +4238,18 @@ Agent Forget still clears the credential, Pi session, transient mapping, and
 receipt queue, but no longer deletes the Program's durable volume or
 continuation manifest. Program deletion is not introduced by this slice.
 
+Any later Program removal must first be a soft catalog archive/tombstone, not a
+physical delete of its durable graph. It may disappear from the ordinary Program
+list, but an existing Process must still open through its Program-definition
+reference and Process-owned Workspace binding, with its pageable Conversation
+and volume intact. The current product has no Program delete/hide/archive API;
+its only destructive operation is the explicit global reset. Before a removal
+feature is added, Process opening must stop depending on a live subject Catalog
+head, and a cold-reopen test must cover archive plus exact definition,
+Conversation, and Workspace recovery. Physical garbage collection is a separate,
+explicit, reference-aware operation and may never infer reachability only from
+Catalog visibility.
+
 P3a-B0's fixed `2 MiB` volume and `256 KiB` file ceilings are guardrails for its
 disposable in-memory control only. They are not inherited as OPFS capacity.
 Checkpoint 2 delivers the automated Chromium and persistent-WebKit gate as
@@ -4673,13 +4761,16 @@ selection remains P3b work; it is not retroactively folded into persistence.
 **Activation status (2026-08-31):** P4 is active only as the smallest shared
 slice reproduced by the P5 translation study. The research contract, clean-room
 reference boundary, dual-model matrix, and staged gates live in
-[TRANSLATION-PROGRAM-RESEARCH.md](./TRANSLATION-PROGRAM-RESEARCH.md). This
-activation does not claim that either named model route, Pi capability
-composition, or an OpenUI mapping has passed.
+[TRANSLATION-PROGRAM-RESEARCH.md](./TRANSLATION-PROGRAM-RESEARCH.md). P5-A has
+recorded model-protocol evidence through both named routes, but this activation
+does not product-qualify either route or claim a complete Pi capability
+composition, CodeAct workflow, fixed-script package, or OpenUI mapping.
 
 Generalize only after Pi, storage, and the P3 tool are real consumers. A reviewed
-Program revision selects a closed, version-pinned set of Pi capabilities,
-skills, prompts, models, and enabled tool names. Browser composes public
+Program revision durably identifies its Program-owned instructions, resources,
+and configuration so a later Program edit does not rewrite an existing Process.
+Separately, its harness reference selects a compatible SillyOS execution
+contract whose implementation may improve when the application updates. Browser composes public
 `AgentTool` values and admitted resources directly; Desktop maps the same
 capability cores through its proven extension/resource route and Pi tool
 allowlists. Availability is reported truthfully per target. Pi remains the only
@@ -4687,8 +4778,8 @@ Agent capability registry and lifecycle owner; SillyOS does not build a
 parallel plugin loader, dependency solver, tool dispatcher, or session runtime.
 
 When a real Program needs generated UI, a named Pi extension tool may return one
-complete OpenUI document. A product-private adapter first admits the whole
-document and translates only its supported component/prop/action subset into an
+complete OpenUI document. A product-private adapter would first admit the whole
+document and translate only its supported component/prop/action subset into an
 ordinary candidate for the workspace-private `@sillymaker/agent/internal`
 UiArtifact path. That existing path then performs its own closed admission,
 revision/currentness handling, rendering, and UiIntent admission. The renderer
@@ -4696,7 +4787,7 @@ never parses OpenUI and OpenUI types never become the engine artifact contract.
 
 The current private UiArtifact vocabulary is exactly
 `column`/`text`/`action`; it is the initial closed denominator, not a complete
-OpenUI component system. A product authority rechecks the admitted UiIntent,
+OpenUI component system. A product authority would recheck the admitted UiIntent,
 exact artifact receipt, Program revision, and relevant workspace generation
 before mutation. Partial OpenUI is inert. No generated action directly calls a
 tool, mutates the database, opens an arbitrary component, or becomes executable
@@ -4711,19 +4802,29 @@ remain separate product/distribution decisions. This lane does not introduce or
 expand the existing focused public SillyMaker Mod API, and it introduces no
 public Agent, Program, or plugin ABI.
 
-One prerequisite remains open before P5-B can claim that version pinning. The
-current durable `ProgramDefinitionRevisionV1` stores an opaque
-`harnessReference` plus capability IDs, while Browser code selects the prompt
-and completion behavior from the currently shipped implementation of that
-reference. A later code release could therefore change an old Process's prompt
-without changing its pinned Program revision. The first Translation product
-slice must make each harness reference identify one immutable, build-known
-execution package whose contents and behavior cannot change under that identity,
-retain any package still referenced by a supported Process, and fail before
-Agent startup when that package is unavailable. Its internal resources need not
-form a separately versioned dependency graph. This is a small private lookup
-over shipped packages, not a plugin loader, dependency solver, workflow language,
-or third Agent runtime.
+The first composition cleanup is now delivered only for the two current
+build-known built-in Programs. Creator and Translation each have one private
+Program-package module that co-locates the current instructions, user-prompt
+projection, completion contract and candidate admission, selected subset of
+fixed Workspace tools, text-delta policy, Provider timeout, and output envelope.
+Translation remains on its existing compatibility reference while its current
+system-prompt revision is 5. The Worker resolves the selected built-in package
+before starting an Agent run and does not fall back from an unknown reference.
+
+This is bootstrap cleanup, not the final dynamic Program package contract. The
+current persisted `harnessReference` still doubles as the selector for these two
+built-ins; their instructions and policy remain ordinary application code and
+may improve when SillyOS updates. A later real Program package must instead
+separate its durable, Process-pinned package revision/resources from the fixed
+SillyOS harness contract. Refreshing may improve that compatible harness, but
+must not silently replace the pinned dynamic Program content. Capability IDs
+remain descriptive Program data rather than a second tool grant authority.
+
+The explicit dynamic imports defer package-module initialization until first
+selection. The current Vite Worker IIFE still includes both package modules in
+one Worker asset, so this slice does not claim separate network chunks. It also
+adds no plugin loader, dependency solver, workflow language, fixed-script
+registry, CodeAct activation, or third Agent runtime.
 
 Complete Browser/Desktop Extension API parity is explicitly deferred. Browser
 does not emulate Pi's Node/TUI/CLI/exec extension surface. If a later Program
@@ -4737,10 +4838,13 @@ request backed by the real consumer, not permission to create a second runtime.
 P5-A is complete with the deterministic original four-format corpus,
 round-trip laboratory, secret-safe research runner, and recorded prompt-v4/v5
 model-protocol evidence through both named routes, including a confirmed-plan
-ablation. P5-B through P5-D remain incomplete: neither route nor an ordinary
-Translation product journey is qualified. Process-owned Workspace, Host import,
-and Browser Translation dispatch exist only as explicitly unconsumed next-slice
-substrate. See
+ablation. The build-known Creator / Translation Program-package colocation
+cleanup is also complete; Translation's compatibility reference remains `@1`
+and its current prompt revision is 5.
+P5-B through P5-D remain incomplete:
+neither route nor an ordinary Translation product journey is qualified.
+Process-owned Workspace, Host import, and Browser Translation dispatch exist
+only as explicitly unconsumed next-slice substrate. See
 [TRANSLATION-PROGRAM-RESEARCH.md](./TRANSLATION-PROGRAM-RESEARCH.md).
 
 Make translation the first complete product consumer. Its denominator is one

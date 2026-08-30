@@ -183,22 +183,49 @@ language quality; it must not be required to repair missing product invariants.
 
 ## Program package and context discipline
 
-The Translation Program is not just its system prompt. Its Agent-facing package
-combines a versioned prompt, selected domain skills/resources, deterministic
-tools or Workspace scripts, and the harness policy that sequences those pieces.
-The surrounding translation records, review UI, and exported artifacts complete
-the Program as a reusable product. A Process must pin the accepted Program
-revision so later Program upgrades do not rewrite the prompt, skills, tools, or
-workflow of an already-running Process.
+The Translation Program is not just its system prompt. Like a complex Skill, its
+package combines concise entry instructions, selectively loaded references,
+deterministic scripts/assets, and structured workflow/profile data. The fixed
+SillyOS harness supplies Pi, Provider transport, VFS tools, interpreters, and UI
+adapters; a Program selects from those capabilities but cannot install another
+runtime or tool implementation.
+The Program owns the reusable workflow, domain schema/operations, and
+Program-owned UI definitions. A Process owns the actual translation records,
+Conversation, user input, mutable work, review decisions, and exported
+artifacts. It must pin the accepted Program revision so later Program edits do
+not rewrite that package beneath the Process. This Program-content rule is
+distinct from a SillyOS software update: after refresh, a Process may use bug
+fixes and compatible capability improvements in the current harness
+implementation.
 
-The current foundation does not yet close that last invariant:
-`ProgramDefinitionRevisionV1` persists only the harness reference and capability
-IDs, and Browser runtime code resolves that reference to the currently shipped
-prompt. P5-B must first make each harness reference identify one immutable,
-build-known execution package whose contents and behavior cannot change under
-that identity. No ordinary Translation Process exists yet, so this is a
-pre-product correction rather than a compatibility claim or permission to build
-a resource dependency graph or general package manager.
+The first implementation slice only co-locates the two current build-known
+built-in Program packages. Creator and Translation each own their current
+instructions, prompt projection, completion contract, candidate admission,
+selected fixed-tool subset, text-delta policy, Provider timeout, and output
+envelope. Translation keeps `sillyos.harness.translation@1` while its current
+system-prompt revision is 5. The Worker resolves the selected built-in package
+before beginning an Agent run and does not fall back from an unknown reference.
+
+This remains bootstrap structure rather than the final dynamic Program package
+format: today's persisted `harnessReference` still doubles as the built-in
+package selector, and these built-in instructions remain ordinary application
+code that may improve with SillyOS. P5-B must separate a durable Program package
+revision and its resources from the fixed SillyOS harness contract. The Process
+pins that dynamic package content; refreshed SillyOS code may improve the
+compatible static harness without silently replacing it.
+
+The current lookup is only over shipped modules. Its dynamic imports defer
+module initialization, while the Vite Worker IIFE still includes the package
+bytes in one Worker asset. It is not a package manager, resource dependency
+graph, workflow language, separate network-chunk claim, or general Program SDK.
+Capability IDs remain descriptive Program data and do not grant runtime tools.
+
+A Process VFS should eventually present the pinned Program tree read-only, keep
+admitted user originals in an input area, and separate mutable intermediate work
+from final output. Packaged scripts run from that Program tree through an
+interpreter shipped by SillyOS. Agent-authored one-off scripts live only in the
+Process work area until a human explicitly promotes them into a new Program
+revision. Exact mount names and storage deduplication are not product contracts.
 
 The implementation should prefer tools for mechanical work. Format probing,
 parse/extract, stable unit construction, source matching, batch selection,
@@ -243,6 +270,66 @@ exact authoritative records rather than become another checkpoint schema.
 Pi session compaction cannot become the sole copy of terminology, review state,
 or progress, and SillyOS must be able to start a fresh model attempt from the
 pinned Program plus durable Process state.
+
+## Tool packages, CodeAct, and structured Review
+
+Translation may later use three execution forms without treating them as
+interchangeable. Format adapters, stable unit construction, profile matching,
+batching, structural QA, and export are ordinary typed product operations. A
+Program-owned script is admitted, versioned content in the pinned Program
+package and runs only through a fixed harness-owned interpreter/tool boundary.
+The current built-in prototype comes from the build graph and carries no script;
+a later dynamic Program package may carry script bytes without extending the
+harness. A script written by the Agent is a mutable Process Workspace file and
+may execute only after the workflow explicitly enters a CodeAct stage. Neither
+script form is delivered for Translation yet.
+
+The Browser already has bounded primitives suitable for testing a first CodeAct
+slice: Pi remains the only tool dispatcher, its `bash` tool reaches the fixed
+just-bash environment, and `qjs` lazily runs synchronous JavaScript in a fresh
+bounded Worker over only the explicitly staged Workspace files. Guest code
+receives no DOM, ambient network, Provider credential, or product-repository
+authority. A real Translation workflow still has to validate that composition.
+It is intended for short data transforms and checks, not a general development
+container or an asynchronous workflow runtime.
+
+The model must not expand its own live tool set. Translation currently selects
+only its completion tool and has no Workspace tool profile. If a later real
+workflow cannot express a mechanical step with shipped operations, it may admit
+a structured CodeAct request containing the reason, exact input references, and
+expected artifact. The Host could then start a fenced successor attempt with an
+explicit CodeAct profile. That later attempt may author and run a Workspace
+script, but its output must remain a candidate subject to the same domain
+admission, currentness, and publication rules. Network remains a separate
+explicit Program capability. No structured request, stage transition, fenced
+successor, fixed-script asset, or Translation CodeAct profile exists yet.
+
+Review also cannot remain only an explanatory chat response. The planned Review
+product slice should use a Translation-owned React workpiece with:
+
+- a filterable queue of pending, modified, confirmed, and finding-bearing units;
+- immutable source, locator, nearby context, and protected-token evidence;
+- editable target text beside relationship, omission, and terminology findings;
+- explicit human dispositions such as corrected, not an issue, intentional
+  exception, or follow up; and
+- separate save-draft, confirm-current-target, and mark-follow-up operations.
+
+The proposed minimum durable model is one immutable candidate revision, admitted
+semantic finding proposals with exact source/target evidence, and one current
+unit-review record containing the editable target revision and human decisions.
+Agent output may propose candidates, findings, and replacement text; it cannot
+confirm a unit, decide export eligibility, or write Repository revisions.
+Product-private operations should use the current Process, candidate, target,
+profile, and Repository revisions for CAS. Program and source identities should
+be derived from those authoritative records rather than copied into every UI
+intent.
+
+OpenUI is not the first editor implementation. Its earliest useful slice is a
+complete read-only review summary with unit navigation, mapped through the
+existing `column`/`text`/`action` UiArtifact vocabulary. The ordinary React
+editor owns text entry and confirmation. If a later Program proves a need for
+writable generated UI, the generated artifact still only requests a typed
+product operation and never becomes Review state or mutation authority.
 
 ## Dual-model experiment matrix
 
@@ -346,11 +433,14 @@ without provider secrets. Do not add Pi workflow composition or generated UI.
 
 ### P5-B — bounded dual-model workflow
 
-Define the first version-pinned translation Program capability set and run the
-same intake, planning, bounded translation, interruption/resume, and QA journey
-against both named routes. Keep batch commits and currentness under existing
-Process/Workspace authorities. Revise prompts and product contracts only from
-classified evidence; retain failed cases in the research report.
+Use the delivered build-known Translation package cleanup as the starting point,
+then define the first durable Skill-like Program package revision, bounded
+workflow stages, context selectors, deterministic operations, VFS projection,
+and durable records. Run the same intake, planning, bounded translation,
+interruption/resume, and QA journey against both named routes. Keep batch commits
+and currentness under existing Process/Workspace authorities. Revise prompts and
+product contracts only from classified evidence; retain failed cases in the
+research report. The delivered package selector alone does not close P5-B.
 
 ### P5-C — complete product journey and minimal P4 extraction
 

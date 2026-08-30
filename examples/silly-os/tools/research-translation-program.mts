@@ -11,14 +11,16 @@ import {
 } from "../src/product/translation/translation-document-codec.ts";
 import {
   admitTranslationBatchCandidateV1,
-  translationBatchOutputTokenEnvelopeV1,
-  createTranslationBatchUserPromptV1,
-  translationBatchToolNameV1,
   translationProgramHarnessReferenceV1,
-  translationProgramPromptRevisionV1,
-  translationProgramSystemPromptV1,
   type TranslationBatchRequestV1,
 } from "../src/product/translation/translation-batch-protocol.ts";
+import {
+  createTranslationBatchUserPromptV1,
+  translationBatchOutputTokenEnvelopeV1,
+  translationBatchToolNameV1,
+  translationProgramPromptRevisionV1,
+  translationProgramSystemPromptV1,
+} from "../src/agent/builtin-program-packages/translation-current.ts";
 import {
   sanitizeResearchErrorV1,
   sanitizeResearchProviderMessageV1,
