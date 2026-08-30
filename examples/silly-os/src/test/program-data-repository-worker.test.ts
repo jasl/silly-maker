@@ -35,6 +35,10 @@ import {
 } from "../product/program-process-repository.ts";
 import type { PreviewProgramV1 } from "../product/contracts.ts";
 import type { ProgramWorkspaceSnapshotReceiptV1 } from "../workspace/contracts.ts";
+import {
+  createIndexedDbProgramDataRepositoryTestAdapterV1,
+  type IndexedDbProgramDataRepositoryTestAdapterV1,
+} from "./indexeddb-program-data-repository-test-adapter.ts";
 
 interface WorkerMessageEventV1 {
   readonly data: unknown;
@@ -94,7 +98,7 @@ function createTestProgramDataRepositoryV1(input: {
   readonly databaseName?: string;
   readonly beforeDispose?: () => Promise<void>;
 } = {}) {
-  const repository = createIndexedDbProgramDataRepositoryV1({
+  const repository = createIndexedDbProgramDataRepositoryTestAdapterV1({
     indexedDB: input.indexedDB ?? new IDBFactory(),
     keyRange: IDBKeyRange,
     databaseName: input.databaseName ?? "sillyos.program-data.worker-test",
@@ -382,7 +386,7 @@ function admitSuccessResponseV1(
 }
 
 async function seedProcessV1(
-  repository: ReturnType<typeof createIndexedDbProgramDataRepositoryV1>,
+  repository: IndexedDbProgramDataRepositoryTestAdapterV1,
   processId: string,
 ) {
   const definition = createBuiltinCreatorProgramDefinitionRevisionV1();
@@ -720,6 +724,22 @@ describe("Program data repository Worker boundary", () => {
       operation: "load_process",
     });
     expect(worker.terminated).toBe(true);
+  });
+
+  it("keeps malformed repository output admission at the page-side receiver", async () => {
+    const delegate = createTestProgramDataRepositoryV1();
+    const repository: ProgramDataRepositoryV1 = {
+      ...delegate,
+      loadProcess: async () => ({ impossible: true }) as never,
+    };
+    const loopback = createLoopbackWorkerV1({ repository });
+    const browser = createBrowserProgramDataRepositoryV1({ createWorker: () => loopback.worker });
+
+    await expect(browser.loadProcess("process.malformed-worker-output")).rejects.toMatchObject({
+      code: "wire_invalid",
+      operation: "load_process",
+    });
+    expect(loopback.worker.terminated).toBe(true);
   });
 
   it("terminates when a valid response entity belongs to another request", async () => {

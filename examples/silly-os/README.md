@@ -126,9 +126,20 @@ checkpoint：
 每个正在运行的 attempt 由 **Process-scoped renewable lease** 保护。每个新 attempt（首次执行或
 用户明确重试）都会获得严格递增的 fencing generation；heartbeat 只续租，不代表语义进度，也不是 Conversation 或
 Workspace checkpoint。任何旧 generation 即使在页面或 Worker 恢复后也不能再发布。
-闲置标签页不占有执行资源；它只按续租节奏检查持久 Process revision，发现变化后才刷新
-Conversation，并将其他标签页拥有的 active attempt 显示为只读。如果本页在 acquire 竞争中失败，
-则立即刷新。这只是 UI 投影失效通知，页面冻结或漏轮询也不会削弱 IndexedDB generation fence。
+闲置标签页不占有 Process lease，也不预先打开或占用 Program Workspace。Send、Retry 与 Export
+在用户触发时才取得一个 exact Workspace session；Send/Retry 随后才通过同一 Product Repository
+事务原子竞争 Process lease，竞争失败者释放刚取得的 exact Workspace session 并刷新投影。Export
+只临时使用 Workspace，不取得 Process lease。terminal 已持久提交且 Agent terminal acknowledgement
+完成后，页面才按 exact `workspaceSessionId` 释放该 session；瞬态释放失败保留为待重试清理，由同一
+被动刷新节奏继续尝试，且永远不能关闭后来打开的 successor session。
+
+被动标签页在这个节奏上既检查持久 Process revision，也在 revision 未变但仍有 active attempt 时
+检查它的 exact lease 是否已过期。revision 变化或过期恢复落盘后才重载 Conversation；其他标签页
+仍持有 lease 时，Composer 保持只读。如果本页在 acquire 竞争中失败，则立即刷新。这只是 UI
+投影失效与资源清理触发器，不是第二个正确性通道；页面冻结或漏轮询也不会削弱 IndexedDB
+generation fence。仍有一个不能伪装成可恢复的窄窗口：页面在取得 Workspace volume lock 后、原子
+取得 Process lease 前被冻结时，其他页面不能安全抢占该 Workspace，只能等待浏览器释放 volume
+lock；系统不会用 lease 过期去推断该 Workspace 已可写。
 
 冷启动以原子提交的 Process head 为语义真相：已提交的 terminal 已清空 active attempt
 并记录 `lastTerminalAttempt`；仍有 exact active attempt 和 expired lease 则表示 terminal 尚未提交。
@@ -137,15 +148,16 @@ Conversation，并将其他标签页拥有的 active attempt 显示为只读。�
 `outcome_unknown`，只查询它的同一个 exact operation receipt；不扫描整段 Conversation、
 不根据 UI 猜测，也不盲目重放写操作。
 
-已经提交的 interrupted terminal 是不可改写的历史。之后只有当前 Workspace review 与 Process
-保存的 checkpoint 仍精确一致时才展示和接受重试；Workspace 后续漂移或不可用时，重试返回
-unavailable，界面从当前投影中移除按钮，但不改写 `lastTerminalAttempt`、不推进 Process revision，
-也不增加第四种语义事务。
+已经提交的 interrupted terminal 是不可改写的历史。空闲页面没有预先打开 Workspace，因此在
+当前 head 尚未知时可以先展示 Retry；点击后才按需打开 exact Workspace session，并把权威
+Workspace review 与 Process 保存的 checkpoint 做精确比较。已知 head 不匹配时不展示 Retry；
+点击时发现后续漂移或 Workspace 不可用时，重试返回 unavailable，并从当前投影中移除按钮，但
+不改写 `lastTerminalAttempt`、不推进 Process revision，也不增加第四种语义事务。
 
 Process lease 与 Sandbox volume lock 是两个分离的权威。lease 已过期但 Workspace
 仍报告 `workspace_busy` 时，界面保持可读且处于 recovery-pending；不抢占 volume，
-也不把临时锁争用判定为 unrecoverable。只有能读取权威 Workspace checkpoint 后才会
-结算过期 attempt。
+也不把临时锁争用判定为 unrecoverable。后续每次被动轮询都会再次尝试；只有能读取权威
+Workspace checkpoint 后才会结算过期 attempt。
 
 这不是逐工具 event sourcing：P4-A 只允许在 lease-bound terminal batch 中持久化面向用户的工具
 调用/状态/结果；运行中的 rich parts、interrupted partial、每个 tool 的 mutation receipt 和 workflow

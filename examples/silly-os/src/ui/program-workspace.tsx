@@ -163,13 +163,15 @@ export function interruptedRetryAvailableV1(
   const process = activeProcess.process;
   const checkpoint = process.checkpoint;
   const terminal = process.lastTerminalAttempt;
-  const mutableHead = review?.mutableHead ?? null;
-  return process.status === "interrupted_retryable" && process.activeAttempt === null &&
+  const eligible = process.status === "interrupted_retryable" && process.activeAttempt === null &&
     terminal?.outcome === "interrupted" && terminal.interruptionDisposition === "retryable" &&
     checkpoint !== null && activeProcess.subject !== null &&
-    checkpoint.workspaceId === activeProcess.subject.head.workspaceId && mutableHead !== null &&
-    mutableHead.checkpointId === checkpoint.workspaceCheckpointId &&
-    mutableHead.generation === checkpoint.workspaceGeneration;
+    checkpoint.workspaceId === activeProcess.subject.head.workspaceId;
+  if (!eligible) return false;
+  const mutableHead = review?.mutableHead ?? null;
+  return mutableHead === null ||
+    (mutableHead.checkpointId === checkpoint.workspaceCheckpointId &&
+      mutableHead.generation === checkpoint.workspaceGeneration);
 }
 
 export function ProgramWorkspaceV1({
@@ -407,7 +409,7 @@ function ProgramWorkspaceReadyV1({
             copy={copy}
             transcript={activeProcess.transcript}
             onLoadOlderTranscript={onLoadOlderTranscript}
-            {...(!interruptedRetryAvailableV1(activeProcess, presentedWorkspaceReview) ||
+            {...(!interruptedRetryAvailableV1(activeProcess, activeProcess.workspaceReview) ||
                 onRetryInterruptedAgentRun === undefined
               ? {}
               : {

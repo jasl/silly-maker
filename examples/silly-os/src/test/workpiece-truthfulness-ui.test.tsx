@@ -125,4 +125,31 @@ describe("SillyOS truthful Workpiece presentation", () => {
       ),
     ).toBeVisible();
   });
+
+  it("keeps on-demand Workspace export available while the idle session is closed", () => {
+    render(
+      <WorkpiecePaneV1
+        copy={getSillyOsCopyV1("en")}
+        program={programV1}
+        proposal={proposalV1}
+        activeTab="view"
+        fullscreen={false}
+        agentMode="pi_provider"
+        executionWorkspace={{
+          phase: "closed",
+          descriptor: null,
+          lastReceipt: null,
+          diagnostic: null,
+        }}
+        workspaceExport={{ phase: "idle" }}
+        outputRef={createRef<HTMLElement>()}
+        onExportWorkspace={vi.fn()}
+        onTabChange={vi.fn()}
+        onToggleFullscreen={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Download workspace ZIP" })).toBeVisible();
+  });
 });

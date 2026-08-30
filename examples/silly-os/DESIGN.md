@@ -632,12 +632,15 @@ transaction.
 
 Independent tabs may work in different Programs simultaneously. They share the
 physical Product Repository and Sandbox storage authorities, while each tab owns
-its Controller, Pi Agent session, and at most one attached Workspace environment.
-Workspace leases are volume-specific, so one Program's active volume does not
-serialize unrelated Programs. Concurrent mutation of the same Program/volume is
-not presented as collaborative editing: Repository currentness and the volume
-lease continue to reject or serialize it. Product/Agent/Workspace state never
-moves into `localStorage` merely to coordinate tabs.
+its Controller and Pi Agent session. An idle tab preclaims neither a Process
+lease nor an attached Workspace environment. Send, Retry, and Export acquire one
+exact Workspace session only when invoked; Send and Retry then atomically compete
+for the Process lease, whereas Export never acquires that lease. Workspace leases
+are volume-specific, so one Program's active volume does not serialize unrelated
+Programs. Concurrent mutation of the same Program/volume is not presented as
+collaborative editing: Repository currentness and the volume lease continue to
+reject or serialize it. Product/Agent/Workspace state never moves into
+`localStorage` merely to coordinate tabs.
 
 ### Process execution lease and terminal reconciliation
 
@@ -652,13 +655,30 @@ terminal write must CAS the exact Process, attempt, and fencing generation. A
 resumed old page, Worker, timer, or Provider callback therefore cannot publish
 after a successor generation has taken over.
 
-An idle tab holds no Process execution lease. While it displays a Process, it
-checks the durable Process revision on the ordinary renewal cadence and reloads
-only after that revision changes; an attempt owned by another tab makes its
-composer read-only. A tab that loses an acquire race refreshes immediately.
-This is projection invalidation, not a second lock or correctness channel: a
-frozen tab may miss it, but its later write is still rejected by the exact
-lease/generation CAS.
+An idle tab holds no Process execution lease and no pre-opened Workspace. While
+it displays a Process, it checks the durable Process revision on the ordinary
+renewal cadence. Even when the revision is unchanged, an exact active lease is
+also inspected for expiry so a passive tab can reopen the Process and resume
+recovery. An attempt owned by another tab makes its composer read-only. A tab
+that loses an acquire race releases the exact Workspace session it acquired and
+refreshes immediately. This is projection invalidation and cleanup scheduling,
+not a second lock or correctness channel: a frozen tab may miss it, but its later
+write is still rejected by the exact lease/generation CAS.
+
+Send and Retry acquire an exact Workspace session first and then use the Product
+Repository's begin transaction to compete atomically for the Process lease.
+Export acquires and releases an exact Workspace session without entering the
+Process protocol. A terminal owner releases its Workspace only after the durable
+terminal and Agent terminal acknowledgement have both completed. Release is
+bound to the exact `workspaceSessionId`; a transient close failure remains queued
+for the passive cadence to retry and cannot close a later successor session.
+Returning Home is published only after that close succeeds; a failed transition
+keeps the active Process mounted so its passive cleanup retry remains alive.
+There is one deliberately honest liveness window: if a page freezes after it
+acquires the Workspace volume lock but before it acquires the Process lease, no
+other tab may safely steal that Workspace. The contender waits for the browser to
+release the volume lock rather than inferring writability from Process-lease
+state.
 
 The durable execution protocol has three semantic product transactions. Lease
 renewals are liveness CAS operations and do not add an intermediate checkpoint:
@@ -688,19 +708,22 @@ only the exact operation receipt named by that attempted mutation; it does not
 scan transcript history, reconstruct an outcome from earlier receipts, infer
 from UI state, or repeat the mutation.
 
-The committed interrupted terminal is not mutable availability state. An
-explicit retry is currently available only when the active Workspace review
-and stored Process checkpoint still match exactly. Later Workspace drift or an
-unavailable head makes retry unavailable in the UI/controller projection but
-does not rewrite `lastTerminalAttempt`, advance the Process revision, or create
-a fourth semantic Repository mutation.
+The committed interrupted terminal is not mutable availability state. Because
+an idle tab has no pre-opened Workspace, the UI may offer an explicit Retry while
+the current head is still unknown. Invocation acquires an exact Workspace session
+and checks its authoritative review against the stored Process checkpoint before
+beginning the attempt. A known mismatch hides Retry; a mismatch, drift, or
+unavailable head discovered at invocation makes retry unavailable in the
+UI/controller projection but does not rewrite `lastTerminalAttempt`, advance the
+Process revision, or create a fourth semantic Repository mutation.
 
 The Process execution lease and Sandbox volume lock are intentionally separate.
 An expired Process lease does not authorize stealing a still-held volume. When
 the authoritative Workspace reports `workspace_busy`, the Process stays
 readable and recovery-pending; temporary volume contention is not classified as
-unrecoverable. Checkpoint comparison and expired-attempt settlement resume only
-after the Workspace can be inspected.
+unrecoverable. Each later passive poll retries the inspection; checkpoint
+comparison and expired-attempt settlement resume only after the Workspace can be
+inspected.
 
 This is intentionally not per-tool event sourcing. P4-A may persist admitted
 tool-call/status/result parts only in the lease-bound terminal batch; active-run

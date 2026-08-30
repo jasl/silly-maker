@@ -1536,7 +1536,9 @@ export function createBrowserCreatorAgentPortV1(
     } catch (error) {
       const mapped = mapWorkspaceFailureV1(error, "/workspace/open");
       if (!workspaceFailedV1()) {
-        workspacePhase = "failed";
+        workspacePhase = previousPhase === "closed" && mapped.code === "workspace_busy"
+          ? "closed"
+          : "failed";
         workspaceDiagnostic = mapped;
       }
       publish();

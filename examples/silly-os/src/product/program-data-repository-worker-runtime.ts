@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 
 import {
-  createProgramDataRepositoryFailureV1,
   isProgramDataRepositoryFailureV1,
   type ProgramDataRepositoryFailureCodeV1,
   type ProgramDataRepositoryOperationV1,
@@ -9,7 +8,6 @@ import {
 } from "./program-data-repository.ts";
 import {
   admitProgramDataRepositoryWorkerRequestEnvelopeV1,
-  admitProgramDataRepositoryWorkerResponseEnvelopeV1,
   operationForProgramDataRepositoryWorkerMethodV1,
   type ProgramDataRepositoryWorkerRequestV1,
   type ProgramDataRepositoryWorkerResponseEnvelopeV1,
@@ -239,7 +237,6 @@ export function createProgramDataRepositoryWorkerRuntimeV1(input: {
 
   const postV1 = (
     requestId: string,
-    request: ProgramDataRepositoryWorkerRequestV1,
     record: ProgramDataRepositoryWorkerSuccessV1,
   ): void => {
     const response: ProgramDataRepositoryWorkerResponseEnvelopeV1 = {
@@ -248,16 +245,12 @@ export function createProgramDataRepositoryWorkerRuntimeV1(input: {
       requestId,
       record,
     };
-    const admitted = admitProgramDataRepositoryWorkerResponseEnvelopeV1(response, request);
-    if (admitted.kind === "rejected") {
-      throw createProgramDataRepositoryFailureV1(
-        "wire_invalid",
-        operationForProgramDataRepositoryWorkerMethodV1(request.method),
-      );
-    }
+    // The repository/storage boundary owns domain admission. This Worker is the
+    // response sender, while the page is the untrusted wire receiver and binds
+    // the response to the exact outbound request snapshot.
     // DedicatedWorkerGlobalScope.postMessage has no targetOrigin parameter.
     // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
-    input.postMessage(admitted.value);
+    input.postMessage(response);
   };
 
   const handleV1 = async (message: unknown): Promise<void> => {
@@ -269,7 +262,7 @@ export function createProgramDataRepositoryWorkerRuntimeV1(input: {
     try {
       const result = await executeRequestV1(input.repository, record, disposeRepositoryV1);
       repositorySettled = true;
-      postV1(requestId, record, result);
+      postV1(requestId, result);
       if (record.method === "dispose") accepting = false;
     } catch (error) {
       if (repositorySettled) throw error;
@@ -284,13 +277,9 @@ export function createProgramDataRepositoryWorkerRuntimeV1(input: {
           operation,
         },
       };
-      const response = admitProgramDataRepositoryWorkerResponseEnvelopeV1(failure, record);
-      if (response.kind === "rejected") {
-        throw createProgramDataRepositoryFailureV1("wire_invalid", operation);
-      }
       // Worker ports have no targetOrigin parameter.
       // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
-      input.postMessage(response.value);
+      input.postMessage(failure);
       if (record.method === "dispose") accepting = false;
     }
   };

@@ -3,7 +3,6 @@
 import { IDBFactory, IDBKeyRange, IDBObjectStore as FakeIDBObjectStore } from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
 import {
-  createIndexedDbProgramDataRepositoryV1,
   programDataDatabaseVersionV1,
   programDataStoreNamesV1,
 } from "../product/indexeddb-program-data-repository.ts";
@@ -28,11 +27,15 @@ import {
 } from "../product/program-process-repository.ts";
 import type { PreviewProgramV1 } from "../product/contracts.ts";
 import type { ProgramWorkspaceSnapshotReceiptV1 } from "../workspace/contracts.ts";
+import { createIndexedDbProgramDataRepositoryTestAdapterV1 } from "./indexeddb-program-data-repository-test-adapter.ts";
 
 const databaseNameV1 = "sillymaker.example-silly-os.programs";
 
 function repositoryV1(indexedDB: IDBFactory) {
-  return createIndexedDbProgramDataRepositoryV1({ indexedDB, keyRange: IDBKeyRange });
+  return createIndexedDbProgramDataRepositoryTestAdapterV1({
+    indexedDB,
+    keyRange: IDBKeyRange,
+  });
 }
 
 function openRawV1(
@@ -180,7 +183,7 @@ function appendV1(processId: string): ProcessTranscriptAppendInputV1 {
 }
 
 async function createProgramV1(
-  repository: ReturnType<typeof createIndexedDbProgramDataRepositoryV1>,
+  repository: ReturnType<typeof createIndexedDbProgramDataRepositoryTestAdapterV1>,
   programId: string,
 ) {
   return await repository.create({

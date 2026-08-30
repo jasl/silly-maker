@@ -4236,7 +4236,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(workspaceAuthority.disposeCalls).toBe(0);
   });
 
-  it("shows a retryable busy failure after a closed workspace and then reopens", async () => {
+  it("keeps a closed workspace retryable when another tab owns the volume", async () => {
     const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
     const port = createBrowserCreatorAgentPortV1({
       runtime: "deterministic_test",
@@ -4260,7 +4260,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       diagnostic: { code: "workspace_busy", path: "/workspace/open" },
     });
     expect(port.getSnapshot().workspace).toMatchObject({
-      phase: "failed",
+      phase: "closed",
       descriptor: null,
       diagnostic: { code: "workspace_busy", path: "/workspace/open" },
     });
@@ -4333,11 +4333,19 @@ describe("SillyOS Browser Pi transport and product port", () => {
         kind: "unavailable",
         diagnostic: { code: productCode, path: "/workspace/open" },
       });
-      expect(port.getSnapshot().workspace).toMatchObject({
-        phase: "failed",
-        descriptor: null,
-        diagnostic: { code: productCode, path: "/workspace/open" },
-      });
+      expect(port.getSnapshot().workspace).toMatchObject(
+        productCode === "workspace_busy"
+          ? {
+            phase: "closed",
+            descriptor: null,
+            diagnostic: { code: productCode, path: "/workspace/open" },
+          }
+          : {
+            phase: "failed",
+            descriptor: null,
+            diagnostic: { code: productCode, path: "/workspace/open" },
+          },
+      );
       await port.dispose();
     }
   });

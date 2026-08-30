@@ -115,6 +115,11 @@ export interface CreateIndexedDbProgramDataRepositoryOptionsV1 {
   readonly databaseName?: string;
 }
 
+type IndexedDbProgramDataRepositoryImplementationV1 =
+  & ProgramDataRepositoryV1
+  & ProgramCatalogRepositoryV1
+  & ProgramProcessRepositoryV1;
+
 type StoredDecisionV1 = ProgramCatalogDecisionV1;
 
 interface StoredCatalogCommitV1 {
@@ -775,7 +780,7 @@ function storedProcessOperationV1(
 
 export function createIndexedDbProgramDataRepositoryV1(
   options: CreateIndexedDbProgramDataRepositoryOptionsV1,
-): ProgramDataRepositoryV1 & ProgramCatalogRepositoryV1 & ProgramProcessRepositoryV1 {
+): ProgramDataRepositoryV1 {
   const databaseName = options.databaseName ?? programDataDatabaseNameV1;
   const keyRange = options.keyRange ?? globalThis.IDBKeyRange;
   let databasePromise: Promise<IDBDatabase> | undefined;
@@ -1757,7 +1762,7 @@ export function createIndexedDbProgramDataRepositoryV1(
     }
   };
 
-  return {
+  const repository: IndexedDbProgramDataRepositoryImplementationV1 = {
     async initialize() {
       await databaseV1("initialize");
     },
@@ -3242,4 +3247,5 @@ export function createIndexedDbProgramDataRepositoryV1(
       }
     },
   };
+  return repository;
 }

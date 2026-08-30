@@ -1205,10 +1205,14 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     },
 
     closeActiveWorkspace() {
+      const workspaceSessionId = activeWorkspace?.workspaceSessionId ?? null;
       return serializeV1(async () => {
-        if (activeWorkspace === null) return null;
+        if (
+          workspaceSessionId === null ||
+          activeWorkspace?.workspaceSessionId !== workspaceSessionId
+        ) return null;
         if (activeWorkspace.environmentAttached) throw authorityErrorV1("workspace_busy");
-        const closed = await host.closeWorkspace(activeWorkspace.workspaceSessionId);
+        const closed = await host.closeWorkspace(workspaceSessionId);
         activeWorkspace = null;
         return closed;
       });

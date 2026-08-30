@@ -106,6 +106,9 @@ export const sillyOsApplicationV1: WebGuiApplicationV1 = {
     const controller = createCreatorControllerV1({
       repository,
       workspace: workspaceAuthority,
+      onWorkspaceReleaseFailure: (error) => {
+        reportFailure("silly_os.browser_workspace_temporary_close_failed", error);
+      },
     });
     const agentDrainOwner = createSillyOsAgentDrainOwnerV1(reportFailure);
     let disposalPromise: Promise<void> | null = null;

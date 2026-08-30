@@ -229,6 +229,9 @@ export function createBrowserProgramDataRepositoryV1(
     if (admitted.kind === "rejected") {
       return Promise.reject(createProgramDataRepositoryFailureV1("wire_invalid", operation));
     }
+    // This outbound admission is also the immutable normalized snapshot used
+    // by the page-side response receiver for exact request/response binding.
+    // Worker receive and repository admission remain separate trust boundaries.
     return new Promise((resolve, reject) => {
       const call: PendingCallV1 = {
         request: admitted.value.record,

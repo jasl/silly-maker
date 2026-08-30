@@ -156,8 +156,7 @@ export function WorkpiecePaneV1({
     { value: "view", label: copy.previewTab },
     { value: "capabilities", label: copy.capabilitiesTab },
   ];
-  const showWorkspaceExport = executionWorkspace?.phase === "open" &&
-    workspaceExport !== undefined && onExportWorkspace !== undefined;
+  const showWorkspaceExport = workspaceExport !== undefined && onExportWorkspace !== undefined;
 
   return (
     <section

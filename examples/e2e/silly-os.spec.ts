@@ -76,15 +76,43 @@ interface P4aProcessLeaseRaceResultV1 {
   } | null;
 }
 
-interface P4aProcessTerminalResultV1 {
-  readonly kind: "committed" | "unchanged" | "conflict";
-  readonly processRevision: number | null;
-  readonly transcriptFrontier: number | null;
-  readonly terminalAttempt: {
-    readonly attemptId: string;
-    readonly generation: number;
-    readonly outcome: "failed";
-  } | null;
+interface P4aProcessExecutionLeaseProjectionV1 {
+  readonly processId: string;
+  readonly ownerInstanceId: string;
+  readonly attemptId: string;
+  readonly generation: number;
+  readonly expiresAt: number;
+}
+
+async function readP4aProcessExecutionLeaseV1(
+  page: Page,
+  processId: string,
+): Promise<P4aProcessExecutionLeaseProjectionV1 | null> {
+  return await page.evaluate(async ({ requestedProcessId, repositoryModuleUrl }) => {
+    interface RepositoryV1 {
+      initialize(): Promise<void>;
+      loadProcessExecutionLease(
+        processId: string,
+      ): Promise<P4aProcessExecutionLeaseProjectionV1 | null>;
+      dispose(): Promise<void>;
+    }
+    interface RepositoryModuleV1 {
+      createIndexedDbProgramDataRepositoryV1(options: {
+        readonly indexedDB: IDBFactory;
+      }): RepositoryV1;
+    }
+    const module = await import(repositoryModuleUrl) as RepositoryModuleV1;
+    const repository = module.createIndexedDbProgramDataRepositoryV1({ indexedDB });
+    try {
+      await repository.initialize();
+      return await repository.loadProcessExecutionLease(requestedProcessId);
+    } finally {
+      await repository.dispose();
+    }
+  }, {
+    requestedProcessId: processId,
+    repositoryModuleUrl: "/src/product/indexeddb-program-data-repository.ts",
+  });
 }
 
 async function readP4aProcessLeaseRaceBaseV1(
@@ -174,9 +202,15 @@ async function acquireP4aProcessLeaseV1(
   page: Page,
   base: P4aProcessLeaseRaceBaseV1,
   contender: P4aProcessLeaseContenderV1,
+  leaseDurationMilliseconds = 60_000,
 ): Promise<P4aProcessLeaseRaceResultV1> {
   return await page.evaluate(async (evaluationInput) => {
-    const { base: raceBase, contender: raceContender, repositoryModuleUrl } = evaluationInput;
+    const {
+      base: raceBase,
+      contender: raceContender,
+      leaseDurationMilliseconds: requestedLeaseDurationMilliseconds,
+      repositoryModuleUrl,
+    } = evaluationInput;
     interface ProcessHeadV1 {
       readonly revision: number;
       readonly transcriptFrontier: number;
@@ -215,7 +249,7 @@ async function acquireP4aProcessLeaseV1(
       const result = await repository.acquireProcessExecution({
         ownerInstanceId: raceContender.ownerInstanceId,
         observedAt: raceBase.observedAt,
-        expiresAt: raceBase.observedAt + 60_000,
+        expiresAt: raceBase.observedAt + requestedLeaseDurationMilliseconds,
         attempt: {
           processId: raceBase.processId,
           expectedProcessRevision: raceBase.expectedProcessRevision,
@@ -258,106 +292,91 @@ async function acquireP4aProcessLeaseV1(
   }, {
     base,
     contender,
+    leaseDurationMilliseconds,
     repositoryModuleUrl: "/src/product/indexeddb-program-data-repository.ts",
   });
 }
 
-async function commitP4aFailedTerminalV1(
+async function holdP4aWorkspaceV1(
   page: Page,
-  winner: P4aProcessLeaseRaceResultV1,
-  base: P4aProcessLeaseRaceBaseV1,
-): Promise<P4aProcessTerminalResultV1> {
-  return await page.evaluate(async (evaluationInput) => {
-    const { base: raceBase, winner: raceWinner, repositoryModuleUrl } = evaluationInput;
-    interface ProcessHeadV1 {
-      readonly revision: number;
-      readonly transcriptFrontier: number;
-      readonly lastTerminalAttempt: {
-        readonly attemptId: string;
-        readonly generation: number;
-        readonly outcome: "failed";
-      } | null;
-    }
-    interface ExecutionTerminalResultV1 {
-      readonly kind: "committed" | "unchanged" | "conflict";
-      readonly process?: ProcessHeadV1;
-      readonly currentProcess?: ProcessHeadV1 | null;
-    }
-    interface RepositoryV1 {
+  input: { readonly programId: string; readonly workspaceId: string },
+): Promise<string> {
+  return await page.evaluate(async ({ authorityModuleUrl, programId, workspaceId }) => {
+    interface WorkspaceAuthorityV1 {
       initialize(): Promise<void>;
-      commitProcessExecutionTerminal(
-        input: Readonly<Record<string, unknown>>,
-      ): Promise<ExecutionTerminalResultV1>;
+      openWorkspace(input: {
+        readonly programId: string;
+        readonly workspaceId: string;
+      }): Promise<{
+        readonly snapshot: {
+          readonly descriptor: { readonly workspaceSessionId: string };
+        };
+        readonly environmentPort: MessagePort;
+      }>;
+      detachWorkspaceEnvironment(workspaceSessionId: string): Promise<void>;
+      closeWorkspace(workspaceSessionId: string): Promise<unknown>;
       dispose(): Promise<void>;
     }
-    interface RepositoryModuleV1 {
-      createIndexedDbProgramDataRepositoryV1(options: {
-        readonly indexedDB: IDBFactory;
-      }): RepositoryV1;
+    interface AuthorityModuleV1 {
+      createBrowserProgramWorkspaceAuthorityV1(): WorkspaceAuthorityV1;
     }
-    if (
-      raceWinner.lease === null || raceWinner.processRevision === null ||
-      raceWinner.transcriptFrontier === null
-    ) throw new Error("P4-A lease winner omitted its exact terminal inputs");
-    const module = await import(repositoryModuleUrl) as RepositoryModuleV1;
-    const repository = module.createIndexedDbProgramDataRepositoryV1({ indexedDB });
-    const terminalSequence = raceWinner.transcriptFrontier + 1;
-    const terminalEntryId = `${raceWinner.contender.attemptId}.failed.entry`;
+    interface WorkspaceHoldV1 {
+      readonly authority: WorkspaceAuthorityV1;
+      readonly environmentPort: MessagePort;
+      readonly workspaceSessionId: string;
+    }
+    const owner = globalThis as typeof globalThis & {
+      sillyOsP4aWorkspaceHoldV1?: WorkspaceHoldV1;
+    };
+    if (owner.sillyOsP4aWorkspaceHoldV1 !== undefined) {
+      throw new Error("P4-A Workspace hold already exists");
+    }
+    const module = await import(authorityModuleUrl) as AuthorityModuleV1;
+    const authority = module.createBrowserProgramWorkspaceAuthorityV1();
     try {
-      await repository.initialize();
-      const result = await repository.commitProcessExecutionTerminal({
-        lease: raceWinner.lease,
-        observedAt: raceBase.observedAt + 1,
-        transcript: {
-          processId: raceBase.processId,
-          expectedProcessRevision: raceWinner.processRevision,
-          expectedTranscriptFrontier: raceWinner.transcriptFrontier,
-          commitId: `${raceWinner.contender.operationId}.failed-terminal`,
-          attemptBinding: {
-            attemptId: raceWinner.contender.attemptId,
-            generation: raceBase.generation,
-          },
-          entries: [{
-            schemaVersion: 1,
-            processId: raceBase.processId,
-            sequence: terminalSequence,
-            entryId: terminalEntryId,
-            role: "assistant",
-            state: "committed",
-            parts: [{
-              kind: "text_markdown",
-              partId: `${terminalEntryId}.text`,
-              markdown: "P4-A multi-tab execution failed after lease qualification.",
-            }],
-          }],
-          checkpoint: null,
-          terminalAttemptReceipt: {
-            schemaVersion: 1,
-            processId: raceBase.processId,
-            attemptId: raceWinner.contender.attemptId,
-            generation: raceBase.generation,
-            outcome: "failed",
-            terminalSequence,
-            terminalEntryId,
-            interruptionDisposition: null,
-          },
-          updatedAt: raceBase.observedAt + 1,
-        },
-      });
-      const process = result.process ?? result.currentProcess ?? null;
-      return {
-        kind: result.kind,
-        processRevision: process?.revision ?? null,
-        transcriptFrontier: process?.transcriptFrontier ?? null,
-        terminalAttempt: process?.lastTerminalAttempt ?? null,
+      await authority.initialize();
+      const opened = await authority.openWorkspace({ programId, workspaceId });
+      owner.sillyOsP4aWorkspaceHoldV1 = {
+        authority,
+        environmentPort: opened.environmentPort,
+        workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
       };
-    } finally {
-      await repository.dispose();
+      return opened.snapshot.descriptor.workspaceSessionId;
+    } catch (error) {
+      await authority.dispose().catch(() => undefined);
+      throw error;
     }
   }, {
-    base,
-    winner,
-    repositoryModuleUrl: "/src/product/indexeddb-program-data-repository.ts",
+    authorityModuleUrl: "/src/product/browser-program-workspace-authority.ts",
+    ...input,
+  });
+}
+
+async function releaseP4aWorkspaceHoldV1(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    interface WorkspaceAuthorityV1 {
+      detachWorkspaceEnvironment(workspaceSessionId: string): Promise<void>;
+      closeWorkspace(workspaceSessionId: string): Promise<unknown>;
+      dispose(): Promise<void>;
+    }
+    interface WorkspaceHoldV1 {
+      readonly authority: WorkspaceAuthorityV1;
+      readonly environmentPort: MessagePort;
+      readonly workspaceSessionId: string;
+    }
+    const owner = globalThis as typeof globalThis & {
+      sillyOsP4aWorkspaceHoldV1?: WorkspaceHoldV1;
+    };
+    const hold = owner.sillyOsP4aWorkspaceHoldV1;
+    if (hold === undefined) throw new Error("P4-A Workspace hold is absent");
+    delete owner.sillyOsP4aWorkspaceHoldV1;
+    try {
+      await hold.authority.detachWorkspaceEnvironment(hold.workspaceSessionId);
+      hold.environmentPort.close();
+      await hold.authority.closeWorkspace(hold.workspaceSessionId);
+    } finally {
+      await hold.authority.dispose();
+    }
   });
 }
 
@@ -2739,7 +2758,7 @@ test(
 );
 
 test(
-  "@p4a two pages admit one Process execution lease and passively observe its terminal",
+  "@p4a two idle pages race through the real Send UI and only one owns execution",
   async ({ durableProgramPage: page }) => {
     test.setTimeout(120_000);
     const firstWorkspace = await openTranslationWorkspaceV1(page);
@@ -2760,134 +2779,259 @@ test(
 
     const first = { page, workspace: firstWorkspace };
     const second = { page: contenderPage, workspace: secondWorkspace };
-    await expect.poll(async () => {
-      return (await Promise.all(
-        [first, second].map(async ({ workspace }) =>
-          String(await workspace.getAttribute("data-execution-workspace-state")) + ":" +
-          (await workspace.getAttribute("data-execution-workspace-diagnostic") ?? "")
-        ),
-      )).sort();
-    }).toEqual(["failed:workspace_busy", "open:"]);
-    const workspaceOwner = await firstWorkspace.getAttribute("data-execution-workspace-state") ===
-        "open"
-      ? first
-      : second;
-    const workspaceContender = workspaceOwner === first ? second : first;
     const composerForV1 = (target: Page) =>
       target.getByRole("textbox", { name: "Ask for a change…" });
-    await expect(composerForV1(workspaceOwner.page)).toBeEnabled();
-    await expect(composerForV1(workspaceContender.page)).toBeDisabled();
-
-    const base = await readP4aProcessLeaseRaceBaseV1(page, processId);
-    const contenders: readonly [P4aProcessLeaseContenderV1, P4aProcessLeaseContenderV1] = [{
-      ownerInstanceId: "owner.p4a.multitab.first",
-      attemptId: "attempt.p4a.multitab.first",
-      operationId: "commit.p4a.multitab.first",
-      triggerEntryId: "entry.p4a.multitab.first",
+    for (const idle of [first, second]) {
+      await expect(idle.workspace).toHaveAttribute("data-execution-workspace-state", "closed");
+      await expect(idle.workspace).not.toHaveAttribute(
+        "data-execution-workspace-session",
+        /.+/u,
+      );
+      await expect(composerForV1(idle.page)).toBeEnabled();
+    }
+    const baseProcess = (await readProgramDataProjectionV1(page, programId, processId)).process;
+    if (baseProcess === null) throw new Error("P4-A UI race omitted its durable Process");
+    const candidates = [{
+      page,
+      workspace: firstWorkspace,
+      composer: composerForV1(page),
+      send: page.getByRole("button", { name: "Send" }),
+      draft: "Hold this deterministic run until cancelled: P4-A first page owns this exact draft.",
     }, {
-      ownerInstanceId: "owner.p4a.multitab.second",
-      attemptId: "attempt.p4a.multitab.second",
-      operationId: "commit.p4a.multitab.second",
-      triggerEntryId: "entry.p4a.multitab.second",
-    }];
-    const results = await Promise.all([
-      acquireP4aProcessLeaseV1(page, base, contenders[0]),
-      acquireP4aProcessLeaseV1(contenderPage, base, contenders[1]),
-    ]);
-    expect(results.map(({ kind }) => kind).sort()).toEqual(["committed", "conflict"]);
-    const winner = results.find(({ kind }) => kind === "committed");
-    const loser = results.find(({ kind }) => kind === "conflict");
-    if (winner === undefined || loser === undefined || winner.lease === null) {
-      throw new Error("P4-A lease race omitted its exact winner and loser");
-    }
-    expect(winner.lease).toMatchObject({
-      processId,
-      ownerInstanceId: winner.contender.ownerInstanceId,
-      attemptId: winner.contender.attemptId,
-      generation: base.generation,
-    });
-    expect(loser.lease).toEqual(winner.lease);
-    expect(winner.processRevision).toBe(base.expectedProcessRevision + 1);
-    expect(winner.transcriptFrontier).toBe(base.expectedTranscriptFrontier + 1);
-    expect(loser.processRevision).toBe(winner.processRevision);
-    expect(loser.transcriptFrontier).toBe(winner.transcriptFrontier);
+      page: contenderPage,
+      workspace: secondWorkspace,
+      composer: composerForV1(contenderPage),
+      send: contenderPage.getByRole("button", { name: "Send" }),
+      draft: "Hold this deterministic run until cancelled: P4-A second page owns this exact draft.",
+    }] as const;
+    await Promise.all(candidates.map(({ composer, draft }) => composer.fill(draft)));
+    await Promise.all(candidates.map(({ send }) => expect(send).toBeEnabled()));
 
-    const winningTrigger = `[data-transcript-entry-id="${winner.contender.triggerEntryId}"]`;
-    await Promise.all([
-      expect(page.locator(winningTrigger)).toBeVisible({ timeout: 25_000 }),
-      expect(contenderPage.locator(winningTrigger)).toBeVisible({ timeout: 25_000 }),
-      expect(composerForV1(page)).toBeDisabled({ timeout: 25_000 }),
-      expect(composerForV1(contenderPage)).toBeDisabled({ timeout: 25_000 }),
-    ]);
-    for (const productPage of [page, contenderPage]) {
-      await expect.poll(async () => {
-        const process = (await readProgramDataProjectionV1(
-          productPage,
-          programId,
-          processId,
-        )).process;
-        return process?.activeAttempt;
-      }).toMatchObject({
-        attemptId: winner.contender.attemptId,
-        generation: base.generation,
-        triggerEntryId: winner.contender.triggerEntryId,
-        triggerSequence: base.expectedTranscriptFrontier + 1,
-      });
-    }
-
-    const terminal = await commitP4aFailedTerminalV1(workspaceOwner.page, winner, base);
-    expect(terminal).toMatchObject({
-      kind: "committed",
-      processRevision: base.expectedProcessRevision + 2,
-      transcriptFrontier: base.expectedTranscriptFrontier + 2,
-      terminalAttempt: {
-        attemptId: winner.contender.attemptId,
-        generation: base.generation,
-        outcome: "failed",
+    // HTMLElement.click() keeps the real form/onSend path while avoiding a
+    // Playwright actionability race if the other page's commit disables this
+    // button between the two near-simultaneous dispatches.
+    await Promise.all(
+      candidates.map(({ send }) => send.evaluate((button) => (button as HTMLElement).click())),
+    );
+    await expect.poll(async () => {
+      const process = (await readProgramDataProjectionV1(page, programId, processId)).process;
+      return process === null ? null : {
+        revision: process.revision,
+        transcriptFrontier: process.transcriptFrontier,
+        activeAttempt: process.activeAttempt,
+      };
+    }).toMatchObject({
+      revision: baseProcess.revision + 1,
+      transcriptFrontier: baseProcess.transcriptFrontier + 1,
+      activeAttempt: {
+        generation: (baseProcess.lastTerminalAttempt?.generation ?? 0) + 1,
+        triggerSequence: baseProcess.transcriptFrontier + 1,
       },
     });
-    const terminalEntryId = `${winner.contender.attemptId}.failed.entry`;
-    for (const productPage of [page, contenderPage]) {
-      await expect(
-        productPage.locator(`[data-transcript-entry-id="${terminalEntryId}"]`),
-      ).toBeVisible({ timeout: 25_000 });
-      await expect.poll(async () => {
-        const process = (await readProgramDataProjectionV1(
-          productPage,
-          programId,
-          processId,
-        )).process;
-        return process === null ? null : {
-          activeAttempt: process.activeAttempt,
-          lastTerminalAttempt: process.lastTerminalAttempt,
-        };
-      }).toEqual({
-        activeAttempt: null,
-        lastTerminalAttempt: {
-          attemptId: winner.contender.attemptId,
-          generation: base.generation,
-          outcome: "failed",
-          triggerEntryId: winner.contender.triggerEntryId,
-          triggerSequence: base.expectedTranscriptFrontier + 1,
-          interruptionDisposition: null,
-        },
-      });
-    }
+    const activeProcess = (await readProgramDataProjectionV1(page, programId, processId)).process;
+    const activeAttempt = activeProcess?.activeAttempt ?? null;
+    if (activeAttempt === null) throw new Error("P4-A UI race omitted its active attempt");
+    const activeLease = await readP4aProcessExecutionLeaseV1(page, processId);
+    expect(activeLease).toMatchObject({
+      processId,
+      attemptId: activeAttempt.attemptId,
+      generation: activeAttempt.generation,
+    });
 
-    // Process execution is idle on both pages. Only the independent Workspace
-    // volume authority remains exclusive, so its owner is writable while the
-    // contender truthfully stays disabled with workspace_busy.
-    await expect(composerForV1(workspaceOwner.page)).toBeEnabled({ timeout: 25_000 });
-    await expect(workspaceContender.workspace).toHaveAttribute(
-      "data-execution-workspace-diagnostic",
-      "workspace_busy",
+    const triggerSelector = `[data-transcript-entry-id="${activeAttempt.triggerEntryId}"]`;
+    await Promise.all([
+      expect(page.locator(triggerSelector)).toBeVisible({ timeout: 25_000 }),
+      expect(contenderPage.locator(triggerSelector)).toBeVisible({ timeout: 25_000 }),
+    ]);
+    const winnerFlags = await Promise.all(
+      candidates.map(({ draft }) =>
+        page.locator(triggerSelector).getByText(draft, { exact: true }).count()
+      ),
     );
-    await expect(composerForV1(workspaceContender.page)).toBeDisabled();
+    expect(winnerFlags.filter((count) => count === 1)).toHaveLength(1);
+    expect(winnerFlags.filter((count) => count === 0)).toHaveLength(1);
+    const winnerIndex = winnerFlags[0] === 1 ? 0 : 1;
+    const loserIndex = winnerIndex === 0 ? 1 : 0;
+    const winner = candidates[winnerIndex];
+    const loser = candidates[loserIndex];
+
+    // The live product admission order is Workspace first, then Process. The
+    // losing page therefore fails the exclusive Workspace acquisition before
+    // Process CAS, retains its draft, and owns no session to leak or close.
+    await expect(winner.page.locator('[data-pi-agent-run-status="running"]')).toBeVisible();
+    await expect(winner.workspace).toHaveAttribute("data-execution-workspace-state", "open");
+    await expect(winner.workspace).toHaveAttribute("data-execution-workspace-session", /.+/u);
+    await expect(winner.composer).toHaveValue("");
+    await expect(loser.page.locator('[data-pi-agent-run-status="running"]')).toHaveCount(0);
+    await expect(loser.workspace).toHaveAttribute("data-execution-workspace-state", "closed");
+    await expect(loser.workspace).not.toHaveAttribute(
+      "data-execution-workspace-session",
+      /.+/u,
+    );
+    await expect(loser.composer).toHaveValue(loser.draft);
+
+    await winner.page.getByRole("button", { name: "Cancel run" }).click();
+    await expect.poll(async () => {
+      const process = (await readProgramDataProjectionV1(page, programId, processId)).process;
+      return process === null ? null : {
+        activeAttempt: process.activeAttempt,
+        lastTerminalAttempt: process.lastTerminalAttempt,
+      };
+    }).toMatchObject({
+      activeAttempt: null,
+      lastTerminalAttempt: {
+        attemptId: activeAttempt.attemptId,
+        generation: activeAttempt.generation,
+        outcome: "cancelled",
+      },
+    });
+    for (const idle of candidates) {
+      await expect(idle.composer).toBeEnabled({ timeout: 25_000 });
+      await expect(idle.workspace).toHaveAttribute("data-execution-workspace-state", "closed");
+    }
+    // The former winner intentionally retains its closed receipt descriptor;
+    // the admission loser still has no session because it never ran.
+    await expect(loser.workspace).not.toHaveAttribute(
+      "data-execution-workspace-session",
+      /.+/u,
+    );
+    await expect(loser.composer).toHaveValue(loser.draft);
+
+    // The exact losing draft is still actionable after the winner's terminal.
+    await loser.send.click();
+    await expect(loser.page.locator('[data-pi-agent-run-status="running"]')).toBeVisible({
+      timeout: 25_000,
+    });
+    await expect(loser.workspace).toHaveAttribute("data-execution-workspace-state", "open");
+    await expect(loser.workspace).toHaveAttribute("data-execution-workspace-session", /.+/u);
+    await expect(loser.composer).toHaveValue("");
+    await expect(
+      loser.page.locator('[data-chat-role="user"]').getByText(loser.draft, { exact: true }),
+    ).toBeVisible();
+    await loser.page.getByRole("button", { name: "Cancel run" }).click();
+    await expect(loser.workspace).toHaveAttribute("data-execution-workspace-state", "closed", {
+      timeout: 25_000,
+    });
     await contenderPage.close();
   },
 );
 
-test("a second page cold-reopens the durable winner while one owns its Workspace", async ({ durableProgramPage: page }) => {
+test(
+  "@p4a a held Workspace prevents false expiry settlement and release recovers passively",
+  async ({ durableProgramPage: page }) => {
+    test.setTimeout(150_000);
+    const firstWorkspace = await openTranslationWorkspaceV1(page);
+    const programId = await readProgramIdV1(firstWorkspace);
+    const processId = await firstWorkspace.getAttribute("data-process-id");
+    if (processId === null) throw new Error("P4-A Program omitted its Process identity");
+
+    const passivePage = await page.context().newPage();
+    await passivePage.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
+    await expectProgramStorageReadyV1(passivePage);
+    await initializePiTestV1(passivePage, "sillyos-p4a-expired-passive");
+    const passiveWorkspace = await openRecentTranslationProgramV1(passivePage, {
+      programId,
+      revision: 1,
+      status: "Preview",
+    });
+    for (const workspace of [firstWorkspace, passiveWorkspace]) {
+      await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
+    }
+
+    const base = await readP4aProcessLeaseRaceBaseV1(page, processId);
+    const holderSessionId = await holdP4aWorkspaceV1(page, {
+      programId,
+      workspaceId: base.startingCheckpoint.workspaceId,
+    });
+    expect(holderSessionId.length).toBeGreaterThan(0);
+    let holdReleased = false;
+    try {
+      const contender: P4aProcessLeaseContenderV1 = {
+        ownerInstanceId: "owner.p4a.expired",
+        attemptId: "attempt.p4a.expired",
+        operationId: "commit.p4a.expired",
+        triggerEntryId: "entry.p4a.expired",
+      };
+      const acquired = await acquireP4aProcessLeaseV1(page, base, contender, 1_500);
+      expect(acquired).toMatchObject({
+        kind: "committed",
+        processRevision: base.expectedProcessRevision + 1,
+        transcriptFrontier: base.expectedTranscriptFrontier + 1,
+      });
+      if (acquired.lease === null) throw new Error("expired lease fixture omitted its lease");
+
+      const trigger = `[data-transcript-entry-id="${contender.triggerEntryId}"]`;
+      await Promise.all([
+        expect(page.locator(trigger)).toBeVisible({ timeout: 25_000 }),
+        expect(passivePage.locator(trigger)).toBeVisible({ timeout: 25_000 }),
+      ]);
+      const passiveMonitorIntervalMilliseconds = await page.evaluate(async (moduleUrl) => {
+        const module = await import(moduleUrl) as {
+          readonly creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1: number;
+        };
+        return module.creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1;
+      }, "/src/product/creator-controller.ts");
+      await page.waitForTimeout(
+        Math.max(0, acquired.lease.expiresAt - Date.now()) +
+          passiveMonitorIntervalMilliseconds + 1_000,
+      );
+
+      // Lease expiry itself is deliberately not a Process revision. Controller
+      // unit coverage proves that an expired monitor pass receives
+      // workspace_busy here; E2E deliberately makes no claim about a hidden
+      // poll count. It proves the user-visible invariants across that busy
+      // window: no false terminal, and automatic recovery after release.
+      const stillPending = await readProgramDataProjectionV1(page, programId, processId);
+      expect(stillPending.process).toMatchObject({
+        revision: base.expectedProcessRevision + 1,
+        transcriptFrontier: base.expectedTranscriptFrontier + 1,
+        status: "active",
+        activeAttempt: {
+          attemptId: contender.attemptId,
+          generation: base.generation,
+          triggerEntryId: contender.triggerEntryId,
+        },
+      });
+
+      await releaseP4aWorkspaceHoldV1(page);
+      holdReleased = true;
+      const interruptedEntryId = `${contender.attemptId}.interrupted`;
+      for (const productPage of [page, passivePage]) {
+        const workspace = productPage === page ? firstWorkspace : passiveWorkspace;
+        await expect(workspace).toHaveAttribute(
+          "data-process-status",
+          "interrupted_retryable",
+          { timeout: 25_000 },
+        );
+        await expect(
+          productPage.locator(`[data-transcript-entry-id="${interruptedEntryId}"]`),
+        ).toBeVisible({ timeout: 25_000 });
+        await expect(
+          productPage.getByRole("button", { name: "Retry interrupted run" }),
+        ).toBeVisible();
+        await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
+      }
+      const recovered = await readProgramDataProjectionV1(page, programId, processId);
+      expect(recovered.process).toMatchObject({
+        revision: base.expectedProcessRevision + 2,
+        transcriptFrontier: base.expectedTranscriptFrontier + 2,
+        status: "interrupted_retryable",
+        activeAttempt: null,
+        lastTerminalAttempt: {
+          attemptId: contender.attemptId,
+          generation: base.generation,
+          outcome: "interrupted",
+          interruptionDisposition: "retryable",
+        },
+      });
+    } finally {
+      if (!holdReleased) await releaseP4aWorkspaceHoldV1(page).catch(() => undefined);
+      await passivePage.close();
+    }
+  },
+);
+
+test("a second page cold-reopens the durable winner without preclaiming its Workspace", async ({ durableProgramPage: page }) => {
   const firstWorkspace = await openTranslationWorkspaceV1(page);
   const programId = await readProgramIdV1(firstWorkspace);
 
@@ -2903,41 +3047,35 @@ test("a second page cold-reopens the durable winner while one owns its Workspace
 
   const first = { page, workspace: firstWorkspace };
   const second = { page: secondPage, workspace: secondWorkspace };
-  await expect.poll(async () => {
-    return (await Promise.all(
-      [first, second].map(async ({ workspace }) =>
-        String(await workspace.getAttribute("data-execution-workspace-state")) + ":" +
-        (await workspace.getAttribute("data-execution-workspace-diagnostic") ?? "")
-      ),
-    )).sort();
-  }).toEqual(["failed:workspace_busy", "open:"]);
-  const owner = await firstWorkspace.getAttribute("data-execution-workspace-state") === "open"
-    ? first
-    : second;
-  const contender = owner === first ? second : first;
+  for (const idle of [first, second]) {
+    await expect(idle.workspace).toHaveAttribute("data-execution-workspace-state", "closed");
+    await expect(idle.page.getByRole("textbox", { name: "Ask for a change…" })).toBeEnabled();
+  }
 
   const winningFollowUp = "Preserve the winner selected by the first page.";
-  await owner.page.getByRole("textbox", { name: "Ask for a change…" }).fill(winningFollowUp);
-  await owner.page.getByRole("button", { name: "Send" }).click();
-  await expectProgramStorageReadyV1(owner.page);
-  await expect(owner.workspace).toHaveAttribute("data-program-revision", "2");
+  await page.getByRole("textbox", { name: "Ask for a change…" }).fill(winningFollowUp);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expectProgramStorageReadyV1(page);
+  await expect(firstWorkspace).toHaveAttribute("data-program-revision", "2");
+  await expect(firstWorkspace).toHaveAttribute("data-execution-workspace-state", "closed");
+  await expect(secondWorkspace).toHaveAttribute("data-program-revision", "2", {
+    timeout: 25_000,
+  });
+  await expect(secondPage.getByText(winningFollowUp, { exact: true })).toBeVisible({
+    timeout: 25_000,
+  });
 
-  await contender.page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
-  await expectProgramStorageReadyV1(contender.page);
-  await initializePiTestV1(contender.page, "sillyos-stale-contender-reopen-key");
-  await openRecentTranslationProgramV1(contender.page, {
+  await secondPage.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
+  await expectProgramStorageReadyV1(secondPage);
+  await initializePiTestV1(secondPage, "sillyos-stale-contender-reopen-key");
+  const reopened = await openRecentTranslationProgramV1(secondPage, {
     programId,
     revision: 2,
     status: "Preview",
   });
-  await expect(contender.workspace).toHaveAttribute("data-execution-workspace-state", "failed");
-  await expect(contender.workspace).toHaveAttribute(
-    "data-execution-workspace-diagnostic",
-    "workspace_busy",
-  );
-  await expect(contender.page.getByRole("textbox", { name: "Ask for a change…" })).toBeDisabled();
-  await expect(contender.workspace).toHaveAttribute("data-program-revision", "2");
-  await expect(contender.page.getByText(winningFollowUp, { exact: true })).toBeVisible();
+  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "closed");
+  await expect(secondPage.getByRole("textbox", { name: "Ask for a change…" })).toBeEnabled();
+  await expect(secondPage.getByText(winningFollowUp, { exact: true })).toBeVisible();
   await secondPage.close();
 });
 
@@ -2975,12 +3113,11 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
   await expect(workspace).toBeVisible();
   await expectProgramStorageReadyV1(page);
-  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
+  await expect(workspace).not.toHaveAttribute("data-execution-workspace-session", /.+/u);
   const programId = await readProgramIdV1(workspace);
   const processId = await workspace.getAttribute("data-process-id");
   if (processId === null) throw new Error("Ordinary Program omitted its Process identity");
-  const firstWorkspaceSessionId = await readWorkspaceSessionIdV1(workspace);
 
   const followUp = "Make every review decision explicit.";
   await page.getByRole("textbox", { name: "Ask for a change…" }).fill(followUp);
@@ -2993,6 +3130,7 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
     ).last(),
   ).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
   await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "write");
   await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
@@ -3000,6 +3138,7 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
     "data-execution-workspace-path",
     ordinaryWorkspaceRoundTripPathV1,
   );
+  const firstWorkspaceSessionId = await readWorkspaceSessionIdV1(workspace);
   const continuation = await readWorkspaceContinuationV1(page, programId);
   if (continuation === null) throw new Error("Ordinary Program lost its Workspace continuation");
   await expectOrdinaryWorkspaceSandboxV1(page, continuation, followUp);
@@ -3009,7 +3148,7 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   await page.getByRole("tab", { name: "Capabilities" }).click();
   await expect(page.getByText("Deterministic test wiring", { exact: true })).toBeVisible();
   await expect(page.getByText("Program workspace checkpoint", { exact: true })).toBeVisible();
-  await expect(page.getByText("Open · generation 2", { exact: true })).toBeVisible();
+  await expect(page.getByText("Closed · generation 2", { exact: true })).toBeVisible();
   await expect(page.getByText("Last write: succeeded / changed", { exact: false })).toBeVisible();
 
   await page.getByRole("button", { name: "Creator home" }).click();
@@ -3041,14 +3180,9 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
     status: "Preview",
   });
   const reopenedWorkspace = page.getByRole("main", { name: "SillyOS program workspace" });
-  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-generation", "2");
-  await expect(reopenedWorkspace).not.toHaveAttribute(
-    "data-execution-workspace-session",
-    firstWorkspaceSessionId,
-  );
-  const reopenedWorkspaceSessionId = await readWorkspaceSessionIdV1(reopenedWorkspace);
-  await expect(reopenedWorkspace).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
+  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-state", "closed");
+  await expect(reopenedWorkspace).not.toHaveAttribute("data-execution-workspace-session", /.+/u);
+  await expect(reopenedWorkspace).not.toHaveAttribute("data-execution-workspace-generation", /.+/u);
   expect(await readWorkspaceContinuationV1(page, programId)).toEqual(continuation);
   await expectOrdinaryWorkspaceSandboxV1(page, continuation, followUp);
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
@@ -3064,8 +3198,11 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByText(persistenceProbe, { exact: true })).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v3");
+  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-state", "closed");
   await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-generation", "2");
   await expect(reopenedWorkspace).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
+  const reopenedWorkspaceSessionId = await readWorkspaceSessionIdV1(reopenedWorkspace);
+  expect(reopenedWorkspaceSessionId).not.toBe(firstWorkspaceSessionId);
   await expectOrdinaryWorkspaceSandboxV1(page, continuation, followUp);
 
   await expect(reopenedWorkspace).toHaveAttribute("data-program-revision", "3");
@@ -3144,12 +3281,8 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
     revision: 3,
     status: "Preview",
   });
-  await expect(replacedWorkspace).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(replacedWorkspace).toHaveAttribute("data-execution-workspace-generation", "2");
-  await expect(replacedWorkspace).not.toHaveAttribute(
-    "data-execution-workspace-session",
-    reopenedWorkspaceSessionId,
-  );
+  await expect(replacedWorkspace).toHaveAttribute("data-execution-workspace-state", "closed");
+  await expect(replacedWorkspace).not.toHaveAttribute("data-execution-workspace-session", /.+/u);
   await page.getByRole("button", { name: "Creator home" }).click();
   await expect(page.locator(".silly-os")).toHaveAttribute("data-agent-workspace-state", "closed");
 });
@@ -3164,8 +3297,7 @@ test("@s1b-edit the pinned native Pi edit tool changes and cold-reopens exact Sa
   const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
   await expect(workspace).toBeVisible();
   await expectProgramStorageReadyV1(page);
-  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
   const programId = await readProgramIdV1(workspace);
 
   const editText = `${deterministicEditProbePrefixV1}keep this exact edited file.`;
@@ -3179,6 +3311,7 @@ test("@s1b-edit the pinned native Pi edit tool changes and cold-reopens exact Sa
     ),
   ).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "3");
   await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "edit");
   await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
@@ -3201,8 +3334,8 @@ test("@s1b-edit the pinned native Pi edit tool changes and cold-reopens exact Sa
     status: "Preview",
   });
   const reopened = page.getByRole("main", { name: "SillyOS program workspace" });
-  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "3");
+  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "closed");
+  await expect(reopened).not.toHaveAttribute("data-execution-workspace-generation", /.+/u);
   expect(await readWorkspaceContinuationV1(page, programId)).toEqual(continuation);
   await expectOrdinaryWorkspaceSandboxV1(page, continuation, editText);
 });
@@ -3217,8 +3350,7 @@ test("@s1b-bash the pinned native Pi bash tool changes and cold-reopens exact Sa
   const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
   await expect(workspace).toBeVisible();
   await expectProgramStorageReadyV1(page);
-  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
   const programId = await readProgramIdV1(workspace);
 
   const bashPrompt = `${deterministicBashProbePrefixV1}write and search one exact file.`;
@@ -3233,6 +3365,7 @@ test("@s1b-bash the pinned native Pi bash tool changes and cold-reopens exact Sa
     ),
   ).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "3");
   await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "bash");
   await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
@@ -3260,8 +3393,8 @@ test("@s1b-bash the pinned native Pi bash tool changes and cold-reopens exact Sa
     status: "Preview",
   });
   const reopened = page.getByRole("main", { name: "SillyOS program workspace" });
-  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "3");
+  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "closed");
+  await expect(reopened).not.toHaveAttribute("data-execution-workspace-generation", /.+/u);
   expect(await readWorkspaceContinuationV1(page, programId)).toEqual(continuation);
   await expectOrdinaryWorkspaceSandboxV1(
     page,
@@ -3282,8 +3415,7 @@ test("@s2-file-ops Pi native bash preserves the exact workspace file lifecycle a
   const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
   await expect(workspace).toBeVisible();
   await expectProgramStorageReadyV1(page);
-  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
   const programId = await readProgramIdV1(workspace);
 
   const fileOpsPrompt =
@@ -3298,6 +3430,7 @@ test("@s2-file-ops Pi native bash preserves the exact workspace file lifecycle a
     ),
   ).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "22");
   await expect(workspace).toHaveAttribute("data-execution-workspace-receipt", "1");
   await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "bash");
@@ -3351,15 +3484,15 @@ test("@s2-file-ops Pi native bash preserves the exact workspace file lifecycle a
     status: "Preview",
   });
   const reopened = page.getByRole("main", { name: "SillyOS program workspace" });
-  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "22");
+  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "closed");
+  await expect(reopened).not.toHaveAttribute("data-execution-workspace-generation", /.+/u);
   await expect(reopened).toHaveAttribute("data-workspace-review-pending-generation", "22");
   expect(await readWorkspaceContinuationV1(page, programId)).toEqual(continuation);
   await expect.poll(() => inspectSandboxWorkspaceEntriesV1(page, continuation, inspectedPaths))
     .toEqual(expectedEntries);
 });
 
-test("@s1a-ordinary two pages fence Sandbox ownership and the successor cold-opens the exact released checkpoint", async ({ durableProgramPage: page }) => {
+test("@s1a-ordinary an active Process becomes read-only in another page and its successor reopens exact Sandbox bytes", async ({ durableProgramPage: page }) => {
   test.setTimeout(120_000);
   await openCreatorHomeV1(page);
   await initializePiTestV1(page, "sillyos-first-owner-bootstrap");
@@ -3368,7 +3501,7 @@ test("@s1a-ordinary two pages fence Sandbox ownership and the successor cold-ope
   );
   await page.getByRole("button", { name: "Create program" }).click();
   const initialWorkspace = page.getByRole("main", { name: "SillyOS program workspace" });
-  await expect(initialWorkspace).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(initialWorkspace).toHaveAttribute("data-execution-workspace-state", "closed");
   const programId = await readProgramIdV1(initialWorkspace);
   const initialContinuation = await readWorkspaceContinuationV1(page, programId);
   if (initialContinuation === null) {
@@ -3420,75 +3553,61 @@ test("@s1a-ordinary two pages fence Sandbox ownership and the successor cold-ope
     expect(first.workspace).toBeVisible(),
     expect(second.workspace).toBeVisible(),
   ]);
-  await expect.poll(async () => {
-    return (await Promise.all(
-      [first, second].map(async ({ workspace }) =>
-        String(await workspace.getAttribute("data-execution-workspace-state")) + ":" +
-        (await workspace.getAttribute("data-execution-workspace-diagnostic") ?? "")
-      ),
-    )).sort();
-  }).toEqual(["failed:workspace_busy", "open:"]);
+  for (const idle of [first, second]) {
+    await expect(idle.workspace).toHaveAttribute("data-execution-workspace-state", "closed");
+    await expect(idle.page.getByRole("textbox", { name: "Ask for a change…" })).toBeEnabled();
+  }
 
-  const owner = await first.workspace.getAttribute("data-execution-workspace-state") === "open"
-    ? first
-    : second;
-  const contender = owner === first ? second : first;
-  await expect(owner.workspace).toHaveAttribute("data-execution-workspace-generation", "1");
-  await contender.page.getByRole("tab", { name: "Capabilities" }).click();
-  await expect(contender.page.getByRole("button", { name: "Retry" })).toBeVisible();
-  await expect.poll(() => readWorkspaceContinuationV1(owner.page, programId)).not.toBeNull();
-  const continuation = await readWorkspaceContinuationV1(owner.page, programId);
-  expect(continuation).toEqual(initialContinuation);
-
-  const durableText = "Retain these exact bytes across an independent Sandbox ownership handoff.";
-  await owner.page.getByRole("textbox", { name: "Ask for a change…" }).fill(durableText);
-  await owner.page.getByRole("button", { name: "Send" }).click();
-  await expect(owner.page.locator('[data-pi-agent-run-status="running"]')).toHaveCount(0);
-  await expect(owner.page.getByText(durableText, { exact: true })).toBeVisible();
-  await expect(owner.workspace).toHaveAttribute("data-execution-workspace-generation", "2");
-  await expect(owner.workspace).toHaveAttribute("data-execution-workspace-tool", "write");
-  await expect(owner.workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
-  const ownerSessionId = await readWorkspaceSessionIdV1(owner.workspace);
-  const durableContinuation = await readWorkspaceContinuationV1(owner.page, programId);
-  expect(durableContinuation).toEqual({
-    ...initialContinuation,
-    programRevision: 2,
-    repositoryRevision: 2,
+  const durableText =
+    "Hold this deterministic run until cancelled: retain exact bytes for Sandbox handoff.";
+  await first.page.getByRole("textbox", { name: "Ask for a change…" }).fill(durableText);
+  await first.page.getByRole("button", { name: "Send" }).click();
+  await expect(first.page.locator('[data-pi-agent-run-status="running"]')).toBeVisible();
+  await expect(first.workspace).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(first.workspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(first.workspace).toHaveAttribute("data-execution-workspace-tool", "write");
+  await expect(first.workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
+  const ownerSessionId = await readWorkspaceSessionIdV1(first.workspace);
+  await expect(second.page.getByText(durableText, { exact: true })).toBeVisible({
+    timeout: 25_000,
   });
-  await expectOrdinaryWorkspaceSandboxV1(owner.page, initialContinuation, durableText);
+  // The second page is read-only because it observes the active Process. The
+  // real two-Send Workspace admission race is qualified by the P4-A test above.
+  await expect(second.page.getByRole("textbox", { name: "Ask for a change…" })).toBeDisabled();
+  await expectOrdinaryWorkspaceSandboxV1(first.page, initialContinuation, durableText);
 
-  await owner.page.getByRole("button", { name: "Creator home" }).click();
-  await expect(owner.page.locator(".silly-os")).toHaveAttribute(
-    "data-agent-workspace-state",
-    "closed",
-  );
-  await expect(
-    owner.page.locator("iframe[data-silly-os-workspace-sandbox='active']"),
-  ).toHaveCount(1);
+  await first.page.getByRole("button", { name: "Cancel run" }).click();
+  await expect(first.workspace).toHaveAttribute("data-execution-workspace-state", "closed", {
+    timeout: 25_000,
+  });
+  await expect(second.page.getByRole("textbox", { name: "Ask for a change…" })).toBeEnabled({
+    timeout: 25_000,
+  });
+  expect(await readWorkspaceContinuationV1(first.page, programId)).toEqual(initialContinuation);
 
-  await contender.page.reload();
-  await expectProgramStorageReadyV1(contender.page);
-  await initializePiTestV1(contender.page, "sillyos-recovery-successor");
-  const recovered = await openRecentTranslationProgramV1(contender.page, {
+  await second.page.reload();
+  await expectProgramStorageReadyV1(second.page);
+  await initializePiTestV1(second.page, "sillyos-recovery-successor");
+  const recovered = await openRecentTranslationProgramV1(second.page, {
     programId,
-    revision: 2,
+    revision: 1,
     status: "Preview",
   });
-  await expect(recovered).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(recovered).toHaveAttribute("data-execution-workspace-generation", "2");
-  await expect(recovered).not.toHaveAttribute("data-execution-workspace-session", ownerSessionId);
-  await expect(recovered).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
-  expect(await readWorkspaceContinuationV1(contender.page, programId)).toEqual(durableContinuation);
-  await expectOrdinaryWorkspaceSandboxV1(contender.page, initialContinuation, durableText);
+  await expect(recovered).toHaveAttribute("data-execution-workspace-state", "closed");
+  await expect(recovered).not.toHaveAttribute("data-execution-workspace-session", /.+/u);
+  expect(await readWorkspaceContinuationV1(second.page, programId)).toEqual(initialContinuation);
+  await expectOrdinaryWorkspaceSandboxV1(second.page, initialContinuation, durableText);
 
   const verify = "Verify the persisted workspace contains exactly: " + durableText;
-  await contender.page.getByRole("textbox", { name: "Ask for a change…" }).fill(verify);
-  await contender.page.getByRole("button", { name: "Send" }).click();
-  await expect(contender.page.getByText(verify, { exact: true })).toBeVisible();
-  await expect(contender.page.locator('[data-proposal-status="pending"]')).toContainText("v3");
+  await second.page.getByRole("textbox", { name: "Ask for a change…" }).fill(verify);
+  await second.page.getByRole("button", { name: "Send" }).click();
+  await expect(second.page.getByText(verify, { exact: true })).toBeVisible();
+  await expect(second.page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(recovered).toHaveAttribute("data-execution-workspace-state", "closed");
   await expect(recovered).toHaveAttribute("data-execution-workspace-generation", "2");
   await expect(recovered).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
-  await expectOrdinaryWorkspaceSandboxV1(contender.page, initialContinuation, durableText);
+  expect(await readWorkspaceSessionIdV1(recovered)).not.toBe(ownerSessionId);
+  await expectOrdinaryWorkspaceSandboxV1(second.page, initialContinuation, durableText);
   await contenderPage.close();
 });
 
@@ -3527,14 +3646,14 @@ test(
     );
     await page.getByRole("button", { name: "Create program" }).click();
     const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
-    await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
-    await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
+    await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
     const programId = await readProgramIdV1(workspace);
 
     const snapshotText = "Put these exact ordinary Program bytes into the accepted snapshot.";
     await page.getByRole("textbox", { name: "Ask for a change…" }).fill(snapshotText);
     await page.getByRole("button", { name: "Send" }).click();
     await expect(page.locator('[data-pi-agent-run-status="running"]')).toHaveCount(0);
+    await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
     await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
     await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "write");
     const continuation = await readWorkspaceContinuationV1(page, programId);
@@ -3560,7 +3679,10 @@ test(
     });
     await expect(workspace).toHaveAttribute("data-workspace-review-accepted-generation", "2");
     await expect(workspace).toHaveAttribute("data-workspace-review-accepted-file-count", "1");
-    await expect(workspace).toHaveAttribute("data-workspace-review-accepted-status", "matches");
+    await expect(workspace).toHaveAttribute(
+      "data-workspace-review-accepted-status",
+      "unavailable",
+    );
 
     const exportStatus = page.locator("[data-workspace-export-status]");
     const exportStart = page.locator('[data-workspace-export-action="start"]');
@@ -3586,6 +3708,7 @@ test(
       });
       await exportStart.click();
       await expect(exportStatus).toHaveAttribute("data-workspace-export-status", "cancelled");
+      await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
       expect(downloadsBeforeAuthorization).toBe(0);
     } finally {
       page.off("download", captureUnexpectedDownload);
@@ -3604,6 +3727,7 @@ test(
     await download.saveAs(archivePath);
     expect(await download.failure()).toBeNull();
     await expect(exportStatus).toHaveAttribute("data-workspace-export-status", "download-started");
+    await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
     await expect(exportStatus).toHaveAttribute("data-workspace-export-files-completed", "1");
     await expect(exportStatus).toHaveAttribute("data-workspace-export-files-total", "1");
     assertOrdinaryWorkspaceArchiveV1(new Uint8Array(await readFile(archivePath)), {
@@ -3634,18 +3758,17 @@ test("@s1a-ordinary a cancelled Browser Pi run retains its Sandbox write and rem
   const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
   await expect(workspace).toBeVisible();
   await expectProgramStorageReadyV1(page);
-  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
   const programId = await readProgramIdV1(workspace);
   const processId = await workspace.getAttribute("data-process-id");
   if (processId === null) throw new Error("Cancelled Program omitted its Process identity");
-  const firstWorkspaceSessionId = await readWorkspaceSessionIdV1(workspace);
   const cancelledText =
     "Hold this deterministic run until cancelled: preserve cancellation as a product receipt.";
 
   await page.getByRole("textbox", { name: "Ask for a change…" }).fill(cancelledText);
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.locator('[data-pi-agent-run-status="running"]')).toBeVisible();
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
   await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "write");
   await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
@@ -3655,6 +3778,7 @@ test("@s1a-ordinary a cancelled Browser Pi run retains its Sandbox write and rem
   await page.getByRole("button", { name: "Cancel run" }).click();
 
   await expectProgramStorageReadyV1(page);
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
   await expect(workspace).toHaveAttribute("data-program-revision", "1");
   await expect(page.getByText(cancelledText, { exact: true })).toBeVisible();
   await expect(
@@ -3685,13 +3809,9 @@ test("@s1a-ordinary a cancelled Browser Pi run retains its Sandbox write and rem
     status: "Preview",
   });
   await expect(reopened).toHaveAttribute("data-program-revision", "1");
-  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "2");
-  await expect(reopened).not.toHaveAttribute(
-    "data-execution-workspace-session",
-    firstWorkspaceSessionId,
-  );
-  await expect(reopened).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
+  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "closed");
+  await expect(reopened).not.toHaveAttribute("data-execution-workspace-session", /.+/u);
+  await expect(reopened).not.toHaveAttribute("data-execution-workspace-generation", /.+/u);
   expect(await readWorkspaceContinuationV1(page, programId)).toEqual(cancelledContinuation);
   await expectOrdinaryWorkspaceSandboxV1(page, continuation, cancelledText);
   await expect(page.getByText(cancelledText, { exact: true })).toBeVisible();
@@ -4003,9 +4123,12 @@ test("the Program network toggle gates fixed Pi fetch_url without per-request ap
   await page.getByRole("button", { name: "Create program" }).click();
   const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
   await expect(workspace).toBeVisible();
-  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
   const programId = await readProgramIdV1(workspace);
-  const workspaceSessionId = await readWorkspaceSessionIdV1(workspace);
+  const workspaceSessionIds = new Set<string>();
+  const rememberWorkspaceSessionV1 = async (): Promise<void> => {
+    workspaceSessionIds.add(await readWorkspaceSessionIdV1(workspace));
+  };
   const accessToggle = page.getByRole("checkbox", { name: "Allow network access" });
   const composer = page.getByRole("textbox", { name: "Ask for a change…" });
 
@@ -4014,6 +4137,8 @@ test("the Program network toggle gates fixed Pi fetch_url without per-request ap
   await composer.fill(`${deterministicFetchUrlProbePrefixV1}${blockedUrl}`);
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
+  await rememberWorkspaceSessionV1();
   expect(targetRequests).toHaveLength(0);
   await expect(composer).toBeEnabled();
 
@@ -4026,6 +4151,7 @@ test("the Program network toggle gates fixed Pi fetch_url without per-request ap
   await page.getByRole("button", { name: "Send" }).click();
   await expect.poll(() => targetRequests.length).toBe(1);
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v3");
+  await rememberWorkspaceSessionV1();
   await expect(
     page.locator('[data-chat-role="assistant"]').getByText(
       "Deterministic test proposal ready.",
@@ -4055,7 +4181,7 @@ test("the Program network toggle gates fixed Pi fetch_url without per-request ap
   }
   const protectedIdentities = [
     programId,
-    workspaceSessionId,
+    ...workspaceSessionIds,
     afterAllowed.catalog.head.pendingReviewBinding.workspaceId,
     afterAllowed.catalog.head.pendingReviewBinding.volumeId,
   ];
@@ -4067,6 +4193,7 @@ test("the Program network toggle gates fixed Pi fetch_url without per-request ap
   await page.getByRole("button", { name: "Send" }).click();
   await expect.poll(() => targetRequests.length).toBe(2);
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v4");
+  await rememberWorkspaceSessionV1();
 
   const rawAccess = (await readProgramDataProjectionV1(page, programId)).networkAccess;
   expect(rawAccess).toEqual({ revision: 1, programId, enabled: true });
@@ -4090,6 +4217,7 @@ test("the Program network toggle gates fixed Pi fetch_url without per-request ap
   await page.getByRole("button", { name: "Send" }).click();
   await expect.poll(() => targetRequests.length).toBe(3);
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v5");
+  await rememberWorkspaceSessionV1();
 
   await expect(accessToggle).toBeEnabled();
   await accessToggle.click();
@@ -4097,8 +4225,15 @@ test("the Program network toggle gates fixed Pi fetch_url without per-request ap
   await reopenedComposer.fill(`${deterministicFetchUrlProbePrefixV1}${disabledAgainUrl}`);
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v6");
+  await rememberWorkspaceSessionV1();
   expect(targetRequests).toHaveLength(3);
 
+  const allProtectedIdentities = [
+    programId,
+    ...workspaceSessionIds,
+    afterAllowed.catalog.head.pendingReviewBinding.workspaceId,
+    afterAllowed.catalog.head.pendingReviewBinding.volumeId,
+  ];
   for (const capturedRequest of targetRequests) {
     expect(capturedRequest.method).toBe("GET");
     expect(capturedRequest.postData).toBeNull();
@@ -4107,7 +4242,7 @@ test("the Program network toggle gates fixed Pi fetch_url without per-request ap
     expect(capturedRequest.headers.cookie).toBeUndefined();
     expect(capturedRequest.headers.referer).toBeUndefined();
     expect(JSON.stringify(capturedRequest)).not.toContain(sentinelKey);
-    for (const identity of protectedIdentities) {
+    for (const identity of allProtectedIdentities) {
       expect(JSON.stringify(capturedRequest)).not.toContain(identity);
     }
   }
@@ -4157,10 +4292,8 @@ test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Pr
   await page.getByRole("button", { name: "Create program" }).click();
   const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
   await expect(workspace).toBeVisible();
-  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
   const programId = await readProgramIdV1(workspace);
-  const workspaceSessionId = await readWorkspaceSessionIdV1(workspace);
   const accessToggle = page.getByRole("checkbox", { name: "Allow network access" });
   await expect(accessToggle).not.toBeChecked();
   await accessToggle.click();
@@ -4173,6 +4306,7 @@ test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Pr
   await page.getByRole("button", { name: "Send" }).click();
   await expect.poll(() => capturedRequests.length).toBe(1);
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
   await expect(workspace).toHaveAttribute("data-execution-workspace-receipt", "1");
   await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "download");
@@ -4181,6 +4315,7 @@ test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Pr
     "data-execution-workspace-path",
     deterministicDownloadRelativePathV1,
   );
+  const workspaceSessionId = await readWorkspaceSessionIdV1(workspace);
 
   const continuation = await readWorkspaceContinuationV1(page, programId);
   if (continuation === null) throw new Error("Downloaded Program lost its Workspace continuation");
@@ -4217,7 +4352,8 @@ test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Pr
     revision: 2,
     status: "Preview",
   });
-  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "closed");
+  await expect(reopened).not.toHaveAttribute("data-execution-workspace-generation", /.+/u);
   await expect(accessToggle).toBeChecked();
   expect(await readWorkspaceContinuationV1(page, programId)).toEqual(continuation);
   await expect.poll(() =>

@@ -8,7 +8,6 @@ import {
   type CreatorControllerBudgetsV1,
   type CreatorControllerWorkspacePortV1,
 } from "../product/creator-controller.ts";
-import { createIndexedDbProgramDataRepositoryV1 } from "../product/indexeddb-program-data-repository.ts";
 import type { ProgramCatalogContinuationV1 } from "../product/program-catalog-repository.ts";
 import {
   createProgramDataRepositoryFailureV1,
@@ -21,11 +20,15 @@ import {
 } from "../product/program-process-repository.ts";
 import type { CreatorAgentTerminalRunV1, PreviewProgramV1 } from "../product/contracts.ts";
 import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
+import {
+  createIndexedDbProgramDataRepositoryTestAdapterV1,
+  type IndexedDbProgramDataRepositoryTestAdapterV1,
+} from "./indexeddb-program-data-repository-test-adapter.ts";
 
-type TestProgramDataRepositoryV1 = ReturnType<typeof createIndexedDbProgramDataRepositoryV1>;
+type TestProgramDataRepositoryV1 = IndexedDbProgramDataRepositoryTestAdapterV1;
 
 function createMemoryProgramDataRepositoryV1(): TestProgramDataRepositoryV1 {
-  return createIndexedDbProgramDataRepositoryV1({
+  return createIndexedDbProgramDataRepositoryTestAdapterV1({
     indexedDB: new IDBFactory(),
     keyRange: IDBKeyRange,
   });
@@ -175,7 +178,7 @@ function createControllerWorkspaceV1(
               checkpointId: binding.checkpointId,
               generation: binding.generation,
               fileCount: 0,
-              archiveBytes: 0,
+              archiveBytes: 1,
             },
           },
           transcript: input.transcript,
@@ -636,6 +639,230 @@ describe("Creator Controller Program/Process projection", () => {
         maximumBytes: 4_096,
       }))?.entries.map(({ role }) => role),
     ).toEqual(["user", "assistant", "user", "assistant", "assistant"]);
+  });
+
+  it("releases temporary Workspace sessions after follow-up and proposal decisions settle", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const workspace = createControllerWorkspaceV1(repository);
+    const operations: string[] = [];
+    const controller = createCreatorControllerV1({
+      repository,
+      workspace: {
+        ...workspace,
+        async applyRevision(input) {
+          operations.push("apply:start");
+          const result = await workspace.applyRevision(input);
+          operations.push("apply:end");
+          return result;
+        },
+        async decide(input) {
+          operations.push(`decide:${input.catalog.status}:start`);
+          const result = await workspace.decide(input);
+          operations.push(`decide:${input.catalog.status}:end`);
+          return result;
+        },
+        async closeActiveWorkspace() {
+          operations.push("close");
+          return await workspace.closeActiveWorkspace();
+        },
+      },
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 15,
+    });
+    await controller.initialize();
+    await controller.submitIntent("Create a reusable translation workspace.");
+
+    operations.length = 0;
+    expect(await controller.sendFollowUp("Preserve the terminology.")).toMatchObject({
+      kind: "completed",
+      value: { kind: "sent" },
+    });
+    expect(operations).toEqual(["apply:start", "apply:end", "close"]);
+
+    let proposal = controller.getSnapshot().activeProcess?.subject?.head.proposal;
+    if (proposal === undefined) throw new Error("expected pending proposal");
+    operations.length = 0;
+    expect(await controller.rejectProposal(proposal)).toMatchObject({
+      kind: "completed",
+      value: { kind: "applied", status: "rejected" },
+    });
+    expect(operations).toEqual(["decide:rejected:start", "decide:rejected:end", "close"]);
+
+    const acceptanceRepository = createMemoryProgramDataRepositoryV1();
+    const acceptanceWorkspace = createControllerWorkspaceV1(acceptanceRepository);
+    const acceptanceOperations: string[] = [];
+    const acceptanceController = createCreatorControllerV1({
+      repository: acceptanceRepository,
+      workspace: {
+        ...acceptanceWorkspace,
+        async decide(input) {
+          acceptanceOperations.push(`decide:${input.catalog.status}:start`);
+          const result = await acceptanceWorkspace.decide(input);
+          acceptanceOperations.push(`decide:${input.catalog.status}:end`);
+          return result;
+        },
+        async closeActiveWorkspace() {
+          acceptanceOperations.push("close");
+          throw Object.assign(new Error("Agent environment is attached"), {
+            code: "workspace_busy",
+          });
+        },
+      },
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 16,
+    });
+    await acceptanceController.initialize();
+    await acceptanceController.submitIntent("Create an accepted writing workspace.");
+    proposal = acceptanceController.getSnapshot().activeProcess?.subject?.head.proposal;
+    if (proposal === undefined) throw new Error("expected acceptance proposal");
+    const acceptanceResult = await acceptanceController.acceptProposal(proposal);
+    expect(acceptanceResult).toMatchObject({
+      kind: "completed",
+      value: { kind: "applied", status: "accepted" },
+    });
+    expect(acceptanceOperations).toEqual([
+      "decide:accepted:start",
+      "decide:accepted:end",
+      "close",
+    ]);
+  });
+
+  it("releases a temporary Workspace after a failed follow-up operation", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const workspace = createControllerWorkspaceV1(repository);
+    const operations: string[] = [];
+    const controller = createCreatorControllerV1({
+      repository,
+      workspace: {
+        ...workspace,
+        async applyRevision() {
+          operations.push("apply:failed");
+          throw Object.assign(new Error("Revision capture failed"), {
+            code: "capture_failed",
+          });
+        },
+        async closeActiveWorkspace() {
+          operations.push("close");
+          return await workspace.closeActiveWorkspace();
+        },
+      },
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 16,
+    });
+    await controller.initialize();
+    await controller.submitIntent("Create a writing workspace.");
+
+    operations.length = 0;
+    expect(await controller.sendFollowUp("Add a failed revision.")).toEqual({
+      kind: "failed",
+      code: "capture_failed",
+    });
+    expect(operations).toEqual(["apply:failed", "close"]);
+  });
+
+  it("does not turn a durable mutation into failure when temporary Workspace release retries", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const workspace = createControllerWorkspaceV1(repository);
+    let closeCalls = 0;
+    let diagnosticCalls = 0;
+    const controller = createCreatorControllerV1({
+      repository,
+      workspace: {
+        ...workspace,
+        async closeActiveWorkspace() {
+          closeCalls += 1;
+          if (closeCalls === 1) {
+            throw Object.assign(new Error("temporary close failed"), {
+              code: "temporary_close_failed",
+            });
+          }
+          return await workspace.closeActiveWorkspace();
+        },
+      },
+      onWorkspaceReleaseFailure() {
+        diagnosticCalls += 1;
+        throw new Error("diagnostic failed");
+      },
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 17,
+    });
+    await controller.initialize();
+    await controller.submitIntent("Create a writing workspace.");
+
+    expect(await controller.sendFollowUp("Keep the durable revision.")).toMatchObject({
+      kind: "completed",
+      value: { kind: "sent", programRevision: 2 },
+    });
+    expect(closeCalls).toBe(1);
+    expect(diagnosticCalls).toBe(1);
+    expect(controller.getSnapshot().activeProcess?.subject?.currentProgram.revision).toBe(2);
+
+    expect(await controller.refreshActiveProcess()).toEqual({
+      kind: "completed",
+      value: false,
+    });
+    expect(closeCalls).toBe(2);
+    expect(await controller.refreshActiveProcess()).toEqual({
+      kind: "completed",
+      value: false,
+    });
+    expect(closeCalls).toBe(2);
+  });
+
+  it("keeps the active Process mounted when Home cannot finish a pending Workspace release", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const workspace = createControllerWorkspaceV1(repository);
+    let closeCalls = 0;
+    const controller = createCreatorControllerV1({
+      repository,
+      workspace: {
+        ...workspace,
+        async closeActiveWorkspace() {
+          closeCalls += 1;
+          if (closeCalls <= 2) {
+            throw Object.assign(new Error("temporary close failed"), {
+              code: "temporary_close_failed",
+            });
+          }
+          return await workspace.closeActiveWorkspace();
+        },
+      },
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 18,
+    });
+    await controller.initialize();
+    await controller.submitIntent("Create a writing workspace.");
+
+    expect(await controller.sendFollowUp("Keep this durable revision.")).toMatchObject({
+      kind: "completed",
+      value: { kind: "sent", programRevision: 2 },
+    });
+    expect(closeCalls).toBe(1);
+    const processId = controller.getSnapshot().activeProcess?.process.processId;
+    expect(processId).toBeDefined();
+
+    expect(await controller.openHome()).toBe(false);
+    expect(closeCalls).toBe(2);
+    expect(controller.getSnapshot()).toMatchObject({
+      route: "process",
+      activeProcess: { process: { processId } },
+    });
+
+    expect(await controller.refreshActiveProcess()).toEqual({
+      kind: "completed",
+      value: false,
+    });
+    expect(closeCalls).toBe(3);
+    expect(controller.getSnapshot().route).toBe("process");
+
+    expect(await controller.openHome()).toBe(true);
+    expect(closeCalls).toBe(4);
+    expect(controller.getSnapshot()).toMatchObject({ route: "home", activeProcess: null });
   });
 
   it("does not release a Pi run until its user entry and starting checkpoint are durable", async () => {
@@ -1405,6 +1632,106 @@ describe("Creator Controller Program/Process projection", () => {
         entry.parts.some((part) => part.kind === "text_markdown" && part.markdown === run.text)
       ),
     ).toHaveLength(1);
+  });
+
+  it("retries passive expired-attempt recovery when the Workspace owner remains busy", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    let observedAt = 60;
+    const predecessor = createControllerV1(repository, {
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => observedAt,
+    });
+    await predecessor.initialize();
+    await predecessor.submitIntent("Create a shared writing workspace.");
+    const prepared = await predecessor.prepareAgentRun("Draft the next scene.");
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Agent run");
+    }
+    const { run } = prepared.value;
+
+    const baseWorkspace = createControllerWorkspaceV1(repository);
+    let requiredInspections = 0;
+    const recoveryOperations: string[] = [];
+    const passive = createCreatorControllerV1({
+      ownerInstanceId: "test.controller.passive",
+      repository,
+      workspace: {
+        ...baseWorkspace,
+        async inspectProgramWorkspace(programId, options) {
+          if (options?.hostAccess === "required") {
+            recoveryOperations.push("inspect:required");
+            requiredInspections += 1;
+            if (requiredInspections === 1) {
+              throw Object.assign(new Error("Workspace is still owned"), {
+                code: "workspace_busy",
+              });
+            }
+          }
+          return await baseWorkspace.inspectProgramWorkspace(programId, options);
+        },
+        async closeActiveWorkspace() {
+          recoveryOperations.push("close");
+          if (requiredInspections === 1) {
+            throw Object.assign(new Error("Agent environment is still attached"), {
+              code: "workspace_busy",
+            });
+          }
+          return await baseWorkspace.closeActiveWorkspace();
+        },
+      },
+      budgets: ordinaryBudgetsV1,
+      now: () => observedAt,
+    });
+    await passive.initialize();
+    await passive.openProcess(run.processId);
+    const projectedRevision = passive.getSnapshot().activeProcess?.process.revision;
+    expect(projectedRevision).toBe((await repository.loadProcess(run.processId))?.revision);
+    expect(passive.getSnapshot().activeProcess?.process.activeAttempt).toMatchObject({
+      attemptId: run.agentRunId,
+      generation: run.processAttemptGeneration,
+    });
+    expect(await passive.refreshActiveProcess()).toEqual({
+      kind: "completed",
+      value: false,
+    });
+    expect(requiredInspections).toBe(0);
+
+    observedAt = 30_061;
+    expect(await passive.refreshActiveProcess()).toEqual({
+      kind: "completed",
+      value: true,
+    });
+    expect(requiredInspections).toBe(1);
+    expect(recoveryOperations).toEqual(["inspect:required", "close"]);
+    expect(passive.getSnapshot().activeProcess?.process).toMatchObject({
+      revision: projectedRevision,
+      activeAttempt: { attemptId: run.agentRunId },
+    });
+
+    expect(await passive.refreshActiveProcess()).toEqual({
+      kind: "completed",
+      value: true,
+    });
+    expect(requiredInspections).toBe(2);
+    expect(recoveryOperations).toEqual([
+      "inspect:required",
+      "close",
+      "inspect:required",
+      "close",
+    ]);
+    expect(passive.getSnapshot().activeProcess?.process).toMatchObject({
+      revision: (projectedRevision ?? 0) + 1,
+      status: "interrupted_retryable",
+      activeAttempt: null,
+      lastTerminalAttempt: {
+        attemptId: run.agentRunId,
+        generation: run.processAttemptGeneration,
+        outcome: "interrupted",
+        interruptionDisposition: "retryable",
+      },
+    });
+    expect(await repository.loadProcessExecutionLease(run.processId)).toBeNull();
   });
 
   it("declines retry after Workspace evidence drifts without rewriting the settled terminal", async () => {

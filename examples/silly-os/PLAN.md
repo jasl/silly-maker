@@ -356,13 +356,27 @@ lease-renewal, and terminal publication CAS names the exact lease generation, so
 a late callback from any retired generation cannot publish even if the old page
 or Worker resumes.
 
-Tabs that merely display the same idle Process own no execution resource. A
-passive foreground projection performs a lightweight durable Process-revision
-check on the lease-renewal cadence; a changed revision reloads the current
-Conversation and makes an attempt owned by another tab read-only. Losing an
-acquire race also refreshes immediately. This invalidation path improves UI
-freshness only: a missed or suspended poll cannot weaken the transactional
-lease/generation fence.
+Tabs that merely display the same idle Process own no execution resource and do
+not pre-open its Workspace. Send, Retry, and Export acquire one exact Workspace
+session on demand. Send and Retry then use the atomic begin transaction to
+compete for the Process lease; a loser releases its exact Workspace session and
+refreshes immediately. Export uses and releases the Workspace without acquiring
+a Process lease. A terminal owner exact-releases its Workspace only after the
+durable terminal and Agent terminal acknowledgement complete. A transient
+release failure remains queued and is retried by the passive cadence without
+closing a later successor session.
+
+The passive foreground projection performs a lightweight durable
+Process-revision check on the lease-renewal cadence. It also inspects an exact
+active lease for expiry when the revision has not changed, so a passive tab can
+reopen the Process and resume recovery. A changed revision or completed recovery
+reloads the current Conversation; an attempt owned by another tab makes the
+composer read-only. This invalidation and cleanup path improves UI freshness and
+liveness only: a missed or suspended poll cannot weaken the transactional
+lease/generation fence. If a page freezes after acquiring the Workspace volume
+lock but before atomically acquiring the Process lease, another tab cannot
+safely steal that volume; it must wait for the browser to release the Workspace
+lock rather than treating the absence of a Process lease as write authority.
 
 Page hidden/freeze/discard is not a background-execution guarantee. The atomic
 Process head is cold-start truth: a committed terminal has already cleared its
@@ -377,19 +391,22 @@ query; it does not scan Conversation history, reconstruct an outcome by walking
 older receipts backward, infer completion from UI state, or resubmit the
 mutation.
 
-That interrupted terminal is immutable history. A later explicit retry is
-offered only while the current Workspace review still matches the Process's
-stored checkpoint exactly. If the Workspace later drifts or becomes
-unavailable, retry returns unavailable and the UI removes the action from its
-current projection; it does not rewrite the prior terminal, advance the Process
-revision, or add a fourth semantic transaction.
+That interrupted terminal is immutable history. Because an idle page has no
+pre-opened Workspace, a later explicit Retry may be offered while the current
+head is unknown; invocation first acquires an exact Workspace session and checks
+its authoritative review against the Process's stored checkpoint. A known
+mismatch hides Retry. If invocation discovers drift, mismatch, or an unavailable
+head, retry returns unavailable and the UI removes the action from its current
+projection; it does not rewrite the prior terminal, advance the Process revision,
+or add a fourth semantic transaction.
 
 The Process lease and the Workspace volume lock remain separate authorities. If
 the lease has expired but the Sandbox still reports the Program volume busy,
 the successor leaves the Process readable and recovery-pending; it neither
-steals the volume nor treats temporary lock contention as unrecoverable. Only
-after the authoritative Workspace can be inspected may the checkpoint
-comparison settle the expired attempt.
+steals the volume nor treats temporary lock contention as unrecoverable. Each
+later passive poll retries the inspection. Only after the authoritative
+Workspace can be inspected may the checkpoint comparison settle the expired
+attempt.
 
 This checkpoint deliberately does **not** introduce per-tool event sourcing or
 make every Workspace mutation receipt a durable Conversation record. P4-A may
@@ -455,6 +472,50 @@ the Process lease, so a contender may wait for the nominal roughly 30-second
 expiry; monotonic generation fencing still prevents the retired owner from
 publishing. Translation workflow, OpenUI generation, pi-workflow, subagents and
 Program package distribution remain later consumers.
+
+### P4-A post-closure liveness and ownership repair (closed 2026-08-30)
+
+The post-closure repair preserved P4-A's atomic terminal model while correcting
+its page-level ownership and liveness integration. A passive tab now inspects
+the exact active lease for expiry even when the Process revision is unchanged;
+if authoritative Workspace inspection returns `workspace_busy`, each later
+passive cadence retries rather than leaving the Process permanently read-only.
+Idle tabs preclaim neither a Process lease nor a Workspace. Send, Retry, and
+Export acquire an exact Workspace session only when invoked; Send and Retry then
+atomically compete for the Process lease, while Export never enters that
+protocol. After a durable terminal and Agent terminal acknowledgement, the owner
+exact-releases its Workspace session. A transient release failure is retained
+for passive retry and cannot close a successor session. An already closed or
+Agent-attached `workspace_busy` result is cleanup state, not a reason to replace
+an already durable business result with `failed`. A Home transition publishes
+only after close succeeds; failure retains the active Process and therefore the
+passive cleanup owner.
+
+The same repair reduced boundary duplication without changing authority. The
+Worker response sender no longer repeats admission already owned by the page
+receiver, while the Repository/storage boundary retains domain admission. The
+public IndexedDB factory now returns only `ProgramDataRepositoryV1`; raw
+Catalog/Process seeding is confined to a test adapter rather than exposing a
+production bypass around the composite transactions.
+
+The real two-page UI journey now submits dynamically from both pages instead of
+preselecting an owner. Exactly one page wins; the loser returns to `closed`, has
+no retained Workspace session, preserves its draft, and can take over after the
+winner reaches terminal and releases its exact session. Final evidence passed
+the full repository check at `482` files / `6,262` tests, the complete Chromium
+SillyOS suite with `28` passed and `1` existing platform skip, and the WebKit
+P4-A set at `3/3`. The DS1 WebKit visual baseline was updated for lazy Workspace
+ownership and passed `1/1`, including Activity structural exclusion before a
+Workspace is acquired. React Doctor reported two advisory findings:
+`prefer-useReducer` describes the existing broad component architecture, and
+`await-in-loop` is required for serial exact release. Neither justified an
+automatic refactor in this repair.
+
+One liveness limit remains. If a page freezes after acquiring the Workspace
+volume lock but before atomically acquiring the Process lease, another tab
+cannot safely steal that Workspace and must wait for the browser to release the
+volume lock. The repair does not treat absence or expiry of a Process lease as
+proof that the separate Workspace authority is writable.
 
 The dated P2/P3 sections below remain historical delivery evidence. Their
 Program aggregate, Creator session, message/Activity ceilings, and physical

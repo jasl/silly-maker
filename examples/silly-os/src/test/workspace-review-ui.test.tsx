@@ -622,7 +622,7 @@ describe("SillyOS Workspace review presentation", () => {
     );
   });
 
-  it("offers interrupted retry only while the current Workspace head matches its checkpoint", () => {
+  it("offers on-demand interrupted retry before an idle Workspace session is opened", () => {
     const exactReview: ProgramWorkspaceReviewProjectionV1 = {
       ...changedReviewV1,
       mutableHead: {
@@ -670,6 +670,17 @@ describe("SillyOS Workspace review presentation", () => {
     };
     const view = render(<ProgramWorkspaceV1 {...props} activeProcess={retryableProcess} />);
 
+    expect(screen.getByRole("button", { name: "Retry interrupted run" })).toBeEnabled();
+
+    view.rerender(
+      <ProgramWorkspaceV1
+        {...props}
+        activeProcess={{
+          ...retryableProcess,
+          workspaceReview: null,
+        }}
+      />,
+    );
     expect(screen.getByRole("button", { name: "Retry interrupted run" })).toBeEnabled();
 
     view.rerender(

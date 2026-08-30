@@ -419,6 +419,7 @@ export function createCreatorControllerV1(input: {
   readonly budgets?: CreatorControllerBudgetsV1;
   readonly ownerInstanceId?: string;
   readonly processExecutionLeaseDurationMilliseconds?: number;
+  readonly onWorkspaceReleaseFailure?: (error: unknown) => void;
 }): CreatorControllerV1 {
   const repository = input.repository;
   const creator = input.creator ?? createDeterministicFakeCreatorV1();
@@ -450,6 +451,7 @@ export function createCreatorControllerV1(input: {
   let executionOperationTail: Promise<void> = Promise.resolve();
   let terminalizingAttemptId: string | null = null;
   let transcriptWindow: TranscriptWindowV1 | null = null;
+  let temporaryWorkspaceReleasePending = false;
   let snapshot: CreatorControllerSnapshotV1 = {
     revision: 0,
     route: "home",
@@ -478,6 +480,36 @@ export function createCreatorControllerV1(input: {
   ): boolean =>
     lease.ownerInstanceId === ownerInstanceId && lease.processId === run.processId &&
     lease.attemptId === run.agentRunId && lease.generation === run.processAttemptGeneration;
+
+  const releaseTemporaryWorkspaceV1 = async (): Promise<void> => {
+    try {
+      await input.workspace.closeActiveWorkspace();
+      temporaryWorkspaceReleasePending = false;
+    } catch (error) {
+      if (failureCodeV1(error) === "workspace_busy") {
+        // An Agent-attached Workspace was already active and was not acquired
+        // as temporary Controller state.
+        temporaryWorkspaceReleasePending = false;
+        return;
+      }
+      temporaryWorkspaceReleasePending = true;
+      try {
+        input.onWorkspaceReleaseFailure?.(error);
+      } catch {
+        // Diagnostics cannot change an already-settled business operation.
+      }
+    }
+  };
+
+  const withTemporaryWorkspaceReleaseV1 = async <T>(operation: () => Promise<T>): Promise<T> => {
+    const settlement = await operation().then(
+      (value) => ({ kind: "completed", value }) as const,
+      (error: unknown) => ({ kind: "failed", error }) as const,
+    );
+    await releaseTemporaryWorkspaceV1();
+    if (settlement.kind === "failed") throw settlement.error;
+    return settlement.value;
+  };
 
   const publish = (next: Omit<CreatorControllerSnapshotV1, "revision">): void => {
     if (disposed) return;
@@ -705,16 +737,25 @@ export function createCreatorControllerV1(input: {
         return fail("open", "subject_program_not_found", null, null);
       }
       let workspaceReview = passiveWorkspaceReview;
+      const subjectProgramId = process.subjectProgramId;
       if (
         process.activeAttempt !== null && executionLease !== null &&
-        executionLease.expiresAt <= now() && process.subjectProgramId !== null
+        executionLease.expiresAt <= now() && subjectProgramId !== null
       ) {
+        const expiredProcess = process;
         try {
-          workspaceReview = await input.workspace.inspectProgramWorkspace(
-            process.subjectProgramId,
-            { hostAccess: "required" },
-          );
-          process = await settleExpiredAttemptV1(process, executionLease, workspaceReview);
+          const recovered = await withTemporaryWorkspaceReleaseV1(async () => {
+            const review = await input.workspace.inspectProgramWorkspace(
+              subjectProgramId,
+              { hostAccess: "required" },
+            );
+            return {
+              process: await settleExpiredAttemptV1(expiredProcess, executionLease, review),
+              review,
+            };
+          });
+          workspaceReview = recovered.review;
+          process = recovered.process;
         } catch (error) {
           const code = failureCodeV1(error);
           if (code !== "workspace_busy" && code !== "volume_busy") throw error;
@@ -1130,46 +1171,48 @@ export function createCreatorControllerV1(input: {
     const firstSequence = active.process.transcriptFrontier + 1;
     publishSavingV1("revision");
     try {
-      const result = await input.workspace.applyRevision({
-        catalog: {
-          programId: currentProgram.programId,
-          expectedRepositoryRevision: subject.head.repositoryRevision,
-          expectedProposal: {
-            proposalId: subject.head.proposal.proposalId,
-            programRevision: subject.head.proposal.programRevision,
+      const result = await withTemporaryWorkspaceReleaseV1(() =>
+        input.workspace.applyRevision({
+          catalog: {
+            programId: currentProgram.programId,
+            expectedRepositoryRevision: subject.head.repositoryRevision,
+            expectedProposal: {
+              proposalId: subject.head.proposal.proposalId,
+              programRevision: subject.head.proposal.programRevision,
+            },
+            commitId: createId("catalog-revision"),
+            program: nextProgram,
+            proposalId: createId("proposal"),
+            updatedAt,
           },
-          commitId: createId("catalog-revision"),
-          program: nextProgram,
-          proposalId: createId("proposal"),
-          updatedAt,
-        },
-        transcript: {
-          processId: active.process.processId,
-          expectedProcessRevision: active.process.revision,
-          expectedTranscriptFrontier: active.process.transcriptFrontier,
-          commitId: createId("process-follow-up"),
-          attemptBinding: null,
-          entries: [
-            transcriptTextEntryV1({
-              processId: active.process.processId,
-              sequence: firstSequence,
-              entryId: createId("entry"),
-              role: "user",
-              text,
-            }),
-            transcriptTextEntryV1({
-              processId: active.process.processId,
-              sequence: firstSequence + 1,
-              entryId: createId("entry"),
-              role: "assistant",
-              text: creatorReply,
-            }),
-          ],
-          checkpoint: null,
-          terminalAttemptReceipt: null,
-          updatedAt,
-        },
-      });
+          transcript: {
+            processId: active.process.processId,
+            expectedProcessRevision: active.process.revision,
+            expectedTranscriptFrontier: active.process.transcriptFrontier,
+            commitId: createId("process-follow-up"),
+            attemptBinding: null,
+            entries: [
+              transcriptTextEntryV1({
+                processId: active.process.processId,
+                sequence: firstSequence,
+                entryId: createId("entry"),
+                role: "user",
+                text,
+              }),
+              transcriptTextEntryV1({
+                processId: active.process.processId,
+                sequence: firstSequence + 1,
+                entryId: createId("entry"),
+                role: "assistant",
+                text: creatorReply,
+              }),
+            ],
+            checkpoint: null,
+            terminalAttemptReceipt: null,
+            updatedAt,
+          },
+        })
+      );
       if (result.kind === "conflict") {
         return { kind: "completed", value: { kind: "unavailable" } };
       }
@@ -1245,15 +1288,17 @@ export function createCreatorControllerV1(input: {
         commitId: createId("catalog-decision"),
         updatedAt,
       } as const;
-      const result = status === "accepted"
-        ? await input.workspace.decide({
-          catalog: { ...catalogBase, status: "accepted" },
-          transcript,
-        })
-        : await input.workspace.decide({
-          catalog: { ...catalogBase, status: "rejected" },
-          transcript,
-        });
+      const result = await withTemporaryWorkspaceReleaseV1(() =>
+        status === "accepted"
+          ? input.workspace.decide({
+            catalog: { ...catalogBase, status: "accepted" },
+            transcript,
+          })
+          : input.workspace.decide({
+            catalog: { ...catalogBase, status: "rejected" },
+            transcript,
+          })
+      );
       if (result.kind === "conflict") {
         const proposal = result.currentProgram?.head.proposal;
         return {
@@ -1349,9 +1394,21 @@ export function createCreatorControllerV1(input: {
       const projected = snapshot.activeProcess?.process;
       if (projected === undefined) return { kind: "completed", value: false };
       try {
+        if (temporaryWorkspaceReleasePending) await releaseTemporaryWorkspaceV1();
         const durable = await repository.loadProcess(projected.processId);
         if (durable === null) return fail("open", "process_not_found", null, null);
-        if (durable.revision === projected.revision) {
+        if (durable.revision !== projected.revision) {
+          await refreshProcessIfCurrentV1(projected.processId);
+          return { kind: "completed", value: true };
+        }
+        if (durable.activeAttempt === null) {
+          return { kind: "completed", value: false };
+        }
+        // Lease expiry is intentionally outside the semantic Process revision.
+        // Reopen an unchanged active Process once its lease expires so passive
+        // tabs can retry Workspace-gated recovery on every monitor poll.
+        const executionLease = await repository.loadProcessExecutionLease(durable.processId);
+        if (executionLease === null || executionLease.expiresAt > now()) {
           return { kind: "completed", value: false };
         }
         await refreshProcessIfCurrentV1(projected.processId);
@@ -1860,6 +1917,21 @@ export function createCreatorControllerV1(input: {
       if (disposed) return false;
       processEpoch += 1;
       transcriptEpoch += 1;
+      try {
+        await input.workspace.closeActiveWorkspace();
+        temporaryWorkspaceReleasePending = false;
+      } catch (error) {
+        if (failureCodeV1(error) !== "workspace_busy") {
+          temporaryWorkspaceReleasePending = true;
+          try {
+            input.onWorkspaceReleaseFailure?.(error);
+          } catch {
+            // Diagnostics cannot change whether the current route remains usable.
+          }
+        }
+        return false;
+      }
+      if (disposed) return false;
       transcriptWindow = null;
       retryCommand = null;
       ownedExecutionLease = null;
@@ -1869,12 +1941,6 @@ export function createCreatorControllerV1(input: {
         activeProcess: null,
         durability: { phase: "ready" },
       });
-      try {
-        await input.workspace.closeActiveWorkspace();
-      } catch {
-        return false;
-      }
-      if (disposed) return false;
       return true;
     },
     async retry() {
