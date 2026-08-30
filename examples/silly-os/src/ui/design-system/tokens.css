@@ -50,7 +50,7 @@
   --sos-line-interactive: #afb3ae;
   --sos-ink: var(--silly-color-text);
   --sos-ink-soft: var(--silly-color-text-muted);
-  --sos-ink-muted: #858984;
+  --sos-ink-muted: #6b6f6b;
   --sos-accent: var(--silly-color-accent);
   --sos-accent-dark: #3155c6;
   --sos-accent-soft: #edf2ff;
