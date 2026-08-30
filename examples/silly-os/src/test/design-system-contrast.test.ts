@@ -56,14 +56,14 @@ function readColorTokenV1(cssV1: string, tokenV1: string): string {
   return readColorTokenV1(cssV1, aliasV1);
 }
 
-describe("SillyOS light-theme contrast", () => {
-  it("keeps muted text readable on every opaque light surface", async () => {
+describe("SillyOS semantic contrast", () => {
+  it("keeps text roles readable on the opaque surfaces used by both themes", async () => {
     const allTokensV1 = await readFile(tokenFileV1, "utf8");
-    const lightTokensV1 = allTokensV1.slice(
-      0,
-      allTokensV1.indexOf('.silly-os[data-color-scheme="dark"]'),
-    );
-    const mutedInkV1 = readColorTokenV1(lightTokensV1, "--sos-ink-muted");
+    const darkThemeStartV1 = allTokensV1.indexOf('.silly-os[data-color-scheme="dark"]');
+    const themesV1 = [
+      ["light", allTokensV1.slice(0, darkThemeStartV1)],
+      ["dark", allTokensV1.slice(darkThemeStartV1)],
+    ] as const;
     const surfaceTokensV1 = [
       "--sos-bg",
       "--sos-surface",
@@ -81,13 +81,39 @@ describe("SillyOS light-theme contrast", () => {
       "--sos-warning-soft",
       "--sos-danger-soft",
     ] as const;
+    const semanticPairsV1 = [
+      ["--sos-ink", "--sos-surface"],
+      ["--sos-ink-soft", "--sos-surface-subtle"],
+      ["--sos-accent-dark", "--sos-accent-soft"],
+      ["--sos-accent-dark", "--sos-accent-softer"],
+      ["--sos-teal", "--sos-teal-soft"],
+      ["--sos-info", "--sos-info-soft"],
+      ["--sos-success", "--sos-success-soft"],
+      ["--sos-warning", "--sos-warning-soft"],
+      ["--sos-danger", "--sos-danger-soft"],
+      ["--sos-danger", "--sos-accent-soft"],
+    ] as const;
 
-    for (const surfaceTokenV1 of surfaceTokensV1) {
-      const ratioV1 = contrastRatioV1(
-        mutedInkV1,
-        readColorTokenV1(lightTokensV1, surfaceTokenV1),
-      );
-      expect(ratioV1, `${surfaceTokenV1} contrast`).toBeGreaterThanOrEqual(4.5);
+    for (const [themeV1, tokensV1] of themesV1) {
+      const mutedInkV1 = readColorTokenV1(tokensV1, "--sos-ink-muted");
+      for (const surfaceTokenV1 of surfaceTokensV1) {
+        const ratioV1 = contrastRatioV1(
+          mutedInkV1,
+          readColorTokenV1(tokensV1, surfaceTokenV1),
+        );
+        expect(ratioV1, `${themeV1} muted text on ${surfaceTokenV1}`).toBeGreaterThanOrEqual(4.5);
+      }
+
+      for (const [foregroundTokenV1, backgroundTokenV1] of semanticPairsV1) {
+        const ratioV1 = contrastRatioV1(
+          readColorTokenV1(tokensV1, foregroundTokenV1),
+          readColorTokenV1(tokensV1, backgroundTokenV1),
+        );
+        expect(
+          ratioV1,
+          `${themeV1} ${foregroundTokenV1} on ${backgroundTokenV1}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
     }
   });
 });
