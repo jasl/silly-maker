@@ -578,6 +578,7 @@ async function expectInsideVisualViewportV1(page: Page, locator: Locator): Promi
 
 async function settleVisualFixtureV1(page: Page): Promise<void> {
   await page.evaluate(async () => {
+    window.scrollTo({ left: 0, top: 0 });
     await document.fonts.ready;
     await new Promise<void>((resolveV1) => requestAnimationFrame(() => resolveV1()));
     await new Promise<void>((resolveV1) => requestAnimationFrame(() => resolveV1()));
@@ -585,10 +586,11 @@ async function settleVisualFixtureV1(page: Page): Promise<void> {
   });
 }
 
-async function expectVisualSnapshotV1(locatorV1: Locator, nameV1: string): Promise<void> {
-  const screenshotV1 = await locatorV1.screenshot({
+async function expectVisualSnapshotV1(page: Page, nameV1: string): Promise<void> {
+  const screenshotV1 = await page.screenshot({
     animations: "allow",
     caret: "initial",
+    scale: "css",
   });
   expect(screenshotV1).toMatchSnapshot(nameV1);
 }
@@ -2775,7 +2777,7 @@ test("@ds1-visual Workspace keeps its representative desktop and phone compositi
     ] as const,
   );
   await page.setViewportSize({ width: 1_600, height: 1_000 });
-  const workspace = await openTranslationWorkspaceV1(page);
+  await openTranslationWorkspaceV1(page);
   await page.locator("[data-workspace-review] code").evaluateAll((elementsV1) => {
     for (const elementV1 of elementsV1) {
       elementV1.textContent = "sillyos.fixture.00000000-0000-4000-8000-000000000000";
@@ -2783,17 +2785,17 @@ test("@ds1-visual Workspace keeps its representative desktop and phone compositi
   });
 
   await settleVisualFixtureV1(page);
-  await expectVisualSnapshotV1(workspace, "ds1-desktop-workspace.png");
+  await expectVisualSnapshotV1(page, "ds1-desktop-workspace.png");
 
   await page.setViewportSize({ width: 390, height: 844 });
   const navigation = page.getByRole("navigation", { name: "Workspace views" });
   await navigation.getByRole("button", { name: "Chat" }).click();
   await settleVisualFixtureV1(page);
-  await expectVisualSnapshotV1(workspace, "ds1-phone-chat.png");
+  await expectVisualSnapshotV1(page, "ds1-phone-chat.png");
 
   await navigation.getByRole("button", { name: "View" }).click();
   await settleVisualFixtureV1(page);
-  await expectVisualSnapshotV1(workspace, "ds1-phone-view.png");
+  await expectVisualSnapshotV1(page, "ds1-phone-view.png");
 
   if (testInfo.project.name === "webkit") {
     expect(
