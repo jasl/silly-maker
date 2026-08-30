@@ -31,6 +31,8 @@ interface ResearchProfileV1 {
   readonly apiKeyEnvironmentVariable: string;
 }
 
+type ResearchConditionV1 = "baseline" | "confirmed-plan";
+
 interface CorpusCaseV1 {
   readonly id: string;
   readonly fileName: string;
@@ -94,19 +96,83 @@ const evidenceDirectoryV1 = fileURLToPath(
 );
 const requestTimeoutMillisecondsV1 = 120_000;
 
+const baselineGlossaryV1 = [
+  { source: "回声", target: "Echo", note: "A project codename when used as a noun." },
+  { source: "林澄", target: "Lin Cheng", note: "Character name." },
+  { source: "周遥", target: "Zhou Yao", note: "Character name." },
+] as const;
+
+const confirmedPlanGlossaryV1 = [
+  { source: "雾灯站", target: "Foglight Station", note: "Confirmed official station name." },
+  { source: "回声钟", target: "Echo Clock", note: "Confirmed official device name." },
+  {
+    source: "回声",
+    target: "Echo",
+    note: "Confirmed project codename when used independently, not inside another official name.",
+  },
+  { source: "林澄", target: "Lin Cheng", note: "Confirmed character name." },
+  { source: "周遥", target: "Zhou Yao", note: "Confirmed character name." },
+  { source: "朱师傅", target: "Master Zhu", note: "Confirmed character title and name." },
+  { source: "星鲸终端", target: "Starwhale Terminal", note: "Confirmed product name." },
+  { source: "航行灯", target: "navigation light", note: "Confirmed UI term." },
+  { source: "返航灯", target: "return light", note: "Confirmed UI term." },
+  { source: "待命", target: "Standby", note: "Confirmed status label." },
+  { source: "已连接", target: "Connected", note: "Confirmed status label." },
+  { source: "主操作员", target: "primary operator", note: "Confirmed role name." },
+  { source: "广播", target: "Announcement", note: "Confirmed speaker label." },
+  { source: "三号站台", target: "Platform 3", note: "Confirmed platform name." },
+] as const;
+
+interface ConfirmedContextFactV1 {
+  readonly expectedSource: string;
+  readonly context: string;
+}
+
+const confirmedContextByCaseAndLocatorV1: Readonly<
+  Record<string, Readonly<Record<string, ConfirmedContextFactV1>>>
+> = {
+  "brief.txt": {
+    "line/5": {
+      expectedSource:
+        "“请在 ⟦SM:1⟧ 的灯熄灭前校准频率，”朱师傅说，“然后把 ⟦SM:2⟧ 条记录送到 ⟦SM:3⟧。”",
+      context:
+        "The placeholder names the station that owns the light. Preserve possession: the station's light goes out.",
+    },
+  },
+  "platform-night.srt": {
+    "cue/3/line/1": {
+      expectedSource: "⟦SM:1⟧广播：请持 ⟦SM:2⟧ 的旅客前往三号站台。⟦SM:3⟧",
+      context:
+        "The passengers possess tickets identified by ticketCode; ticketCode is not a destination or group name.",
+    },
+  },
+};
+
 function usageV1(): never {
   console.error(
-    "Usage: deno task research:translation -- <deepseek|openrouter> [--output <ignored-json-path>]",
+    "Usage: deno task research:translation -- <deepseek|openrouter> [--condition <baseline|confirmed-plan>] [--output <ignored-json-path>]",
   );
   Deno.exit(2);
 }
 
-function parseArgumentsV1(): { readonly profile: ResearchProfileV1; readonly output: string } {
+function parseArgumentsV1(): {
+  readonly profile: ResearchProfileV1;
+  readonly condition: ResearchConditionV1;
+  readonly output: string;
+} {
   const args = Deno.args[0] === "--" ? Deno.args.slice(1) : Deno.args;
   const profileId = args[0];
   if (profileId !== "deepseek" && profileId !== "openrouter") usageV1();
   let output: string | null = null;
+  let condition: ResearchConditionV1 = "baseline";
   for (let index = 1; index < args.length; index += 1) {
+    if (args[index] === "--condition" && args[index + 1] !== undefined) {
+      const candidate = args[index + 1];
+      if (candidate !== "baseline" && candidate !== "confirmed-plan") usageV1();
+      condition = candidate;
+      index += 1;
+      continue;
+    }
     if (args[index] !== "--output" || output !== null || args[index + 1] === undefined) {
       usageV1();
     }
@@ -116,8 +182,16 @@ function parseArgumentsV1(): { readonly profile: ResearchProfileV1; readonly out
   const timestamp = new Date().toISOString().replaceAll(":", "-");
   return {
     profile: profilesV1[profileId],
+    condition,
     output: output ?? resolve(evidenceDirectoryV1, `${profileId}-${timestamp}.json`),
   };
+}
+
+function selectRelevantGlossaryV1(
+  sourceText: string,
+  glossary: readonly { readonly source: string; readonly target: string; readonly note: string }[],
+) {
+  return glossary.filter((entry) => sourceText.includes(entry.source));
 }
 
 async function repositoryRevisionV1(): Promise<string | null> {
@@ -245,6 +319,7 @@ function nonToolTextCharactersV1(message: AssistantMessage): number {
 
 async function runCorpusCaseV1(input: {
   readonly profile: ResearchProfileV1;
+  readonly condition: ResearchConditionV1;
   readonly apiKey: string;
   readonly model: NonNullable<ReturnType<ReturnType<typeof builtinModels>["getModel"]>>;
   readonly corpusCase: CorpusCaseV1;
@@ -264,17 +339,28 @@ async function runCorpusCaseV1(input: {
       capability: document.capability,
     } as const;
   }
+  const contextByLocator = input.condition === "confirmed-plan"
+    ? confirmedContextByCaseAndLocatorV1[input.corpusCase.id] ?? {}
+    : {};
+  const glossary = input.condition === "confirmed-plan"
+    ? selectRelevantGlossaryV1(sourceText, confirmedPlanGlossaryV1)
+    : baselineGlossaryV1;
   const request: TranslationBatchRequestV1 = {
     sourceLocale: "zh-CN",
     targetLocale: "en",
     documentPurpose: input.corpusCase.documentPurpose,
     style: input.corpusCase.style,
-    glossary: [
-      { source: "回声", target: "Echo", note: "A project codename when used as a noun." },
-      { source: "林澄", target: "Lin Cheng", note: "Character name." },
-      { source: "周遥", target: "Zhou Yao", note: "Character name." },
-    ],
-    units: document.sourceUnits,
+    glossary,
+    units: document.sourceUnits.map((unit) => {
+      const confirmedContext = contextByLocator[unit.locator];
+      if (confirmedContext !== undefined && unit.source !== confirmedContext.expectedSource) {
+        throw new Error(`confirmed_context_source_mismatch:${input.corpusCase.id}:${unit.locator}`);
+      }
+      return {
+        ...unit,
+        context: confirmedContext?.context ?? unit.context,
+      };
+    }),
   };
   const userPrompt = createTranslationBatchUserPromptV1(request);
   const tool = translationToolV1(document.sourceUnits.length);
@@ -433,7 +519,7 @@ async function runCorpusCaseV1(input: {
   }
 }
 
-const { profile, output } = parseArgumentsV1();
+const { profile, condition, output } = parseArgumentsV1();
 const apiKey = Deno.env.get(profile.apiKeyEnvironmentVariable);
 if (apiKey === undefined || apiKey.length === 0) {
   console.error(`Missing ${profile.apiKeyEnvironmentVariable}; no request was sent.`);
@@ -452,12 +538,13 @@ if (!getSupportedThinkingLevels(model).includes("low")) {
 
 const results = [];
 for (const corpusCase of corpusCasesV1) {
-  results.push(await runCorpusCaseV1({ profile, apiKey, model, corpusCase }));
+  results.push(await runCorpusCaseV1({ profile, condition, apiKey, model, corpusCase }));
 }
 
 const evidence = {
   schema: "sillyos.translation-program-research.v1",
   scope: "model_protocol_smoke",
+  condition,
   recordedAt: new Date().toISOString(),
   repositoryRevision: await repositoryRevisionV1(),
   workingTreeDirty: await repositoryWorkingTreeDirtyV1(),

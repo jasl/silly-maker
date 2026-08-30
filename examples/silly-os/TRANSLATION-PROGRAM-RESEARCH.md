@@ -1,8 +1,8 @@
 # Translation Program research plan
 
-Status: **P5-A completed on 2026-08-31; a prompt-revision-4 model-protocol
-smoke is recorded, while P5-B through P5-D, every model route, and the complete
-product journey remain unqualified**.
+Status: **P5-A completed on 2026-08-31; prompt revisions 4 and 5 have recorded
+model-protocol evidence, including a revision-5 confirmed-plan ablation, while
+P5-B through P5-D and the complete product journey remain unqualified**.
 
 This plan activates the first real Program study described by
 [PLAN.md](./PLAN.md#p5--translation-program). It asks whether SillyOS can carry
@@ -57,6 +57,56 @@ scheduler, parallel Agent authority, or cross-Agent reconciliation. Either
 reference may be reconsidered only after a measured real journey demonstrates
 a capability that cannot be expressed cleanly by the current single-Agent
 flow.
+
+### Recorded translation-reference observations
+
+The 2026-08-31 review inspected these exact local revisions:
+
+- AiNiee `633e366a475c8339e6b1d4f73fa03b69a5444e5c`;
+- LinguaGacha `31cfd3fbcd15a37d227a67a14788a938eb0f26a2`;
+- ainiee-translate-skill `11f58b050ff4019a5dc8d58e64fbdc181afa004a`.
+
+AiNiee and ainiee-translate-skill are AGPL references. The latter explicitly
+vendors and adapts AiNiee parsing/export code and reuses its cache and prompt
+conventions, so none of that implementation or template text is eligible for
+copying into this MIT product. LinguaGacha is a separate redesign rather than a
+runtime dependency of the current checkout; it has no repository license file,
+so this study likewise uses only implementation-independent behavior
+observations. The implementation rule for this study is to author the SillyOS
+prompt, schemas, codecs, fixtures, and tests independently against its own
+corpus.
+
+The common useful pattern is not one special prompt. It is a layered workflow:
+
+1. keep a small stable execution contract for fidelity, unit mapping, protected
+   structure, and candidate publication;
+2. build a project-owned, human-confirmed translation profile containing only
+   relevant terminology, entity/relationship facts, style decisions, and
+   accepted examples;
+3. calibrate a new project on a small representative sample before bulk work;
+4. commit bounded batches to durable Process checkpoints and resume from the
+   last admitted batch;
+5. separate deterministic structure/glossary checks from semantic review and
+   expose uncertain findings to a human instead of treating heuristics as a
+   quality gate;
+
+SillyOS adds one corrective requirement rather than copying the references:
+an optional polish pass must produce another reviewable candidate instead of
+overwriting the accepted translation. Both inspected AGPL implementations
+replace their current translated text during polish, which is not an appropriate
+authority model for this product.
+
+The references do not establish translation quality by themselves. AiNiee's
+current tests do not cover its translation prompt builder or semantic output.
+ainiee-translate-skill contains focused tests for cache, batch, prompt assembly,
+glossary, parse/export, polish, verify, and scan mechanics, but no recorded,
+test-qualified provider-backed semantic run, executed human sample-confirmation
+journey, semantic quality corpus, or crash-resume qualification. It prescribes a
+human sample-confirmation mode, but the inspected repository does not record a
+completed real journey through it. Its default batch-size and suggested/adaptive
+parallelism heuristics, Latin-specific checks, global active module, whole-file
+backup, and direct cache writes are reference-product choices rather than
+SillyOS contracts.
 
 ## Original four-format corpus
 
@@ -370,3 +420,92 @@ stage. The Process-owned Workspace binding, exact Host import, and build-known
 Browser Translation dispatch delivered beside it are deliberately unconsumed
 substrate for the next product slice; they do not close P5-B or P5-C and are not
 an ordinary Translation Program journey.
+
+## Follow-up evidence — prompt revision 5 and confirmed plan
+
+Prompt revision 5 is the study's execution prompt informed by the behavior-level
+observations above. It strengthens fidelity, relationship/negation/causality
+preservation, source-text-as-data handling, relevant-context use, and candidate
+self-review without adopting reference prompt text, visible chain-of-thought,
+line-number protocols, or a universal literary style. The same two configured
+routes, corpus revision 1, low reasoning, temperature 0, SSE, no automatic
+retries, and four requests per run were retained.
+
+Two conditions were exercised three times per route:
+
+- `baseline` retained the revision-4 study's three simple glossary entries;
+- `confirmed-plan` selected only source-matching entries from a research-owned
+  canonical glossary and added two explicit per-unit relationship facts.
+
+The six baseline artifacts were produced immediately before the runner began
+writing its explicit `condition` field; an absent field in those artifacts is
+the historical default `baseline`, and their four request digests match that
+default exactly. Confirmed-plan artifacts record the field directly.
+
+The latter is a controlled Planning-input ablation, not evidence that the
+product has run a Planning turn, persisted a human decision, calibrated a
+sample, committed multiple batches, or resumed a Process. The ignored evidence
+records HEAD `f557ab8936c3097757ddb579cccd9aab1a11ebe8` with a dirty working
+tree; the final checked-in prompt and runner must therefore be used with this
+report rather than treating that commit as a complete reproduction point.
+
+| Condition / configured route | Runs | Requests | Admission/export/reopen | Source/exported units | Recorded request latency | Recorded tokens | Pi cost observation |
+| ---------------------------- | ---: | -------: | ----------------------: | --------------------: | -----------------------: | --------------: | ------------------: |
+| baseline / DeepSeek          |    3 |       12 |                   12/12 |                 57/57 |                60,730 ms |          30,856 |        0.0034372016 |
+| baseline / OpenRouter        |    3 |       12 |                   11/12 |                 57/53 |               103,876 ms |          22,269 |        0.0018759550 |
+| confirmed / DeepSeek         |    3 |       12 |                   12/12 |                 57/57 |                57,359 ms |          31,634 |        0.0031968664 |
+| confirmed / OpenRouter       |    3 |       12 |                   12/12 |                 57/57 |                74,356 ms |          22,729 |        0.0017732450 |
+
+The baseline total was 164,606 ms, 53,125 tokens, and a 0.0053131566 Pi cost
+observation. Its tokens were 20,983 input, 20,224 cache-read, and 11,918 output;
+6,187 reasoning tokens are a subset of output. The confirmed-plan total was
+131,715 ms, 54,363 tokens, and a 0.0049701114 Pi cost observation: 17,002 input,
+25,216 cache-read, and 12,145 output, with 6,444 reasoning tokens inside output.
+These are raw observations from a small run, not performance or cost claims.
+Provider-reported response-model identity remained unavailable.
+
+The revision-5 baseline was associated with improvements over the recorded
+revision-4 runs, but this small, unpaired comparison does not establish a causal
+prompt effect or make the workflow unnecessary:
+
+- across all six baseline runs, each brief candidate translated the
+  instruction-looking sentence as content; separately, each SRT candidate
+  preserved the _holding a ticket_ relationship, where the revision-4 evidence
+  had one ticket-relationship error;
+- the possessive station/light relationship was preserved in three of six
+  baseline candidates, compared with two of six under revision 4;
+- revision 4 produced ten admitted ambiguity questions, half judged redundant;
+  revision 5 produced no admitted ambiguity, but one OpenRouter SRT candidate
+  was correctly rejected because its single redundant question omitted the
+  required unit identity even though its four target rows were otherwise usable;
+- without a confirmed profile, the chosen canonical forms appeared in only
+  1/6 `Foglight Station`, 3/6 `Starwhale Terminal`, and 0/6 `Echo Clock`
+  candidates.
+
+The confirmed-plan condition made all three canonical forms exact in 6/6 runs
+and improved the station/light relationship to 5/6. It still did not guarantee
+semantic adequacy: one DeepSeek result changed that relationship to location
+despite the explicit fact, and another shortened “the last train has pulled
+into the station” to “the last train has arrived.” Subtitle pressure also
+remained, reaching 22.5 visible characters per second without a product-owned
+quality threshold.
+
+The result does not support the broad attribution “the models are too weak.” It
+is consistent with revision 4 being under-specified and revision 5 addressing
+part of that problem. The absent product workflow remains the larger untested
+gap: confirmed terminology and entity facts, sample calibration, durable batch
+state, semantic Review, and human edits. Even when confirmed inputs were
+supplied directly in this ablation, individual candidates still contained
+semantic misses and must be reviewable. The next slice should therefore
+implement Planning, Calibration, and Review as Process-owned product state
+rather than continue to grow the execution system prompt or introduce parallel
+subagents.
+
+Revision-5 request digests are condition-specific:
+
+| Corpus case             | Baseline prompt/tool/settings SHA-256                              | Confirmed-plan prompt/tool/settings SHA-256                        |
+| ----------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `brief.txt`             | `bf0a25fe82c014b317d185418df6dcd11cc6695648ec6b3e2aa3a33df8fe67da` | `90c73d4aa541de3d4d79c778563d269f8c3551fcd84f32bd4feedcfc10eb9023` |
+| `release-guide.md`      | `6b06176d3de697ee41909d9a5eb7eb55ada85bd5290c6b3a87997aae3b172a1d` | `7f7f4edb95b9b47fda87ee73c366a484b0512823228bbdc26f20aa6ccad1ab6d` |
+| `platform-night.srt`    | `993dcdc6648288d7485235a74a112ac01ab19c618cc1ecc15369f6804ed41bfc` | `3784d680a2ce0ac8de0156e713df65c1db9117febe61a74ead8692a08897eff0` |
+| `station-dialogue.json` | `898dbdfafb1c4241aa38c8754cbda15688d6d8943e9fc45e89546287d7f862d2` | `436bbba8220a1751e4964c92cfc3059597f958970d48e1cfb0dca7106fb386cb` |
