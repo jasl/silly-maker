@@ -583,7 +583,15 @@ transaction. A partial or busy result is reported and remains retryable; the UI
 must never claim success merely because one repository was cleared. Another
 open SillyOS tab may retain a shared Workspace lease or write new state after a
 successful reset boundary; the product asks the user to close active tabs and
-retry a partial result rather than inventing a cross-origin transaction.
+retry a partial result rather than inventing a cross-origin transaction. One
+control-origin Web Lock keeps ordinary Browser Program/Workspace Authority
+operations shared while holding reset exclusively from Product Repository clear
+through Workspace purge. This prevents a product-owned Program/continuation/
+volume pair from being split by a concurrent control tab inside that critical
+section without serializing ordinary work in different Programs. It neither
+extends into the Sandbox origin nor prevents a retained Sandbox lease from
+producing a truthful partial result; new consistent data may be created after
+the exclusive reset boundary releases.
 
 The control origin keeps one bounded, non-secret reset-intent record in
 `localStorage`. Publishing a new random reset identity causes other open SillyOS

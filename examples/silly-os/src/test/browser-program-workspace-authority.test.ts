@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createBrowserProgramWorkspaceAuthorityV1,
   type BrowserProgramWorkspaceAuthorityV1,
+  type BrowserProgramWorkspaceOperationFenceV1,
 } from "../product/browser-program-workspace-authority.ts";
 import { createCreatorSessionV1 } from "../product/creator-session.ts";
 import type {
@@ -544,6 +545,66 @@ interface AuthorityHarnessV1 {
   readonly host: FakeHostControlV1;
 }
 
+class FakeOperationFenceV1 implements BrowserProgramWorkspaceOperationFenceV1 {
+  readonly #queue: Array<{
+    readonly mode: "shared" | "exclusive";
+    readonly operation: () => Promise<unknown>;
+    readonly resolve: (value: unknown) => void;
+    readonly reject: (reason: unknown) => void;
+  }> = [];
+  #activeShared = 0;
+  #activeExclusive = false;
+
+  get activeShared(): number {
+    return this.#activeShared;
+  }
+
+  get activeExclusive(): boolean {
+    return this.#activeExclusive;
+  }
+
+  get queuedModes(): readonly ("shared" | "exclusive")[] {
+    return this.#queue.map((request) => request.mode);
+  }
+
+  run<T>(mode: "shared" | "exclusive", operation: () => Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      this.#queue.push({
+        mode,
+        operation,
+        resolve: (value) => resolve(value as T),
+        reject,
+      });
+      this.#drain();
+    });
+  }
+
+  #drain(): void {
+    if (this.#activeExclusive || this.#queue.length === 0) return;
+    if (this.#queue[0]?.mode === "exclusive") {
+      if (this.#activeShared !== 0) return;
+      const request = this.#queue.shift();
+      if (request === undefined) return;
+      this.#activeExclusive = true;
+      void request.operation().then(request.resolve, request.reject).finally(() => {
+        this.#activeExclusive = false;
+        this.#drain();
+      });
+      return;
+    }
+
+    while (this.#queue[0]?.mode === "shared") {
+      const request = this.#queue.shift();
+      if (request === undefined) break;
+      this.#activeShared += 1;
+      void request.operation().then(request.resolve, request.reject).finally(() => {
+        this.#activeShared -= 1;
+        this.#drain();
+      });
+    }
+  }
+}
+
 function authorityHarnessV1(input: {
   readonly repositoryBacking?: MemoryProgramRepositoryBackingV3;
   readonly hostBacking?: FakeHostBackingV1;
@@ -551,6 +612,7 @@ function authorityHarnessV1(input: {
   readonly createRepository?: () => ProgramRepositoryWithWorkspaceContinuationV1;
   readonly hooks?: FakeHostHooksV1;
   readonly events?: string[];
+  readonly operationFence?: BrowserProgramWorkspaceOperationFenceV1;
 } = {}): AuthorityHarnessV1 {
   const repositoryBacking = input.repositoryBacking ?? createMemoryProgramRepositoryBackingV3();
   const hostBacking = input.hostBacking ?? fakeHostBackingV1();
@@ -567,6 +629,7 @@ function authorityHarnessV1(input: {
         (() => createMemoryProgramRepositoryV3({ backing: repositoryBacking })),
       host: host.host,
       createSnapshotId: () => `snapshot.authority.${String(nextSnapshot++)}`,
+      operationFence: input.operationFence ?? new FakeOperationFenceV1(),
     }),
   };
 }
@@ -636,6 +699,125 @@ async function decideV1(input: {
 }
 
 describe("Browser Program workspace authority V1", () => {
+  it("allows ordinary operations from independent tabs to share the control-origin fence", async () => {
+    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
+    const hostBacking = fakeHostBackingV1();
+    const operationFence = new FakeOperationFenceV1();
+    const releaseLists = deferredV1<void>();
+    const firstListEntered = deferredV1<void>();
+    const secondListEntered = deferredV1<void>();
+    const firstDelegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
+    const secondDelegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
+    const first = authorityHarnessV1({
+      repositoryBacking,
+      hostBacking,
+      operationFence,
+      repository: proxyRepositoryV1(firstDelegate, {
+        list: async () => {
+          firstListEntered.resolve();
+          await releaseLists.promise;
+          return await firstDelegate.list();
+        },
+      }),
+    });
+    const second = authorityHarnessV1({
+      repositoryBacking,
+      hostBacking,
+      operationFence,
+      repository: proxyRepositoryV1(secondDelegate, {
+        list: async () => {
+          secondListEntered.resolve();
+          await releaseLists.promise;
+          return await secondDelegate.list();
+        },
+      }),
+    });
+
+    await Promise.all([first.authority.initialize(), second.authority.initialize()]);
+    const firstList = first.authority.list();
+    await firstListEntered.promise;
+    const secondList = second.authority.list();
+    await secondListEntered.promise;
+
+    expect(operationFence.activeExclusive).toBe(false);
+    expect(operationFence.activeShared).toBe(2);
+    expect(operationFence.queuedModes).toEqual([]);
+
+    releaseLists.resolve();
+    await expect(Promise.all([firstList, secondList])).resolves.toEqual([[], []]);
+    await Promise.all([first.authority.dispose(), second.authority.dispose()]);
+  });
+
+  it("does not split a Program and its Workspace volume across a cross-tab reset", async () => {
+    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
+    const hostBacking = fakeHostBackingV1();
+    const operationFence = new FakeOperationFenceV1();
+    const repositoryCleared = deferredV1<void>();
+    const releaseReset = deferredV1<void>();
+    const resetDelegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
+    const resetter = authorityHarnessV1({
+      repositoryBacking,
+      hostBacking,
+      operationFence,
+      repository: proxyRepositoryV1(resetDelegate, {
+        reset: async () => {
+          await resetDelegate.reset();
+          repositoryCleared.resolve();
+          await releaseReset.promise;
+        },
+      }),
+    });
+    const creator = authorityHarnessV1({
+      repositoryBacking,
+      hostBacking,
+      operationFence,
+    });
+    await Promise.all([resetter.authority.initialize(), creator.authority.initialize()]);
+    const reset = resetter.authority.resetStoredData();
+    await repositoryCleared.promise;
+
+    const fixture = programFixtureV1("workspace.authority.cross-tab-reset");
+    const create = creator.authority.create({
+      snapshot: fixture.session.getSnapshot(),
+      updatedAt: 1,
+    });
+    try {
+      await vi.waitFor(() => {
+        expect(operationFence.activeExclusive).toBe(true);
+        expect(operationFence.queuedModes).toEqual(["shared"]);
+      });
+    } finally {
+      releaseReset.resolve();
+    }
+
+    await expect(reset).resolves.toEqual({
+      productRepository: { kind: "cleared" },
+      workspaceVolumes: { kind: "cleared" },
+    });
+    await expect(create).resolves.toMatchObject({ kind: "committed" });
+    expect(repositoryBacking.programs.has(fixture.programId)).toBe(true);
+    expect(repositoryBacking.workspaceContinuations.has(fixture.programId)).toBe(true);
+    expect(hostBacking.volumes.size).toBe(1);
+
+    await creator.authority.dispose();
+    const reopened = authorityHarnessV1({
+      repositoryBacking,
+      hostBacking,
+      operationFence,
+    });
+    await expect(reopened.authority.load(fixture.programId)).resolves.not.toBeNull();
+    const workspace = await reopened.authority.openWorkspace({
+      programId: fixture.programId,
+      workspaceId: fixture.workspaceId,
+    });
+    expect(workspace.snapshot.volumeId).toBe([...hostBacking.volumes.keys()][0]);
+    workspace.environmentPort.close();
+    await reopened.authority.detachWorkspaceEnvironment(
+      workspace.snapshot.descriptor.workspaceSessionId,
+    );
+    await Promise.all([resetter.authority.dispose(), reopened.authority.dispose()]);
+  });
+
   it("reports Sandbox origin usage and clears each owned data plane after detaching", async () => {
     const harness = authorityHarnessV1();
     const { fixture } = await createProgramV1(harness, "workspace.authority.reset");

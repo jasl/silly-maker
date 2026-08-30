@@ -170,6 +170,26 @@ export interface BrowserProgramWorkspaceAuthorityOptionsV1 {
   readonly createRepository?: () => ProgramRepositoryWithWorkspaceContinuationV1;
   readonly host?: BrowserWorkspaceHostPagePortV1;
   readonly createSnapshotId?: () => string;
+  readonly operationFence?: BrowserProgramWorkspaceOperationFenceV1;
+}
+
+export interface BrowserProgramWorkspaceOperationFenceV1 {
+  run<T>(mode: "shared" | "exclusive", operation: () => Promise<T>): Promise<T>;
+}
+
+const browserProgramWorkspaceOperationFenceNameV1 =
+  "sillymaker.example-silly-os.program-workspace-maintenance.v1";
+
+function createBrowserProgramWorkspaceOperationFenceV1(): BrowserProgramWorkspaceOperationFenceV1 {
+  return {
+    run(mode, operation) {
+      return navigator.locks.request(
+        browserProgramWorkspaceOperationFenceNameV1,
+        { mode },
+        operation,
+      );
+    },
+  };
 }
 
 function defaultSnapshotIdV1(): string {
@@ -405,6 +425,8 @@ export function createBrowserProgramWorkspaceAuthorityV1(
   const host = options.host ?? createBrowserWorkspaceHostPagePortV1({
     transport: createBrowserWorkspaceSandboxFrameTransportV1(),
   });
+  const operationFence = options.operationFence ??
+    createBrowserProgramWorkspaceOperationFenceV1();
   let initialized: Promise<void> | null = null;
   let activeWorkspace: ActiveWorkspaceV1 | null = null;
   let operationTail: Promise<void> = Promise.resolve();
@@ -424,9 +446,12 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     }
   });
 
-  const serializeV1 = <T>(operation: () => Promise<T>): Promise<T> => {
+  const serializeV1 = <T>(
+    operation: () => Promise<T>,
+    fenceMode: "shared" | "exclusive" = "shared",
+  ): Promise<T> => {
     if (lifecycle !== "active") return Promise.reject(authorityErrorV1("disposed"));
-    const settled = operationTail.then(operation);
+    const settled = operationTail.then(() => operationFence.run(fenceMode, operation));
     operationTail = settled.then(() => undefined, () => undefined);
     return settled;
   };
@@ -1344,7 +1369,7 @@ export function createBrowserProgramWorkspaceAuthorityV1(
             },
           };
         }
-      });
+      }, "exclusive");
     },
 
     subscribeFatal(listener) {

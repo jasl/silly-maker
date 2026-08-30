@@ -1515,7 +1515,15 @@ reports success from a UI state reset alone. D1 does not enumerate managed OPFS
 bytes, introduce a storage database framework, export credentials, or modify an
 engine API. A concurrent tab may hold the Sandbox shared maintenance lease or
 create new data after the reset boundary; D1 reports the former as partial and
-does not attempt a universal cross-origin write freeze.
+does not attempt a universal cross-origin write freeze. A product-local
+control-origin Web Lock admits ordinary Browser Program/Workspace Authority
+operations in shared mode and holds reset exclusively across Product Repository
+clear plus Workspace purge. The fence prevents a product-created Program/
+continuation/volume pair from being split by a concurrent control tab during
+that critical section while leaving different Programs' ordinary operations
+concurrent. It is not a cross-origin transaction: an already-held Sandbox lease
+can still produce a retryable partial result, and consistent new work may begin
+after the reset boundary releases.
 
 D1 also publishes one non-secret control-origin reset identity through an exact
 `localStorage` key. Other live control-plane tabs listen for that key only,
@@ -1527,13 +1535,17 @@ not part of D1.
 
 D1 closed with focused Product Repository, Vault, Sandbox Host, Authority,
 settings, formatter, and reset-coordinator contracts; the combined focused suite
-passed 294 cases. Type-aware lint, CSS lint, formatting, the control-plane build
-boundary, the Workspace Sandbox build boundary, and the unchanged Network Broker
-build boundary passed. A real two-tab Chromium run kept a Translation Program and
-a Writing Program open under two independent fixed-Pi test sessions, then cleared
-from the first tab while the second still held its Workspace. Both returned to
-Home with no console error, and the Product list plus Sandbox volumes were empty.
-This evidence does not promote same-Program collaboration or make cross-origin
+passed 294 cases. A later deterministic two-Authority regression now also holds
+Repository reset open while another tab attempts Program creation, proving the
+exclusive control-origin fence prevents the Program/continuation/volume pair
+from being split and that ordinary shared operations still overlap. Type-aware
+lint, CSS lint, formatting, the control-plane build boundary, the Workspace
+Sandbox build boundary, and the unchanged Network Broker build boundary passed.
+A real two-tab Chromium run kept a Translation Program and a Writing Program
+open under two independent fixed-Pi test sessions, then cleared from the first
+tab while the second still held its Workspace. Both returned to Home with no
+console error, and the Product list plus Sandbox volumes were empty. This
+evidence does not promote same-Program collaboration or make cross-origin
 deletion atomic; `volume_busy` and partial retry remain truthful outcomes.
 
 ### D2 — streamed all-data backup and restore (inactive)
