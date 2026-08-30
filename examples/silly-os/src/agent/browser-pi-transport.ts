@@ -539,8 +539,7 @@ export function createBrowserPiWorkerConnectorV1({
         receipt.workspaceId !== current.workspaceId ||
         receipt.workspaceSessionId !== current.workspaceSessionId ||
         receipt.baseGeneration !== current.generation ||
-        receipt.sequence !== state.workspaceReceiptSequence + 1 ||
-        current.receipts.length >= 32
+        receipt.sequence !== state.workspaceReceiptSequence + 1
       ) {
         closeState(state, "workspace_receipt_invalid");
         return;
@@ -548,7 +547,10 @@ export function createBrowserPiWorkerConnectorV1({
       state.activeWorkspace = Object.freeze({
         ...current,
         generation: receipt.resultingGeneration,
-        receipts: Object.freeze([...current.receipts, receipt]),
+        // The transport projects only the newest unacknowledged watermark. Receipt
+        // observers receive every ordered mutation, while the Workspace host owns
+        // its bounded queue until the Creator port acknowledges this sequence.
+        receipts: Object.freeze([receipt]),
       });
       state.workspaceReceiptSequence = receipt.sequence;
       for (const listener of [...workspaceReceiptListeners]) {

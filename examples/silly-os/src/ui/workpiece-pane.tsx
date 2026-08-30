@@ -5,7 +5,6 @@ import {
   Download,
   FileText,
   FolderArchive,
-  History,
   LoaderCircle,
   Maximize2,
   Minimize2,
@@ -18,7 +17,6 @@ import type { ReactNode } from "react";
 import type { BrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-protocol.ts";
 import type { SillyOsCopyV1 } from "../content/copy.ts";
 import type {
-  CreatorActivityV1,
   PreviewProgramCapabilityV1,
   PreviewProgramV1,
   ProgramProposalV1,
@@ -29,7 +27,7 @@ import { ProgressV1 as Progress } from "./design-system/progress.tsx";
 import { TabsV1 as Tabs } from "./design-system/tabs.tsx";
 import { formatStorageBytesV1 } from "./storage-format.ts";
 
-export type WorkpieceTabV1 = "view" | "capabilities" | "activity";
+export type WorkpieceTabV1 = "view" | "capabilities";
 
 export type WorkpieceExecutionWorkspaceDiagnosticCodeV1 =
   | "request_failed"
@@ -117,7 +115,6 @@ export interface WorkpiecePanePropsV1 {
   readonly copy: SillyOsCopyV1;
   readonly program: PreviewProgramV1;
   readonly proposal: ProgramProposalV1 | null;
-  readonly activity: readonly CreatorActivityV1[];
   readonly activeTab: WorkpieceTabV1;
   readonly fullscreen: boolean;
   readonly agentMode?: BrowserPiWorkerRuntimeV1;
@@ -139,7 +136,6 @@ export function WorkpiecePaneV1({
   copy,
   program,
   proposal,
-  activity,
   activeTab,
   fullscreen,
   agentMode,
@@ -159,7 +155,6 @@ export function WorkpiecePaneV1({
   const tabs = [
     { value: "view", label: copy.previewTab },
     { value: "capabilities", label: copy.capabilitiesTab },
-    { value: "activity", label: copy.activityTab },
   ];
   const showWorkspaceExport = executionWorkspace?.phase === "open" &&
     workspaceExport !== undefined && onExportWorkspace !== undefined;
@@ -222,16 +217,6 @@ export function WorkpiecePaneV1({
             copy={copy}
             capabilities={program.suggestedCapabilities}
             {...(agentMode === undefined ? {} : { agentMode })}
-            {...(executionWorkspace === undefined ? {} : { executionWorkspace })}
-            {...(onRetryExecutionWorkspace === undefined ? {} : { onRetryExecutionWorkspace })}
-            {...(browserStorage === undefined ? {} : { browserStorage })}
-            {...(onRequestStoragePersistence === undefined ? {} : { onRequestStoragePersistence })}
-          />
-        )}
-        {activeTab === "activity" && (
-          <ProgramActivityV1
-            copy={copy}
-            activity={activity}
             {...(executionWorkspace === undefined ? {} : { executionWorkspace })}
             {...(onRetryExecutionWorkspace === undefined ? {} : { onRetryExecutionWorkspace })}
             {...(browserStorage === undefined ? {} : { browserStorage })}
@@ -554,68 +539,6 @@ function ProgramCapabilitiesV1({
           )}
         </article>
       </div>
-    </div>
-  );
-}
-
-function ProgramActivityV1({
-  copy,
-  activity,
-  executionWorkspace,
-  onRetryExecutionWorkspace,
-  browserStorage,
-  onRequestStoragePersistence,
-}: {
-  readonly copy: SillyOsCopyV1;
-  readonly activity: readonly CreatorActivityV1[];
-  readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
-  readonly onRetryExecutionWorkspace?: () => void;
-  readonly browserStorage?: WorkpieceBrowserStorageV1;
-  readonly onRequestStoragePersistence?: () => void;
-}): ReactNode {
-  return (
-    <div className="program-activity">
-      <header>
-        <History size={20} aria-hidden="true" />
-        <div>
-          <h2>{copy.activityTab}</h2>
-        </div>
-      </header>
-      {executionWorkspace !== undefined && (
-        <>
-          <ExecutionWorkspaceStatusV1
-            copy={copy}
-            workspace={executionWorkspace}
-            {...(onRetryExecutionWorkspace === undefined
-              ? {}
-              : { onRetry: onRetryExecutionWorkspace })}
-          />
-          {browserStorage !== undefined && (
-            <BrowserWorkspaceStorageStatusV1
-              copy={copy}
-              workspace={executionWorkspace}
-              storage={browserStorage}
-              {...(onRequestStoragePersistence === undefined
-                ? {}
-                : { onRequestPersistence: onRequestStoragePersistence })}
-            />
-          )}
-        </>
-      )}
-      <ol>
-        {activity.map((item) => (
-          <li key={item.activityId}>
-            <span className="program-activity__sequence">
-              {String(item.sequence).padStart(2, "0")}
-            </span>
-            <span className="program-activity__line" aria-hidden="true" />
-            <div>
-              <strong>{item.summary}</strong>
-              <small>{copy.activityKindLabels[item.kind]}</small>
-            </div>
-          </li>
-        ))}
-      </ol>
     </div>
   );
 }

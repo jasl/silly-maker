@@ -26,6 +26,691 @@ const deterministicFetchUrlProbePrefixV1 =
 const deterministicDownloadProbePrefixV1 =
   "Exercise the product-fixed Pi download tool for exact URL: ";
 const deterministicDownloadRelativePathV1 = ".sillyos/n2-download.bin";
+const p4aTranscriptWindowQualificationBytesV1 = 384 * 1024;
+
+interface P4aTranscriptFixtureReceiptV1 {
+  readonly appendedByteLength: number;
+  readonly appendedEntryCount: number;
+  readonly attemptGeneration: number;
+  readonly attemptId: string;
+  readonly olderEntryId: string;
+  readonly processRevision: number;
+  readonly richEntryId: string;
+  readonly terminalOperationId: string;
+  readonly transcriptFrontier: number;
+}
+
+interface P4aProcessLeaseRaceBaseV1 {
+  readonly processId: string;
+  readonly expectedProcessRevision: number;
+  readonly expectedTranscriptFrontier: number;
+  readonly generation: number;
+  readonly observedAt: number;
+  readonly startingCheckpoint: {
+    readonly checkpointId: string;
+    readonly throughSequence: number;
+    readonly workspaceId: string;
+    readonly workspaceCheckpointId: string;
+    readonly workspaceGeneration: number;
+  };
+}
+
+interface P4aProcessLeaseContenderV1 {
+  readonly ownerInstanceId: string;
+  readonly attemptId: string;
+  readonly operationId: string;
+  readonly triggerEntryId: string;
+}
+
+interface P4aProcessLeaseRaceResultV1 {
+  readonly kind: "committed" | "unchanged" | "conflict";
+  readonly contender: P4aProcessLeaseContenderV1;
+  readonly processRevision: number | null;
+  readonly transcriptFrontier: number | null;
+  readonly lease: {
+    readonly processId: string;
+    readonly ownerInstanceId: string;
+    readonly attemptId: string;
+    readonly generation: number;
+    readonly expiresAt: number;
+  } | null;
+}
+
+interface P4aProcessTerminalResultV1 {
+  readonly kind: "committed" | "unchanged" | "conflict";
+  readonly processRevision: number | null;
+  readonly transcriptFrontier: number | null;
+  readonly terminalAttempt: {
+    readonly attemptId: string;
+    readonly generation: number;
+    readonly outcome: "failed";
+  } | null;
+}
+
+async function readP4aProcessLeaseRaceBaseV1(
+  page: Page,
+  processId: string,
+): Promise<P4aProcessLeaseRaceBaseV1> {
+  return await page.evaluate(async ({ requestedProcessId, repositoryModuleUrl }) => {
+    interface ProcessHeadV1 {
+      readonly processId: string;
+      readonly subjectProgramId: string | null;
+      readonly revision: number;
+      readonly transcriptFrontier: number;
+      readonly lastTerminalAttempt: { readonly generation: number } | null;
+      readonly checkpoint: {
+        readonly checkpointId: string;
+        readonly throughSequence: number;
+        readonly workspaceId: string;
+        readonly workspaceCheckpointId: string;
+        readonly workspaceGeneration: number;
+      } | null;
+      readonly updatedAt: number;
+    }
+    interface RepositoryV1 {
+      initialize(): Promise<void>;
+      load(programId: string): Promise<
+        {
+          readonly head: {
+            readonly pendingReviewBinding: {
+              readonly workspaceId: string;
+              readonly checkpointId: string;
+              readonly generation: number;
+            } | null;
+          };
+        } | null
+      >;
+      loadProcess(processId: string): Promise<ProcessHeadV1 | null>;
+      dispose(): Promise<void>;
+    }
+    interface RepositoryModuleV1 {
+      createIndexedDbProgramDataRepositoryV1(options: {
+        readonly indexedDB: IDBFactory;
+      }): RepositoryV1;
+    }
+    const module = await import(repositoryModuleUrl) as RepositoryModuleV1;
+    const repository = module.createIndexedDbProgramDataRepositoryV1({ indexedDB });
+    try {
+      await repository.initialize();
+      const process = await repository.loadProcess(requestedProcessId);
+      if (process === null || process.subjectProgramId === null) {
+        throw new Error("P4-A lease race requires one durable subject Program");
+      }
+      const catalog = await repository.load(process.subjectProgramId);
+      const workspaceBinding = catalog?.head.pendingReviewBinding ?? null;
+      const checkpoint = process.checkpoint ?? (workspaceBinding === null ? null : {
+        checkpointId: workspaceBinding.checkpointId,
+        throughSequence: process.transcriptFrontier,
+        workspaceId: workspaceBinding.workspaceId,
+        workspaceCheckpointId: workspaceBinding.checkpointId,
+        workspaceGeneration: workspaceBinding.generation,
+      });
+      if (checkpoint === null) {
+        throw new Error("P4-A lease race requires one durable Workspace checkpoint");
+      }
+      const triggerSequence = process.transcriptFrontier + 1;
+      return {
+        processId: process.processId,
+        expectedProcessRevision: process.revision,
+        expectedTranscriptFrontier: process.transcriptFrontier,
+        generation: (process.lastTerminalAttempt?.generation ?? 0) + 1,
+        observedAt: Math.max(Date.now(), process.updatedAt) + 1,
+        startingCheckpoint: {
+          ...checkpoint,
+          checkpointId: "checkpoint.p4a.multitab-acquire",
+          throughSequence: triggerSequence,
+        },
+      };
+    } finally {
+      await repository.dispose();
+    }
+  }, {
+    requestedProcessId: processId,
+    repositoryModuleUrl: "/src/product/indexeddb-program-data-repository.ts",
+  });
+}
+
+async function acquireP4aProcessLeaseV1(
+  page: Page,
+  base: P4aProcessLeaseRaceBaseV1,
+  contender: P4aProcessLeaseContenderV1,
+): Promise<P4aProcessLeaseRaceResultV1> {
+  return await page.evaluate(async (evaluationInput) => {
+    const { base: raceBase, contender: raceContender, repositoryModuleUrl } = evaluationInput;
+    interface ProcessHeadV1 {
+      readonly revision: number;
+      readonly transcriptFrontier: number;
+    }
+    interface ProcessExecutionLeaseV1 {
+      readonly processId: string;
+      readonly ownerInstanceId: string;
+      readonly attemptId: string;
+      readonly generation: number;
+      readonly expiresAt: number;
+    }
+    interface ExecutionAcquireResultV1 {
+      readonly kind: "committed" | "unchanged" | "conflict";
+      readonly process?: ProcessHeadV1;
+      readonly currentProcess?: ProcessHeadV1 | null;
+      readonly lease?: ProcessExecutionLeaseV1;
+      readonly currentLease?: ProcessExecutionLeaseV1 | null;
+    }
+    interface RepositoryV1 {
+      initialize(): Promise<void>;
+      acquireProcessExecution(
+        input: Readonly<Record<string, unknown>>,
+      ): Promise<ExecutionAcquireResultV1>;
+      dispose(): Promise<void>;
+    }
+    interface RepositoryModuleV1 {
+      createIndexedDbProgramDataRepositoryV1(options: {
+        readonly indexedDB: IDBFactory;
+      }): RepositoryV1;
+    }
+    const module = await import(repositoryModuleUrl) as RepositoryModuleV1;
+    const repository = module.createIndexedDbProgramDataRepositoryV1({ indexedDB });
+    try {
+      await repository.initialize();
+      const triggerSequence = raceBase.expectedTranscriptFrontier + 1;
+      const result = await repository.acquireProcessExecution({
+        ownerInstanceId: raceContender.ownerInstanceId,
+        observedAt: raceBase.observedAt,
+        expiresAt: raceBase.observedAt + 60_000,
+        attempt: {
+          processId: raceBase.processId,
+          expectedProcessRevision: raceBase.expectedProcessRevision,
+          expectedTranscriptFrontier: raceBase.expectedTranscriptFrontier,
+          commitId: raceContender.operationId,
+          attemptId: raceContender.attemptId,
+          generation: raceBase.generation,
+          trigger: {
+            kind: "new_entry",
+            entry: {
+              schemaVersion: 1,
+              processId: raceBase.processId,
+              sequence: triggerSequence,
+              entryId: raceContender.triggerEntryId,
+              role: "user",
+              state: "committed",
+              parts: [{
+                kind: "text_markdown",
+                partId: `${raceContender.triggerEntryId}.text`,
+                markdown: `P4-A multi-tab contender ${raceContender.ownerInstanceId}`,
+              }],
+            },
+          },
+          startingCheckpoint: raceBase.startingCheckpoint,
+          updatedAt: raceBase.observedAt,
+        },
+      });
+      const process = result.process ?? result.currentProcess ?? null;
+      const lease = result.lease ?? result.currentLease ?? null;
+      return {
+        kind: result.kind,
+        contender: raceContender,
+        processRevision: process?.revision ?? null,
+        transcriptFrontier: process?.transcriptFrontier ?? null,
+        lease,
+      };
+    } finally {
+      await repository.dispose();
+    }
+  }, {
+    base,
+    contender,
+    repositoryModuleUrl: "/src/product/indexeddb-program-data-repository.ts",
+  });
+}
+
+async function commitP4aFailedTerminalV1(
+  page: Page,
+  winner: P4aProcessLeaseRaceResultV1,
+  base: P4aProcessLeaseRaceBaseV1,
+): Promise<P4aProcessTerminalResultV1> {
+  return await page.evaluate(async (evaluationInput) => {
+    const { base: raceBase, winner: raceWinner, repositoryModuleUrl } = evaluationInput;
+    interface ProcessHeadV1 {
+      readonly revision: number;
+      readonly transcriptFrontier: number;
+      readonly lastTerminalAttempt: {
+        readonly attemptId: string;
+        readonly generation: number;
+        readonly outcome: "failed";
+      } | null;
+    }
+    interface ExecutionTerminalResultV1 {
+      readonly kind: "committed" | "unchanged" | "conflict";
+      readonly process?: ProcessHeadV1;
+      readonly currentProcess?: ProcessHeadV1 | null;
+    }
+    interface RepositoryV1 {
+      initialize(): Promise<void>;
+      commitProcessExecutionTerminal(
+        input: Readonly<Record<string, unknown>>,
+      ): Promise<ExecutionTerminalResultV1>;
+      dispose(): Promise<void>;
+    }
+    interface RepositoryModuleV1 {
+      createIndexedDbProgramDataRepositoryV1(options: {
+        readonly indexedDB: IDBFactory;
+      }): RepositoryV1;
+    }
+    if (
+      raceWinner.lease === null || raceWinner.processRevision === null ||
+      raceWinner.transcriptFrontier === null
+    ) throw new Error("P4-A lease winner omitted its exact terminal inputs");
+    const module = await import(repositoryModuleUrl) as RepositoryModuleV1;
+    const repository = module.createIndexedDbProgramDataRepositoryV1({ indexedDB });
+    const terminalSequence = raceWinner.transcriptFrontier + 1;
+    const terminalEntryId = `${raceWinner.contender.attemptId}.failed.entry`;
+    try {
+      await repository.initialize();
+      const result = await repository.commitProcessExecutionTerminal({
+        lease: raceWinner.lease,
+        observedAt: raceBase.observedAt + 1,
+        transcript: {
+          processId: raceBase.processId,
+          expectedProcessRevision: raceWinner.processRevision,
+          expectedTranscriptFrontier: raceWinner.transcriptFrontier,
+          commitId: `${raceWinner.contender.operationId}.failed-terminal`,
+          attemptBinding: {
+            attemptId: raceWinner.contender.attemptId,
+            generation: raceBase.generation,
+          },
+          entries: [{
+            schemaVersion: 1,
+            processId: raceBase.processId,
+            sequence: terminalSequence,
+            entryId: terminalEntryId,
+            role: "assistant",
+            state: "committed",
+            parts: [{
+              kind: "text_markdown",
+              partId: `${terminalEntryId}.text`,
+              markdown: "P4-A multi-tab execution failed after lease qualification.",
+            }],
+          }],
+          checkpoint: null,
+          terminalAttemptReceipt: {
+            schemaVersion: 1,
+            processId: raceBase.processId,
+            attemptId: raceWinner.contender.attemptId,
+            generation: raceBase.generation,
+            outcome: "failed",
+            terminalSequence,
+            terminalEntryId,
+            interruptionDisposition: null,
+          },
+          updatedAt: raceBase.observedAt + 1,
+        },
+      });
+      const process = result.process ?? result.currentProcess ?? null;
+      return {
+        kind: result.kind,
+        processRevision: process?.revision ?? null,
+        transcriptFrontier: process?.transcriptFrontier ?? null,
+        terminalAttempt: process?.lastTerminalAttempt ?? null,
+      };
+    } finally {
+      await repository.dispose();
+    }
+  }, {
+    base,
+    winner,
+    repositoryModuleUrl: "/src/product/indexeddb-program-data-repository.ts",
+  });
+}
+
+/**
+ * Extends one real Process through the concrete repository implementation used
+ * only as an E2E seeder. The product-facing Worker client intentionally exposes
+ * composite writes only; this test-only path still exercises the same V9 schema
+ * while qualifying a Conversation materially larger than one UI page/window.
+ */
+async function appendP4aTranscriptFixtureV1(
+  page: Page,
+  processId: string,
+): Promise<P4aTranscriptFixtureReceiptV1> {
+  return await page.evaluate(async ({ requestedProcessId, repositoryModuleUrl }) => {
+    interface ProcessHeadV1 {
+      readonly processId: string;
+      readonly subjectProgramId: string | null;
+      readonly revision: number;
+      readonly transcriptFrontier: number;
+      readonly checkpoint: {
+        readonly checkpointId: string;
+        readonly throughSequence: number;
+        readonly workspaceId: string;
+        readonly workspaceCheckpointId: string;
+        readonly workspaceGeneration: number;
+      } | null;
+      readonly lastTerminalAttempt: {
+        readonly generation: number;
+      } | null;
+      readonly updatedAt: number;
+    }
+    interface TranscriptEntryV1 {
+      readonly schemaVersion: 1;
+      readonly processId: string;
+      readonly sequence: number;
+      readonly entryId: string;
+      readonly role: "assistant" | "system" | "tool" | "user";
+      readonly state: "committed";
+      readonly parts: readonly Readonly<Record<string, unknown>>[];
+    }
+    interface AppendResultV1 {
+      readonly kind: "committed" | "unchanged" | "conflict";
+      readonly process?: ProcessHeadV1;
+      readonly current?: ProcessHeadV1 | null;
+    }
+    interface ProcessExecutionLeaseV1 {
+      readonly processId: string;
+      readonly ownerInstanceId: string;
+      readonly attemptId: string;
+      readonly generation: number;
+      readonly expiresAt: number;
+    }
+    interface ExecutionAcquireResultV1 {
+      readonly kind: "committed" | "unchanged" | "conflict";
+      readonly process?: ProcessHeadV1;
+      readonly lease?: ProcessExecutionLeaseV1;
+    }
+    interface ExecutionTerminalResultV1 {
+      readonly kind: "committed" | "unchanged" | "conflict";
+      readonly process?: ProcessHeadV1;
+      readonly operationReceipt?: {
+        readonly operationId: string;
+        readonly operation: "execution_terminal";
+        readonly attemptId: string;
+        readonly generation: number;
+        readonly processRevision: number;
+        readonly transcriptFrontier: number;
+        readonly terminalOutcome: "failed";
+      };
+    }
+    interface RepositoryV1 {
+      initialize(): Promise<void>;
+      load(programId: string): Promise<
+        {
+          readonly head: {
+            readonly pendingReviewBinding: {
+              readonly workspaceId: string;
+              readonly checkpointId: string;
+              readonly generation: number;
+            } | null;
+          };
+        } | null
+      >;
+      loadProcess(processId: string): Promise<ProcessHeadV1 | null>;
+      appendProcessTranscript(input: Readonly<Record<string, unknown>>): Promise<AppendResultV1>;
+      acquireProcessExecution(
+        input: Readonly<Record<string, unknown>>,
+      ): Promise<ExecutionAcquireResultV1>;
+      commitProcessExecutionTerminal(
+        input: Readonly<Record<string, unknown>>,
+      ): Promise<ExecutionTerminalResultV1>;
+      dispose(): Promise<void>;
+    }
+    interface RepositoryModuleV1 {
+      createIndexedDbProgramDataRepositoryV1(options: {
+        readonly indexedDB: IDBFactory;
+      }): RepositoryV1;
+    }
+
+    const repositoryModule = await import(repositoryModuleUrl) as RepositoryModuleV1;
+    const repository = repositoryModule.createIndexedDbProgramDataRepositoryV1({ indexedDB });
+    const encoder = new TextEncoder();
+    const attemptId = "attempt.p4a.rich-terminal";
+    const olderEntryId = "entry.p4a.older";
+    const richEntryId = "entry.p4a.rich";
+    const terminalOperationId = "commit.p4a.rich-terminal";
+    try {
+      await repository.initialize();
+      let process = await repository.loadProcess(requestedProcessId);
+      if (process === null) throw new Error("P4-A Process is unavailable");
+      const entries: TranscriptEntryV1[] = [];
+      let sequence = process.transcriptFrontier + 1;
+      entries.push({
+        schemaVersion: 1,
+        processId: requestedProcessId,
+        sequence,
+        entryId: olderEntryId,
+        role: "system",
+        state: "committed",
+        parts: [{
+          kind: "text_markdown",
+          partId: "part.p4a.older",
+          markdown: "P4-A durable earlier-page sentinel",
+        }],
+      });
+      sequence += 1;
+
+      // Collapsed tool results keep the rendered DOM representative and small
+      // while the transcript still carries realistic rich payload pressure.
+      for (let index = 0; index < 22; index += 1) {
+        const ordinal = index + 1;
+        const toolCallId = `tool.p4a.${String(ordinal)}`;
+        entries.push({
+          schemaVersion: 1,
+          processId: requestedProcessId,
+          sequence,
+          entryId: `entry.p4a.tool.${String(ordinal)}`,
+          role: "tool",
+          state: "committed",
+          parts: [{
+            kind: "tool_status",
+            partId: `part.p4a.status.${String(ordinal)}`,
+            toolCallId,
+            status: "succeeded",
+            message: `Finished qualification tool step ${String(ordinal)}.`,
+          }, {
+            kind: "tool_result",
+            partId: `part.p4a.result.${String(ordinal)}`,
+            toolCallId,
+            outcome: "succeeded",
+            resultJson: JSON.stringify({
+              ordinal,
+              excerpt: "qualification-result ".repeat(1_100),
+            }),
+            summaryMarkdown: `Qualification tool result ${String(ordinal)}`,
+          }],
+        });
+        sequence += 1;
+      }
+
+      const richEntryParts: readonly Readonly<Record<string, unknown>>[] = [{
+        kind: "text_markdown",
+        partId: "part.p4a.rich.text",
+        markdown: "P4-A rich transcript sentinel",
+      }, {
+        kind: "reasoning_summary",
+        partId: "part.p4a.rich.reasoning",
+        summaryMarkdown: "Compared the requested terminology with the durable project context.",
+      }, {
+        kind: "tool_call",
+        partId: "part.p4a.rich.call",
+        toolCallId: "tool.p4a.rich",
+        toolName: "inspect_glossary",
+        argumentsJson: JSON.stringify({ path: "glossary.json" }),
+      }, {
+        kind: "tool_status",
+        partId: "part.p4a.rich.status",
+        toolCallId: "tool.p4a.rich",
+        status: "succeeded",
+        message: "Glossary inspected.",
+      }, {
+        kind: "tool_result",
+        partId: "part.p4a.rich.result",
+        toolCallId: "tool.p4a.rich",
+        outcome: "succeeded",
+        resultJson: JSON.stringify({ terms: 12, conflicts: 0 }),
+        summaryMarkdown: "The glossary is internally consistent.",
+      }, {
+        kind: "artifact_reference",
+        partId: "part.p4a.rich.artifact",
+        artifactId: "artifact.p4a.glossary",
+        label: "Reviewed glossary",
+        mediaType: "application/json",
+        reference: "workspace://artifacts/glossary.json",
+      }];
+
+      let appendedByteLength = 0;
+      for (let offset = 0; offset < entries.length; offset += 8) {
+        const batch = entries.slice(offset, offset + 8);
+        appendedByteLength += batch.reduce(
+          (total, entry) => total + encoder.encode(JSON.stringify(entry)).byteLength,
+          0,
+        );
+        const result = await repository.appendProcessTranscript({
+          processId: requestedProcessId,
+          expectedProcessRevision: process.revision,
+          expectedTranscriptFrontier: process.transcriptFrontier,
+          commitId: `commit.p4a.${String(offset)}`,
+          attemptBinding: null,
+          entries: batch,
+          checkpoint: null,
+          terminalAttemptReceipt: null,
+          updatedAt: Math.max(Date.now(), process.updatedAt) + offset + 1,
+        });
+        if (result.kind === "conflict") {
+          throw new Error("P4-A transcript append conflicted");
+        }
+        if (result.process === undefined) {
+          throw new Error("P4-A transcript append omitted its Process head");
+        }
+        process = result.process;
+      }
+      const subjectProgramId = process.subjectProgramId;
+      if (subjectProgramId === null) throw new Error("P4-A Process omitted its subject Program");
+      const catalog = await repository.load(subjectProgramId);
+      const workspaceBinding = catalog?.head.pendingReviewBinding ?? null;
+      if (workspaceBinding === null) {
+        throw new Error("P4-A subject Program omitted its durable Workspace binding");
+      }
+      const startingCheckpoint = {
+        checkpointId: "checkpoint.p4a.predecessor",
+        throughSequence: process.transcriptFrontier,
+        workspaceId: workspaceBinding.workspaceId,
+        workspaceCheckpointId: workspaceBinding.checkpointId,
+        workspaceGeneration: workspaceBinding.generation,
+      };
+      const generation = (process.lastTerminalAttempt?.generation ?? 0) + 1;
+      const triggerSequence = process.transcriptFrontier + 1;
+      const triggerEntry: TranscriptEntryV1 = {
+        schemaVersion: 1,
+        processId: requestedProcessId,
+        sequence: triggerSequence,
+        entryId: "entry.p4a.trigger",
+        role: "user",
+        state: "committed",
+        parts: [{
+          kind: "text_markdown",
+          partId: "part.p4a.trigger",
+          markdown: "Qualify the durable rich Conversation terminal.",
+        }],
+      };
+      const observedAt = Math.max(Date.now(), process.updatedAt) + 1;
+      const acquired = await repository.acquireProcessExecution({
+        ownerInstanceId: "owner.p4a.fixture",
+        observedAt,
+        expiresAt: observedAt + 60_000,
+        attempt: {
+          processId: requestedProcessId,
+          expectedProcessRevision: process.revision,
+          expectedTranscriptFrontier: process.transcriptFrontier,
+          commitId: "commit.p4a.rich-acquire",
+          attemptId,
+          generation,
+          trigger: { kind: "new_entry", entry: triggerEntry },
+          startingCheckpoint: {
+            ...startingCheckpoint,
+            checkpointId: "checkpoint.p4a.rich-acquire",
+            throughSequence: triggerSequence,
+          },
+          updatedAt: observedAt,
+        },
+      });
+      if (
+        acquired.kind === "conflict" || acquired.process === undefined ||
+        acquired.lease === undefined
+      ) {
+        throw new Error("P4-A execution acquire conflicted");
+      }
+      process = acquired.process;
+      const terminalSequence = process.transcriptFrontier + 1;
+      const terminalEntry: TranscriptEntryV1 = {
+        schemaVersion: 1,
+        processId: requestedProcessId,
+        sequence: terminalSequence,
+        entryId: richEntryId,
+        role: "assistant",
+        state: "committed",
+        parts: richEntryParts,
+      };
+      const terminalInput = {
+        lease: acquired.lease,
+        observedAt: observedAt + 1,
+        transcript: {
+          processId: requestedProcessId,
+          expectedProcessRevision: process.revision,
+          expectedTranscriptFrontier: process.transcriptFrontier,
+          commitId: terminalOperationId,
+          attemptBinding: { attemptId, generation },
+          entries: [terminalEntry],
+          checkpoint: null,
+          terminalAttemptReceipt: {
+            schemaVersion: 1,
+            processId: requestedProcessId,
+            attemptId,
+            generation,
+            outcome: "failed",
+            terminalSequence,
+            terminalEntryId: richEntryId,
+            interruptionDisposition: null,
+          },
+          updatedAt: observedAt + 1,
+        },
+      };
+      const terminal = await repository.commitProcessExecutionTerminal(terminalInput);
+      if (
+        terminal.kind === "conflict" || terminal.process === undefined ||
+        terminal.operationReceipt === undefined
+      ) {
+        throw new Error("P4-A execution terminal conflicted");
+      }
+      process = terminal.process;
+      const receipt = terminal.operationReceipt;
+      if (
+        receipt.operationId !== terminalOperationId ||
+        receipt.operation !== "execution_terminal" ||
+        receipt.attemptId !== attemptId || receipt.generation !== generation ||
+        receipt.terminalOutcome !== "failed" ||
+        receipt.processRevision !== process.revision ||
+        receipt.transcriptFrontier !== process.transcriptFrontier
+      ) {
+        throw new Error("P4-A execution terminal receipt does not match the Process frontier");
+      }
+      appendedByteLength += encoder.encode(JSON.stringify(triggerEntry)).byteLength +
+        encoder.encode(JSON.stringify(terminalEntry)).byteLength;
+      return {
+        appendedByteLength,
+        appendedEntryCount: entries.length + 2,
+        attemptGeneration: generation,
+        attemptId,
+        olderEntryId,
+        processRevision: process.revision,
+        richEntryId,
+        terminalOperationId,
+        transcriptFrontier: process.transcriptFrontier,
+      };
+    } finally {
+      await repository.dispose();
+    }
+  }, {
+    requestedProcessId: processId,
+    repositoryModuleUrl: "/src/product/indexeddb-program-data-repository.ts",
+  });
+}
 
 async function expectProgramStorageReadyV1(page: Page): Promise<void> {
   await expect(page.locator('[data-program-storage-state="ready"]')).toBeVisible();
@@ -72,20 +757,7 @@ async function readWorkspaceSessionIdV1(workspace: Locator): Promise<string> {
   return workspaceSessionId;
 }
 
-interface DurableAgentRunReceiptV3 {
-  readonly agentRunId: string;
-  readonly sequence: number;
-  readonly proposalId: string;
-  readonly userMessageId: string;
-  readonly creatorMessageId: string | null;
-  readonly baseProgramRevision: number;
-  readonly baseRepositoryRevision: number;
-  readonly resultingProgramRevision: number | null;
-  readonly outcome: "completed" | "failed" | "cancelled" | "replaced";
-  readonly diagnosticCode: string | null;
-}
-
-interface DurableProgramWorkspaceSnapshotReceiptV1 {
+interface ProgramWorkspaceSnapshotReceiptV1 {
   readonly revision: 1;
   readonly snapshotId: string;
   readonly programId: string;
@@ -101,13 +773,13 @@ interface DurableProgramWorkspaceSnapshotReceiptV1 {
   readonly archiveBytes: number;
 }
 
-type DurableProgramDecisionV3 =
+type ProgramCatalogDecisionProjectionV1 =
   | {
     readonly proposalId: string;
     readonly programRevision: number;
     readonly status: "accepted";
     readonly repositoryRevision: number;
-    readonly snapshot: DurableProgramWorkspaceSnapshotReceiptV1;
+    readonly snapshot: ProgramWorkspaceSnapshotReceiptV1;
   }
   | {
     readonly proposalId: string;
@@ -116,7 +788,7 @@ type DurableProgramDecisionV3 =
     readonly repositoryRevision: number;
   };
 
-interface DurableProgramReviewBindingV3 {
+interface ProgramCatalogReviewBindingProjectionV1 {
   readonly proposalId: string;
   readonly programId: string;
   readonly programRevision: number;
@@ -129,29 +801,18 @@ interface DurableProgramReviewBindingV3 {
   readonly generation: number;
 }
 
-interface DurableProgramProjectionV3 {
-  readonly schemaVersion: 3;
-  readonly programId: string;
-  readonly repositoryRevision: number;
-  readonly decisions: readonly DurableProgramDecisionV3[];
-  readonly agentRunReceipts: readonly DurableAgentRunReceiptV3[];
-  readonly reviewBinding: DurableProgramReviewBindingV3 | null;
-  readonly snapshot: {
-    readonly proposal: {
-      readonly proposalId: string;
-      readonly programRevision: number;
-      readonly status: "pending" | "accepted" | "rejected";
-    } | null;
-    readonly messages: readonly {
-      readonly messageId: string;
-      readonly role: string;
-      readonly text: string;
-    }[];
-    readonly activity: readonly { readonly kind: string; readonly summary: string }[];
+interface ProgramCatalogRecordProjectionV1 {
+  readonly head: {
+    readonly schemaVersion: 1;
+    readonly programId: string;
+    readonly repositoryRevision: number;
+    readonly currentProgramRevision: number;
+    readonly pendingReviewBinding: ProgramCatalogReviewBindingProjectionV1 | null;
   };
+  readonly latestDecision: ProgramCatalogDecisionProjectionV1 | null;
 }
 
-interface DurableWorkspaceContinuationV1 {
+interface ProgramWorkspaceContinuationProjectionV1 {
   readonly revision: 1;
   readonly programId: string;
   readonly workspaceId: string;
@@ -161,11 +822,45 @@ interface DurableWorkspaceContinuationV1 {
   readonly repositoryRevision: number;
 }
 
-interface DurableProgramDatabaseStateV7 {
-  readonly version: 7;
-  readonly programRows: readonly unknown[];
-  readonly continuationRows: readonly unknown[];
-  readonly networkAccessRows: readonly unknown[];
+interface ProcessHeadProjectionV1 {
+  readonly schemaVersion: 1;
+  readonly processId: string;
+  readonly revision: number;
+  readonly status: "active" | "interrupted_retryable" | "interrupted_unrecoverable";
+  readonly transcriptFrontier: number;
+  readonly activeAttempt: Readonly<Record<string, unknown>> | null;
+  readonly lastTerminalAttempt: {
+    readonly attemptId: string;
+    readonly generation: number;
+    readonly outcome: "completed" | "failed" | "cancelled" | "replaced" | "interrupted";
+    readonly triggerEntryId: string;
+    readonly triggerSequence: number;
+    readonly interruptionDisposition: "retryable" | "unrecoverable" | null;
+  } | null;
+}
+
+interface TranscriptEntryProjectionV1 {
+  readonly schemaVersion: 1;
+  readonly processId: string;
+  readonly sequence: number;
+  readonly entryId: string;
+  readonly role: "assistant" | "system" | "tool" | "user";
+  readonly state: "committed" | "interrupted_partial";
+  readonly parts: readonly Readonly<Record<string, unknown>>[];
+}
+
+interface ProgramNetworkAccessProjectionV1 {
+  readonly revision: 1;
+  readonly programId: string;
+  readonly enabled: boolean;
+}
+
+interface ProgramDataProjectionV1 {
+  readonly catalog: ProgramCatalogRecordProjectionV1 | null;
+  readonly continuation: ProgramWorkspaceContinuationProjectionV1 | null;
+  readonly process: ProcessHeadProjectionV1 | null;
+  readonly transcriptEntries: readonly TranscriptEntryProjectionV1[];
+  readonly networkAccess: ProgramNetworkAccessProjectionV1 | null;
 }
 
 const workspaceExportManifestNameV1 = "sillyos-workspace.json";
@@ -204,29 +899,77 @@ async function expectSillyOsCheckboxRecipeV1(control: Locator): Promise<void> {
   expect(recipe.accentColor).not.toBe("auto");
 }
 
+async function readProgramDataProjectionV1(
+  page: Page,
+  programId: string,
+  processId: string | null = null,
+): Promise<ProgramDataProjectionV1> {
+  return await page.evaluate(async ({ requestedProcessId, requestedProgramId, moduleUrl }) => {
+    interface RepositoryV1 {
+      initialize(): Promise<void>;
+      load(programId: string): Promise<ProgramCatalogRecordProjectionV1 | null>;
+      loadContinuation(
+        programId: string,
+      ): Promise<ProgramWorkspaceContinuationProjectionV1 | null>;
+      loadProcess(processId: string): Promise<ProcessHeadProjectionV1 | null>;
+      loadTranscriptPage(input: {
+        readonly processId: string;
+        readonly beforeSequence: number | null;
+        readonly maximumBytes: number;
+      }): Promise<
+        {
+          readonly entries: readonly TranscriptEntryProjectionV1[];
+          readonly nextBeforeSequence: number | null;
+        } | null
+      >;
+      loadProgramNetworkAccess(
+        programId: string,
+      ): Promise<ProgramNetworkAccessProjectionV1 | null>;
+      dispose(): Promise<void>;
+    }
+    interface RepositoryModuleV1 {
+      createBrowserProgramDataRepositoryV1(): RepositoryV1;
+    }
+    const module = await import(moduleUrl) as RepositoryModuleV1;
+    const repository = module.createBrowserProgramDataRepositoryV1();
+    try {
+      await repository.initialize();
+      const [catalog, continuation, process, networkAccess] = await Promise.all([
+        repository.load(requestedProgramId),
+        repository.loadContinuation(requestedProgramId),
+        requestedProcessId === null ? null : repository.loadProcess(requestedProcessId),
+        repository.loadProgramNetworkAccess(requestedProgramId),
+      ]);
+      const transcriptEntries: TranscriptEntryProjectionV1[] = [];
+      let beforeSequence: number | null = null;
+      if (requestedProcessId !== null) {
+        do {
+          const transcriptPage = await repository.loadTranscriptPage({
+            processId: requestedProcessId,
+            beforeSequence,
+            maximumBytes: 4 * 1024 * 1024,
+          });
+          if (transcriptPage === null) break;
+          transcriptEntries.unshift(...transcriptPage.entries);
+          beforeSequence = transcriptPage.nextBeforeSequence;
+        } while (beforeSequence !== null);
+      }
+      return { catalog, continuation, process, transcriptEntries, networkAccess };
+    } finally {
+      await repository.dispose();
+    }
+  }, {
+    moduleUrl: "/src/product/browser-program-data-repository.ts",
+    requestedProcessId: processId,
+    requestedProgramId: programId,
+  });
+}
+
 async function readWorkspaceContinuationV1(
   page: Page,
   programId: string,
-): Promise<DurableWorkspaceContinuationV1 | null> {
-  return await page.evaluate(async (requestedProgramId) => {
-    const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const openRequest = indexedDB.open("sillymaker.example-silly-os.programs");
-      openRequest.addEventListener("error", () => reject(openRequest.error));
-      openRequest.addEventListener("success", () => resolve(openRequest.result));
-    });
-    try {
-      return await new Promise<DurableWorkspaceContinuationV1 | null>((resolve, reject) => {
-        const transaction = database.transaction("workspace_continuations", "readonly");
-        const request = transaction.objectStore("workspace_continuations").get(
-          requestedProgramId,
-        );
-        request.addEventListener("error", () => reject(request.error));
-        request.addEventListener("success", () => resolve(request.result ?? null));
-      });
-    } finally {
-      database.close();
-    }
-  }, programId);
+): Promise<ProgramWorkspaceContinuationProjectionV1 | null> {
+  return (await readProgramDataProjectionV1(page, programId)).continuation;
 }
 
 const ordinaryWorkspaceRoundTripPathV1 = ".sillyos/p3a-round-trip.txt";
@@ -308,7 +1051,7 @@ interface SandboxWorkspaceEntryInspectionV1 {
 
 async function inspectSandboxWorkspaceEntriesV1(
   page: Page,
-  continuation: DurableWorkspaceContinuationV1,
+  continuation: ProgramWorkspaceContinuationProjectionV1,
   relativePaths: readonly string[],
 ): Promise<Readonly<Record<string, SandboxWorkspaceEntryInspectionV1>>> {
   const frame = await currentOrdinaryWorkspaceSandboxFrameV1(page);
@@ -371,7 +1114,7 @@ async function inspectSandboxWorkspaceEntriesV1(
 
 async function inspectSandboxWorkspaceFileDigestV1(
   page: Page,
-  continuation: DurableWorkspaceContinuationV1,
+  continuation: ProgramWorkspaceContinuationProjectionV1,
   relativePath: string,
 ): Promise<{ readonly size: number; readonly sha256: string }> {
   const frame = await currentOrdinaryWorkspaceSandboxFrameV1(page);
@@ -407,7 +1150,7 @@ async function inspectSandboxWorkspaceFileDigestV1(
 
 async function expectOrdinaryWorkspaceSandboxV1(
   page: Page,
-  continuation: DurableWorkspaceContinuationV1,
+  continuation: ProgramWorkspaceContinuationProjectionV1,
   expectedText: string,
   relativePath = ordinaryWorkspaceRoundTripPathV1,
 ): Promise<void> {
@@ -468,62 +1211,31 @@ function assertOrdinaryWorkspaceArchiveV1(
   expect(new TextDecoder("utf-8", { fatal: true }).decode(workspaceBytes)).toBe(expected.text);
 }
 
-async function readDurableProgramV3(
+async function readProgramCatalogSummariesV1(
   page: Page,
-  programId: string,
-): Promise<DurableProgramProjectionV3 | null> {
-  return await page.evaluate(async (requestedProgramId) => {
-    const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const grantDatabaseRequest = indexedDB.open("sillymaker.example-silly-os.programs");
-      grantDatabaseRequest.addEventListener("error", () => reject(grantDatabaseRequest.error));
-      grantDatabaseRequest.addEventListener("success", () => resolve(grantDatabaseRequest.result));
-    });
-    try {
-      return await new Promise<DurableProgramProjectionV3 | null>((resolve, reject) => {
-        const transaction = database.transaction("programs", "readonly");
-        const request = transaction.objectStore("programs").get(requestedProgramId);
-        request.addEventListener("error", () => reject(request.error));
-        request.addEventListener("success", () => resolve(request.result ?? null));
-      });
-    } finally {
-      database.close();
+): Promise<readonly Readonly<Record<string, unknown>>[]> {
+  return await page.evaluate(async (moduleUrl) => {
+    interface RepositoryV1 {
+      initialize(): Promise<void>;
+      listPrograms(input: {
+        readonly before: null;
+        readonly maximumBytes: number;
+      }): Promise<{ readonly summaries: readonly Readonly<Record<string, unknown>>[] }>;
+      dispose(): Promise<void>;
     }
-  }, programId);
-}
-
-async function readProgramDatabaseStateV7(page: Page): Promise<DurableProgramDatabaseStateV7> {
-  return await page.evaluate(async () => {
-    const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("sillymaker.example-silly-os.programs");
-      request.addEventListener("error", () => reject(request.error));
-      request.addEventListener("success", () => resolve(request.result));
-    });
-    try {
-      const transaction = database.transaction(
-        ["programs", "workspace_continuations", "program_network_access"],
-        "readonly",
-      );
-      const readAllV1 = (storeName: string): Promise<unknown[]> =>
-        new Promise((resolve, reject) => {
-          const request = transaction.objectStore(storeName).getAll();
-          request.addEventListener("error", () => reject(request.error));
-          request.addEventListener("success", () => resolve(request.result));
-        });
-      const [programRows, continuationRows, networkAccessRows] = await Promise.all([
-        readAllV1("programs"),
-        readAllV1("workspace_continuations"),
-        readAllV1("program_network_access"),
-      ]);
-      return {
-        version: database.version,
-        programRows,
-        continuationRows,
-        networkAccessRows,
-      } as DurableProgramDatabaseStateV7;
-    } finally {
-      database.close();
+    interface RepositoryModuleV1 {
+      createBrowserProgramDataRepositoryV1(): RepositoryV1;
     }
-  });
+    const module = await import(moduleUrl) as RepositoryModuleV1;
+    const repository = module.createBrowserProgramDataRepositoryV1();
+    try {
+      await repository.initialize();
+      return (await repository.listPrograms({ before: null, maximumBytes: 128 * 1024 }))
+        .summaries;
+    } finally {
+      await repository.dispose();
+    }
+  }, "/src/product/browser-program-data-repository.ts");
 }
 
 async function openRecentTranslationProgramV1(
@@ -1704,9 +2416,12 @@ test("Creator Home persists and reopens an exact accepted Program", async ({ dur
   await expect(page.getByRole("heading", { name: "Capabilities" })).toBeVisible();
   await expect(page.getByText("Deterministic test wiring", { exact: true })).toBeVisible();
 
-  await page.getByRole("tab", { name: "Activity" }).click();
-  await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
-  await expect(page.getByText("Accepted Program proposal v1", { exact: true })).toBeVisible();
+  await expect(
+    page.locator('[data-chat-role="assistant"]').getByText(
+      "Proposal v1 accepted. Follow-up requests will create a new revision for review.",
+      { exact: true },
+    ),
+  ).toBeVisible();
   await expectNoPageOverflowV1(page);
 
   await page.getByRole("button", { name: "Creator home" }).click();
@@ -1731,8 +2446,12 @@ test("Creator Home persists and reopens an exact accepted Program", async ({ dur
   await expect(page.getByRole("button", { name: "Accept program" })).toHaveCount(0);
   await expect(workspace).toHaveAttribute("data-program-revision", "1");
   await expect(page.getByRole("tab", { name: "Source" })).toHaveCount(0);
-  await page.getByRole("tab", { name: "Activity" }).click();
-  await expect(page.getByText("Accepted Program proposal v1", { exact: true })).toBeVisible();
+  await expect(
+    page.locator('[data-chat-role="assistant"]').getByText(
+      "Proposal v1 accepted. Follow-up requests will create a new revision for review.",
+      { exact: true },
+    ),
+  ).toBeVisible();
 });
 
 test("a pending Program remains locally reviewable without a Provider credential", async ({ durableProgramPage: page }) => {
@@ -1766,38 +2485,407 @@ test("a pending Program remains locally reviewable without a Provider credential
   await expect(page.getByText("Program accepted", { exact: true }).first()).toBeVisible();
 });
 
-test("a follow-up creates a new exact Program revision for review", async ({ durableProgramPage: page }) => {
-  await openTranslationWorkspaceV1(page);
+test(
+  "a follow-up creates a new exact Program revision for review",
+  async ({ durableProgramPage: page }) => {
+    await openTranslationWorkspaceV1(page);
 
-  await page.getByRole("button", { name: "Reject proposal" }).click();
-  await expect(page.getByText("Proposal rejected", { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "Reject proposal" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Reject proposal" }).click();
+    await expect(page.getByText("Proposal rejected", { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reject proposal" })).toHaveCount(0);
 
-  const followUp = "Use a warmer voice for the protagonist.";
-  await page.getByRole("textbox", { name: "Ask for a change…" }).fill(followUp);
-  await page.getByRole("button", { name: "Send" }).click();
-  await expect(
-    page.locator('[data-chat-role="user"]').getByText(followUp, { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.locator('[data-chat-role="creator"]').getByText(
-      "Deterministic test proposal ready.",
-      { exact: true },
-    ).last(),
-  ).toBeVisible();
-  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
-  await expect(page.getByRole("button", { name: "Accept program" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Reject proposal" })).toBeVisible();
+    const followUp = "Use a warmer voice for the protagonist.";
+    await page.getByRole("textbox", { name: "Ask for a change…" }).fill(followUp);
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(
+      page.locator('[data-chat-role="user"]').getByText(followUp, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-chat-role="assistant"]').getByText(
+        "Deterministic test proposal ready.",
+        { exact: true },
+      ).last(),
+    ).toBeVisible();
+    await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+    await expect(page.getByRole("button", { name: "Accept program" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reject proposal" })).toBeVisible();
 
-  await expect(page.getByRole("main", { name: "SillyOS program workspace" }))
-    .toHaveAttribute("data-program-revision", "2");
-  await expect(page.getByRole("tab", { name: "Source" })).toHaveCount(0);
+    await expect(page.getByRole("main", { name: "SillyOS program workspace" }))
+      .toHaveAttribute("data-program-revision", "2");
+    await expect(page.getByRole("tab", { name: "Source" })).toHaveCount(0);
 
-  await page.getByRole("tab", { name: "Activity" }).click();
-  await expect(page.getByText("Rejected Program proposal v1", { exact: true })).toBeVisible();
-  await expect(page.getByText("Added a creator follow-up", { exact: true })).toBeVisible();
-  await expect(page.getByText("Created Program proposal v2", { exact: true })).toBeVisible();
-});
+    await expect(
+      page.locator('[data-chat-role="assistant"]').getByText(
+        "Proposal v1 rejected. Add context to create a new revision for review, or return home to start again.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+  },
+);
+
+test(
+  "@p4a a pageable rich Conversation keeps one active Process subtree and cold-reopens",
+  async ({ durableProgramPage: page }, testInfo) => {
+    const firstWorkspace = await openTranslationWorkspaceV1(page);
+    const firstProgramId = await readProgramIdV1(firstWorkspace);
+    const firstProcessId = await firstWorkspace.getAttribute("data-process-id");
+    if (firstProcessId === null) throw new Error("first Program omitted its Process identity");
+
+    const fixture = await appendP4aTranscriptFixtureV1(page, firstProcessId);
+    expect(fixture.appendedByteLength).toBeGreaterThan(
+      p4aTranscriptWindowQualificationBytesV1,
+    );
+    expect(fixture.transcriptFrontier).toBe(2 + fixture.appendedEntryCount);
+
+    // Recreate the application and repository Workers before reading the
+    // externally appended durable Process through the ordinary product route.
+    await page.reload();
+    await expectProgramStorageReadyV1(page);
+    await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+    await initializePiTestV1(page, "silly-os-p4a-key");
+    await page.locator(`[data-program-id="${firstProgramId}"]`).click();
+
+    const activeWorkspace = page.getByRole("main", { name: "SillyOS program workspace" });
+    await expect(activeWorkspace).toHaveAttribute("data-process-id", firstProcessId);
+    await expect(activeWorkspace).toHaveAttribute("data-transcript-phase", "ready");
+    const terminalProjection = await readProgramDataProjectionV1(
+      page,
+      firstProgramId,
+      firstProcessId,
+    );
+    expect(terminalProjection.process).toMatchObject({
+      revision: fixture.processRevision,
+      transcriptFrontier: fixture.transcriptFrontier,
+      activeAttempt: null,
+      lastTerminalAttempt: {
+        attemptId: fixture.attemptId,
+        generation: fixture.attemptGeneration,
+        outcome: "failed",
+        triggerEntryId: "entry.p4a.trigger",
+        triggerSequence: fixture.transcriptFrontier - 1,
+        interruptionDisposition: null,
+      },
+    });
+    await expect(
+      page.locator(`[data-transcript-entry-id="${fixture.richEntryId}"]`),
+    ).toBeVisible();
+    await expect(page.getByText("P4-A rich transcript sentinel", { exact: true })).toBeVisible();
+    await expect(page.getByText("Reviewed glossary", { exact: true })).toBeVisible();
+    await expect(page.locator(".transcript-part--reasoning")).toHaveCount(1);
+    await expect(page.locator(".transcript-part--tool-call")).toHaveCount(1);
+    await expect(page.locator('[data-tool-status="succeeded"]')).not.toHaveCount(0);
+    await expect(page.locator('[data-tool-outcome="succeeded"]')).not.toHaveCount(0);
+
+    const feed = page.locator(".chat-pane__feed");
+    const mountedEntries = feed.locator("[data-transcript-entry-id]");
+    const mountedBeforeOlder = await mountedEntries.count();
+    expect(mountedBeforeOlder).toBeLessThan(fixture.transcriptFrontier);
+    await feed.evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    const prependAnchor = mountedEntries.first();
+    const prependAnchorEntryId = await prependAnchor.getAttribute("data-transcript-entry-id");
+    const firstSequenceBeforeOlder = Number(
+      await prependAnchor.getAttribute("data-transcript-sequence"),
+    );
+    if (prependAnchorEntryId === null || !Number.isSafeInteger(firstSequenceBeforeOlder)) {
+      throw new Error("initial transcript page omitted its stable anchor");
+    }
+    const anchorTopBeforeOlder = await prependAnchor.evaluate((element) => {
+      const ownerFeed = element.closest(".chat-pane__feed");
+      if (!(ownerFeed instanceof HTMLElement)) throw new Error("transcript feed unavailable");
+      return element.getBoundingClientRect().top - ownerFeed.getBoundingClientRect().top;
+    });
+
+    await page.getByRole("button", { name: "Load earlier messages" }).click();
+    await expect.poll(async () =>
+      Number(await mountedEntries.first().getAttribute("data-transcript-sequence"))
+    ).toBeLessThan(firstSequenceBeforeOlder);
+    const retainedAnchor = feed.locator(
+      `[data-transcript-entry-id="${prependAnchorEntryId}"]`,
+    );
+    await expect(retainedAnchor).toHaveCount(1);
+    const anchorTopAfterOlder = await retainedAnchor.evaluate((element) => {
+      const ownerFeed = element.closest(".chat-pane__feed");
+      if (!(ownerFeed instanceof HTMLElement)) throw new Error("transcript feed unavailable");
+      return element.getBoundingClientRect().top - ownerFeed.getBoundingClientRect().top;
+    });
+    expect(Math.abs(anchorTopAfterOlder - anchorTopBeforeOlder)).toBeLessThanOrEqual(2);
+    const processSwitchAnchor = await feed.evaluate((element) => {
+      const feedRect = element.getBoundingClientRect();
+      const entries = Array.from(
+        element.querySelectorAll<HTMLElement>("[data-transcript-entry-id]"),
+      );
+      const entry = entries.find((candidate) =>
+        candidate.getBoundingClientRect().bottom > feedRect.top
+      ) ?? entries.at(-1);
+      if (entry === undefined) throw new Error("loaded transcript omitted its stable anchor");
+      return {
+        entryId: entry.dataset.transcriptEntryId ?? null,
+        sequence: Number(entry.dataset.transcriptSequence),
+        top: entry.getBoundingClientRect().top - feedRect.top,
+      };
+    });
+    if (
+      processSwitchAnchor.entryId === null ||
+      !Number.isSafeInteger(processSwitchAnchor.sequence) ||
+      processSwitchAnchor.sequence >= fixture.transcriptFrontier
+    ) throw new Error("loaded transcript omitted its non-latest Process anchor");
+
+    const preservedDraft = "Keep this Process-local draft while another Process is active.";
+    await page.getByRole("textbox", { name: "Ask for a change…" }).fill(preservedDraft);
+    await page.getByRole("button", { name: "Creator home" }).click();
+    await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+
+    const secondIntent = "Create a concise writing workspace for a product launch outline.";
+    await page.getByRole("textbox", { name: "What would you like to make?" }).fill(secondIntent);
+    await page.getByRole("button", { name: "Create program" }).click();
+    await expect(activeWorkspace).toBeVisible();
+    const secondProgramId = await readProgramIdV1(activeWorkspace);
+    const secondProcessId = await activeWorkspace.getAttribute("data-process-id");
+    if (secondProcessId === null) throw new Error("second Program omitted its Process identity");
+    expect(secondProgramId).not.toBe(firstProgramId);
+    expect(secondProcessId).not.toBe(firstProcessId);
+    await expect(page.locator(`[data-process-id="${firstProcessId}"]`)).toHaveCount(0);
+    await expect(
+      page.locator(`[data-transcript-entry-id="${fixture.richEntryId}"]`),
+    ).toHaveCount(0);
+    await expect(page.locator("[data-transcript-entry-id]")).toHaveCount(2);
+
+    await page.getByRole("button", { name: "Creator home" }).click();
+    await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+    const switchStartedAt = Date.now();
+    await page.locator(`[data-program-id="${firstProgramId}"]`).click();
+    await expect(activeWorkspace).toHaveAttribute("data-process-id", firstProcessId);
+    const switchDurationMs = Date.now() - switchStartedAt;
+    await expect(page.getByRole("textbox", { name: "Ask for a change…" })).toHaveValue(
+      preservedDraft,
+    );
+    await expect(page.locator(`[data-process-id="${secondProcessId}"]`)).toHaveCount(0);
+    const restoredAnchor = feed.locator(
+      `[data-transcript-entry-id="${processSwitchAnchor.entryId}"]`,
+    );
+    await expect(restoredAnchor).toHaveCount(1);
+    const anchorTopAfterSwitch = await restoredAnchor.evaluate((element) => {
+      const ownerFeed = element.closest(".chat-pane__feed");
+      if (!(ownerFeed instanceof HTMLElement)) throw new Error("transcript feed unavailable");
+      return element.getBoundingClientRect().top - ownerFeed.getBoundingClientRect().top;
+    });
+    expect(Math.abs(anchorTopAfterSwitch - processSwitchAnchor.top)).toBeLessThanOrEqual(2);
+
+    const mountedMeasurement = await page.evaluate(() => ({
+      documentNodes: document.getElementsByTagName("*").length,
+      resourceEntries: performance.getEntriesByType("resource").length,
+      transcriptEntries: document.querySelectorAll("[data-transcript-entry-id]").length,
+      transcriptParts: document.querySelectorAll(".transcript-part").length,
+    }));
+    expect(mountedMeasurement.transcriptEntries).toBeLessThan(fixture.transcriptFrontier);
+    await testInfo.attach("p4a-single-active-measurement", {
+      body: JSON.stringify(
+        {
+          fixture,
+          mountedMeasurement,
+          switchDurationMs,
+        },
+        null,
+        2,
+      ),
+      contentType: "application/json",
+    });
+
+    // A controlled document discard must reconstruct the latest bounded
+    // transcript window from the persistent profile in a successor document,
+    // not from the old Page's retained React or repository Workers.
+    const successorPage = await page.context().newPage();
+    await page.close();
+    await successorPage.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
+    await expectProgramStorageReadyV1(successorPage);
+    await expect(successorPage.locator('[data-silly-os-view="home"]')).toBeVisible();
+    await successorPage.locator(`[data-program-id="${firstProgramId}"]`).click();
+    const successorWorkspace = successorPage.getByRole("main", {
+      name: "SillyOS program workspace",
+    });
+    await expect(successorWorkspace).toHaveAttribute("data-process-id", firstProcessId);
+    await expect(
+      successorPage.locator(`[data-transcript-entry-id="${fixture.richEntryId}"]`),
+    ).toBeVisible();
+    await expect(
+      successorPage.locator(
+        `[data-transcript-sequence="${String(fixture.transcriptFrontier)}"]`,
+      ),
+    ).toHaveCount(1);
+    await expect(
+      successorPage.locator(`[data-transcript-entry-id="${fixture.olderEntryId}"]`),
+    ).toHaveCount(0);
+    await expect(
+      successorPage.getByRole("button", { name: "Load earlier messages" }),
+    ).toBeVisible();
+    const successorProjection = await readProgramDataProjectionV1(
+      successorPage,
+      firstProgramId,
+      firstProcessId,
+    );
+    expect(successorProjection.process).toMatchObject({
+      revision: fixture.processRevision,
+      transcriptFrontier: fixture.transcriptFrontier,
+      activeAttempt: null,
+      lastTerminalAttempt: {
+        attemptId: fixture.attemptId,
+        generation: fixture.attemptGeneration,
+        outcome: "failed",
+      },
+    });
+  },
+);
+
+test(
+  "@p4a two pages admit one Process execution lease and passively observe its terminal",
+  async ({ durableProgramPage: page }) => {
+    test.setTimeout(120_000);
+    const firstWorkspace = await openTranslationWorkspaceV1(page);
+    const programId = await readProgramIdV1(firstWorkspace);
+    const processId = await firstWorkspace.getAttribute("data-process-id");
+    if (processId === null) throw new Error("P4-A Program omitted its Process identity");
+
+    const contenderPage = await page.context().newPage();
+    await contenderPage.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
+    await expectProgramStorageReadyV1(contenderPage);
+    await initializePiTestV1(contenderPage, "sillyos-p4a-process-contender");
+    const secondWorkspace = await openRecentTranslationProgramV1(contenderPage, {
+      programId,
+      revision: 1,
+      status: "Preview",
+    });
+    await expect(secondWorkspace).toHaveAttribute("data-process-id", processId);
+
+    const first = { page, workspace: firstWorkspace };
+    const second = { page: contenderPage, workspace: secondWorkspace };
+    await expect.poll(async () => {
+      return (await Promise.all(
+        [first, second].map(async ({ workspace }) =>
+          String(await workspace.getAttribute("data-execution-workspace-state")) + ":" +
+          (await workspace.getAttribute("data-execution-workspace-diagnostic") ?? "")
+        ),
+      )).sort();
+    }).toEqual(["failed:workspace_busy", "open:"]);
+    const workspaceOwner = await firstWorkspace.getAttribute("data-execution-workspace-state") ===
+        "open"
+      ? first
+      : second;
+    const workspaceContender = workspaceOwner === first ? second : first;
+    const composerForV1 = (target: Page) =>
+      target.getByRole("textbox", { name: "Ask for a change…" });
+    await expect(composerForV1(workspaceOwner.page)).toBeEnabled();
+    await expect(composerForV1(workspaceContender.page)).toBeDisabled();
+
+    const base = await readP4aProcessLeaseRaceBaseV1(page, processId);
+    const contenders: readonly [P4aProcessLeaseContenderV1, P4aProcessLeaseContenderV1] = [{
+      ownerInstanceId: "owner.p4a.multitab.first",
+      attemptId: "attempt.p4a.multitab.first",
+      operationId: "commit.p4a.multitab.first",
+      triggerEntryId: "entry.p4a.multitab.first",
+    }, {
+      ownerInstanceId: "owner.p4a.multitab.second",
+      attemptId: "attempt.p4a.multitab.second",
+      operationId: "commit.p4a.multitab.second",
+      triggerEntryId: "entry.p4a.multitab.second",
+    }];
+    const results = await Promise.all([
+      acquireP4aProcessLeaseV1(page, base, contenders[0]),
+      acquireP4aProcessLeaseV1(contenderPage, base, contenders[1]),
+    ]);
+    expect(results.map(({ kind }) => kind).sort()).toEqual(["committed", "conflict"]);
+    const winner = results.find(({ kind }) => kind === "committed");
+    const loser = results.find(({ kind }) => kind === "conflict");
+    if (winner === undefined || loser === undefined || winner.lease === null) {
+      throw new Error("P4-A lease race omitted its exact winner and loser");
+    }
+    expect(winner.lease).toMatchObject({
+      processId,
+      ownerInstanceId: winner.contender.ownerInstanceId,
+      attemptId: winner.contender.attemptId,
+      generation: base.generation,
+    });
+    expect(loser.lease).toEqual(winner.lease);
+    expect(winner.processRevision).toBe(base.expectedProcessRevision + 1);
+    expect(winner.transcriptFrontier).toBe(base.expectedTranscriptFrontier + 1);
+    expect(loser.processRevision).toBe(winner.processRevision);
+    expect(loser.transcriptFrontier).toBe(winner.transcriptFrontier);
+
+    const winningTrigger = `[data-transcript-entry-id="${winner.contender.triggerEntryId}"]`;
+    await Promise.all([
+      expect(page.locator(winningTrigger)).toBeVisible({ timeout: 25_000 }),
+      expect(contenderPage.locator(winningTrigger)).toBeVisible({ timeout: 25_000 }),
+      expect(composerForV1(page)).toBeDisabled({ timeout: 25_000 }),
+      expect(composerForV1(contenderPage)).toBeDisabled({ timeout: 25_000 }),
+    ]);
+    for (const productPage of [page, contenderPage]) {
+      await expect.poll(async () => {
+        const process = (await readProgramDataProjectionV1(
+          productPage,
+          programId,
+          processId,
+        )).process;
+        return process?.activeAttempt;
+      }).toMatchObject({
+        attemptId: winner.contender.attemptId,
+        generation: base.generation,
+        triggerEntryId: winner.contender.triggerEntryId,
+        triggerSequence: base.expectedTranscriptFrontier + 1,
+      });
+    }
+
+    const terminal = await commitP4aFailedTerminalV1(workspaceOwner.page, winner, base);
+    expect(terminal).toMatchObject({
+      kind: "committed",
+      processRevision: base.expectedProcessRevision + 2,
+      transcriptFrontier: base.expectedTranscriptFrontier + 2,
+      terminalAttempt: {
+        attemptId: winner.contender.attemptId,
+        generation: base.generation,
+        outcome: "failed",
+      },
+    });
+    const terminalEntryId = `${winner.contender.attemptId}.failed.entry`;
+    for (const productPage of [page, contenderPage]) {
+      await expect(
+        productPage.locator(`[data-transcript-entry-id="${terminalEntryId}"]`),
+      ).toBeVisible({ timeout: 25_000 });
+      await expect.poll(async () => {
+        const process = (await readProgramDataProjectionV1(
+          productPage,
+          programId,
+          processId,
+        )).process;
+        return process === null ? null : {
+          activeAttempt: process.activeAttempt,
+          lastTerminalAttempt: process.lastTerminalAttempt,
+        };
+      }).toEqual({
+        activeAttempt: null,
+        lastTerminalAttempt: {
+          attemptId: winner.contender.attemptId,
+          generation: base.generation,
+          outcome: "failed",
+          triggerEntryId: winner.contender.triggerEntryId,
+          triggerSequence: base.expectedTranscriptFrontier + 1,
+          interruptionDisposition: null,
+        },
+      });
+    }
+
+    // Process execution is idle on both pages. Only the independent Workspace
+    // volume authority remains exclusive, so its owner is writable while the
+    // contender truthfully stays disabled with workspace_busy.
+    await expect(composerForV1(workspaceOwner.page)).toBeEnabled({ timeout: 25_000 });
+    await expect(workspaceContender.workspace).toHaveAttribute(
+      "data-execution-workspace-diagnostic",
+      "workspace_busy",
+    );
+    await expect(composerForV1(workspaceContender.page)).toBeDisabled();
+    await contenderPage.close();
+  },
+);
 
 test("a second page cold-reopens the durable winner while one owns its Workspace", async ({ durableProgramPage: page }) => {
   const firstWorkspace = await openTranslationWorkspaceV1(page);
@@ -1890,6 +2978,8 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
   const programId = await readProgramIdV1(workspace);
+  const processId = await workspace.getAttribute("data-process-id");
+  if (processId === null) throw new Error("Ordinary Program omitted its Process identity");
   const firstWorkspaceSessionId = await readWorkspaceSessionIdV1(workspace);
 
   const followUp = "Make every review decision explicit.";
@@ -1897,7 +2987,7 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByText(followUp, { exact: true })).toBeVisible();
   await expect(
-    page.locator('[data-chat-role="creator"]').getByText(
+    page.locator('[data-chat-role="assistant"]').getByText(
       "Deterministic test proposal ready.",
       { exact: true },
     ).last(),
@@ -1964,7 +3054,7 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
   await expect(page.getByText(followUp, { exact: true })).toBeVisible();
   await expect(
-    page.locator('[data-chat-role="creator"]').getByText(
+    page.locator('[data-chat-role="assistant"]').getByText(
       "Deterministic test proposal ready.",
       { exact: true },
     ),
@@ -1981,87 +3071,42 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   await expect(reopenedWorkspace).toHaveAttribute("data-program-revision", "3");
   await expect(page.getByRole("tab", { name: "Source" })).toHaveCount(0);
 
-  const completedAggregate = await readDurableProgramV3(page, programId);
-  if (completedAggregate === null) throw new Error("expected durable Program aggregate");
-  expect(completedAggregate).toMatchObject({ schemaVersion: 3, programId });
-  expect(completedAggregate.agentRunReceipts).toHaveLength(2);
-  const completedReceipt = completedAggregate.agentRunReceipts[0];
-  expect(Object.keys(completedReceipt ?? {}).sort()).toEqual([
-    "agentRunId",
-    "baseProgramRevision",
-    "baseRepositoryRevision",
-    "creatorMessageId",
-    "diagnosticCode",
-    "outcome",
-    "proposalId",
-    "resultingProgramRevision",
-    "sequence",
-    "userMessageId",
-  ].sort());
-  expect(completedReceipt).toMatchObject({
-    sequence: 1,
-    outcome: "completed",
-    baseProgramRevision: 1,
-    baseRepositoryRevision: 1,
-    resultingProgramRevision: 2,
-    diagnosticCode: null,
+  const completedProjection = await readProgramDataProjectionV1(page, programId, processId);
+  expect(completedProjection.catalog?.head).toMatchObject({
+    schemaVersion: 1,
+    programId,
+    currentProgramRevision: 3,
   });
-  expect(
-    completedAggregate.snapshot.messages.find(({ messageId }) =>
-      messageId === completedReceipt?.userMessageId
-    ),
-  ).toMatchObject({ role: "user", text: followUp });
-  expect(
-    completedAggregate.snapshot.messages.find(({ messageId }) =>
-      messageId === completedReceipt?.creatorMessageId
-    ),
-  ).toMatchObject({ role: "creator", text: "Deterministic test proposal ready." });
-  const persistenceReceipt = completedAggregate.agentRunReceipts[1];
-  expect(persistenceReceipt).toMatchObject({
-    sequence: 2,
-    outcome: "completed",
-    baseProgramRevision: 2,
-    baseRepositoryRevision: 2,
-    resultingProgramRevision: 3,
-    diagnosticCode: null,
+  expect(completedProjection.process).toMatchObject({
+    schemaVersion: 1,
+    processId,
+    status: "active",
+    activeAttempt: null,
+    lastTerminalAttempt: {
+      generation: 2,
+      outcome: "completed",
+      interruptionDisposition: null,
+    },
   });
-  expect(
-    completedAggregate.snapshot.messages.find(({ messageId }) =>
-      messageId === persistenceReceipt?.userMessageId
-    ),
-  ).toMatchObject({ role: "user", text: persistenceProbe });
+  const textTranscript = completedProjection.transcriptEntries.flatMap((entry) =>
+    entry.parts.flatMap((part) =>
+      part.kind === "text_markdown" && typeof part.markdown === "string"
+        ? [{ role: entry.role, text: part.markdown }]
+        : []
+    )
+  );
+  expect(textTranscript).toContainEqual({ role: "user", text: followUp });
+  expect(textTranscript).toContainEqual({
+    role: "assistant",
+    text: "Deterministic test proposal ready.",
+  });
+  expect(textTranscript).toContainEqual({ role: "user", text: persistenceProbe });
 
-  const durableProjection = await page.evaluate(async () => {
+  const browserVisibleProjection = await page.evaluate(async () => {
     const storageValues = [
       ...Object.entries(localStorage),
       ...Object.entries(sessionStorage),
     ];
-    const indexedDbValues: unknown[] = [];
-    if (typeof indexedDB.databases === "function") {
-      for (const database of await indexedDB.databases()) {
-        const databaseName = database.name;
-        if (databaseName === undefined) continue;
-        const opened = await new Promise<IDBDatabase>((resolve, reject) => {
-          const request = indexedDB.open(databaseName);
-          request.addEventListener("error", () => reject(request.error));
-          request.addEventListener("success", () => resolve(request.result));
-        });
-        try {
-          const storeNames = [...opened.objectStoreNames];
-          for (const storeName of storeNames) {
-            const transaction = opened.transaction(storeName, "readonly");
-            const values = await new Promise<unknown[]>((resolve, reject) => {
-              const request = transaction.objectStore(storeName).getAll();
-              request.addEventListener("error", () => reject(request.error));
-              request.addEventListener("success", () => resolve(request.result));
-            });
-            indexedDbValues.push(...values);
-          }
-        } finally {
-          opened.close();
-        }
-      }
-    }
     const cacheValues: string[] = [];
     if ("caches" in globalThis) {
       for (const cacheName of await caches.keys()) {
@@ -2077,11 +3122,11 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
       url: location.href,
       document: document.documentElement.outerHTML,
       storageValues,
-      indexedDbValues,
       cacheValues,
     });
   });
-  expect(durableProjection).not.toContain(sentinel);
+  expect(JSON.stringify(completedProjection)).not.toContain(sentinel);
+  expect(browserVisibleProjection).not.toContain(sentinel);
   expect(observedNetwork.join("\n")).not.toContain(sentinel);
   expect(observedConsole.join("\n")).not.toContain(sentinel);
 
@@ -2128,7 +3173,7 @@ test("@s1b-edit the pinned native Pi edit tool changes and cold-reopens exact Sa
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByText(editText, { exact: true })).toBeVisible();
   await expect(
-    page.locator('[data-chat-role="creator"]').getByText(
+    page.locator('[data-chat-role="assistant"]').getByText(
       "Deterministic test proposal ready.",
       { exact: true },
     ),
@@ -2182,7 +3227,7 @@ test("@s1b-bash the pinned native Pi bash tool changes and cold-reopens exact Sa
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByText(bashPrompt, { exact: true })).toBeVisible();
   await expect(
-    page.locator('[data-chat-role="creator"]').getByText(
+    page.locator('[data-chat-role="assistant"]').getByText(
       "Deterministic test proposal ready.",
       { exact: true },
     ),
@@ -2247,7 +3292,7 @@ test("@s2-file-ops Pi native bash preserves the exact workspace file lifecycle a
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByText(fileOpsPrompt, { exact: true })).toBeVisible();
   await expect(
-    page.locator('[data-chat-role="creator"]').getByText(
+    page.locator('[data-chat-role="assistant"]').getByText(
       "Deterministic test proposal ready.",
       { exact: true },
     ),
@@ -2467,12 +3512,7 @@ test("Playwright WebKit's non-persistent context reports unavailable OPFS withou
   await expect(
     page.getByRole("button", { name: "Open program: Translation Workshop", exact: true }),
   ).toHaveCount(0);
-  await expect(readProgramDatabaseStateV7(page)).resolves.toEqual({
-    version: 7,
-    programRows: [],
-    continuationRows: [],
-    networkAccessRows: [],
-  });
+  await expect(readProgramCatalogSummariesV1(page)).resolves.toEqual([]);
 });
 
 test(
@@ -2504,8 +3544,8 @@ test(
     await page.getByRole("button", { name: "Accept program" }).click();
     await expectProgramStorageReadyV1(page);
     await expect(page.locator('[data-proposal-status="accepted"]')).toBeVisible();
-    const aggregate = await readDurableProgramV3(page, programId);
-    const accepted = aggregate?.decisions.at(-1);
+    const accepted = (await readProgramDataProjectionV1(page, programId)).catalog
+      ?.latestDecision;
     if (accepted?.status !== "accepted") {
       throw new Error("Ordinary Program has no accepted Workspace snapshot");
     }
@@ -2597,6 +3637,8 @@ test("@s1a-ordinary a cancelled Browser Pi run retains its Sandbox write and rem
   await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
   const programId = await readProgramIdV1(workspace);
+  const processId = await workspace.getAttribute("data-process-id");
+  if (processId === null) throw new Error("Cancelled Program omitted its Process identity");
   const firstWorkspaceSessionId = await readWorkspaceSessionIdV1(workspace);
   const cancelledText =
     "Hold this deterministic run until cancelled: preserve cancellation as a product receipt.";
@@ -2615,11 +3657,16 @@ test("@s1a-ordinary a cancelled Browser Pi run retains its Sandbox write and rem
   await expectProgramStorageReadyV1(page);
   await expect(workspace).toHaveAttribute("data-program-revision", "1");
   await expect(page.getByText(cancelledText, { exact: true })).toBeVisible();
-  await page.getByRole("tab", { name: "Activity" }).click();
-  await expect(page.getByText("Cancelled Creator Agent run", { exact: true })).toBeVisible();
+  await expect(
+    page.locator('[data-chat-role="assistant"]').getByText(
+      "Creator Agent run was cancelled. The committed request remains in this Process.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "Capabilities" }).click();
   await expect(page.getByText("Last write: succeeded / changed", { exact: false })).toBeVisible();
   const cancelledContinuation = await readWorkspaceContinuationV1(page, programId);
-  expect(cancelledContinuation).toEqual({ ...continuation, repositoryRevision: 2 });
+  expect(cancelledContinuation).toEqual(continuation);
 
   await page.getByRole("button", { name: "Creator home" }).click();
   await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
@@ -2648,21 +3695,38 @@ test("@s1a-ordinary a cancelled Browser Pi run retains its Sandbox write and rem
   expect(await readWorkspaceContinuationV1(page, programId)).toEqual(cancelledContinuation);
   await expectOrdinaryWorkspaceSandboxV1(page, continuation, cancelledText);
   await expect(page.getByText(cancelledText, { exact: true })).toBeVisible();
-  await page.getByRole("tab", { name: "Activity" }).click();
-  await expect(page.getByText("Cancelled Creator Agent run", { exact: true })).toBeVisible();
+  await expect(
+    page.locator('[data-chat-role="assistant"]').getByText(
+      "Creator Agent run was cancelled. The committed request remains in this Process.",
+      { exact: true },
+    ),
+  ).toBeVisible();
 
-  const cancelledAggregate = await readDurableProgramV3(page, programId);
-  if (cancelledAggregate === null) throw new Error("expected durable cancelled Program aggregate");
-  expect(cancelledAggregate.agentRunReceipts).toHaveLength(1);
-  expect(cancelledAggregate.agentRunReceipts[0]).toMatchObject({
-    sequence: 1,
-    outcome: "cancelled",
-    baseProgramRevision: 1,
-    baseRepositoryRevision: 1,
-    creatorMessageId: null,
-    resultingProgramRevision: null,
-    diagnosticCode: null,
+  const cancelledProjection = await readProgramDataProjectionV1(page, programId, processId);
+  expect(cancelledProjection.process).toMatchObject({
+    schemaVersion: 1,
+    processId,
+    status: "active",
+    activeAttempt: null,
+    lastTerminalAttempt: {
+      generation: 1,
+      outcome: "cancelled",
+      interruptionDisposition: null,
+    },
   });
+  expect(cancelledProjection.transcriptEntries).toContainEqual(
+    expect.objectContaining({
+      role: "assistant",
+      state: "committed",
+      parts: [
+        expect.objectContaining({
+          kind: "text_markdown",
+          markdown:
+            "Creator Agent run was cancelled. The committed request remains in this Process.",
+        }),
+      ],
+    }),
+  );
 });
 
 test("desktop workspace keeps its minimum geometry and keyboard-resizable split", async ({ durableProgramPage: page }) => {
@@ -2874,9 +3938,9 @@ test("@mobile portrait uses one navigable pane without page overflow", async (
   await expect(workpiece).toHaveAttribute("data-workpiece-tab", "view");
   await expectNoPageOverflowV1(page);
 
-  await navigation.getByRole("button", { name: "Activity" }).click();
-  await expect(workpiece).toHaveAttribute("data-workpiece-tab", "activity");
-  await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
+  await page.getByRole("tab", { name: "Capabilities" }).click();
+  await expect(workpiece).toHaveAttribute("data-workpiece-tab", "capabilities");
+  await expect(page.getByRole("heading", { name: "Capabilities" })).toBeVisible();
   await expectNoPageOverflowV1(page);
 
   await navigation.getByRole("button", { name: "Chat" }).click();
@@ -2963,7 +4027,7 @@ test("the Program network toggle gates fixed Pi fetch_url without per-request ap
   await expect.poll(() => targetRequests.length).toBe(1);
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v3");
   await expect(
-    page.locator('[data-chat-role="creator"]').getByText(
+    page.locator('[data-chat-role="assistant"]').getByText(
       "Deterministic test proposal ready.",
       { exact: true },
     ).last(),
@@ -2982,16 +4046,18 @@ test("the Program network toggle gates fixed Pi fetch_url without per-request ap
   expect(request?.headers.referer).toBeUndefined();
   expect(JSON.stringify(request)).not.toContain(sentinelKey);
 
-  const afterAllowed = await readDurableProgramV3(page, programId);
-  if (afterAllowed === null) throw new Error("expected durable Program after enabled fetch");
-  if (afterAllowed.reviewBinding === null) {
+  const afterAllowed = await readProgramDataProjectionV1(page, programId);
+  if (afterAllowed.catalog === null) {
+    throw new Error("expected durable Program after enabled fetch");
+  }
+  if (afterAllowed.catalog.head.pendingReviewBinding === null) {
     throw new Error("expected current Workspace identity after enabled fetch");
   }
   const protectedIdentities = [
     programId,
     workspaceSessionId,
-    afterAllowed.reviewBinding.workspaceId,
-    afterAllowed.reviewBinding.volumeId,
+    afterAllowed.catalog.head.pendingReviewBinding.workspaceId,
+    afterAllowed.catalog.head.pendingReviewBinding.volumeId,
   ];
   for (const identity of protectedIdentities) {
     expect(JSON.stringify(request)).not.toContain(identity);
@@ -3002,25 +4068,7 @@ test("the Program network toggle gates fixed Pi fetch_url without per-request ap
   await expect.poll(() => targetRequests.length).toBe(2);
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v4");
 
-  const rawAccess = await page.evaluate(async (requestedProgramId) => {
-    const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const openRequest = indexedDB.open("sillymaker.example-silly-os.programs");
-      openRequest.addEventListener("error", () => reject(openRequest.error));
-      openRequest.addEventListener("success", () => resolve(openRequest.result));
-    });
-    try {
-      return await new Promise<unknown>((resolve, reject) => {
-        const transaction = database.transaction("program_network_access", "readonly");
-        const getRequest = transaction.objectStore("program_network_access").get(
-          requestedProgramId,
-        );
-        getRequest.addEventListener("error", () => reject(getRequest.error));
-        getRequest.addEventListener("success", () => resolve(getRequest.result));
-      });
-    } finally {
-      database.close();
-    }
-  }, programId);
+  const rawAccess = (await readProgramDataProjectionV1(page, programId)).networkAccess;
   expect(rawAccess).toEqual({ revision: 1, programId, enabled: true });
   expect(JSON.stringify(rawAccess)).not.toContain(targetUrl);
   expect(JSON.stringify(rawAccess)).not.toContain(sentinelKey);
@@ -3154,25 +4202,7 @@ test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Pr
   expect(JSON.stringify(request)).not.toContain(programId);
   expect(JSON.stringify(request)).not.toContain(workspaceSessionId);
 
-  const rawAccess = await page.evaluate(async (requestedProgramId) => {
-    const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const openRequest = indexedDB.open("sillymaker.example-silly-os.programs");
-      openRequest.addEventListener("error", () => reject(openRequest.error));
-      openRequest.addEventListener("success", () => resolve(openRequest.result));
-    });
-    try {
-      return await new Promise<unknown>((resolve, reject) => {
-        const transaction = database.transaction("program_network_access", "readonly");
-        const getRequest = transaction.objectStore("program_network_access").get(
-          requestedProgramId,
-        );
-        getRequest.addEventListener("error", () => reject(getRequest.error));
-        getRequest.addEventListener("success", () => resolve(getRequest.result));
-      });
-    } finally {
-      database.close();
-    }
-  }, programId);
+  const rawAccess = (await readProgramDataProjectionV1(page, programId)).networkAccess;
   expect(rawAccess).toEqual({ revision: 1, programId, enabled: true });
   expect(JSON.stringify(rawAccess)).not.toContain(targetUrl);
   expect(JSON.stringify(rawAccess)).not.toContain(sentinelKey);

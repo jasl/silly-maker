@@ -129,7 +129,10 @@ for (const [path, source] of credentialVaultWorkerSourceGraphV1) {
       ["EventSource", /\bEventSource\b/u],
       ["document", /\bdocument\b/u],
       ["window", /\bwindow\b/u],
-      ["Product Repository", /program-repository|ProductRepository/u],
+      [
+        "Program Data Repository",
+        /program-(?:(?:data|catalog|process)-)?repository|(?:Product|Program(?:Data|Catalog|Process)?)Repository/u,
+      ],
       ["Workspace", /browser-workspace|WorkspaceExecution|WorkspaceHost/u],
     ] as const
   ) {
@@ -227,6 +230,9 @@ for (const file of filesV1.filter((candidate) => candidate.endsWith(".js"))) {
         "document.cookie",
         "browser-workspace",
         "program-repository",
+        "program-data-repository",
+        "program-catalog-repository",
+        "program-process-repository",
       ]
     ) {
       if (source.includes(forbidden)) {

@@ -5,7 +5,6 @@ import type { ExecutionEnv } from "../agent/pi-workspace-runtime-bridge.js";
 export const workspaceRootV1 = "/workspace" as const;
 export const workspacePathMaximumUtf8BytesV1 = 512;
 export const workspacePathMaximumPartsV1 = 32;
-export const workspaceMutationReceiptMaximumV1 = 32;
 export const workspaceGrepPatternMaximumUtf8BytesV1 = 4 * 1024;
 export const workspaceGrepPathMaximumUtf8BytesV1 = 1024;
 export const workspaceGrepGlobMaximumUtf8BytesV1 = 512;

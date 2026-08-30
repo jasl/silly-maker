@@ -27,6 +27,14 @@
   gap: 10px;
 }
 
+.creator-home__route-state {
+  display: grid;
+  flex: 1 1 auto;
+  min-block-size: 0;
+  place-items: center;
+  padding: 24px;
+}
+
 .creator-home__body {
   flex: 1 1 auto;
   min-block-size: 0;
@@ -244,6 +252,22 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.creator-home__catalog-more {
+  display: flex;
+  justify-content: center;
+  margin-block-start: 14px;
+}
+
+.creator-home__catalog-more [aria-busy="true"] [data-icon="inline-start"] {
+  animation: creator-home-spin 900ms linear infinite;
+}
+
+@keyframes creator-home-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .creator-home__program {

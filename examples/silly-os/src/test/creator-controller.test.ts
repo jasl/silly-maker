@@ -1,933 +1,1638 @@
 // SPDX-License-Identifier: MIT
 
+import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import { describe, expect, it } from "vitest";
 
-import type {
-  BrowserProgramWorkspaceApplyRevisionInputV1,
-  BrowserProgramWorkspaceCreateInputV1,
-  BrowserProgramWorkspaceDecideInputV1,
-  BrowserProgramWorkspaceSettleAgentRunInputV1,
-} from "../product/browser-program-workspace-authority.ts";
 import {
   createCreatorControllerV1,
-  type CreatorControllerAuthorityV1,
-  type CreatorControllerV1,
-  type CreatorDurabilityStateV1,
+  type CreatorControllerBudgetsV1,
+  type CreatorControllerWorkspacePortV1,
 } from "../product/creator-controller.ts";
-import type { CreatorAgentTerminalRunV1 } from "../product/contracts.ts";
-import { createDeterministicFakeCreatorV1 } from "../product/fake-creator.ts";
-import { createCreatorSessionV1 } from "../product/creator-session.ts";
+import { createIndexedDbProgramDataRepositoryV1 } from "../product/indexeddb-program-data-repository.ts";
+import type { ProgramCatalogContinuationV1 } from "../product/program-catalog-repository.ts";
 import {
-  createMemoryProgramRepositoryBackingV3,
-  createMemoryProgramRepositoryV3,
-} from "../product/memory-program-repository.ts";
+  createProgramDataRepositoryFailureV1,
+  type ProgramDataRepositoryV1,
+} from "../product/program-data-repository.ts";
 import {
-  createProgramRepositoryFailureV3,
-  type BrowserProgramContinuationManifestV1,
-  type ProgramRepositoryAggregateV3,
-  type ProgramRepositoryCommitResultV3,
-  type ProgramRepositoryWithWorkspaceContinuationV1,
-} from "../product/program-repository.ts";
-import type {
-  ProgramWorkspaceReviewProjectionV1,
-  ProgramWorkspaceSnapshotReceiptV1,
-} from "../workspace/contracts.ts";
+  createBuiltinCreatorProgramDefinitionRevisionV1,
+  transcriptEntryUtf8ByteLengthV1,
+  type TranscriptEntryV1,
+} from "../product/program-process-repository.ts";
+import type { CreatorAgentTerminalRunV1, PreviewProgramV1 } from "../product/contracts.ts";
+import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
 
-const intentV1 = "Create a focused writing workspace.";
-const workspaceIdV1 = "workspace.controller.test";
+type TestProgramDataRepositoryV1 = ReturnType<typeof createIndexedDbProgramDataRepositoryV1>;
 
-interface DeferredV1<TValue> {
-  readonly promise: Promise<TValue>;
-  resolve(value: TValue): void;
-}
-
-interface AuthorityCallsV1 {
-  readonly create: BrowserProgramWorkspaceCreateInputV1[];
-  readonly applyRevision: BrowserProgramWorkspaceApplyRevisionInputV1[];
-  readonly settleAgentRun: BrowserProgramWorkspaceSettleAgentRunInputV1[];
-  readonly decide: BrowserProgramWorkspaceDecideInputV1[];
-  readonly inspectProgramWorkspace: Array<{
-    readonly programId: string;
-    readonly hostAccess: "required" | "active_only";
-  }>;
-}
-
-interface TestAuthorityHarnessV1 {
-  readonly authority: CreatorControllerAuthorityV1 & { dispose(): Promise<void> };
-  readonly calls: AuthorityCallsV1;
-  readonly acceptedReceipts: ProgramWorkspaceSnapshotReceiptV1[];
-  readonly disposeCalls: () => number;
-}
-
-function createDeferredV1<TValue>(): DeferredV1<TValue> {
-  let resolvePromise: ((value: TValue) => void) | undefined;
-  const promise = new Promise<TValue>((resolve) => {
-    resolvePromise = resolve;
+function createMemoryProgramDataRepositoryV1(): TestProgramDataRepositoryV1 {
+  return createIndexedDbProgramDataRepositoryV1({
+    indexedDB: new IDBFactory(),
+    keyRange: IDBKeyRange,
   });
-  return {
-    promise,
-    resolve(value): void {
-      if (resolvePromise === undefined) throw new Error("deferred resolver unavailable");
-      resolvePromise(value);
-    },
-  };
 }
 
-async function requirePairV1(
-  repository: ProgramRepositoryWithWorkspaceContinuationV1,
-  programId: string,
-): Promise<{
-  readonly aggregate: ProgramRepositoryAggregateV3;
-  readonly continuation: BrowserProgramContinuationManifestV1;
-}> {
-  const [aggregate, continuation] = await Promise.all([
-    repository.load(programId),
-    repository.loadWorkspaceContinuation(programId),
-  ]);
-  if (aggregate === null || continuation === null) throw new Error("expected durable Program pair");
-  return { aggregate, continuation };
-}
-
-function predecessorContinuationV1(
-  stored: BrowserProgramContinuationManifestV1,
-  programRevision: number,
-  repositoryRevision: number,
-): BrowserProgramContinuationManifestV1 {
-  return { ...stored, programRevision, repositoryRevision };
-}
-
-function reviewedHeadV1(programId: string, programRevision: number) {
-  return {
-    checkpointId: `checkpoint.${programId}.${String(programRevision)}`,
-    generation: programRevision,
-  } as const;
-}
-
-function reviewProjectionV1(
-  aggregate: ProgramRepositoryAggregateV3,
-): ProgramWorkspaceReviewProjectionV1 {
-  const program = aggregate.snapshot.program;
-  if (program === null) throw new Error("expected Program for review projection");
-  const mutableHead = reviewedHeadV1(program.programId, program.revision);
-  const latestAcceptedDecision = aggregate.decisions.findLast((decision) =>
-    decision.status === "accepted"
-  );
-  const latestAccepted = latestAcceptedDecision?.status === "accepted"
-    ? {
-      snapshotId: latestAcceptedDecision.snapshot.snapshotId,
-      programRevision: latestAcceptedDecision.snapshot.programRevision,
-      checkpointId: latestAcceptedDecision.snapshot.checkpointId,
-      generation: latestAcceptedDecision.snapshot.generation,
-      fileCount: latestAcceptedDecision.snapshot.fileCount,
-      archiveBytes: latestAcceptedDecision.snapshot.archiveBytes,
-    }
-    : null;
-  const binding = aggregate.reviewBinding;
-  const pendingReview = binding === null ? null : {
-    proposalId: binding.proposalId,
-    programRevision: binding.programRevision,
-    checkpointId: binding.checkpointId,
-    generation: binding.generation,
+function workspaceReviewV1(
+  record: Awaited<ReturnType<ProgramDataRepositoryV1["load"]>>,
+): ProgramWorkspaceReviewProjectionV1 | null {
+  if (record === null) return null;
+  const pending = record.head.pendingReviewBinding;
+  const mutableHead = pending === null ? null : {
+    checkpointId: pending.checkpointId,
+    generation: pending.generation,
   };
   return {
     revision: 1,
-    latestAccepted,
-    pendingReview,
+    latestAccepted: null,
+    pendingReview: pending === null ? null : {
+      proposalId: pending.proposalId,
+      programRevision: pending.programRevision,
+      checkpointId: pending.checkpointId,
+      generation: pending.generation,
+    },
     mutableHead,
-    acceptedStatus: latestAccepted === null
-      ? null
-      : latestAccepted.checkpointId === mutableHead.checkpointId &&
-          latestAccepted.generation === mutableHead.generation
-      ? "matches"
-      : "changed",
-    pendingStatus: pendingReview === null
-      ? null
-      : pendingReview.checkpointId === mutableHead.checkpointId &&
-          pendingReview.generation === mutableHead.generation
-      ? "matches"
-      : "changed",
+    acceptedStatus: null,
+    pendingStatus: pending === null ? null : "matches",
   };
 }
 
-function createTestAuthorityV1(): TestAuthorityHarnessV1 {
-  const backing = createMemoryProgramRepositoryBackingV3();
-  const repository = createMemoryProgramRepositoryV3({ backing });
-  const calls: AuthorityCallsV1 = {
-    create: [],
-    applyRevision: [],
-    settleAgentRun: [],
-    decide: [],
-    inspectProgramWorkspace: [],
-  };
-  const acceptedReceipts: ProgramWorkspaceSnapshotReceiptV1[] = [];
-  let disposeCalls = 0;
-
-  const authority: TestAuthorityHarnessV1["authority"] = {
-    initialize: () => repository.initialize(),
-    list: () => repository.list(),
-    load: (programId) => repository.load(programId),
+function createControllerWorkspaceV1(
+  repository: ProgramDataRepositoryV1,
+): CreatorControllerWorkspacePortV1 {
+  return {
+    async inspectProgramWorkspace(programId) {
+      return workspaceReviewV1(await repository.load(programId));
+    },
+    async closeActiveWorkspace() {},
     async create(input) {
-      calls.create.push(input);
-      const program = input.snapshot.program;
-      const workspace = input.snapshot.workspace;
-      if (program === null || workspace === null) throw new Error("expected created Program");
-      return await repository.create({
-        ...input,
-        continuation: {
-          revision: 1,
-          programId: program.programId,
-          workspaceId: workspace.workspaceId,
-          volumeId: `${workspace.workspaceId}.volume.1`,
-          workspaceFormat: 1,
-          programRevision: program.revision,
-          repositoryRevision: 1,
+      const programId = input.catalog.program.programId;
+      return await repository.createProgramWithProcess({
+        catalog: {
+          ...input.catalog,
+          continuation: {
+            ...continuationV1(programId),
+            workspaceId: input.workspaceId,
+            volumeId: `volume.${input.workspaceId}`,
+          },
+          reviewedHead: {
+            checkpointId: `checkpoint.${programId}.1`,
+            generation: 1,
+          },
         },
-        reviewedHead: reviewedHeadV1(program.programId, program.revision),
+        process: input.process,
+        transcript: input.transcript,
       });
     },
     async applyRevision(input) {
-      calls.applyRevision.push(input);
-      const pair = await requirePairV1(repository, input.programId);
-      const nextProgram = input.snapshot.program;
-      if (nextProgram === null) throw new Error("expected revised Program");
-      return await repository.applyRevision({
-        ...input,
-        continuation: predecessorContinuationV1(
-          pair.continuation,
-          input.expectedBase.baseProgramRevision,
-          input.expectedRepositoryRevision,
-        ),
-        reviewedHead: reviewedHeadV1(input.programId, nextProgram.revision),
+      const current = await repository.load(input.catalog.programId);
+      const continuation = await repository.loadContinuation(input.catalog.programId);
+      const binding = current?.head.pendingReviewBinding ?? null;
+      if (current === null || continuation === null || binding === null) {
+        return {
+          kind: "conflict",
+          currentProgram: current,
+          currentProcess: await repository.loadProcess(input.transcript.processId),
+        };
+      }
+      const reviewedHead = {
+        checkpointId: binding.checkpointId,
+        generation: binding.generation,
+      };
+      return await repository.applyProgramRevisionWithProcessTranscript({
+        catalog: { ...input.catalog, continuation, reviewedHead },
+        transcript: input.transcript.checkpoint === null ? input.transcript : {
+          ...input.transcript,
+          checkpoint: {
+            ...input.transcript.checkpoint,
+            workspaceCheckpointId: reviewedHead.checkpointId,
+            workspaceGeneration: reviewedHead.generation,
+          },
+        },
       });
     },
-    async settleAgentRun(input) {
-      calls.settleAgentRun.push(input);
-      const pair = await requirePairV1(repository, input.programId);
-      const nextProgram = input.snapshot.program;
-      if (nextProgram === null) throw new Error("expected settled Program");
-      return await repository.settleAgentRun({
-        ...input,
-        continuation: predecessorContinuationV1(
-          pair.continuation,
-          input.terminal.run.baseProgramRevision,
-          input.expectedRepositoryRevision,
-        ),
-        reviewedHead: input.terminal.outcome === "completed"
-          ? reviewedHeadV1(input.programId, nextProgram.revision)
-          : null,
+    async applyAgentRevision(input) {
+      const current = await repository.load(input.catalog.programId);
+      const continuation = await repository.loadContinuation(input.catalog.programId);
+      const binding = current?.head.pendingReviewBinding ?? null;
+      if (current === null || continuation === null || binding === null) {
+        return {
+          kind: "conflict",
+          currentProgram: current,
+          currentProcess: await repository.loadProcess(input.transcript.processId),
+          currentLease: await repository.loadProcessExecutionLease(input.transcript.processId),
+        };
+      }
+      const reviewedHead = {
+        checkpointId: binding.checkpointId,
+        generation: binding.generation,
+      };
+      return await repository.commitProgramRevisionWithProcessExecutionTerminal({
+        lease: input.lease,
+        observedAt: input.observedAt,
+        catalog: { ...input.catalog, continuation, reviewedHead },
+        transcript: {
+          ...input.transcript,
+          checkpoint: {
+            ...input.transcript.checkpoint,
+            workspaceCheckpointId: reviewedHead.checkpointId,
+            workspaceGeneration: reviewedHead.generation,
+          },
+        },
       });
     },
     async decide(input) {
-      calls.decide.push(input);
-      const pair = await requirePairV1(repository, input.programId);
-      const continuation = predecessorContinuationV1(
-        pair.continuation,
-        input.expectedProposal.programRevision,
-        input.expectedRepositoryRevision,
-      );
-      if (input.status === "rejected") {
-        return await repository.decide({ ...input, continuation });
-      }
-      const existing = pair.aggregate.decisions.find((decision) =>
-        decision.proposalId === input.expectedProposal.proposalId &&
-        decision.programRevision === input.expectedProposal.programRevision &&
-        decision.status === "accepted"
-      );
-      const binding = pair.aggregate.reviewBinding;
-      const snapshotReceipt = existing?.status === "accepted"
-        ? existing.snapshot
-        : binding === null
-        ? null
-        : {
-          revision: 1 as const,
-          snapshotId: `snapshot.${input.programId}.${
-            String(input.expectedProposal.programRevision)
-          }`,
-          programId: binding.programId,
-          workspaceId: binding.workspaceId,
-          volumeId: binding.volumeId,
-          workspaceFormat: binding.workspaceFormat,
-          proposalId: binding.proposalId,
-          programRevision: binding.programRevision,
-          baseRepositoryRevision: binding.repositoryRevision,
-          checkpointId: binding.checkpointId,
-          generation: binding.generation,
-          fileCount: 0,
-          archiveBytes: 1,
+      const current = await repository.load(input.catalog.programId);
+      const continuation = await repository.loadContinuation(input.catalog.programId);
+      if (current === null || continuation === null) {
+        return {
+          kind: "conflict",
+          currentProgram: current,
+          currentProcess: await repository.loadProcess(input.transcript.processId),
         };
-      if (snapshotReceipt === null) throw new Error("expected accepted review binding");
-      if (existing === undefined) acceptedReceipts.push(snapshotReceipt);
-      return await repository.decide({ ...input, continuation, snapshotReceipt });
-    },
-    async inspectProgramWorkspace(programId, options) {
-      calls.inspectProgramWorkspace.push({
-        programId,
-        hostAccess: options?.hostAccess ?? "required",
+      }
+      if (input.catalog.status === "accepted") {
+        const binding = current.head.pendingReviewBinding;
+        if (binding === null) {
+          return {
+            kind: "conflict",
+            currentProgram: current,
+            currentProcess: await repository.loadProcess(input.transcript.processId),
+          };
+        }
+        return await repository.decideProgramWithProcessTranscript({
+          catalog: {
+            ...input.catalog,
+            continuation,
+            snapshotReceipt: {
+              revision: 1,
+              snapshotId: `snapshot.${input.catalog.programId}.${String(binding.programRevision)}`,
+              programId: input.catalog.programId,
+              workspaceId: binding.workspaceId,
+              volumeId: binding.volumeId,
+              workspaceFormat: 1,
+              proposalId: binding.proposalId,
+              programRevision: binding.programRevision,
+              baseRepositoryRevision: binding.repositoryRevision,
+              checkpointId: binding.checkpointId,
+              generation: binding.generation,
+              fileCount: 0,
+              archiveBytes: 0,
+            },
+          },
+          transcript: input.transcript,
+        });
+      }
+      return await repository.decideProgramWithProcessTranscript({
+        catalog: { ...input.catalog, continuation },
+        transcript: input.transcript,
       });
-      const aggregate = await repository.load(programId);
-      return aggregate === null ? null : { aggregate, review: reviewProjectionV1(aggregate) };
     },
-    async closeActiveWorkspace() {
-      return null;
-    },
-    async dispose() {
-      disposeCalls += 1;
-      await repository.dispose();
-    },
-  };
-  return {
-    authority,
-    calls,
-    acceptedReceipts,
-    disposeCalls: () => disposeCalls,
   };
 }
 
-function proxyAuthorityV1(
-  delegate: CreatorControllerAuthorityV1,
-  overrides: Partial<CreatorControllerAuthorityV1> = {},
-): CreatorControllerAuthorityV1 {
-  return {
-    initialize: overrides.initialize ?? (() => delegate.initialize()),
-    list: overrides.list ?? (() => delegate.list()),
-    load: overrides.load ?? ((programId) => delegate.load(programId)),
-    create: overrides.create ?? ((input) => delegate.create(input)),
-    applyRevision: overrides.applyRevision ?? ((input) => delegate.applyRevision(input)),
-    settleAgentRun: overrides.settleAgentRun ?? ((input) => delegate.settleAgentRun(input)),
-    decide: overrides.decide ?? ((input) => delegate.decide(input)),
-    inspectProgramWorkspace: overrides.inspectProgramWorkspace ??
-      ((programId, options) => delegate.inspectProgramWorkspace(programId, options)),
-    closeActiveWorkspace: overrides.closeActiveWorkspace ?? (() => delegate.closeActiveWorkspace()),
-  };
-}
-
-function createControllerV1(input: {
-  readonly authority: CreatorControllerAuthorityV1;
-  readonly createWorkspaceId?: () => string;
-  readonly createAgentRunId?: () => string;
-  readonly now?: () => number;
-}): CreatorControllerV1 {
+function createControllerV1(
+  repository: ProgramDataRepositoryV1,
+  options: Omit<
+    Parameters<typeof createCreatorControllerV1>[0],
+    "repository" | "workspace"
+  > = {},
+) {
   return createCreatorControllerV1({
-    creator: createDeterministicFakeCreatorV1(),
-    authority: input.authority,
-    createWorkspaceId: input.createWorkspaceId ?? (() => workspaceIdV1),
-    createAgentRunId: input.createAgentRunId ?? (() => "agent.run.controller.1"),
-    now: input.now ?? (() => 100),
+    ...options,
+    ownerInstanceId: options.ownerInstanceId ?? "test.controller.owner",
+    repository,
+    workspace: createControllerWorkspaceV1(repository),
   });
 }
 
-function completedTerminalV1(
-  controller: CreatorControllerV1,
-): Extract<CreatorAgentTerminalRunV1, { readonly outcome: "completed" }> {
-  const prepared = controller.prepareAgentRun("Make the review checkpoint explicit.");
-  if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
-    throw new Error("expected a prepared Agent run");
-  }
-  const { run } = prepared.value;
+function continuationV1(programId: string): ProgramCatalogContinuationV1 {
   return {
-    run,
-    outcome: "completed",
-    candidate: {
-      revision: 1,
-      proposalId: run.proposalId,
-      programId: run.programId,
-      baseProgramRevision: run.baseProgramRevision,
-      text: run.text,
-      requirement: "Require an explicit human review checkpoint.",
-    },
-    finalAssistantReply: "I prepared Program proposal v2 for review.",
+    revision: 1,
+    programId,
+    workspaceId: `workspace.${programId}`,
+    volumeId: `volume.${programId}`,
+    workspaceFormat: 1,
+    programRevision: 1,
+    repositoryRevision: 1,
   };
 }
 
-function durabilityPhasesV1(controller: CreatorControllerV1): {
-  readonly phases: CreatorDurabilityStateV1["phase"][];
-  readonly routes: string[];
-  readonly unsubscribe: () => void;
-} {
-  const phases: CreatorDurabilityStateV1["phase"][] = [];
-  const routes: string[] = [];
-  const unsubscribe = controller.subscribe(() => {
-    const snapshot = controller.getSnapshot();
-    phases.push(snapshot.durability.phase);
-    routes.push(snapshot.session.route);
-  });
-  return { phases, routes, unsubscribe };
+function programV1(programId: string): PreviewProgramV1 {
+  return {
+    programId,
+    revision: 1,
+    kind: "general",
+    name: `Program ${programId}`,
+    purpose: "Exercise the single-active Process projection.",
+    requirements: ["Keep the Process transcript pageable."],
+    suggestedCapabilities: [],
+  };
 }
 
-describe("SillyOS durable Creator controller", () => {
-  it("retains Home while Authority creates and sends only product-owned fields", async () => {
-    const harness = createTestAuthorityV1();
-    const receiptGate = createDeferredV1<void>();
-    const createInputs: BrowserProgramWorkspaceCreateInputV1[] = [];
-    const authority = proxyAuthorityV1(harness.authority, {
-      async create(input) {
-        createInputs.push(input);
-        const result = await harness.authority.create(input);
-        await receiptGate.promise;
-        return result;
-      },
-    });
-    const controller = createControllerV1({ authority });
-    await controller.initialize();
-    const before = controller.getSnapshot().session;
-    const observed = durabilityPhasesV1(controller);
+function entryV1(processId: string, sequence: number, bytes = 64): TranscriptEntryV1 {
+  return {
+    schemaVersion: 1,
+    processId,
+    sequence,
+    entryId: `${processId}.entry.${String(sequence)}`,
+    role: sequence % 2 === 0 ? "assistant" : "user",
+    state: "committed",
+    parts: [{
+      kind: "text_markdown",
+      partId: `${processId}.part.${String(sequence)}`,
+      markdown: `${String(sequence)}:${"x".repeat(bytes)}`,
+    }],
+  };
+}
 
-    const pending = controller.submitIntent(intentV1);
+function createDeterministicIdV1(): (purpose: string) => string {
+  let sequence = 0;
+  return (purpose) => {
+    sequence += 1;
+    return `test.${purpose}.${String(sequence)}`;
+  };
+}
 
-    expect(controller.getSnapshot().durability).toEqual({ phase: "saving", operation: "create" });
-    expect(controller.getSnapshot().session).toBe(before);
-    expect(controller.getSnapshot().recentPrograms).toEqual([]);
-    expect(createInputs).toHaveLength(1);
-    expect(Object.keys(createInputs[0] ?? {}).toSorted()).toEqual(["snapshot", "updatedAt"]);
+async function seedProgramV1(input: {
+  readonly repository: TestProgramDataRepositoryV1;
+  readonly programId: string;
+  readonly updatedAt: number;
+}): Promise<void> {
+  const created = await input.repository.create({
+    commitId: `commit.${input.programId}.create`,
+    program: programV1(input.programId),
+    proposalId: `proposal.${input.programId}.1`,
+    continuation: continuationV1(input.programId),
+    reviewedHead: { checkpointId: `checkpoint.${input.programId}.1`, generation: 1 },
+    updatedAt: input.updatedAt,
+  });
+  if (created.kind !== "committed") throw new Error("expected Program creation");
+}
 
-    receiptGate.resolve(undefined);
-    await expect(pending).resolves.toMatchObject({
-      kind: "completed",
-      value: { kind: "created", workspaceId: workspaceIdV1 },
-    });
+async function seedProcessV1(input: {
+  readonly repository: TestProgramDataRepositoryV1;
+  readonly programId: string;
+  readonly processId: string;
+  readonly createdAt: number;
+  readonly entries?: number;
+  readonly entryBytes?: number;
+}): Promise<void> {
+  const created = await input.repository.createProcess({
+    processId: input.processId,
+    programDefinition: { programId: "sillyos.builtin.creator", revision: 1 },
+    subjectProgramId: input.programId,
+    createdAt: input.createdAt,
+  });
+  if (created.kind !== "committed") throw new Error("expected Process creation");
+  const entries = Array.from(
+    { length: input.entries ?? 1 },
+    (_, index) => entryV1(input.processId, index + 1, input.entryBytes),
+  );
+  if (entries.length === 0) return;
+  const appended = await input.repository.appendProcessTranscript({
+    processId: input.processId,
+    expectedProcessRevision: 1,
+    expectedTranscriptFrontier: 0,
+    commitId: `commit.${input.processId}.transcript`,
+    attemptBinding: null,
+    entries,
+    checkpoint: null,
+    terminalAttemptReceipt: null,
+    updatedAt: input.createdAt,
+  });
+  if (appended.kind !== "committed") throw new Error("expected transcript append");
+}
 
-    expect(observed.phases).toEqual(["saving", "ready"]);
-    expect(observed.routes).toEqual(["home", "workspace"]);
-    const createdProgram = controller.getSnapshot().session.program;
-    const createdProposal = controller.getSnapshot().session.proposal;
-    if (createdProgram === null || createdProposal === null) {
-      throw new Error("expected created Program review");
+const ordinaryBudgetsV1: CreatorControllerBudgetsV1 = {
+  programCatalogPageMaximumBytes: 1_024,
+  processSummaryPageMaximumBytes: 1_024,
+  transcriptPageMaximumBytes: 1_024,
+  transcriptWindowMaximumBytes: 2_048,
+};
+
+describe("Creator Controller Program/Process projection", () => {
+  it("publishes Creator rev1 and pages Program summaries without a total count cap", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    for (let index = 0; index < 12; index += 1) {
+      await seedProgramV1({
+        repository,
+        programId: `program.catalog.${String(index)}`,
+        updatedAt: index + 1,
+      });
     }
-    expect(createdProgram.revision).toBe(1);
-    expect(controller.getSnapshot().workspaceReview).toEqual({
-      revision: 1,
-      latestAccepted: null,
-      pendingReview: {
-        proposalId: createdProposal.proposalId,
-        programRevision: 1,
-        ...reviewedHeadV1(createdProgram.programId, 1),
-      },
-      mutableHead: reviewedHeadV1(createdProgram.programId, 1),
-      acceptedStatus: null,
-      pendingStatus: "matches",
-    });
-    expect(controller.getSnapshot().recentPrograms).toHaveLength(1);
-    observed.unsubscribe();
-    await controller.dispose();
+    const controller = createControllerV1(repository, { budgets: ordinaryBudgetsV1 });
+    await controller.initialize();
+    expect(
+      await repository.loadProgramDefinitionRevision("sillyos.builtin.creator", 1),
+    ).toEqual(createBuiltinCreatorProgramDefinitionRevisionV1());
+    expect(controller.getSnapshot().catalog.phase).toBe("ready");
+    expect(controller.getSnapshot().catalog.summaries.length).toBeLessThan(12);
+
+    while (controller.getSnapshot().catalog.nextCursor !== null) {
+      expect((await controller.loadMorePrograms()).kind).toBe("completed");
+    }
+    expect(controller.getSnapshot().catalog.summaries).toHaveLength(12);
+    expect(new Set(controller.getSnapshot().catalog.summaries.map(({ programId }) => programId)))
+      .toHaveLength(12);
   });
 
-  it("projects accepted snapshot identity across cold reopen and later drafts", async () => {
-    const harness = createTestAuthorityV1();
-    const controller = createControllerV1({ authority: harness.authority });
-    await controller.initialize();
-    await controller.submitIntent(intentV1);
-    const proposal = controller.getSnapshot().session.proposal;
-    if (proposal === null) throw new Error("expected current proposal");
-
-    await expect(controller.acceptProposal(proposal)).resolves.toMatchObject({
-      kind: "completed",
-      value: { kind: "applied", status: "accepted" },
+  it("fences a late catalog page after a newer catalog initialization wins", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    for (let index = 0; index < 12; index += 1) {
+      await seedProgramV1({
+        repository,
+        programId: `program.catalog.${String(index)}`,
+        updatedAt: index + 1,
+      });
+    }
+    const baseListPrograms = repository.listPrograms;
+    let releaseMore!: () => void;
+    const moreBlocked = new Promise<void>((resolve) => {
+      releaseMore = resolve;
     });
-
-    expect(harness.calls.decide).toHaveLength(1);
-    expect(Object.keys(harness.calls.decide[0] ?? {}).toSorted()).toEqual([
-      "expectedProposal",
-      "expectedRepositoryRevision",
-      "programId",
-      "snapshot",
-      "status",
-      "updatedAt",
-    ]);
-    expect(harness.acceptedReceipts).toHaveLength(1);
-    const programId = controller.getSnapshot().session.program?.programId;
-    if (programId === undefined) throw new Error("expected Program id");
-    const acceptedProjection = controller.getSnapshot().workspaceReview;
-    expect(acceptedProjection).toEqual({
-      revision: 1,
-      latestAccepted: {
-        snapshotId: harness.acceptedReceipts[0]?.snapshotId,
-        programRevision: proposal.programRevision,
-        checkpointId: harness.acceptedReceipts[0]?.checkpointId,
-        generation: harness.acceptedReceipts[0]?.generation,
-        fileCount: harness.acceptedReceipts[0]?.fileCount,
-        archiveBytes: harness.acceptedReceipts[0]?.archiveBytes,
+    const fencedRepository: ProgramDataRepositoryV1 = {
+      ...repository,
+      async listPrograms(input) {
+        if (input.before !== null) await moreBlocked;
+        return await baseListPrograms(input);
       },
-      pendingReview: null,
-      mutableHead: reviewedHeadV1(programId, proposal.programRevision),
-      acceptedStatus: "matches",
-      pendingStatus: null,
+    };
+    const controller = createControllerV1(fencedRepository, { budgets: ordinaryBudgetsV1 });
+    await controller.initialize();
+    const firstPage = controller.getSnapshot().catalog.summaries.map(({ programId }) => programId);
+    const more = controller.loadMorePrograms();
+
+    await controller.initialize();
+    releaseMore();
+
+    expect(await more).toEqual({ kind: "failed", code: "superseded" });
+    expect(controller.getSnapshot().catalog.summaries.map(({ programId }) => programId)).toEqual(
+      firstPage,
+    );
+  });
+
+  it("opens the newest Process for one Program and loads only its pinned rich projection", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    await repository.publishProgramDefinitionRevision(
+      createBuiltinCreatorProgramDefinitionRevisionV1(),
+    );
+    await seedProgramV1({ repository, programId: "program.subject", updatedAt: 1 });
+    await seedProcessV1({
+      repository,
+      programId: "program.subject",
+      processId: "process.older",
+      createdAt: 2,
     });
-    const durable = await harness.authority.load(programId);
-    expect(durable?.decisions).toEqual([
-      expect.objectContaining({
-        proposalId: proposal.proposalId,
-        programRevision: proposal.programRevision,
-        status: "accepted",
-        snapshot: harness.acceptedReceipts[0],
-      }),
-    ]);
+    await seedProcessV1({
+      repository,
+      programId: "program.subject",
+      processId: "process.newer",
+      createdAt: 3,
+    });
+    const controller = createControllerV1(repository, { budgets: ordinaryBudgetsV1 });
+    await controller.initialize();
 
-    await controller.dispose();
-    expect(harness.disposeCalls()).toBe(0);
-    expect((await harness.authority.load(programId))?.snapshot.proposal?.status).toBe("accepted");
-
-    const secondController = createControllerV1({ authority: harness.authority });
-    await secondController.initialize();
-    await expect(secondController.openProgram(programId)).resolves.toEqual({
+    expect(await controller.openProgram("program.subject")).toEqual({
       kind: "completed",
       value: true,
     });
-    expect(secondController.getSnapshot().session.proposal?.status).toBe("accepted");
-    expect(secondController.getSnapshot().workspaceReview).toEqual(acceptedProjection);
-
-    await expect(secondController.sendFollowUp("Keep an editable later draft.")).resolves
-      .toMatchObject({ kind: "completed", value: { kind: "sent", programRevision: 2 } });
-    expect(secondController.getSnapshot().workspaceReview).toMatchObject({
-      latestAccepted: acceptedProjection?.latestAccepted,
-      pendingReview: { programRevision: 2 },
-      acceptedStatus: "changed",
-      pendingStatus: "matches",
+    expect(controller.getSnapshot()).toMatchObject({
+      route: "process",
+      activeProcess: {
+        process: { processId: "process.newer" },
+        definition: { programId: "sillyos.builtin.creator", revision: 1 },
+        subject: { head: { programId: "program.subject" } },
+      },
     });
-    await secondController.dispose();
-    expect(harness.disposeCalls()).toBe(0);
-    await harness.authority.dispose();
+    expect(
+      controller.getSnapshot().activeProcess?.transcript.entries.map(({ processId }) => processId),
+    ).toEqual(["process.newer"]);
   });
 
-  it("keeps rejected decisions repository-only and never requests a snapshot receipt", async () => {
-    const harness = createTestAuthorityV1();
-    const controller = createControllerV1({ authority: harness.authority });
+  it("loads older transcript pages while keeping the mounted window byte-bounded", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    await repository.publishProgramDefinitionRevision(
+      createBuiltinCreatorProgramDefinitionRevisionV1(),
+    );
+    await seedProgramV1({ repository, programId: "program.long", updatedAt: 1 });
+    await seedProcessV1({
+      repository,
+      programId: "program.long",
+      processId: "process.long",
+      createdAt: 2,
+      entries: 10,
+      entryBytes: 180,
+    });
+    const latestPageBytes = transcriptEntryUtf8ByteLengthV1(
+      entryV1("process.long", 9, 180),
+    ) + transcriptEntryUtf8ByteLengthV1(entryV1("process.long", 10, 180));
+    const olderPageBytes = transcriptEntryUtf8ByteLengthV1(
+      entryV1("process.long", 7, 180),
+    ) + transcriptEntryUtf8ByteLengthV1(entryV1("process.long", 8, 180));
+    const oneOlderEntryBytes = transcriptEntryUtf8ByteLengthV1(
+      entryV1("process.long", 8, 180),
+    );
+    const pageMaximumBytes = Math.max(latestPageBytes, olderPageBytes);
+    const budgets: CreatorControllerBudgetsV1 = {
+      ...ordinaryBudgetsV1,
+      transcriptPageMaximumBytes: pageMaximumBytes,
+      transcriptWindowMaximumBytes: pageMaximumBytes + oneOlderEntryBytes,
+    };
+    const controller = createControllerV1(repository, { budgets });
     await controller.initialize();
-    await controller.submitIntent(intentV1);
-    const proposal = controller.getSnapshot().session.proposal;
-    const programId = controller.getSnapshot().session.program?.programId;
-    if (proposal === null || programId === undefined) throw new Error("expected current proposal");
+    await controller.openProcess("process.long");
+    const latest = controller.getSnapshot().activeProcess?.transcript;
+    expect(latest?.entries.map(({ sequence }) => sequence)).toEqual([9, 10]);
+    expect(latest?.nextBeforeSequence).toBe(9);
 
-    await expect(controller.rejectProposal(proposal)).resolves.toMatchObject({
+    expect(await controller.loadOlderTranscript()).toEqual({ kind: "completed", value: true });
+    const older = controller.getSnapshot().activeProcess?.transcript;
+    expect(older?.entries.map(({ sequence }) => sequence)).toEqual([7, 8]);
+    expect(older?.newerOmitted).toBe(true);
+    expect(older?.byteLength).toBeLessThanOrEqual(budgets.transcriptWindowMaximumBytes);
+
+    expect(await controller.reloadLatestTranscript()).toEqual({ kind: "completed", value: true });
+    expect(
+      controller.getSnapshot().activeProcess?.transcript.entries.map(({ sequence }) => sequence),
+    ).toEqual([9, 10]);
+
+    expect(await controller.restoreTranscriptAround(4)).toEqual({
       kind: "completed",
-      value: { kind: "applied", status: "rejected" },
+      value: true,
     });
-
-    expect(harness.calls.decide[0]?.status).toBe("rejected");
-    expect(Object.hasOwn(harness.calls.decide[0] ?? {}, "snapshotReceipt")).toBe(false);
-    expect(harness.acceptedReceipts).toEqual([]);
-    const decision = (await harness.authority.load(programId))?.decisions[0];
-    expect(decision).toMatchObject({ status: "rejected" });
-    expect(Object.hasOwn(decision ?? {}, "snapshot")).toBe(false);
-    await controller.dispose();
+    const restored = controller.getSnapshot().activeProcess?.transcript;
+    expect(restored?.entries.map(({ sequence }) => sequence)).toEqual([3, 4]);
+    expect(restored?.nextBeforeSequence).toBe(3);
+    expect(restored?.newerOmitted).toBe(true);
+    expect(restored?.byteLength).toBeLessThanOrEqual(budgets.transcriptPageMaximumBytes);
   });
 
-  it("delegates proposal-producing revisions and Agent terminals without Host heads", async () => {
-    const harness = createTestAuthorityV1();
-    let instant = 100;
-    const controller = createControllerV1({
-      authority: harness.authority,
-      now: () => instant++,
+  it("fences a late Process load after a newer Process wins", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    await repository.publishProgramDefinitionRevision(
+      createBuiltinCreatorProgramDefinitionRevisionV1(),
+    );
+    await seedProgramV1({ repository, programId: "program.first", updatedAt: 1 });
+    await seedProgramV1({ repository, programId: "program.second", updatedAt: 2 });
+    await seedProcessV1({
+      repository,
+      programId: "program.first",
+      processId: "process.first",
+      createdAt: 3,
+    });
+    await seedProcessV1({
+      repository,
+      programId: "program.second",
+      processId: "process.second",
+      createdAt: 4,
+    });
+    const baseLoadProcess = repository.loadProcess;
+    let releaseFirst!: () => void;
+    const firstBlocked = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const fencedRepository: ProgramDataRepositoryV1 = {
+      ...repository,
+      async loadProcess(processId) {
+        if (processId === "process.first") await firstBlocked;
+        return await baseLoadProcess(processId);
+      },
+    };
+    const controller = createControllerV1(fencedRepository, { budgets: ordinaryBudgetsV1 });
+    await controller.initialize();
+    const first = controller.openProcess("process.first");
+    const second = await controller.openProcess("process.second");
+    releaseFirst();
+
+    expect(second).toEqual({ kind: "completed", value: true });
+    expect(await first).toEqual({ kind: "failed", code: "superseded" });
+    expect(controller.getSnapshot().activeProcess?.process.processId).toBe("process.second");
+  });
+
+  it("fences a late older-page load after switching the active Process", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    await repository.publishProgramDefinitionRevision(
+      createBuiltinCreatorProgramDefinitionRevisionV1(),
+    );
+    await seedProgramV1({ repository, programId: "program.first", updatedAt: 1 });
+    await seedProgramV1({ repository, programId: "program.second", updatedAt: 2 });
+    await seedProcessV1({
+      repository,
+      programId: "program.first",
+      processId: "process.first",
+      createdAt: 3,
+      entries: 8,
+      entryBytes: 180,
+    });
+    await seedProcessV1({
+      repository,
+      programId: "program.second",
+      processId: "process.second",
+      createdAt: 4,
+    });
+    const baseLoadTranscriptPage = repository.loadTranscriptPage;
+    let releaseOlder!: () => void;
+    const olderBlocked = new Promise<void>((resolve) => {
+      releaseOlder = resolve;
+    });
+    const fencedRepository: ProgramDataRepositoryV1 = {
+      ...repository,
+      async loadTranscriptPage(input) {
+        if (input.processId === "process.first" && input.beforeSequence !== null) {
+          await olderBlocked;
+        }
+        return await baseLoadTranscriptPage(input);
+      },
+    };
+    const controller = createControllerV1(fencedRepository, { budgets: ordinaryBudgetsV1 });
+    await controller.initialize();
+    await controller.openProcess("process.first");
+    expect(controller.getSnapshot().activeProcess?.transcript.nextBeforeSequence).not.toBeNull();
+
+    const older = controller.loadOlderTranscript();
+    expect(await controller.openProcess("process.second")).toEqual({
+      kind: "completed",
+      value: true,
+    });
+    releaseOlder();
+
+    expect(await older).toEqual({ kind: "failed", code: "superseded" });
+    expect(controller.getSnapshot().activeProcess?.process.processId).toBe("process.second");
+  });
+
+  it("commits real create, follow-up, and proposal decision bundles", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const controller = createControllerV1(repository, {
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 10,
     });
     await controller.initialize();
-    await controller.submitIntent(intentV1);
-    const firstProposal = controller.getSnapshot().session.proposal;
-    if (firstProposal === null) throw new Error("expected first proposal");
-    await controller.rejectProposal(firstProposal);
 
-    await expect(controller.sendFollowUp("Use a three-act structure.")).resolves.toMatchObject({
+    expect(await controller.submitIntent("Translate this script with a glossary.")).toEqual({
+      kind: "completed",
+      value: { kind: "created", workspaceId: "test.workspace.1" },
+    });
+    const created = controller.getSnapshot().activeProcess;
+    expect(created).toMatchObject({
+      process: { processId: "test.process.2", transcriptFrontier: 2 },
+      subject: {
+        currentProgram: { revision: 1, kind: "translation" },
+        head: { proposal: { status: "pending", programRevision: 1 } },
+      },
+      transcript: {
+        entries: [{ role: "user" }, { role: "assistant" }],
+      },
+    });
+
+    expect(await controller.sendFollowUp("Preserve every speaker name.")).toEqual({
       kind: "completed",
       value: { kind: "sent", programRevision: 2 },
     });
-    expect(Object.keys(harness.calls.applyRevision[0] ?? {}).toSorted()).toEqual([
-      "expectedBase",
-      "expectedRepositoryRevision",
-      "programId",
-      "snapshot",
-      "updatedAt",
-    ]);
-
-    const terminal = completedTerminalV1(controller);
-    await expect(controller.recordAgentRunTerminal(terminal)).resolves.toEqual({
+    const revised = controller.getSnapshot().activeProcess;
+    expect(revised).toMatchObject({
+      process: { processId: "test.process.2", transcriptFrontier: 4 },
+      subject: {
+        currentProgram: {
+          revision: 2,
+          requirements: [
+            "Translate this script with a glossary.",
+            "Preserve every speaker name.",
+          ],
+        },
+        head: { proposal: { status: "pending", programRevision: 2 } },
+      },
+    });
+    const expectedProposal = revised?.subject?.head.proposal;
+    if (expectedProposal === undefined) throw new Error("expected revised proposal");
+    expect(await controller.rejectProposal(expectedProposal)).toEqual({
       kind: "completed",
-      value: { kind: "applied", outcome: "completed" },
-    });
-    expect(Object.keys(harness.calls.settleAgentRun[0] ?? {}).toSorted()).toEqual([
-      "expectedRepositoryRevision",
-      "programId",
-      "snapshot",
-      "terminal",
-      "updatedAt",
-    ]);
-    expect(controller.getSnapshot().session.program?.revision).toBe(3);
-    expect(controller.getSnapshot().session.messages.at(-1)?.text).toBe(
-      "I prepared Program proposal v2 for review.",
-    );
-    await controller.dispose();
-  });
-
-  it("retains the old snapshot and retries the exact same Authority terminal input", async () => {
-    const harness = createTestAuthorityV1();
-    const terminalInputs: BrowserProgramWorkspaceSettleAgentRunInputV1[] = [];
-    let failFirstTerminal = true;
-    const authority = proxyAuthorityV1(harness.authority, {
-      async settleAgentRun(input) {
-        terminalInputs.push(input);
-        if (failFirstTerminal) {
-          failFirstTerminal = false;
-          throw createProgramRepositoryFailureV3("transaction_aborted", "settle_agent_run");
-        }
-        return await harness.authority.settleAgentRun(input);
+      value: {
+        kind: "applied",
+        status: "rejected",
+        proposal: {
+          proposalId: expectedProposal.proposalId,
+          programRevision: 2,
+        },
       },
     });
-    let instant = 100;
-    const controller = createControllerV1({ authority, now: () => instant++ });
-    await controller.initialize();
-    await controller.submitIntent(intentV1);
-    const before = controller.getSnapshot().session;
-    const terminal = {
-      ...completedTerminalV1(controller),
-      finalAssistantReply: "  I prepared Program proposal v2 for review.  ",
-    } satisfies CreatorAgentTerminalRunV1;
-
-    await expect(controller.recordAgentRunTerminal(terminal)).resolves.toEqual({
-      kind: "failed",
-      code: "transaction_aborted",
+    expect(controller.getSnapshot().activeProcess).toMatchObject({
+      process: { processId: "test.process.2", transcriptFrontier: 5 },
+      subject: {
+        head: { proposal: { status: "rejected", programRevision: 2 } },
+        latestDecision: { status: "rejected", programRevision: 2 },
+      },
+      transcript: {
+        entries: [
+          { role: "user" },
+          { role: "assistant" },
+          { role: "assistant" },
+        ],
+      },
     });
+    expect(
+      (await repository.loadTranscriptPage({
+        processId: "test.process.2",
+        beforeSequence: null,
+        maximumBytes: 4_096,
+      }))?.entries.map(({ role }) => role),
+    ).toEqual(["user", "assistant", "user", "assistant", "assistant"]);
+  });
+
+  it("does not release a Pi run until its user entry and starting checkpoint are durable", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const acquireExecution = repository.acquireProcessExecution;
+    let announceBegin!: () => void;
+    const began = new Promise<void>((resolve) => {
+      announceBegin = resolve;
+    });
+    let releaseBegin!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      releaseBegin = resolve;
+    });
+    const fencedRepository: ProgramDataRepositoryV1 = {
+      ...repository,
+      async acquireProcessExecution(input) {
+        announceBegin();
+        await blocked;
+        return await acquireExecution(input);
+      },
+    };
+    const controller = createControllerV1(fencedRepository, {
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 20,
+    });
+    await controller.initialize();
+    await controller.submitIntent("Create a writing workspace.");
+    const processId = controller.getSnapshot().activeProcess?.process.processId;
+    if (processId === undefined) throw new Error("expected active Process");
+    const observedRoutes: string[] = [];
+    const unsubscribe = controller.subscribe(() => {
+      observedRoutes.push(controller.getSnapshot().route);
+    });
+
+    let settled = false;
+    const preparing = controller.prepareAgentRun("Draft the opening scene.").then((result) => {
+      settled = true;
+      return result;
+    });
+    await began;
+    await Promise.resolve();
+    expect(settled).toBe(false);
     expect(controller.getSnapshot().durability).toEqual({
-      phase: "failed",
+      phase: "saving",
       operation: "agent_run",
-      code: "transaction_aborted",
-      recovery: "retry",
     });
-    expect(controller.getSnapshot().session).toBe(before);
-
-    await expect(controller.retry()).resolves.toBe(true);
-
-    expect(terminalInputs).toHaveLength(2);
-    expect(terminalInputs[1]).toEqual(terminalInputs[0]);
-    expect(terminalInputs[1]?.snapshot).toBe(terminalInputs[0]?.snapshot);
-    expect(terminalInputs[1]?.updatedAt).toBe(101);
-    expect(controller.getSnapshot().session.program?.revision).toBe(2);
-    expect(controller.getSnapshot().session.messages.at(-1)?.text).toBe(
-      "I prepared Program proposal v2 for review.",
-    );
-    await controller.dispose();
-  });
-
-  it("surfaces unresolved outcome_unknown for retry without detached reconciliation", async () => {
-    const harness = createTestAuthorityV1();
-    const createInputs: BrowserProgramWorkspaceCreateInputV1[] = [];
-    let createAttempts = 0;
-    let loadCalls = 0;
-    const authority = proxyAuthorityV1(harness.authority, {
-      async load(programId) {
-        loadCalls += 1;
-        return await harness.authority.load(programId);
-      },
-      async create(input) {
-        createInputs.push(input);
-        createAttempts += 1;
-        if (createAttempts === 1) {
-          throw createProgramRepositoryFailureV3("outcome_unknown", "create");
-        }
-        return await harness.authority.create(input);
-      },
-    });
-    const controller = createControllerV1({ authority });
-    await controller.initialize();
-    const observed = durabilityPhasesV1(controller);
-
-    await expect(controller.submitIntent(intentV1)).resolves.toEqual({
-      kind: "failed",
-      code: "outcome_unknown",
+    expect(await repository.loadProcess(processId)).toMatchObject({
+      activeAttempt: null,
+      transcriptFrontier: 2,
     });
 
-    expect(controller.getSnapshot().durability).toEqual({
-      phase: "failed",
-      operation: "create",
-      code: "outcome_unknown",
-      recovery: "retry",
-    });
-    expect(observed.phases).toEqual(["saving", "failed"]);
-    expect(loadCalls).toBe(0);
-    expect(controller.getSnapshot().session.route).toBe("home");
-
-    await expect(controller.retry()).resolves.toBe(true);
-    expect(createInputs).toHaveLength(2);
-    expect(createInputs[1]).toEqual(createInputs[0]);
-    expect(createInputs[1]?.snapshot).toBe(createInputs[0]?.snapshot);
-    expect(observed.phases).toEqual(["saving", "failed", "saving", "ready"]);
-    observed.unsubscribe();
-    await controller.dispose();
-  });
-
-  it("treats Authority-internal outcome recovery as an ordinary commit result", async () => {
-    const harness = createTestAuthorityV1();
-    const authority = proxyAuthorityV1(harness.authority, {
-      async create(input): Promise<ProgramRepositoryCommitResultV3> {
-        const committed = await harness.authority.create(input);
-        if (committed.kind === "conflict") return committed;
-        return { kind: "unchanged", aggregate: committed.aggregate };
-      },
-    });
-    const controller = createControllerV1({ authority });
-    await controller.initialize();
-    const observed = durabilityPhasesV1(controller);
-
-    await expect(controller.submitIntent(intentV1)).resolves.toMatchObject({ kind: "completed" });
-
-    expect(observed.phases).toEqual(["saving", "ready"]);
-    expect(controller.getSnapshot().session.route).toBe("workspace");
-    observed.unsubscribe();
-    await controller.dispose();
-  });
-
-  it("installs a cross-page decision winner through conflict-safe inspection", async () => {
-    const harness = createTestAuthorityV1();
-    let conflictReturned = false;
-    let conflictInspectionHostAccess: "required" | "active_only" | null = null;
-    let decisionCalls = 0;
-    const authority = proxyAuthorityV1(harness.authority, {
-      async decide(input) {
-        decisionCalls += 1;
-        const durable = await harness.authority.load(input.programId);
-        if (
-          durable === null || durable.snapshot.program === null ||
-          durable.snapshot.proposal === null
-        ) {
-          throw new Error("expected durable decision base");
-        }
-        const winnerSession = createCreatorSessionV1({
-          creator: createDeterministicFakeCreatorV1(),
-          initialSnapshot: durable.snapshot,
-        });
-        if (winnerSession.sendFollowUp("A different page advanced the Program.").kind !== "sent") {
-          throw new Error("expected winner revision");
-        }
-        const winner = await harness.authority.applyRevision({
-          programId: input.programId,
-          expectedRepositoryRevision: durable.repositoryRevision,
-          expectedBase: {
-            proposalId: durable.snapshot.proposal.proposalId,
-            programId: input.programId,
-            baseProgramRevision: durable.snapshot.program.revision,
-          },
-          snapshot: winnerSession.getSnapshot(),
-          updatedAt: input.updatedAt + 1,
-        });
-        if (winner.kind === "conflict") throw new Error("expected cross-page winner");
-        conflictReturned = true;
-        return { kind: "conflict", current: winner.aggregate };
-      },
-      async inspectProgramWorkspace(programId, options) {
-        if (conflictReturned) {
-          conflictInspectionHostAccess = options?.hostAccess ?? "required";
-          if (conflictInspectionHostAccess !== "active_only") {
-            throw new Error("required inspection would contend for the winner Host");
-          }
-        }
-        return await harness.authority.inspectProgramWorkspace(programId);
-      },
-    });
-    const controller = createControllerV1({ authority });
-    await controller.initialize();
-    await controller.submitIntent(intentV1);
-    const proposal = controller.getSnapshot().session.proposal;
-    if (proposal === null) throw new Error("expected stale proposal");
-
-    await expect(controller.acceptProposal(proposal)).resolves
-      .toEqual({ kind: "failed", code: "conflict" });
-
-    expect(controller.getSnapshot().durability).toEqual({
-      phase: "failed",
-      operation: "decision",
-      code: "conflict",
-      recovery: null,
-    });
-    expect(controller.getSnapshot().session).toMatchObject({
-      program: { revision: 2 },
-      proposal: { status: "pending", programRevision: 2 },
-    });
-    expect(controller.getSnapshot().workspaceReview).toMatchObject({
-      pendingReview: { programRevision: 2 },
-      pendingStatus: "matches",
-    });
-    expect(conflictInspectionHostAccess).toBe("active_only");
-    await expect(controller.retry()).resolves.toBe(false);
-    expect(decisionCalls).toBe(1);
-    await controller.dispose();
-  });
-
-  it("does not invent currentness when post-commit inspection fails", async () => {
-    const harness = createTestAuthorityV1();
-    let failInspection = false;
-    const authority = proxyAuthorityV1(harness.authority, {
-      async inspectProgramWorkspace(programId) {
-        if (failInspection) throw new Error("inspection unavailable");
-        return await harness.authority.inspectProgramWorkspace(programId);
-      },
-    });
-    const controller = createControllerV1({ authority });
-    await controller.initialize();
-    await controller.submitIntent(intentV1);
-    const before = controller.getSnapshot();
-
-    failInspection = true;
-    await expect(controller.sendFollowUp("This commit cannot yet be projected.")).resolves.toEqual({
-      kind: "failed",
-      code: "authority_failed",
-    });
-
-    expect(controller.getSnapshot().session).toBe(before.session);
-    expect(controller.getSnapshot().workspaceReview).toEqual({
-      ...before.workspaceReview,
-      mutableHead: null,
-      acceptedStatus: null,
-      pendingStatus: "unavailable",
-    });
-    expect(controller.getSnapshot().durability).toEqual({
-      phase: "failed",
-      operation: "revision",
-      code: "authority_failed",
-      recovery: "retry",
-    });
-    await controller.dispose();
-  });
-
-  it("awaits Authority workspace close before Home and retains the workspace on close failure", async () => {
-    const harness = createTestAuthorityV1();
-    const closeGate = createDeferredV1<null>();
-    let closeCalls = 0;
-    const authority = proxyAuthorityV1(harness.authority, {
-      async closeActiveWorkspace() {
-        closeCalls += 1;
-        return await closeGate.promise;
-      },
-    });
-    const controller = createControllerV1({ authority });
-    await controller.initialize();
-    await controller.submitIntent(intentV1);
-    const before = controller.getSnapshot().session;
-
-    const pendingHome = controller.openHome();
-
-    expect(closeCalls).toBe(1);
-    expect(controller.getSnapshot().session).toBe(before);
-    await expect(controller.sendFollowUp("A concurrent edit")).resolves.toEqual({ kind: "busy" });
-    closeGate.resolve(null);
-    await expect(pendingHome).resolves.toBe(true);
-    expect(controller.getSnapshot().session.route).toBe("home");
-    expect(controller.getSnapshot().workspaceReview).toBeNull();
-
-    const reopened = await controller.openProgram(before.program?.programId ?? "missing");
-    expect(reopened).toEqual({ kind: "completed", value: true });
-    const reopenedSnapshot = controller.getSnapshot().session;
-    const failingAuthority = proxyAuthorityV1(harness.authority, {
-      closeActiveWorkspace: () => Promise.reject(new Error("close failed")),
-    });
-    const failingController = createControllerV1({ authority: failingAuthority });
-    await failingController.initialize();
-    await failingController.openProgram(reopenedSnapshot.program?.programId ?? "missing");
-
-    await expect(failingController.openHome()).resolves.toBe(false);
-    expect(failingController.getSnapshot().session).toEqual(reopenedSnapshot);
-    expect(failingController.getSnapshot().workspaceReview).not.toBeNull();
-    expect(failingController.getSnapshot().durability).toEqual({ phase: "ready" });
-    await failingController.dispose();
-    await controller.dispose();
-  });
-
-  it("binds runs to the exact Authority-backed repository base and gates concurrent mutations", async () => {
-    const harness = createTestAuthorityV1();
-    const receiptGate = createDeferredV1<void>();
-    let createCalls = 0;
-    let workspaceIdCalls = 0;
-    const authority = proxyAuthorityV1(harness.authority, {
-      async create(input) {
-        createCalls += 1;
-        const result = await harness.authority.create(input);
-        await receiptGate.promise;
-        return result;
-      },
-    });
-    const controller = createControllerV1({
-      authority,
-      createWorkspaceId: () => {
-        workspaceIdCalls += 1;
-        return workspaceIdV1;
-      },
-    });
-    await controller.initialize();
-
-    const pending = controller.submitIntent(intentV1);
-    await expect(controller.submitIntent("A competing request")).resolves.toEqual({
-      kind: "busy",
-    });
-    await expect(controller.openProgram("program.workspace.other")).resolves.toEqual({
-      kind: "busy",
-    });
-    expect(createCalls).toBe(1);
-    expect(workspaceIdCalls).toBe(1);
-
-    receiptGate.resolve(undefined);
-    await pending;
-    const before = controller.getSnapshot();
-    expect(controller.prepareAgentRun("  Make review explicit.  ")).toEqual({
+    releaseBegin();
+    const prepared = await preparing;
+    expect(prepared).toMatchObject({
       kind: "completed",
       value: {
         kind: "prepared",
         run: {
-          agentRunId: "agent.run.controller.1",
-          proposalId: before.session.proposal?.proposalId,
-          programId: before.session.program?.programId,
-          baseProgramRevision: 1,
-          baseRepositoryRevision: 1,
-          text: "Make review explicit.",
+          processId,
+          processAttemptGeneration: 1,
+          workspaceCheckpointId: expect.any(String),
+          workspaceGeneration: 1,
+          text: "Draft the opening scene.",
         },
       },
     });
-    expect(controller.getSnapshot()).toBe(before);
-    await controller.dispose();
+    const run = prepared.kind === "completed" && prepared.value.kind === "prepared"
+      ? prepared.value.run
+      : null;
+    if (run === null) throw new Error("expected prepared run");
+    expect(await repository.loadProcess(processId)).toMatchObject({
+      activeAttempt: {
+        attemptId: run.agentRunId,
+        generation: run.processAttemptGeneration,
+        triggerSequence: 3,
+        startingCheckpoint: {
+          throughSequence: 3,
+          workspaceId: "test.workspace.1",
+          workspaceCheckpointId: run.workspaceCheckpointId,
+          workspaceGeneration: run.workspaceGeneration,
+        },
+      },
+      transcriptFrontier: 3,
+    });
+    expect(
+      (await repository.loadTranscriptPage({
+        processId,
+        beforeSequence: null,
+        maximumBytes: ordinaryBudgetsV1.transcriptPageMaximumBytes,
+      }))?.entries.at(-1),
+    ).toMatchObject({ role: "user", parts: [{ markdown: "Draft the opening scene." }] });
+    expect(observedRoutes).not.toContain("process_loading");
+    expect(controller.getSnapshot()).toMatchObject({
+      route: "process",
+      activeProcess: { process: { processId } },
+    });
+    unsubscribe();
   });
 
-  it("stops every Controller admission path after disposal", async () => {
-    const harness = createTestAuthorityV1();
-    let initializeCalls = 0;
-    let agentRunIdCalls = 0;
-    const authority = proxyAuthorityV1(harness.authority, {
-      async initialize() {
-        initializeCalls += 1;
-        await harness.authority.initialize();
+  it("refreshes a passive tab immediately when its execution acquire loses to another tab", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const owner = createControllerV1(repository, {
+      ownerInstanceId: "test.controller.owner-a",
+      createId: createDeterministicIdV1(),
+      now: () => 25,
+    });
+    await owner.initialize();
+    await owner.submitIntent("Create a shared writing workspace.");
+    const processId = owner.getSnapshot().activeProcess?.process.processId;
+    if (processId === undefined) throw new Error("expected active Process");
+
+    const passive = createControllerV1(repository, {
+      ownerInstanceId: "test.controller.owner-b",
+      createId: createDeterministicIdV1(),
+      now: () => 26,
+    });
+    await passive.initialize();
+    await passive.openProcess(processId);
+    expect(passive.getSnapshot().activeProcess?.process.activeAttempt).toBeNull();
+
+    const acquired = await owner.prepareAgentRun("Draft the shared opening scene.");
+    if (acquired.kind !== "completed" || acquired.value.kind !== "prepared") {
+      throw new Error("expected owner to acquire Process execution");
+    }
+    expect(passive.getSnapshot().activeProcess?.process.activeAttempt).toBeNull();
+
+    expect(await passive.prepareAgentRun("Competing stale request.")).toEqual({
+      kind: "completed",
+      value: { kind: "unavailable" },
+    });
+    expect(passive.getSnapshot()).toMatchObject({
+      route: "process",
+      durability: { phase: "ready" },
+      activeProcess: {
+        process: {
+          processId,
+          activeAttempt: {
+            attemptId: acquired.value.run.agentRunId,
+            generation: acquired.value.run.processAttemptGeneration,
+          },
+        },
       },
     });
-    const controller = createControllerV1({
-      authority,
-      createAgentRunId: () => {
-        agentRunIdCalls += 1;
-        return `agent.run.controller.${String(agentRunIdCalls)}`;
-      },
+    expect(
+      passive.getSnapshot().activeProcess?.transcript.entries.at(-1),
+    ).toMatchObject({
+      role: "user",
+      parts: [{ kind: "text_markdown", markdown: "Draft the shared opening scene." }],
+    });
+  });
+
+  it("commits an exact Agent terminal once and fences replayed or unrelated runs", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const controller = createControllerV1(repository, {
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 30,
     });
     await controller.initialize();
-    await controller.submitIntent(intentV1);
-    const terminal = completedTerminalV1(controller);
-    await expect(controller.recordAgentRunTerminal(terminal)).resolves.toEqual({
+    await controller.submitIntent("Create a writing workspace.");
+    const prepared = await controller.prepareAgentRun("Add a scene outline.");
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Agent run");
+    }
+    const run = prepared.value.run;
+    const terminal: CreatorAgentTerminalRunV1 = {
+      run,
+      outcome: "completed",
+      candidate: {
+        revision: 1,
+        proposalId: run.proposalId,
+        programId: run.programId,
+        baseProgramRevision: run.baseProgramRevision,
+        text: run.text,
+        requirement: "Keep the scene outline in the workpiece.",
+      },
+      finalAssistantReply: "The scene outline is ready for review.",
+    };
+
+    expect(
+      await controller.recordAgentRunTerminal({
+        ...terminal,
+        run: { ...run, workspaceCheckpointId: "checkpoint.other" },
+      }),
+    ).toMatchObject({
+      kind: "completed",
+      value: { kind: "stale" },
+    });
+    expect(await repository.loadProcess(run.processId)).toMatchObject({
+      activeAttempt: { attemptId: run.agentRunId },
+    });
+
+    expect(await controller.recordAgentRunTerminal(terminal)).toEqual({
       kind: "completed",
       value: { kind: "applied", outcome: "completed" },
     });
-    const programId = controller.getSnapshot().session.program?.programId;
-    const proposal = controller.getSnapshot().session.proposal;
-    if (programId === undefined || proposal === null) throw new Error("expected current Program");
+    expect((await repository.loadProcess(run.processId))?.lastTerminalAttempt).toMatchObject({
+      attemptId: run.agentRunId,
+      generation: run.processAttemptGeneration,
+      outcome: "completed",
+    });
+    expect(controller.getSnapshot().activeProcess).toMatchObject({
+      process: { activeAttempt: null, transcriptFrontier: 4 },
+      subject: {
+        currentProgram: {
+          revision: 2,
+          requirements: [
+            "Create a writing workspace.",
+            "Keep the scene outline in the workpiece.",
+          ],
+        },
+      },
+    });
+    expect(
+      controller.getSnapshot().activeProcess?.transcript.entries.slice(-2).map(({ role }) => role),
+    ).toEqual(["user", "assistant"]);
+    expect(await controller.recordAgentRunTerminal(terminal)).toEqual({
+      kind: "completed",
+      value: {
+        kind: "stale",
+        current: expect.objectContaining({ baseProgramRevision: 2 }),
+      },
+    });
+    expect(
+      await controller.recordAgentRunTerminal({
+        ...terminal,
+        run: { ...run, agentRunId: "agent-run.stale" },
+      }),
+    ).toMatchObject({
+      kind: "completed",
+      value: {
+        kind: "stale",
+        current: { programId: run.programId, baseProgramRevision: 2 },
+      },
+    });
+    expect((await repository.loadProcess(run.processId))?.transcriptFrontier).toBe(4);
+  });
 
-    await controller.dispose();
-    const disposedSnapshot = controller.getSnapshot();
-    expect(disposedSnapshot.workspaceReview).toBeNull();
-
-    expect(controller.prepareAgentRun("This must not mint another run.")).toEqual({ kind: "busy" });
-    expect(agentRunIdCalls).toBe(1);
-    await expect(controller.recordAgentRunTerminal(terminal)).resolves.toEqual({ kind: "busy" });
-    await expect(controller.sendFollowUp("")).resolves.toEqual({ kind: "busy" });
-    await expect(controller.acceptProposal({ ...proposal, proposalId: "proposal.stale" })).resolves
-      .toEqual({ kind: "busy" });
-    await expect(controller.rejectProposal({ ...proposal, proposalId: "proposal.stale" })).resolves
-      .toEqual({ kind: "busy" });
-    await expect(controller.submitIntent("A new Program")).resolves.toEqual({ kind: "busy" });
-    await expect(controller.openProgram(programId)).resolves.toEqual({ kind: "busy" });
-    await expect(controller.openHome()).resolves.toBe(false);
-    await expect(controller.retry()).resolves.toBe(false);
+  it("accepts the exact composite replay returned by the Workspace authority", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const workspace = createControllerWorkspaceV1(repository);
+    let hideFirstCommit = true;
+    const controller = createCreatorControllerV1({
+      ownerInstanceId: "test.controller.owner",
+      repository,
+      workspace: {
+        ...workspace,
+        async applyAgentRevision(input) {
+          const result = await workspace.applyAgentRevision(input);
+          if (hideFirstCommit) {
+            hideFirstCommit = false;
+            if (result.kind === "committed") return { ...result, kind: "unchanged" };
+          }
+          return result;
+        },
+      },
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 32,
+    });
     await controller.initialize();
+    await controller.submitIntent("Create a writing workspace.");
+    const prepared = await controller.prepareAgentRun("Add a scene outline.");
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Agent run");
+    }
+    const { run } = prepared.value;
+    const terminal: CreatorAgentTerminalRunV1 = {
+      run,
+      outcome: "completed",
+      candidate: {
+        revision: 1,
+        proposalId: run.proposalId,
+        programId: run.programId,
+        baseProgramRevision: run.baseProgramRevision,
+        text: run.text,
+        requirement: "Keep the scene outline in the workpiece.",
+      },
+      finalAssistantReply: "The scene outline is ready for review.",
+    };
 
-    expect(initializeCalls).toBe(1);
-    expect(controller.getSnapshot()).toBe(disposedSnapshot);
-    expect(controller.getSnapshot().durability).toEqual({ phase: "disposed" });
+    expect(await controller.recordAgentRunTerminal(terminal)).toEqual({
+      kind: "completed",
+      value: { kind: "applied", outcome: "completed" },
+    });
+    expect(controller.getSnapshot().durability).toEqual({ phase: "ready" });
+    expect((await repository.loadProcess(run.processId))?.lastTerminalAttempt).toMatchObject({
+      attemptId: run.agentRunId,
+      generation: run.processAttemptGeneration,
+      outcome: "completed",
+    });
+    expect((await repository.load(run.programId))?.currentProgram.revision).toBe(2);
+    expect((await repository.loadProcess(run.processId))?.transcriptFrontier).toBe(4);
+  });
+
+  it("commits once after Workspace progress advances the reviewed head", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const workspace = createControllerWorkspaceV1(repository);
+    const reviewedHead = {
+      checkpointId: "checkpoint.workspace.after-tools",
+      generation: 2,
+    };
+    const controller = createCreatorControllerV1({
+      ownerInstanceId: "test.controller.owner",
+      repository,
+      workspace: {
+        ...workspace,
+        async applyAgentRevision(input) {
+          const continuation = await repository.loadContinuation(input.catalog.programId);
+          if (continuation === null) {
+            return {
+              kind: "conflict" as const,
+              currentProgram: await repository.load(input.catalog.programId),
+              currentProcess: await repository.loadProcess(input.transcript.processId),
+              currentLease: await repository.loadProcessExecutionLease(
+                input.transcript.processId,
+              ),
+            };
+          }
+          return await repository.commitProgramRevisionWithProcessExecutionTerminal({
+            lease: input.lease,
+            observedAt: input.observedAt,
+            catalog: { ...input.catalog, continuation, reviewedHead },
+            transcript: {
+              ...input.transcript,
+              checkpoint: {
+                ...input.transcript.checkpoint,
+                workspaceCheckpointId: reviewedHead.checkpointId,
+                workspaceGeneration: reviewedHead.generation,
+              },
+            },
+          });
+        },
+      },
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 32,
+    });
+    await controller.initialize();
+    await controller.submitIntent("Create a writing workspace.");
+    const prepared = await controller.prepareAgentRun("Use tools, then update the Program.");
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Agent run");
+    }
+    const { run } = prepared.value;
+    expect(run.workspaceGeneration).toBe(1);
+    const terminal: CreatorAgentTerminalRunV1 = {
+      run,
+      outcome: "completed",
+      candidate: {
+        revision: 1,
+        proposalId: run.proposalId,
+        programId: run.programId,
+        baseProgramRevision: run.baseProgramRevision,
+        text: run.text,
+        requirement: "Keep the tool-produced Workspace changes.",
+      },
+      finalAssistantReply: "The tool-produced changes are ready for review.",
+    };
+
+    expect(await controller.recordAgentRunTerminal(terminal)).toEqual({
+      kind: "completed",
+      value: { kind: "applied", outcome: "completed" },
+    });
+    expect(await repository.loadProcess(run.processId)).toMatchObject({
+      transcriptFrontier: 4,
+      checkpoint: {
+        throughSequence: 4,
+        workspaceCheckpointId: reviewedHead.checkpointId,
+        workspaceGeneration: reviewedHead.generation,
+      },
+    });
+    expect((await repository.load(run.programId))?.head.pendingReviewBinding).toMatchObject({
+      checkpointId: reviewedHead.checkpointId,
+      generation: reviewedHead.generation,
+    });
+    expect(controller.getSnapshot().durability).toEqual({ phase: "ready" });
+    expect((await repository.load(run.programId))?.currentProgram.revision).toBe(2);
+    expect((await repository.loadProcess(run.processId))?.transcriptFrontier).toBe(4);
+  });
+
+  it("reconciles an outcome-unknown non-revision terminal without appending it twice", async () => {
+    const durableRepository = createMemoryProgramDataRepositoryV1();
+    let hideFirstTerminalCommit = true;
+    let operationQueries = 0;
+    const repository: ProgramDataRepositoryV1 = {
+      ...durableRepository,
+      async commitProcessExecutionTerminal(input) {
+        const result = await durableRepository.commitProcessExecutionTerminal(input);
+        if (hideFirstTerminalCommit) {
+          hideFirstTerminalCommit = false;
+          throw createProgramDataRepositoryFailureV1(
+            "outcome_unknown",
+            "commit_process_execution_terminal",
+          );
+        }
+        return result;
+      },
+      async queryProcessOperation(input) {
+        operationQueries += 1;
+        return await durableRepository.queryProcessOperation(input);
+      },
+    };
+    const controller = createCreatorControllerV1({
+      ownerInstanceId: "test.controller.owner",
+      repository,
+      workspace: createControllerWorkspaceV1(repository),
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 33,
+    });
+    await controller.initialize();
+    await controller.submitIntent("Create a writing workspace.");
+    const prepared = await controller.prepareAgentRun("Attempt a draft.");
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Agent run");
+    }
+    const { run } = prepared.value;
+    const terminal: CreatorAgentTerminalRunV1 = {
+      run,
+      outcome: "failed",
+      diagnosticCode: "request_failed",
+    };
+
+    expect(await controller.recordAgentRunTerminal(terminal)).toEqual({
+      kind: "completed",
+      value: { kind: "applied", outcome: "failed" },
+    });
+    const frontier = (await repository.loadProcess(run.processId))?.transcriptFrontier;
+    expect(frontier).toBe(4);
+    expect(operationQueries).toBe(1);
+    expect(await controller.recordAgentRunTerminal(terminal)).toEqual({
+      kind: "completed",
+      value: expect.objectContaining({ kind: "stale" }),
+    });
+    expect((await repository.loadProcess(run.processId))?.transcriptFrontier).toBe(frontier);
+  });
+
+  it("terminalizes an invalid completed projection instead of stranding its attempt", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const controller = createControllerV1(repository, {
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 34,
+    });
+    await controller.initialize();
+    await controller.submitIntent("Create a writing workspace.");
+    const prepared = await controller.prepareAgentRun("Continue this draft.");
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Agent run");
+    }
+    const { run } = prepared.value;
+
+    expect(
+      await controller.recordAgentRunTerminal({
+        run,
+        outcome: "completed",
+        candidate: {
+          revision: 1,
+          proposalId: run.proposalId,
+          programId: run.programId,
+          baseProgramRevision: run.baseProgramRevision,
+          text: run.text,
+          requirement: "",
+        },
+        finalAssistantReply: "This invalid candidate must not strand the Process.",
+      }),
+    ).toEqual({
+      kind: "completed",
+      value: { kind: "applied", outcome: "failed" },
+    });
+    expect(await repository.loadProcess(run.processId)).toMatchObject({
+      status: "active",
+      activeAttempt: null,
+      lastTerminalAttempt: {
+        attemptId: run.agentRunId,
+        outcome: "failed",
+      },
+    });
+    expect((await repository.load(run.programId))?.currentProgram.revision).toBe(1);
+    expect(controller.getSnapshot().activeProcess?.transcript.entries.at(-1)).toMatchObject({
+      role: "assistant",
+      parts: [{ markdown: expect.stringContaining("candidate_invalid") }],
+    });
+  });
+
+  it("durably terminalizes a prepared attempt when Pi submission becomes unavailable", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const controller = createControllerV1(repository, {
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 35,
+    });
+    await controller.initialize();
+    await controller.submitIntent("Create a writing workspace.");
+    const prepared = await controller.prepareAgentRun("Continue this draft.");
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Agent run");
+    }
+    const { run } = prepared.value;
+
+    expect(
+      await controller.recordAgentRunTerminal({
+        run,
+        outcome: "failed",
+        diagnosticCode: "connection_failed",
+      }),
+    ).toEqual({
+      kind: "completed",
+      value: { kind: "applied", outcome: "failed" },
+    });
+    expect(await repository.loadProcess(run.processId)).toMatchObject({
+      status: "active",
+      activeAttempt: null,
+      lastTerminalAttempt: {
+        attemptId: run.agentRunId,
+        generation: run.processAttemptGeneration,
+        outcome: "failed",
+        interruptionDisposition: null,
+      },
+    });
+  });
+
+  it("terminalizes an exact active attempt as replaced when Program currentness advances", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const controller = createControllerV1(repository, {
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 36,
+    });
+    await controller.initialize();
+    await controller.submitIntent("Create a writing workspace.");
+    const prepared = await controller.prepareAgentRun("Continue this draft.");
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Agent run");
+    }
+    const { run } = prepared.value;
+    const current = await repository.load(run.programId);
+    const continuation = await repository.loadContinuation(run.programId);
+    if (current === null || continuation === null) throw new Error("expected current Program");
+    expect(
+      await repository.applyRevision({
+        programId: run.programId,
+        expectedRepositoryRevision: current.head.repositoryRevision,
+        expectedProposal: current.head.proposal,
+        commitId: "commit.agent-currentness-drift",
+        program: {
+          ...current.currentProgram,
+          revision: current.currentProgram.revision + 1,
+          requirements: [...current.currentProgram.requirements, "Concurrent owner edit."],
+        },
+        proposalId: "proposal.agent-currentness-drift",
+        continuation,
+        reviewedHead: {
+          checkpointId: "checkpoint.agent-currentness-drift",
+          generation: run.workspaceGeneration + 1,
+        },
+        updatedAt: 36,
+      }),
+    ).toMatchObject({ kind: "committed" });
+    expect(await controller.renewAgentRunLease(run)).toEqual({
+      kind: "completed",
+      value: "renewed",
+    });
+
+    const terminal: CreatorAgentTerminalRunV1 = {
+      run,
+      outcome: "completed",
+      candidate: {
+        revision: 1,
+        proposalId: run.proposalId,
+        programId: run.programId,
+        baseProgramRevision: run.baseProgramRevision,
+        text: run.text,
+        requirement: "The stale candidate must not publish.",
+      },
+      finalAssistantReply: "A stale reply.",
+    };
+    expect(await controller.recordAgentRunTerminal(terminal)).toEqual({
+      kind: "completed",
+      value: { kind: "applied", outcome: "replaced" },
+    });
+    expect(await repository.loadProcess(run.processId)).toMatchObject({
+      status: "active",
+      activeAttempt: null,
+      lastTerminalAttempt: {
+        attemptId: run.agentRunId,
+        generation: run.processAttemptGeneration,
+        outcome: "replaced",
+      },
+    });
+    expect(await controller.recordAgentRunTerminal(terminal)).toEqual({
+      kind: "completed",
+      value: {
+        kind: "stale",
+        current: expect.objectContaining({ baseProgramRevision: 2 }),
+      },
+    });
+    const successor = await controller.prepareAgentRun("Continue from the owner edit.");
+    expect(successor).toMatchObject({
+      kind: "completed",
+      value: { kind: "prepared", run: { processAttemptGeneration: 2 } },
+    });
+  });
+
+  it("serializes an in-flight lease renewal before the exact terminal commit", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const renewLease = repository.renewProcessExecutionLease;
+    let announceRenewal!: () => void;
+    const renewalStarted = new Promise<void>((resolve) => {
+      announceRenewal = resolve;
+    });
+    let releaseRenewal!: () => void;
+    const renewalBlocked = new Promise<void>((resolve) => {
+      releaseRenewal = resolve;
+    });
+    const fencedRepository: ProgramDataRepositoryV1 = {
+      ...repository,
+      async renewProcessExecutionLease(input) {
+        announceRenewal();
+        await renewalBlocked;
+        return await renewLease(input);
+      },
+    };
+    let observedAt = 37;
+    const controller = createControllerV1(fencedRepository, {
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => observedAt,
+    });
+    await controller.initialize();
+    await controller.submitIntent("Create a writing workspace.");
+    const prepared = await controller.prepareAgentRun("Continue this draft.");
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Agent run");
+    }
+    const { run } = prepared.value;
+
+    observedAt = 38;
+    const renewal = controller.renewAgentRunLease(run);
+    await renewalStarted;
+    let terminalSettled = false;
+    const terminal = controller.recordAgentRunTerminal({
+      run,
+      outcome: "failed",
+      diagnosticCode: "connection_failed",
+    }).then((result) => {
+      terminalSettled = true;
+      return result;
+    });
+    await Promise.resolve();
+    expect(terminalSettled).toBe(false);
+
+    releaseRenewal();
+    expect(await renewal).toEqual({ kind: "completed", value: "renewed" });
+    expect(await terminal).toEqual({
+      kind: "completed",
+      value: { kind: "applied", outcome: "failed" },
+    });
+    expect(await repository.loadProcessExecutionLease(run.processId)).toBeNull();
+    expect(await repository.loadProcess(run.processId)).toMatchObject({
+      activeAttempt: null,
+      lastTerminalAttempt: {
+        attemptId: run.agentRunId,
+        generation: run.processAttemptGeneration,
+        outcome: "failed",
+      },
+    });
+  });
+
+  it("marks an abandoned attempt retryable only when its durable Workspace head still matches", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const predecessor = createControllerV1(repository, {
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 40,
+    });
+    await predecessor.initialize();
+    await predecessor.submitIntent("Create a writing workspace.");
+    const prepared = await predecessor.prepareAgentRun("Draft the next scene.");
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Agent run");
+    }
+    const { run } = prepared.value;
+    const abandoned = await repository.loadProcess(run.processId);
+    if (abandoned?.activeAttempt === null || abandoned?.activeAttempt === undefined) {
+      throw new Error("expected durable active attempt");
+    }
+    const predecessorFrontier = abandoned.transcriptFrontier;
+    await predecessor.dispose();
+
+    const successor = createControllerV1(repository, {
+      budgets: ordinaryBudgetsV1,
+      ownerInstanceId: "test.controller.successor",
+      now: () => 30_041,
+    });
+    await successor.initialize();
+    expect(await successor.openProcess(run.processId)).toEqual({
+      kind: "completed",
+      value: true,
+    });
+
+    const settled = await repository.loadProcess(run.processId);
+    expect(settled).toMatchObject({
+      status: "interrupted_retryable",
+      transcriptFrontier: predecessorFrontier + 1,
+      activeAttempt: null,
+      lastTerminalAttempt: {
+        attemptId: run.agentRunId,
+        generation: run.processAttemptGeneration,
+        outcome: "interrupted",
+        interruptionDisposition: "retryable",
+      },
+    });
+    const transcript = await repository.loadTranscriptPage({
+      processId: run.processId,
+      beforeSequence: null,
+      maximumBytes: 4_096,
+    });
+    expect(transcript?.entries.at(-1)).toMatchObject({
+      role: "system",
+      state: "interrupted_partial",
+      sequence: predecessorFrontier + 1,
+      parts: [{
+        kind: "text_markdown",
+        markdown: expect.stringContaining("can be retried"),
+      }],
+    });
+
+    // Reopening a settled Process never replays its trigger or adds another terminal.
+    expect(await successor.openProcess(run.processId)).toEqual({
+      kind: "completed",
+      value: true,
+    });
+    expect((await repository.loadProcess(run.processId))?.transcriptFrontier).toBe(
+      predecessorFrontier + 1,
+    );
+
+    const retried = await successor.retryInterruptedAgentRun();
+    if (retried.kind !== "completed" || retried.value.kind !== "prepared") {
+      throw new Error("expected retryable attempt to prepare a successor run");
+    }
+    expect(retried.value.run).toMatchObject({
+      processId: run.processId,
+      processAttemptGeneration: run.processAttemptGeneration + 1,
+      text: run.text,
+    });
+    expect(await repository.loadProcess(run.processId)).toMatchObject({
+      status: "active",
+      transcriptFrontier: predecessorFrontier + 1,
+      activeAttempt: {
+        attemptId: retried.value.run.agentRunId,
+        generation: run.processAttemptGeneration + 1,
+        triggerEntryId: abandoned.activeAttempt.triggerEntryId,
+        triggerSequence: abandoned.activeAttempt.triggerSequence,
+      },
+    });
+    const afterRetry = await repository.loadTranscriptPage({
+      processId: run.processId,
+      beforeSequence: null,
+      maximumBytes: 4_096,
+    });
+    expect(
+      afterRetry?.entries.filter((entry) =>
+        entry.role === "user" &&
+        entry.parts.some((part) => part.kind === "text_markdown" && part.markdown === run.text)
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("declines retry after Workspace evidence drifts without rewriting the settled terminal", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    const predecessor = createControllerV1(repository, {
+      budgets: ordinaryBudgetsV1,
+      createId: createDeterministicIdV1(),
+      now: () => 45,
+    });
+    await predecessor.initialize();
+    await predecessor.submitIntent("Create a writing workspace.");
+    const prepared = await predecessor.prepareAgentRun("Draft the next scene.");
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Agent run");
+    }
+    const { run } = prepared.value;
+    await predecessor.dispose();
+
+    const baseWorkspace = createControllerWorkspaceV1(repository);
+    let workspaceDrifted = false;
+    const successor = createCreatorControllerV1({
+      ownerInstanceId: "test.controller.successor",
+      repository,
+      workspace: {
+        ...baseWorkspace,
+        async inspectProgramWorkspace(programId) {
+          const review = await baseWorkspace.inspectProgramWorkspace(programId);
+          return !workspaceDrifted || review === null ? review : {
+            ...review,
+            mutableHead: {
+              checkpointId: "checkpoint.changed-after-interruption",
+              generation: run.workspaceGeneration + 1,
+            },
+          };
+        },
+      },
+      budgets: ordinaryBudgetsV1,
+      now: () => 30_046,
+    });
+    await successor.initialize();
+    await successor.openProcess(run.processId);
+    const settledBeforeDrift = await repository.loadProcess(run.processId);
+    expect(settledBeforeDrift).toMatchObject({
+      status: "interrupted_retryable",
+      lastTerminalAttempt: { interruptionDisposition: "retryable" },
+    });
+
+    workspaceDrifted = true;
+    expect(await successor.retryInterruptedAgentRun()).toEqual({
+      kind: "completed",
+      value: { kind: "unavailable" },
+    });
+    expect(await repository.loadProcess(run.processId)).toMatchObject({
+      revision: settledBeforeDrift?.revision,
+      updatedAt: settledBeforeDrift?.updatedAt,
+      status: "interrupted_retryable",
+      activeAttempt: null,
+      lastTerminalAttempt: {
+        attemptId: run.agentRunId,
+        generation: run.processAttemptGeneration,
+        interruptionDisposition: "retryable",
+      },
+    });
+    expect(successor.getSnapshot().activeProcess).toMatchObject({
+      process: { status: "interrupted_retryable" },
+      workspaceReview: {
+        mutableHead: {
+          checkpointId: "checkpoint.changed-after-interruption",
+          generation: run.workspaceGeneration + 1,
+        },
+      },
+    });
+    expect(await successor.retryInterruptedAgentRun()).toEqual({
+      kind: "completed",
+      value: { kind: "unavailable" },
+    });
+  });
+
+  it.each([
+    {
+      evidence: "mismatched" as const,
+      mutableHead: { checkpointId: "checkpoint.changed", generation: 9 },
+    },
+    { evidence: "missing" as const, mutableHead: null },
+  ])(
+    "marks an abandoned attempt unrecoverable when Workspace evidence is $evidence",
+    async ({ mutableHead }) => {
+      const repository = createMemoryProgramDataRepositoryV1();
+      const predecessor = createControllerV1(repository, {
+        budgets: ordinaryBudgetsV1,
+        createId: createDeterministicIdV1(),
+        now: () => 50,
+      });
+      await predecessor.initialize();
+      await predecessor.submitIntent("Create a translation workspace.");
+      const prepared = await predecessor.prepareAgentRun("Translate the first chapter.");
+      if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+        throw new Error("expected prepared Agent run");
+      }
+      const { run } = prepared.value;
+      const abandoned = await repository.loadProcess(run.processId);
+      if (abandoned?.activeAttempt === null || abandoned?.activeAttempt === undefined) {
+        throw new Error("expected durable active attempt");
+      }
+      const predecessorFrontier = abandoned.transcriptFrontier;
+      await predecessor.dispose();
+
+      const workspace = createControllerWorkspaceV1(repository);
+      const successor = createCreatorControllerV1({
+        ownerInstanceId: "test.controller.successor",
+        repository,
+        workspace: {
+          ...workspace,
+          async inspectProgramWorkspace(programId) {
+            const review = await workspace.inspectProgramWorkspace(programId);
+            return review === null ? null : { ...review, mutableHead };
+          },
+        },
+        budgets: ordinaryBudgetsV1,
+        now: () => 30_051,
+      });
+      await successor.initialize();
+      expect(await successor.openProcess(run.processId)).toEqual({
+        kind: "completed",
+        value: true,
+      });
+
+      expect(await repository.loadProcess(run.processId)).toMatchObject({
+        status: "interrupted_unrecoverable",
+        transcriptFrontier: predecessorFrontier + 1,
+        activeAttempt: null,
+        lastTerminalAttempt: {
+          attemptId: run.agentRunId,
+          generation: run.processAttemptGeneration,
+          outcome: "interrupted",
+          interruptionDisposition: "unrecoverable",
+        },
+      });
+      const transcript = await repository.loadTranscriptPage({
+        processId: run.processId,
+        beforeSequence: null,
+        maximumBytes: 4_096,
+      });
+      expect(transcript?.entries.at(-1)).toMatchObject({
+        role: "system",
+        state: "interrupted_partial",
+        sequence: predecessorFrontier + 1,
+        parts: [{
+          kind: "text_markdown",
+          markdown: expect.stringContaining("will not replay it automatically"),
+        }],
+      });
+
+      expect(await successor.openProcess(run.processId)).toEqual({
+        kind: "completed",
+        value: true,
+      });
+      expect((await repository.loadProcess(run.processId))?.transcriptFrontier).toBe(
+        predecessorFrontier + 1,
+      );
+      expect(await successor.retryInterruptedAgentRun()).toEqual({
+        kind: "completed",
+        value: { kind: "unavailable" },
+      });
+      expect(await repository.loadProcess(run.processId)).toMatchObject({
+        status: "interrupted_unrecoverable",
+        activeAttempt: null,
+      });
+    },
+  );
+
+  it("clears the predecessor projection while switching the single active Process", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    await repository.publishProgramDefinitionRevision(
+      createBuiltinCreatorProgramDefinitionRevisionV1(),
+    );
+    await seedProgramV1({ repository, programId: "program.first", updatedAt: 1 });
+    await seedProgramV1({ repository, programId: "program.second", updatedAt: 2 });
+    await seedProcessV1({
+      repository,
+      programId: "program.first",
+      processId: "process.first",
+      createdAt: 3,
+    });
+    await seedProcessV1({
+      repository,
+      programId: "program.second",
+      processId: "process.second",
+      createdAt: 4,
+    });
+    const loadProcess = repository.loadProcess;
+    let announceSecond!: () => void;
+    const secondStarted = new Promise<void>((resolve) => {
+      announceSecond = resolve;
+    });
+    let releaseSecond!: () => void;
+    const secondBlocked = new Promise<void>((resolve) => {
+      releaseSecond = resolve;
+    });
+    const fencedRepository: ProgramDataRepositoryV1 = {
+      ...repository,
+      async loadProcess(processId) {
+        if (processId === "process.second") {
+          announceSecond();
+          await secondBlocked;
+        }
+        return await loadProcess(processId);
+      },
+    };
+    const controller = createControllerV1(fencedRepository, { budgets: ordinaryBudgetsV1 });
+    await controller.initialize();
+    await controller.openProcess("process.first");
+    expect(controller.getSnapshot().activeProcess?.process.processId).toBe("process.first");
+
+    const switching = controller.openProcess("process.second");
+    await secondStarted;
+    expect(controller.getSnapshot()).toMatchObject({
+      route: "process_loading",
+      activeProcess: null,
+    });
+    releaseSecond();
+    expect(await switching).toEqual({ kind: "completed", value: true });
+    expect(controller.getSnapshot()).toMatchObject({
+      route: "process",
+      activeProcess: { process: { processId: "process.second" } },
+    });
+    expect(
+      controller.getSnapshot().activeProcess?.transcript.entries.map(({ processId }) => processId),
+    ).toEqual(["process.second"]);
   });
 });

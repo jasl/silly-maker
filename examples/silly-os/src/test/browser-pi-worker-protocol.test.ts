@@ -656,6 +656,61 @@ describe("Browser Pi Worker protocol", () => {
     ).toBeNull();
   });
 
+  it("admits the complete unacknowledged receipt suffix before and after an incremental ack", () => {
+    const receipts = Array.from({ length: 40 }, (_, index) => {
+      const sequence = index + 1;
+      return receiptV1({
+        sequence,
+        toolCallId: `pi.tool.write.${String(sequence)}`,
+        baseGeneration: sequence,
+        resultingGeneration: sequence + 1,
+      });
+    });
+    const completeSnapshot = snapshotV1("open", receipts, 41);
+
+    expect(
+      admitBrowserPiWorkerWorkspaceOutboundMessageV1({
+        revision: 1,
+        kind: "workspace_response",
+        requestId: 28,
+        ok: true,
+        response: { method: "query_workspace", snapshot: completeSnapshot },
+      }),
+    ).toMatchObject({
+      response: {
+        snapshot: {
+          generation: 41,
+          receipts: [{ sequence: 1 }, ...receipts.slice(1, 39), { sequence: 40 }],
+        },
+      },
+    });
+
+    const acknowledgedThrough = 7;
+    const retainedReceipts = receipts.slice(acknowledgedThrough);
+    expect(retainedReceipts).toHaveLength(33);
+    expect(
+      admitBrowserPiWorkerWorkspaceOutboundMessageV1({
+        revision: 1,
+        kind: "workspace_response",
+        requestId: 29,
+        ok: true,
+        response: {
+          method: "acknowledge_workspace_receipts",
+          throughSequence: acknowledgedThrough,
+          snapshot: snapshotV1("open", retainedReceipts, 41),
+        },
+      }),
+    ).toMatchObject({
+      response: {
+        throughSequence: acknowledgedThrough,
+        snapshot: {
+          generation: 41,
+          receipts: [{ sequence: 8 }, ...retainedReceipts.slice(1, 32), { sequence: 40 }],
+        },
+      },
+    });
+  });
+
   it("admits raw receipts with transient Pi correlation and rejects product or payload data", () => {
     const event = {
       revision: 1,

@@ -6,37 +6,14 @@ import {
   acknowledgeAppliedAgentTerminalV1,
   canConsumeAgentTerminalV1,
 } from "../ui/agent-terminal-acknowledgement.ts";
-import type { WorkspaceMutationReceiptV1 } from "../workspace/contracts.ts";
 
-const receiptV1: WorkspaceMutationReceiptV1 = Object.freeze({
-  revision: 1,
-  sequence: 1,
-  programId: "program.terminal-ack",
-  workspaceId: "workspace.terminal-ack",
-  workspaceSessionId: "workspace.session.terminal-ack",
-  agentRunId: "agent.run.terminal-ack",
-  toolCallId: "tool.call.terminal-ack",
-  tool: "write",
-  expectedGeneration: 1,
-  baseGeneration: 1,
-  resultingGeneration: 2,
-  outcome: "succeeded",
-  effect: "changed",
-  changedPaths: Object.freeze(["artifact.txt"]),
-  diagnosticCode: null,
-});
+const agentRunIdV1 = "agent.run.terminal-ack";
 
 describe("Agent terminal acknowledgement", () => {
-  it("retains both receipt families after persistence failure and acknowledges only after retry applies", async () => {
-    const acknowledgeWorkspaceReceipts = vi.fn(async () => ({
-      kind: "acknowledged" as const,
-      throughSequence: receiptV1.sequence,
-    }));
-    const acknowledgeTerminal = vi.fn(() => true);
+  it("retains the terminal after persistence failure and delegates its Workspace watermark to the Agent port", async () => {
+    const acknowledgeTerminal = vi.fn(async () => ({ kind: "acknowledged" as const }));
     const input = {
-      agentRunId: receiptV1.agentRunId,
-      receipts: [receiptV1],
-      acknowledgeWorkspaceReceipts,
+      agentRunId: agentRunIdV1,
       acknowledgeTerminal,
     };
 
@@ -51,7 +28,6 @@ describe("Agent terminal acknowledgement", () => {
       ...input,
       persistence: { kind: "failed", code: "repository_failed" },
     })).resolves.toEqual({ kind: "retained" });
-    expect(acknowledgeWorkspaceReceipts).not.toHaveBeenCalled();
     expect(acknowledgeTerminal).not.toHaveBeenCalled();
 
     expect(canConsumeAgentTerminalV1("saving")).toBe(false);
@@ -63,12 +39,66 @@ describe("Agent terminal acknowledgement", () => {
         value: { kind: "applied", outcome: "completed" },
       },
     })).resolves.toEqual({ kind: "acknowledged" });
-    expect(acknowledgeWorkspaceReceipts).toHaveBeenCalledOnce();
-    expect(acknowledgeWorkspaceReceipts).toHaveBeenCalledWith(receiptV1.sequence);
     expect(acknowledgeTerminal).toHaveBeenCalledOnce();
-    expect(acknowledgeTerminal).toHaveBeenCalledWith(receiptV1.agentRunId);
-    expect(acknowledgeWorkspaceReceipts.mock.invocationCallOrder[0]).toBeLessThan(
-      acknowledgeTerminal.mock.invocationCallOrder[0] ?? 0,
-    );
+    expect(acknowledgeTerminal).toHaveBeenCalledWith(agentRunIdV1);
+  });
+
+  it.each([
+    {
+      label: "stale",
+      persistence: {
+        kind: "completed" as const,
+        value: {
+          kind: "stale" as const,
+          current: {
+            proposalId: "proposal.successor",
+            programId: "program.successor",
+            baseProgramRevision: 2,
+          },
+        },
+      },
+    },
+    {
+      label: "unavailable",
+      persistence: {
+        kind: "completed" as const,
+        value: { kind: "unavailable" as const },
+      },
+    },
+  ])("retires a terminally $label run so it cannot block the next terminal", async ({
+    persistence,
+  }) => {
+    const terminalRuns = [agentRunIdV1, "agent.run.next"];
+    const acknowledgeTerminal = vi.fn(async (agentRunId: string) => {
+      const index = terminalRuns.indexOf(agentRunId);
+      if (index < 0) return { kind: "idle" as const };
+      terminalRuns.splice(index, 1);
+      return { kind: "acknowledged" as const };
+    });
+
+    await expect(acknowledgeAppliedAgentTerminalV1({
+      persistence,
+      agentRunId: agentRunIdV1,
+      acknowledgeTerminal,
+    })).resolves.toEqual({ kind: "acknowledged" });
+    expect(acknowledgeTerminal).toHaveBeenCalledWith(agentRunIdV1);
+    expect(terminalRuns[0]).toBe("agent.run.next");
+  });
+
+  it("retains the terminal when its Agent-port Workspace watermark cannot settle", async () => {
+    const diagnostic = { code: "workspace_busy", path: "/workspace/acknowledge" } as const;
+    const acknowledgeTerminal = vi.fn(async () => ({
+      kind: "workspace_unavailable" as const,
+      diagnostic,
+    }));
+
+    await expect(acknowledgeAppliedAgentTerminalV1({
+      persistence: {
+        kind: "completed",
+        value: { kind: "applied", outcome: "completed" },
+      },
+      agentRunId: agentRunIdV1,
+      acknowledgeTerminal,
+    })).resolves.toEqual({ kind: "workspace_unavailable", diagnostic });
   });
 });

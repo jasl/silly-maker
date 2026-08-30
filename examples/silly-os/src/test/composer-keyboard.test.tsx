@@ -19,6 +19,13 @@ beforeAll(() => {
 });
 
 const copyV1 = getSillyOsCopyV1("en");
+const emptyTranscriptV1 = {
+  entries: [],
+  byteLength: 0,
+  nextBeforeSequence: null,
+  newerOmitted: false,
+  phase: "ready" as const,
+};
 
 describe("composer keyboard contract", () => {
   it("recognizes current and legacy IME composition signals", () => {
@@ -56,7 +63,7 @@ describe("composer keyboard contract", () => {
     render(
       <ChatPaneV1
         copy={copyV1}
-        messages={[]}
+        transcript={emptyTranscriptV1}
         proposal={null}
         program={null}
         workspaceReview={null}

@@ -196,7 +196,8 @@ D1, P1-B1d reasoning effort, E0 engine-baseline absorption, and DS1 are closed
 locally. The current local source is rebased onto engine baseline
 `1bef892822a88dccc8752ce5c44c846753e2ea8a` and has completed the downstream
 handoff to public `@sillymaker/agent/session`. No subsequent product or Mod
-phase is active. The current build-matched
+phase was active at that checkpoint. The owner activated the Program/Process/
+Conversation foundation below on 2026-08-30. The current build-matched
 three-origin artifact and fixed Vault Worker are deployed from commit
 `a17c3490c9940bb43fc8718df485322c2dee1052` (Sandbox
 `fb703131-3e37-4e7d-95f4-5b7afa9160cd`, Broker
@@ -229,6 +230,235 @@ replacement rule: breaking product-private contracts may reset preview data,
 and the same slice deletes the superseded implementation, types, fixtures, and
 tests. Do not retain compatibility shims, dual schemas, deprecated aliases, or
 fallback behavior merely to preserve an earlier preview.
+
+## Closed P4-A — Program, Process, and pageable Conversation foundation
+
+Status: **owner-accepted, delivered, independently reviewed, and closed locally
+on 2026-08-30.** This is a SillyOS product lane. It consumes the public neutral
+Agent Session contract but does not add an Engine Program, Process, transcript,
+workflow, persistence, or background-execution API.
+
+### Product authorities
+
+- `sillyos.builtin.creator@1` is the first build-known Program definition. A
+  Creator Process pins that exact definition revision when it is created. A
+  later Creator definition revision cannot mutate or reinterpret an existing
+  Process.
+- The Program being created or edited is the Process **subject**. Its
+  `programId` and evolving revisions are not the Process's pinned harness
+  identity.
+- A Program revision is immutable product content. A compact Program head
+  selects the current proposal/definition and list summary; revision rows and
+  review decisions remain separately addressable rather than accumulating in
+  one aggregate.
+- A Process head owns its identity, pinned Program definition, optional subject,
+  current status, monotonic revision, transcript frontier, and the exact active
+  attempt/checkpoint metadata. Beginning an attempt atomically commits its
+  accepted user entry, exact starting Workspace checkpoint, and idempotency
+  receipt before Pi submit. While that attempt may execute, the Process also
+  owns a renewable lease with a monotonic fencing generation. It does not own
+  Pi's private session format.
+- Transcript entries are the sole product authority for user-visible
+  Conversation history. Pi/provider continuation is separate opaque evidence;
+  neither source may be reconstructed from the other.
+- Workspace continuation and Program network access remain Program-scoped
+  product authorities. They are not copied into Process or transcript rows.
+
+### Clean replacement schema
+
+The preview database advances to physical Repository V9 by a row-blind reset.
+It deletes the V3 aggregate readers, every recognized V4–V8 preview store set,
+the superseded Worker wire, fixtures, and aliases in the same source cutover.
+There is no migration or dual reader before the first stable release.
+
+The replacement repository owns these logical units:
+
+1. `program_definitions` — immutable reusable Program/harness definitions,
+   including the pinned built-in Creator revision;
+2. `program_heads` — compact current Program/proposal/repository summary;
+3. `program_revisions` — immutable `(programId, programRevision)` content;
+4. `program_decisions` — immutable review outcomes and exact accepted Workspace
+   receipts;
+5. `processes` — compact Process heads pinned to a Program definition revision;
+6. `transcript_entries` — immutable `(processId, sequence)` rich Conversation
+   entries;
+7. `process_execution_leases` — one renewable Process execution lease whose
+   attempt generation is the publication fence;
+8. `catalog_commits` — exact catalog-mutation idempotency receipts;
+9. `process_commits` — the single exact Process operation-receipt authority for
+   attempt acquisition and terminal publication, not an alternate Process or
+   Conversation history; and
+10. existing Program-scoped Workspace continuation and network-access rows.
+
+There is no separate `agent_run_receipts` store. The Process head carries the
+semantic active/terminal attempt state; each lost-response reconciliation names
+one exact operation in `process_commits` and checks its complete admitted input
+digest.
+
+No Program, Process, revision, decision, receipt, message, Activity, or total
+transcript count is given an arbitrary semantic ceiling. Individual identifiers,
+text/structured parts, transaction batches and requested pages retain explicit
+admission budgets. IndexedDB quota failure remains an actionable storage error;
+it must not be translated into silent history deletion or a fixed maximum
+conversation length.
+
+### Transcript and projection contract
+
+- A transcript entry has a stable `entryId`, monotonic sequence, role/kind,
+  commit state, and versioned parts. The first admitted parts are text,
+  tool-call status/result, Artifact reference, and provider-exposed reasoning
+  summary. Hidden chain-of-thought is neither requested nor synthesized.
+- Assistant text/reasoning deltas and in-flight tool status are transient
+  attempt drafts. In P4-A they may become durable only in the lease-bound
+  terminal batch; this lane persists neither an interrupted partial nor any
+  mid-attempt entry/checkpoint. A real workflow that needs durable intermediate
+  stages requires a separate later lane.
+- Page reads are backward from an optional `beforeSequence` cursor and use a
+  per-request byte/work budget. A page budget limits one operation, not total
+  history. Stable cursors must neither duplicate nor omit entries while older
+  pages are loaded.
+- React mounts exactly one active Process Conversation subtree. It keeps a
+  bounded page/window projection, saves draft/scroll anchor/selection before a
+  switch, then unmounts the predecessor and releases observers, object URLs,
+  rich-text/OpenUI/tool/media resources.
+
+### Browser execution and recovery contract
+
+P4-A requires only three durable **semantic** execution mutations, all inside
+the single Product Repository authority. Lease renewal is a separate liveness
+CAS and advances no semantic checkpoint:
+
+1. **Begin attempt.** Before Pi submit, one Process CAS atomically commits the
+   accepted user entry, exact `processId`/`attemptId`, attempt generation,
+   starting Process/Workspace checkpoint, and exact operation receipt in
+   `process_commits`. An
+   exact retry names the existing trigger entry instead of duplicating the
+   user's words.
+2. **Successful terminal.** Once a current attempt has an admitted candidate
+   and exact current Workspace checkpoint, one Product Repository transaction
+   atomically commits the successor Program rows, admitted terminal transcript
+   batch, lease-bound final Process checkpoint naming that Workspace checkpoint,
+   and one exact terminal operation receipt in `process_commits`. Program success cannot become
+   visible without its matching Process terminal, or vice versa.
+3. **Non-success terminal.** Failure, cancellation, replacement, or interruption
+   commits only the admitted terminal transcript batch/Process terminal and one
+   exact terminal operation receipt in `process_commits`. It creates neither a
+   Program revision nor a new semantic Workspace checkpoint.
+
+An active attempt is protected by a **Process-scoped renewable lease**. Each new
+attempt acquisition receives a strictly larger fencing generation. Lease expiry
+does not mutate the old attempt or its generation: recovery uses that exact
+expired lease to terminalize the old attempt, and only a user-explicit retry
+creates a new attempt and acquires the next generation. Heartbeat only extends
+lease liveness; it is not a Conversation entry, Workspace checkpoint, semantic
+commit, or proof that Pi is still progressing. Every begin-attempt,
+lease-renewal, and terminal publication CAS names the exact lease generation, so
+a late callback from any retired generation cannot publish even if the old page
+or Worker resumes.
+
+Tabs that merely display the same idle Process own no execution resource. A
+passive foreground projection performs a lightweight durable Process-revision
+check on the lease-renewal cadence; a changed revision reloads the current
+Conversation and makes an attempt owned by another tab read-only. Losing an
+acquire race also refreshes immediately. This invalidation path improves UI
+freshness only: a missed or suspended poll cannot weaken the transactional
+lease/generation fence.
+
+Page hidden/freeze/discard is not a background-execution guarantee. The atomic
+Process head is cold-start truth: a committed terminal has already cleared its
+active attempt and recorded `lastTerminalAttempt`, while an exact active attempt
+plus expired lease means no terminal was committed. In the latter case, the
+successor compares the attempt's starting checkpoint with the authoritative
+Workspace checkpoint and classifies the predecessor as
+`interrupted/retryable` or `interrupted/unrecoverable`. Unknown file or external
+effects are never replayed blindly. An `outcome_unknown` response from the
+originating mutation performs only that mutation's exact operation-receipt
+query; it does not scan Conversation history, reconstruct an outcome by walking
+older receipts backward, infer completion from UI state, or resubmit the
+mutation.
+
+That interrupted terminal is immutable history. A later explicit retry is
+offered only while the current Workspace review still matches the Process's
+stored checkpoint exactly. If the Workspace later drifts or becomes
+unavailable, retry returns unavailable and the UI removes the action from its
+current projection; it does not rewrite the prior terminal, advance the Process
+revision, or add a fourth semantic transaction.
+
+The Process lease and the Workspace volume lock remain separate authorities. If
+the lease has expired but the Sandbox still reports the Program volume busy,
+the successor leaves the Process readable and recovery-pending; it neither
+steals the volume nor treats temporary lock contention as unrecoverable. Only
+after the authoritative Workspace can be inspected may the checkpoint
+comparison settle the expired attempt.
+
+This checkpoint deliberately does **not** introduce per-tool event sourcing or
+make every Workspace mutation receipt a durable Conversation record. P4-A may
+commit admitted rich/tool parts only inside the terminal batch; it writes no
+durable intermediate tool, Workspace-receipt, or workflow-stage record.
+Recovery depends only on the exact terminal operation receipt and authoritative
+Workspace checkpoint. A real multi-stage workflow starts a separate lane. P4-A
+also does not add a general workflow runtime, a transaction spanning Product
+IndexedDB and Sandbox OPFS, or a general rollback/replay framework.
+Cross-authority effects remain ordered and reconciled through the named terminal
+receipt and checkpoint rather than being described as atomic.
+
+### Delivery order and gates
+
+1. **P4-A0 — contracts and repository conformance (complete).** Define Program
+   definition, Process head, rich transcript entries/pages and CAS mutations
+   with Memory conformance tests. Prove Creator rev1 pinning, two independent
+   Processes, multi-page lossless traversal, stable entry identity, atomic
+   operation receipt, conflict and retry.
+2. **P4-A1 — physical/Worker clean cutover (complete).** Replace IndexedDB and
+   Worker wire, row-blind reset the preview schema, and prove single-transaction
+   abort atomicity, cold reopen, concurrent contenders, outcome-unknown
+   reconciliation and no V3 reader in the final graph.
+3. **P4-A2 — Controller and single-active projection (complete).** Migrate
+   current Creator behavior, load only the active Process window, add explicit
+   older-page load, and prove Process switching unmounts the prior rich subtree
+   without losing draft/view state.
+4. **P4-A3 — execution lease and terminal reconciliation (complete).** Deliver
+   atomic attempt admission, Process-scoped lease renewal, monotonic fencing
+   generation, lease-bound terminal publication, successful terminal checkpoint,
+   same-call `outcome_unknown` reconciliation through one exact operation
+   receipt, and expired-lease recovery through the authoritative
+   Process/Workspace checkpoints. Prove recovery terminalizes the exact expired
+   attempt without changing its generation, an old generation cannot publish
+   afterward, only explicit retry acquires a new generation, an unterminated
+   predecessor is classified as retryable or unrecoverable, and
+   `outcome_unknown` queries only its one exact operation receipt.
+5. **P4-A4 — product qualification (complete).** Exercise a transcript
+   materially larger than one page/window, terminal-batch rich/tool blocks,
+   Process switching, reload and controlled discard in Chromium and persistent-
+   profile WebKit. Measure mounted nodes/resources and interaction
+   responsiveness without turning the fixture size into a product limit.
+
+P4-A closed after the superseded aggregate/session persistence was deleted and
+the final build retained one Program/Process authority. The focused independent
+contract set passed `97/97`; the named P4-A rich-Conversation/reload/controlled-
+discard journeys passed Chromium and WebKit `4/4`, and the real two-page
+Process-lease contender/observer journey passed Chromium and WebKit `2/2`.
+`deno task check` passed `481` files / `6,251` tests together with the public
+Mod external-consumer, Browser, application-build, and structural build gates.
+The complete Chromium SillyOS product suite also passed `27/28`, with the one
+remaining case skipped by its existing platform condition and all 27 executed
+cases passing, including DS1 visual baselines and both P4-A journeys.
+React Doctor reported 24 advisory findings; each was classified as nonblocking
+transaction ordering, bounded-projection, or broad-component refactor advice
+rather than auto-applied.
+
+Two evidence limits remain explicit and nonblocking. The large-history Browser
+fixture seeds only its old Conversation prefix directly to exercise storage,
+paging, and rendering; its attempt and terminal entry still use the real
+lease-bound Repository path. Graceful page teardown does not actively release
+the Process lease, so a contender may wait for the nominal roughly 30-second
+expiry; monotonic generation fencing still prevents the retired owner from
+publishing. Translation workflow, OpenUI generation, pi-workflow, subagents and
+Program package distribution remain later consumers.
+
+The dated P2/P3 sections below remain historical delivery evidence. Their
+Program aggregate, Creator session, message/Activity ceilings, and physical
+V2–V7 schema names are not current P4-A contracts or compatibility surfaces.
 
 ## Engine absorption and product design-system sequence
 
@@ -364,9 +594,10 @@ The delivered sequence was:
    Source facet, and separate preview-manifest download. View now projects only
    manifest-backed Program name, purpose, revision, and status, followed by an
    explicit no-admitted-visual-workpiece state. The existing Workspace ZIP,
-   proposed Capabilities, Activity, Workspace generation and mutation receipt,
-   and Browser storage projection remain because they are backed by their owning
-   repositories or runtime receipts. This checkpoint does not add a file manager,
+   proposed Capabilities, Workspace generation/mutation receipt, and Browser
+   storage projection remain because they are backed by their owning repositories
+   or runtime receipts. The Activity facet remained at this checkpoint; P4-A
+   later clean-removes it in favor of the Process Conversation. This checkpoint does not add a file manager,
    editor, generated-UI/`UiArtifact` framework, Workspace contract, or
    SillyMaker engine/API change.
 
@@ -381,12 +612,13 @@ The delivered sequence was:
    retain role/live-region semantics and domain state. It explicitly excludes a
    generic async state machine, credential/Test coupling, Provider qualification,
    or engine API.
-4. **DS1d — surface convergence (delivered 2026-08-30).** Creator Home,
-   Settings, Provider Settings, Chat, Workspace View, and Activity now own their
+4. **DS1d — surface convergence (delivered 2026-08-30).** At this checkpoint Creator Home,
+   Settings, Provider Settings, Chat, Workspace View, and Activity owned their
    independently loaded surface styles. Each slice removed superseded selectors
    after its real consumers moved; the residual stylesheet now owns only shared
    application/chrome and cross-surface rules rather than a second component
-   system.
+   system. P4-A later deletes the Activity surface and stylesheet rather than
+   retaining an unused design-system consumer.
 5. **DS1e — closure (delivered 2026-08-30).** The closing slices removed unused
    component options and dead styles, converged the last ordinary Retry action,
    simplified impossible JSON-admission defenses at the product-preference
@@ -494,8 +726,9 @@ Agent, Provider, Vault, or engine contracts. It clean-removes the preview-only
 fake `program.ts`/Source recipe, and preview-manifest download. The Workpiece
 View now shows only manifest-backed Program facts and an honest empty state until
 a later admitted visual artifact or application view exists. Workspace ZIP,
-Capabilities, Activity, exact generation/mutation receipt, and Browser storage
-remain visible on their owning real paths. Focused UI contracts and desktop/
+Capabilities, exact generation/mutation receipt, and Browser storage remain
+visible on their owning real paths. Activity remained in the DS1c-2 snapshot
+and is subsequently removed by P4-A. Focused UI contracts and desktop/
 mobile in-app Browser inspection cover the new boundary. No file manager,
 editor, `UiArtifact` framework, or SillyMaker engine/API surface was introduced.
 DS1d–DS1e remained active at that checkpoint and are now closed.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { ArrowLeft, CircleCheck, LayoutGrid, MessageCircle } from "lucide-react";
+import { ArrowLeft, LayoutGrid, MessageCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
@@ -8,7 +8,7 @@ import { IconButtonV1 } from "./design-system/button.tsx";
 import { SillyOsBrandV1 } from "./product-chrome.tsx";
 import { ProductMenuV1 } from "./product-menu.tsx";
 
-export type WorkspaceMobilePaneV1 = "chat" | "preview" | "activity";
+export type WorkspaceMobilePaneV1 = "chat" | "preview";
 
 export function ProgramWorkspaceTopbarV1({
   copy,
@@ -63,13 +63,11 @@ export function ProgramWorkspaceMobileNavV1({
   activePane,
   onChat,
   onPreview,
-  onActivity,
 }: {
   readonly copy: SillyOsCopyV1;
   readonly activePane: WorkspaceMobilePaneV1;
   readonly onChat: () => void;
   readonly onPreview: () => void;
-  readonly onActivity: () => void;
 }): ReactNode {
   return (
     <nav className="program-workspace__mobile-nav" aria-label={copy.mobileNavigation}>
@@ -90,15 +88,6 @@ export function ProgramWorkspaceMobileNavV1({
       >
         <LayoutGrid size={18} aria-hidden="true" />
         {copy.previewTab}
-      </button>
-      <button
-        type="button"
-        className={activePane === "activity" ? "is-active" : undefined}
-        aria-pressed={activePane === "activity"}
-        onClick={onActivity}
-      >
-        <CircleCheck size={18} aria-hidden="true" />
-        {copy.activityTab}
       </button>
     </nav>
   );

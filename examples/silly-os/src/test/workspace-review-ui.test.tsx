@@ -7,14 +7,14 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getSillyOsCopyV1 } from "../content/copy.ts";
 import type { BrowserPiReasoningEffortV1 } from "../agent/browser-pi-worker-protocol.ts";
-import type {
-  CreatorSessionSnapshotV1,
-  PreviewProgramV1,
-  ProgramProposalV1,
-} from "../product/contracts.ts";
+import type { PreviewProgramV1, ProgramProposalV1 } from "../product/contracts.ts";
+import type { CreatorActiveProcessProjectionV1 } from "../product/creator-controller.ts";
 import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
 import { ChatPaneV1, type ChatPanePropsV1, ProgramWorkspaceReviewV1 } from "../ui/chat-pane.tsx";
-import { ProgramWorkspaceV1 } from "../ui/program-workspace.tsx";
+import {
+  createDefaultProgramWorkspaceSessionViewStateV1,
+  ProgramWorkspaceV1,
+} from "../ui/program-workspace.tsx";
 
 afterEach(cleanup);
 beforeAll(() => {
@@ -61,6 +61,14 @@ const proposalV1: ProgramProposalV1 = {
   status: "pending",
 };
 
+const emptyTranscriptV1 = {
+  entries: [],
+  byteLength: 0,
+  nextBeforeSequence: null,
+  newerOmitted: false,
+  phase: "ready" as const,
+};
+
 const changedReviewV1: ProgramWorkspaceReviewProjectionV1 = {
   revision: 1,
   latestAccepted: {
@@ -85,20 +93,53 @@ const changedReviewV1: ProgramWorkspaceReviewProjectionV1 = {
   pendingStatus: "changed",
 };
 
-const snapshotV1: CreatorSessionSnapshotV1 = {
-  revision: 1,
-  source: "deterministic_fake_preview",
-  route: "workspace",
-  workspace: {
-    workspaceId: "workspace.review-ui",
-    intent: "Keep review currentness truthful.",
-    title: "Review studio",
-  },
-  messages: [],
-  proposal: proposalV1,
-  program: programV1,
-  activity: [],
-};
+function activeProcessV1(
+  workspaceReview: ProgramWorkspaceReviewProjectionV1 | null,
+): CreatorActiveProcessProjectionV1 {
+  return {
+    process: {
+      schemaVersion: 1,
+      processId: "process.workspace.review-ui",
+      revision: 1,
+      programDefinition: { programId: "sillyos.builtin.creator", revision: 1 },
+      subjectProgramId: programV1.programId,
+      status: "active",
+      transcriptFrontier: 0,
+      activeAttempt: null,
+      lastTerminalAttempt: null,
+      checkpoint: null,
+      createdAt: 1,
+      updatedAt: 1,
+    },
+    definition: {
+      schemaVersion: 1,
+      programId: "sillyos.builtin.creator",
+      revision: 1,
+      kind: "creator",
+      name: "Agent Creator",
+      purpose: "Create Programs.",
+      harnessReference: "harness.sillyos.creator.1",
+      capabilityIds: [],
+    },
+    subject: {
+      head: {
+        schemaVersion: 1,
+        programId: programV1.programId,
+        repositoryRevision: 1,
+        currentProgramRevision: programV1.revision,
+        proposal: proposalV1,
+        latestAccepted: null,
+        workspaceId: "workspace.review-ui",
+        updatedAt: 1,
+        pendingReviewBinding: null,
+      },
+      currentProgram: programV1,
+      latestDecision: null,
+    },
+    transcript: emptyTranscriptV1,
+    workspaceReview,
+  };
+}
 
 function renderChatV1(
   review: ProgramWorkspaceReviewProjectionV1 | null,
@@ -107,7 +148,7 @@ function renderChatV1(
   return render(
     <ChatPaneV1
       copy={getSillyOsCopyV1("en")}
-      messages={[]}
+      transcript={emptyTranscriptV1}
       proposal={proposal}
       program={programV1}
       workspaceReview={review}
@@ -137,7 +178,7 @@ function renderAgentChatV1(
   return render(
     <ChatPaneV1
       copy={getSillyOsCopyV1("en")}
-      messages={[]}
+      transcript={emptyTranscriptV1}
       proposal={proposalV1}
       program={programV1}
       workspaceReview={null}
@@ -181,7 +222,7 @@ describe("SillyOS Workspace composer model selection", () => {
     view.rerender(
       <ChatPaneV1
         copy={getSillyOsCopyV1("en")}
-        messages={[]}
+        transcript={emptyTranscriptV1}
         proposal={proposalV1}
         program={programV1}
         workspaceReview={null}
@@ -263,7 +304,7 @@ describe("SillyOS Workspace composer model selection", () => {
     view.rerender(
       <ChatPaneV1
         copy={getSillyOsCopyV1("en")}
-        messages={[]}
+        transcript={emptyTranscriptV1}
         proposal={proposalV1}
         program={programV1}
         workspaceReview={null}
@@ -521,8 +562,9 @@ describe("SillyOS Workspace review presentation", () => {
     const view = render(
       <ProgramWorkspaceV1
         copy={getSillyOsCopyV1("en")}
-        snapshot={snapshotV1}
-        workspaceReview={exactReview}
+        activeProcess={activeProcessV1(exactReview)}
+        initialViewState={createDefaultProgramWorkspaceSessionViewStateV1()}
+        onViewStateChange={vi.fn()}
         executionWorkspace={{
           phase: "open",
           descriptor: { workspaceSessionId: "workspace-session.review-ui", generation: 6 },
@@ -536,6 +578,7 @@ describe("SillyOS Workspace review presentation", () => {
         onAccept={vi.fn()}
         onReject={vi.fn()}
         onSend={vi.fn()}
+        onLoadOlderTranscript={vi.fn()}
       />,
     );
 
@@ -550,8 +593,9 @@ describe("SillyOS Workspace review presentation", () => {
     view.rerender(
       <ProgramWorkspaceV1
         copy={getSillyOsCopyV1("en")}
-        snapshot={snapshotV1}
-        workspaceReview={exactReview}
+        activeProcess={activeProcessV1(exactReview)}
+        initialViewState={createDefaultProgramWorkspaceSessionViewStateV1()}
+        onViewStateChange={vi.fn()}
         decisionPending
         executionWorkspace={{
           phase: "failed",
@@ -566,6 +610,7 @@ describe("SillyOS Workspace review presentation", () => {
         onAccept={vi.fn()}
         onReject={vi.fn()}
         onSend={vi.fn()}
+        onLoadOlderTranscript={vi.fn()}
       />,
     );
 
@@ -575,5 +620,73 @@ describe("SillyOS Workspace review presentation", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "its relationship to this proposal is unknown",
     );
+  });
+
+  it("offers interrupted retry only while the current Workspace head matches its checkpoint", () => {
+    const exactReview: ProgramWorkspaceReviewProjectionV1 = {
+      ...changedReviewV1,
+      mutableHead: {
+        checkpointId: "checkpoint.workspace.review-ui.retry",
+        generation: 7,
+      },
+    };
+    const retryableProcess: CreatorActiveProcessProjectionV1 = {
+      ...activeProcessV1(exactReview),
+      process: {
+        ...activeProcessV1(exactReview).process,
+        revision: 3,
+        status: "interrupted_retryable",
+        transcriptFrontier: 2,
+        lastTerminalAttempt: {
+          attemptId: "attempt.workspace.review-ui.retry",
+          generation: 1,
+          outcome: "interrupted",
+          triggerEntryId: "entry.workspace.review-ui.retry",
+          triggerSequence: 1,
+          interruptionDisposition: "retryable",
+        },
+        checkpoint: {
+          checkpointId: "process-checkpoint.workspace.review-ui.retry",
+          throughSequence: 2,
+          workspaceId: "workspace.review-ui",
+          workspaceCheckpointId: exactReview.mutableHead!.checkpointId,
+          workspaceGeneration: exactReview.mutableHead!.generation,
+        },
+      },
+    };
+    const props = {
+      copy: getSillyOsCopyV1("en"),
+      initialViewState: createDefaultProgramWorkspaceSessionViewStateV1(),
+      onViewStateChange: vi.fn(),
+      onHome: vi.fn(),
+      onLocaleChange: vi.fn(),
+      theme: "system" as const,
+      onThemeChange: vi.fn(),
+      onAccept: vi.fn(),
+      onReject: vi.fn(),
+      onSend: vi.fn(),
+      onLoadOlderTranscript: vi.fn(),
+      onRetryInterruptedAgentRun: vi.fn(),
+    };
+    const view = render(<ProgramWorkspaceV1 {...props} activeProcess={retryableProcess} />);
+
+    expect(screen.getByRole("button", { name: "Retry interrupted run" })).toBeEnabled();
+
+    view.rerender(
+      <ProgramWorkspaceV1
+        {...props}
+        activeProcess={{
+          ...retryableProcess,
+          workspaceReview: {
+            ...exactReview,
+            mutableHead: {
+              checkpointId: "checkpoint.workspace.review-ui.changed",
+              generation: 8,
+            },
+          },
+        }}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Retry interrupted run" })).toBeNull();
   });
 });

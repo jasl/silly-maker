@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { LoaderCircle, RotateCcw, TriangleAlert } from "lucide-react";
 import {
+  Fragment,
   type ReactNode,
   useCallback,
   useEffect,
@@ -40,6 +41,8 @@ import type {
   CreatorControllerV1,
   CreatorDurabilityStateV1,
 } from "../product/creator-controller.ts";
+import { creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1 } from "../product/creator-controller.ts";
+import type { CreatorAgentRunRequestV1 } from "../product/contracts.ts";
 import {
   createBrowserDataResetCoordinatorV1,
   runBrowserDataResetOperationV1,
@@ -79,6 +82,14 @@ import {
   acknowledgeAppliedAgentTerminalV1,
   canConsumeAgentTerminalV1,
 } from "./agent-terminal-acknowledgement.ts";
+import {
+  type AgentRunLeaseMonitorV1,
+  hasUnownedProcessExecutionV1,
+  pollOwnedAgentRunLeaseV1,
+  pollPassiveProcessProjectionV1,
+  recoverLostAgentRunExecutionV1,
+  startAgentRunLeaseMonitorV1,
+} from "./agent-run-lease-monitor.ts";
 import { CreatorHomeV1 } from "./creator-home.tsx";
 import {
   creatorVaultCanHandoffProviderCredentialV1,
@@ -88,8 +99,13 @@ import {
   projectCreatorVaultStatusV1,
 } from "./creator-readiness.ts";
 import { ButtonV1 } from "./design-system/button.tsx";
+import { CollectionStateV1 } from "./collection-state.tsx";
 import { SillyOsOverlayHostV1 } from "./design-system/overlay-host.tsx";
-import { ProgramWorkspaceV1 } from "./program-workspace.tsx";
+import {
+  createDefaultProgramWorkspaceSessionViewStateV1,
+  type ProgramWorkspaceSessionViewStateV1,
+  ProgramWorkspaceV1,
+} from "./program-workspace.tsx";
 import {
   type ProviderSettingsCatalogV1,
   type ProviderSettingsClearAllV1,
@@ -117,7 +133,6 @@ import "./settings.css";
 import "./provider-settings.css";
 import "./chat.css";
 import "./workspace-view.css";
-import "./activity.css";
 import "./silly-os.css";
 import "./design-system/tailwind.css";
 
@@ -131,6 +146,46 @@ export interface SillyOsAppPropsV1 {
 export interface SillyOsAgentDrainRegistryV1 {
   isAccepting(): boolean;
   register(drain: () => Promise<void>): () => void;
+}
+
+/**
+ * Makes Process identity the lifetime boundary for rich Conversation UI while
+ * leaving the surrounding product shell mounted.
+ */
+export function ActiveProcessMountBoundaryV1({
+  processId,
+  children,
+}: {
+  readonly processId: string;
+  readonly children: ReactNode;
+}): ReactNode {
+  return <Fragment key={processId}>{children}</Fragment>;
+}
+
+export interface ProgramWorkspaceSessionViewStateStoreV1 {
+  read(processId: string): ProgramWorkspaceSessionViewStateV1;
+  write(processId: string, state: ProgramWorkspaceSessionViewStateV1): void;
+  clear(): void;
+}
+
+/**
+ * Retains only inexpensive, serializable view preferences while a Process rich
+ * UI subtree is unmounted. Transcript DOM and other React-owned resources stay
+ * inside the keyed Process lifetime.
+ */
+export function createProgramWorkspaceSessionViewStateStoreV1(): ProgramWorkspaceSessionViewStateStoreV1 {
+  const states = new Map<string, ProgramWorkspaceSessionViewStateV1>();
+  return {
+    read(processId) {
+      return states.get(processId) ?? createDefaultProgramWorkspaceSessionViewStateV1();
+    },
+    write(processId, state) {
+      states.set(processId, { ...state });
+    },
+    clear() {
+      states.clear();
+    },
+  };
 }
 
 type BrowserCreatorAgentModuleV1 = typeof import("../agent/creator-agent-port.ts");
@@ -568,6 +623,9 @@ export function SillyOsAppV1({
   agentDrainRegistry,
   reportFailure,
 }: SillyOsAppPropsV1): ReactNode {
+  const [processViewStates] = useState(createProgramWorkspaceSessionViewStateStoreV1);
+  const [processConversationRestorePending, setProcessConversationRestorePending] = useState(false);
+  const processConversationRestoreEpochRef = useRef(0);
   const [productPreferencesRepository] = useState(createProductPreferencesRepositoryV1);
   const productPreferences = useSyncExternalStore(
     productPreferencesRepository?.subscribe ?? subscribeUnavailableProductPreferencesV1,
@@ -681,6 +739,11 @@ export function SillyOsAppV1({
   const agentTeardownRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
   const agentWorkspaceLifecycleRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
   const agentTerminalSettlementRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
+  const ownedAgentRunsRef = useRef(new Map<string, CreatorAgentRunRequestV1>());
+  const leaseLostAgentRunIdsRef = useRef(new Set<string>());
+  const ownedAgentLeaseMonitorRef = useRef<AgentRunLeaseMonitorV1 | null>(null);
+  const unownedProcessRecoveryMonitorRef = useRef<AgentRunLeaseMonitorV1 | null>(null);
+  const agentLeaseMonitorSettlementsRef = useRef(new Set<Promise<void>>());
   const workspaceExportEpochRef = useRef(0);
   const networkAccessEpochRef = useRef(0);
   const networkAccessMutationPendingRef = useRef(false);
@@ -695,15 +758,22 @@ export function SillyOsAppV1({
     controller.getSnapshot,
     controller.getSnapshot,
   );
-  const snapshot = controllerSnapshot.session;
+  const snapshot = controllerSnapshot;
   const durability = controllerSnapshot.durability;
   const copy = getSillyOsCopyV1(locale);
-  const routedProgramId = snapshot.route === "workspace"
-    ? snapshot.program?.programId ?? null
+  const routedProgram = snapshot.route === "process"
+    ? snapshot.activeProcess?.subject?.currentProgram ?? null
     : null;
+  const routedProgramId = routedProgram?.programId ?? null;
   const routedProgramIdRef = useRef(routedProgramId);
-  const routedWorkspaceId = snapshot.route === "workspace"
-    ? snapshot.workspace?.workspaceId ?? null
+  const routedWorkspaceId = snapshot.route === "process"
+    ? snapshot.activeProcess?.subject?.head.workspaceId ?? null
+    : null;
+  const activeProcessId = snapshot.route === "process"
+    ? snapshot.activeProcess?.process.processId ?? null
+    : null;
+  const activeProcessAttemptId = snapshot.route === "process"
+    ? snapshot.activeProcess?.process.activeAttempt?.attemptId ?? null
     : null;
   const executionWorkspaceSessionId = agentSnapshot?.workspace.descriptor?.workspaceSessionId ??
     null;
@@ -787,6 +857,30 @@ export function SillyOsAppV1({
     return teardown;
   }, []);
 
+  const trackAgentLeaseMonitorDrainV1 = useCallback((
+    monitor: AgentRunLeaseMonitorV1,
+  ): Promise<void> => {
+    const settlement = monitor.drain().catch((error: unknown) => {
+      reportFailureRef.current("silly_os.process_execution_monitor_failed", error);
+    });
+    agentLeaseMonitorSettlementsRef.current.add(settlement);
+    void settlement.finally(() => agentLeaseMonitorSettlementsRef.current.delete(settlement));
+    return settlement;
+  }, []);
+
+  const drainAgentLeaseMonitorsV1 = useCallback(async (): Promise<void> => {
+    const monitors = [
+      ownedAgentLeaseMonitorRef.current,
+      unownedProcessRecoveryMonitorRef.current,
+    ].filter((monitor): monitor is AgentRunLeaseMonitorV1 => monitor !== null);
+    ownedAgentLeaseMonitorRef.current = null;
+    unownedProcessRecoveryMonitorRef.current = null;
+    for (const monitor of monitors) void trackAgentLeaseMonitorDrainV1(monitor);
+    while (agentLeaseMonitorSettlementsRef.current.size > 0) {
+      await Promise.all([...agentLeaseMonitorSettlementsRef.current]);
+    }
+  }, [trackAgentLeaseMonitorDrainV1]);
+
   const drainAgentGraphV1 = useCallback(async (): Promise<void> => {
     agentSetupEpochRef.current += 1;
     agentConfigurationPendingRef.current = false;
@@ -800,6 +894,8 @@ export function SillyOsAppV1({
     workspaceExportAbortRef.current?.abort();
     workspaceExportAbortRef.current = null;
     claimedTerminalRunIdsRef.current.clear();
+    ownedAgentRunsRef.current.clear();
+    leaseLostAgentRunIdsRef.current.clear();
     credentialVaultEpochRef.current += 1;
     credentialVaultOperationEpochRef.current += 1;
     const credentialVaultPort = credentialVaultPortRef.current;
@@ -814,15 +910,18 @@ export function SillyOsAppV1({
       reasoningEffortSelectionSettlementRef.current.catch(() => undefined),
       agentWorkspaceLifecycleRef.current.catch(() => undefined),
       agentTerminalSettlementRef.current.catch(() => undefined),
+      drainAgentLeaseMonitorsV1(),
       agentTeardownRef.current.catch(() => undefined),
       credentialVaultSettlementRef.current.catch(() => undefined),
     ]);
     await agentTeardownRef.current.catch(() => undefined);
-  }, [queueAgentPortTeardownV1]);
+  }, [drainAgentLeaseMonitorsV1, queueAgentPortTeardownV1]);
 
   useEffect(() => {
     void controller.initialize();
   }, [controller]);
+
+  useEffect(() => () => processViewStates.clear(), [processViewStates]);
 
   useEffect(() => {
     if (!agentDrainRegistry.isAccepting()) return undefined;
@@ -918,45 +1017,6 @@ export function SillyOsAppV1({
     setWorkspaceExport({ phase: "idle" });
   }, [executionWorkspaceSessionId, routedProgramId, routedWorkspaceId]);
 
-  useEffect(() => {
-    const port = agentPortRef.current;
-    const terminal = agentSnapshot?.terminalRuns[0];
-    if (
-      port === null || terminal === undefined || !canConsumeAgentTerminalV1(durability.phase) ||
-      claimedTerminalRunIdsRef.current.has(terminal.run.agentRunId)
-    ) return;
-    claimedTerminalRunIdsRef.current.add(terminal.run.agentRunId);
-    const settlement = (async (): Promise<void> => {
-      try {
-        const persistence = await controller.recordAgentRunTerminal(terminal);
-        if (persistence.kind === "busy") return;
-        const acknowledgement = await acknowledgeAppliedAgentTerminalV1({
-          persistence,
-          agentRunId: terminal.run.agentRunId,
-          receipts: port.getSnapshot().workspace.receipts,
-          acknowledgeWorkspaceReceipts: (throughSequence) =>
-            port.acknowledgeWorkspaceReceipts(throughSequence),
-          acknowledgeTerminal: (agentRunId) => port.acknowledgeTerminal(agentRunId),
-        });
-        if (acknowledgement.kind === "retained") {
-          reportFailure("silly_os.browser_pi_terminal_rejected", persistence);
-        } else if (acknowledgement.kind === "workspace_unavailable") {
-          reportFailure(
-            "silly_os.browser_pi_workspace_receipt_acknowledge_failed",
-            acknowledgement.diagnostic,
-          );
-        } else if (acknowledgement.kind === "terminal_unavailable") {
-          reportFailure("silly_os.browser_pi_terminal_acknowledge_failed", terminal.run.agentRunId);
-        }
-      } catch (error) {
-        reportFailure("silly_os.browser_pi_terminal_rejected", error);
-      } finally {
-        claimedTerminalRunIdsRef.current.delete(terminal.run.agentRunId);
-      }
-    })();
-    agentTerminalSettlementRef.current = settlement;
-  }, [agentSnapshot, controller, durability.phase, reportFailure]);
-
   const queueAgentWorkspaceV1 = useCallback((
     port: BrowserCreatorAgentPortV1,
     desired: { readonly programId: string; readonly workspaceId: string } | null,
@@ -1006,6 +1066,199 @@ export function SillyOsAppV1({
     agentWorkspaceLifecycleRef.current = operation.then(() => undefined);
     return operation;
   }, [agentDrainRegistry, reportFailure]);
+
+  const recoverLostOwnedAgentRunV1 = useCallback(async (
+    port: BrowserCreatorAgentPortV1,
+    run: CreatorAgentRunRequestV1,
+  ): Promise<void> => {
+    leaseLostAgentRunIdsRef.current.add(run.agentRunId);
+    ownedAgentRunsRef.current.delete(run.agentRunId);
+    await recoverLostAgentRunExecutionV1({
+      cancelRun: async () => {
+        const cancelled = await port.cancel(run.agentRunId);
+        if (cancelled.kind === "unavailable") {
+          reportFailureRef.current(
+            "silly_os.browser_pi_cancel_after_lease_loss_failed",
+            cancelled.diagnostic,
+          );
+        }
+      },
+      releaseWorkspace: async () => {
+        if (!await queueAgentWorkspaceV1(port, null)) {
+          reportFailureRef.current(
+            "silly_os.browser_pi_workspace_release_after_lease_loss_failed",
+            run.processId,
+          );
+        }
+      },
+      reloadProcess: async () => {
+        const recovered = await controller.reloadLatestTranscript();
+        if (recovered.kind === "failed") {
+          reportFailureRef.current(
+            "silly_os.process_execution_recovery_failed",
+            recovered,
+          );
+        }
+      },
+    });
+  }, [controller, queueAgentWorkspaceV1]);
+
+  useEffect(() => {
+    const port = agentPortRef.current;
+    const terminal = agentSnapshot?.terminalRuns[0];
+    if (
+      port === null || terminal === undefined || !canConsumeAgentTerminalV1(durability.phase) ||
+      claimedTerminalRunIdsRef.current.has(terminal.run.agentRunId)
+    ) return;
+    claimedTerminalRunIdsRef.current.add(terminal.run.agentRunId);
+    ownedAgentRunsRef.current.delete(terminal.run.agentRunId);
+    const settlement = (async (): Promise<void> => {
+      let releaseLeaseLostMarker = true;
+      try {
+        if (leaseLostAgentRunIdsRef.current.has(terminal.run.agentRunId)) {
+          const acknowledgement = await port.acknowledgeTerminal(terminal.run.agentRunId);
+          if (acknowledgement.kind === "workspace_unavailable") {
+            releaseLeaseLostMarker = false;
+            reportFailure(
+              "silly_os.browser_pi_workspace_receipt_acknowledge_failed",
+              acknowledgement.diagnostic,
+            );
+          }
+          return;
+        }
+        const persistence = await controller.recordAgentRunTerminal(terminal);
+        if (persistence.kind === "busy") return;
+        if (persistence.kind === "completed" && persistence.value.kind !== "applied") {
+          await recoverLostOwnedAgentRunV1(port, terminal.run).catch(
+            (error: unknown) => {
+              reportFailure("silly_os.process_execution_recovery_failed", error);
+            },
+          );
+        }
+        const acknowledgement = await acknowledgeAppliedAgentTerminalV1({
+          persistence,
+          agentRunId: terminal.run.agentRunId,
+          acknowledgeTerminal: (agentRunId) => port.acknowledgeTerminal(agentRunId),
+        });
+        if (acknowledgement.kind === "retained") {
+          reportFailure("silly_os.browser_pi_terminal_rejected", persistence);
+        } else if (acknowledgement.kind === "workspace_unavailable") {
+          if (leaseLostAgentRunIdsRef.current.has(terminal.run.agentRunId)) {
+            releaseLeaseLostMarker = false;
+          }
+          reportFailure(
+            "silly_os.browser_pi_workspace_receipt_acknowledge_failed",
+            acknowledgement.diagnostic,
+          );
+        } else if (acknowledgement.kind === "terminal_unavailable") {
+          reportFailure("silly_os.browser_pi_terminal_acknowledge_failed", terminal.run.agentRunId);
+        }
+      } catch (error) {
+        reportFailure("silly_os.browser_pi_terminal_rejected", error);
+      } finally {
+        claimedTerminalRunIdsRef.current.delete(terminal.run.agentRunId);
+        if (releaseLeaseLostMarker) {
+          leaseLostAgentRunIdsRef.current.delete(terminal.run.agentRunId);
+        }
+      }
+    })();
+    agentTerminalSettlementRef.current = settlement;
+  }, [
+    agentSnapshot,
+    controller,
+    durability.phase,
+    recoverLostOwnedAgentRunV1,
+    reportFailure,
+  ]);
+
+  useEffect(() => {
+    const port = agentPortRef.current;
+    const activeRunId = agentSnapshot?.activeRunId ?? null;
+    const run = activeRunId === null ? null : ownedAgentRunsRef.current.get(activeRunId) ?? null;
+    if (port === null || run === null || !agentDrainRegistry.isAccepting()) return undefined;
+
+    const monitor = startAgentRunLeaseMonitorV1({
+      intervalMilliseconds: creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1,
+      poll: () =>
+        pollOwnedAgentRunLeaseV1({
+          renew: async () => {
+            const renewal = await controller.renewAgentRunLease(run);
+            return renewal.kind === "completed" ? renewal.value : "lost";
+          },
+          onLost: () => recoverLostOwnedAgentRunV1(port, run),
+        }),
+      onError: (error) => {
+        reportFailureRef.current("silly_os.process_execution_renewal_failed", error);
+      },
+    });
+    ownedAgentLeaseMonitorRef.current = monitor;
+    return () => {
+      if (ownedAgentLeaseMonitorRef.current === monitor) {
+        ownedAgentLeaseMonitorRef.current = null;
+      }
+      void trackAgentLeaseMonitorDrainV1(monitor);
+    };
+  }, [
+    agentDrainRegistry,
+    agentSnapshot?.activeRunId,
+    controller,
+    recoverLostOwnedAgentRunV1,
+    trackAgentLeaseMonitorDrainV1,
+  ]);
+
+  useEffect(() => {
+    if (
+      activeProcessId === null ||
+      (activeProcessAttemptId !== null && ownedAgentRunsRef.current.has(activeProcessAttemptId)) ||
+      !agentDrainRegistry.isAccepting()
+    ) return undefined;
+    const processId = activeProcessId;
+    let recoveryFailureReported = false;
+
+    const monitor = startAgentRunLeaseMonitorV1({
+      intervalMilliseconds: creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1,
+      poll: () =>
+        pollPassiveProcessProjectionV1({
+          processId,
+          read: () => {
+            const current = controller.getSnapshot();
+            const process = current.route === "process" ? current.activeProcess?.process : null;
+            return process === null || process === undefined ? null : {
+              processId: process.processId,
+              activeAttemptId: process.activeAttempt?.attemptId ?? null,
+            };
+          },
+          ownsAttempt: (attemptId) => ownedAgentRunsRef.current.has(attemptId),
+          refresh: async () => {
+            const recovered = await controller.refreshActiveProcess();
+            if (recovered.kind === "failed") {
+              if (!recoveryFailureReported) {
+                recoveryFailureReported = true;
+                reportFailureRef.current("silly_os.process_execution_recovery_failed", recovered);
+              }
+            } else {
+              recoveryFailureReported = false;
+            }
+          },
+        }),
+      onError: (error) => {
+        reportFailureRef.current("silly_os.process_execution_recovery_failed", error);
+      },
+    });
+    unownedProcessRecoveryMonitorRef.current = monitor;
+    return () => {
+      if (unownedProcessRecoveryMonitorRef.current === monitor) {
+        unownedProcessRecoveryMonitorRef.current = null;
+      }
+      void trackAgentLeaseMonitorDrainV1(monitor);
+    };
+  }, [
+    agentDrainRegistry,
+    activeProcessAttemptId,
+    activeProcessId,
+    controller,
+    trackAgentLeaseMonitorDrainV1,
+  ]);
 
   useEffect(() => {
     const port = agentPortRef.current;
@@ -1155,7 +1408,7 @@ export function SillyOsAppV1({
   ]);
 
   const openSettingsV1 = (): void => {
-    settingsReturnTargetRef.current = snapshot.route;
+    settingsReturnTargetRef.current = snapshot.route === "home" ? "home" : "workspace";
     setSettingsInitialSection("general");
     setSettingsOpen(true);
     if (providerCatalog.phase === "loading") loadProviderCatalogV1();
@@ -1280,6 +1533,8 @@ export function SillyOsAppV1({
       setActiveProviderSelection(null);
       setConnectionTest({ phase: "disconnected", active: null });
       claimedTerminalRunIdsRef.current.clear();
+      ownedAgentRunsRef.current.clear();
+      leaseLostAgentRunIdsRef.current.clear();
       setPiAgentSetupStatus("failed");
       reportFailure("silly_os.browser_pi_connection_lost", {
         code: "connection_failed",
@@ -1316,6 +1571,8 @@ export function SillyOsAppV1({
     activeProviderSelectionRef.current = null;
     setActiveProviderSelection(null);
     claimedTerminalRunIdsRef.current.clear();
+    ownedAgentRunsRef.current.clear();
+    leaseLostAgentRunIdsRef.current.clear();
     if (predecessor !== null) {
       void queueAgentPortTeardownV1(predecessor, "disposed");
     }
@@ -1424,6 +1681,8 @@ export function SillyOsAppV1({
     setActiveProviderSelection(null);
     setConnectionTest({ phase: "disconnected", active: null });
     claimedTerminalRunIdsRef.current.clear();
+    ownedAgentRunsRef.current.clear();
+    leaseLostAgentRunIdsRef.current.clear();
     setPiAgentSetupStatus(agentFactoryRef.current === null ? "loading" : "available");
     if (current !== null) {
       current.revokeCredential();
@@ -2168,6 +2427,8 @@ export function SillyOsAppV1({
   };
 
   const openHomeV1 = async (): Promise<void> => {
+    processConversationRestoreEpochRef.current += 1;
+    setProcessConversationRestorePending(false);
     const port = agentPortRef.current;
     if (port !== null && !await queueAgentWorkspaceV1(port, null)) {
       reportFailure("silly_os.home_close_failed", "agent_workspace_close_failed");
@@ -2178,33 +2439,149 @@ export function SillyOsAppV1({
     }
   };
 
+  const openProgramV1 = async (programId: string): Promise<void> => {
+    const epoch = processConversationRestoreEpochRef.current + 1;
+    processConversationRestoreEpochRef.current = epoch;
+    setProcessConversationRestorePending(true);
+    try {
+      const result = await controller.openProgram(programId);
+      if (result.kind === "failed") {
+        reportFailure("silly_os.program_open_failed", result);
+        return;
+      }
+      const activeProcess = controller.getSnapshot().activeProcess;
+      if (result.kind !== "completed" || !result.value || activeProcess === null) return;
+      const anchor = processViewStates.read(activeProcess.process.processId).conversation
+        .scrollAnchor;
+      if (
+        anchor.kind === "entry" &&
+        !activeProcess.transcript.entries.some((entry) =>
+          entry.sequence === anchor.sequence && entry.entryId === anchor.entryId
+        )
+      ) {
+        const restored = await controller.restoreTranscriptAround(anchor.sequence);
+        if (restored.kind === "failed") {
+          reportFailure("silly_os.transcript_restore_failed", restored);
+        }
+      }
+    } finally {
+      if (processConversationRestoreEpochRef.current === epoch) {
+        setProcessConversationRestorePending(false);
+      }
+    }
+  };
+
   const sendFollowUpV1 = async (text: string): Promise<boolean> => {
     const port = agentPortRef.current;
     if (port === null || !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus)) {
       reportFailure("silly_os.browser_pi_unavailable", "credential_required");
       return false;
     }
-    const currentSession = controller.getSnapshot().session;
+    const currentSession = controller.getSnapshot();
+    const activeSubject = currentSession.activeProcess?.subject ?? null;
     if (
-      currentSession.route !== "workspace" || currentSession.program === null ||
-      currentSession.workspace === null ||
+      currentSession.route !== "process" || activeSubject === null ||
       !await queueAgentWorkspaceV1(port, {
-        programId: currentSession.program.programId,
-        workspaceId: currentSession.workspace.workspaceId,
+        programId: activeSubject.currentProgram.programId,
+        workspaceId: activeSubject.head.workspaceId,
       })
     ) {
       reportFailure("silly_os.browser_pi_workspace_unavailable", "workspace_not_open");
       return false;
     }
-    const prepared = controller.prepareAgentRun(text);
+    const prepared = await controller.prepareAgentRun(text);
     if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
       reportFailure("silly_os.browser_pi_submit_rejected", prepared);
       return false;
     }
-    const result = await port.submit(prepared.value.run);
-    if (result.kind === "submitted") return true;
-    reportFailure("silly_os.browser_pi_submit_failed", result.diagnostic);
-    return false;
+    const run = prepared.value.run;
+    ownedAgentRunsRef.current.set(run.agentRunId, run);
+    let submitted = false;
+    try {
+      const result = await port.submit(run);
+      if (result.kind === "submitted") {
+        submitted = true;
+        return true;
+      }
+      const terminal = await controller.recordAgentRunTerminal({
+        run,
+        outcome: "failed",
+        diagnosticCode: result.diagnostic.code,
+      });
+      if (
+        terminal.kind !== "completed" || terminal.value.kind !== "applied" ||
+        terminal.value.outcome !== "failed"
+      ) {
+        reportFailure("silly_os.browser_pi_submit_terminal_failed", terminal);
+      }
+      reportFailure("silly_os.browser_pi_submit_failed", result.diagnostic);
+      return false;
+    } catch (error) {
+      await recoverLostOwnedAgentRunV1(port, run).catch((recoveryError: unknown) => {
+        reportFailure("silly_os.process_execution_recovery_failed", recoveryError);
+      });
+      reportFailure("silly_os.browser_pi_submit_failed", error);
+      return false;
+    } finally {
+      if (!submitted) ownedAgentRunsRef.current.delete(run.agentRunId);
+    }
+  };
+
+  const retryInterruptedAgentRunV1 = async (): Promise<boolean> => {
+    const port = agentPortRef.current;
+    if (port === null || !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus)) {
+      reportFailure("silly_os.browser_pi_unavailable", "credential_required");
+      return false;
+    }
+    const currentSession = controller.getSnapshot();
+    const activeSubject = currentSession.activeProcess?.subject ?? null;
+    if (
+      currentSession.route !== "process" || activeSubject === null ||
+      currentSession.activeProcess?.process.status !== "interrupted_retryable" ||
+      !await queueAgentWorkspaceV1(port, {
+        programId: activeSubject.currentProgram.programId,
+        workspaceId: activeSubject.head.workspaceId,
+      })
+    ) {
+      reportFailure("silly_os.browser_pi_workspace_unavailable", "workspace_not_open");
+      return false;
+    }
+    const prepared = await controller.retryInterruptedAgentRun();
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      reportFailure("silly_os.browser_pi_submit_rejected", prepared);
+      return false;
+    }
+    const run = prepared.value.run;
+    ownedAgentRunsRef.current.set(run.agentRunId, run);
+    let submitted = false;
+    try {
+      const result = await port.submit(run);
+      if (result.kind === "submitted") {
+        submitted = true;
+        return true;
+      }
+      const terminal = await controller.recordAgentRunTerminal({
+        run,
+        outcome: "failed",
+        diagnosticCode: result.diagnostic.code,
+      });
+      if (
+        terminal.kind !== "completed" || terminal.value.kind !== "applied" ||
+        terminal.value.outcome !== "failed"
+      ) {
+        reportFailure("silly_os.browser_pi_submit_terminal_failed", terminal);
+      }
+      reportFailure("silly_os.browser_pi_submit_failed", result.diagnostic);
+      return false;
+    } catch (error) {
+      await recoverLostOwnedAgentRunV1(port, run).catch((recoveryError: unknown) => {
+        reportFailure("silly_os.process_execution_recovery_failed", recoveryError);
+      });
+      reportFailure("silly_os.browser_pi_submit_failed", error);
+      return false;
+    } finally {
+      if (!submitted) ownedAgentRunsRef.current.delete(run.agentRunId);
+    }
   };
 
   const setProgramNetworkAccessV1 = async (enabled: boolean): Promise<boolean> => {
@@ -2263,31 +2640,32 @@ export function SillyOsAppV1({
 
   const retryAgentWorkspaceV1 = (): void => {
     const port = agentPortRef.current;
-    const currentSession = controller.getSnapshot().session;
+    const currentSession = controller.getSnapshot();
+    const activeSubject = currentSession.activeProcess?.subject ?? null;
     if (
-      port === null || currentSession.route !== "workspace" || currentSession.program === null ||
-      currentSession.workspace === null
+      port === null || currentSession.route !== "process" || activeSubject === null
     ) return;
     void queueAgentWorkspaceV1(port, {
-      programId: currentSession.program.programId,
-      workspaceId: currentSession.workspace.workspaceId,
+      programId: activeSubject.currentProgram.programId,
+      workspaceId: activeSubject.head.workspaceId,
     });
   };
 
   const exportWorkspaceV1 = (): void => {
     const port = agentPortRef.current;
-    const currentSession = controller.getSnapshot().session;
+    const currentSession = controller.getSnapshot();
+    const activeSubject = currentSession.activeProcess?.subject ?? null;
     const currentAgent = port?.getSnapshot();
     const descriptor = currentAgent?.workspace.descriptor;
     if (
       port === null || workspaceExportAbortRef.current !== null ||
       !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus) || durability.phase !== "ready" ||
-      currentSession.route !== "workspace" || currentSession.program === null ||
-      currentSession.workspace === null || currentAgent?.phase === "running" ||
+      currentSession.route !== "process" || activeSubject === null ||
+      currentAgent?.phase === "running" ||
       (currentAgent?.terminalRuns.length ?? 0) !== 0 ||
       currentAgent?.workspace.phase !== "open" || descriptor === null || descriptor === undefined ||
-      descriptor.programId !== currentSession.program.programId ||
-      descriptor.workspaceId !== currentSession.workspace.workspaceId
+      descriptor.programId !== activeSubject.currentProgram.programId ||
+      descriptor.workspaceId !== activeSubject.head.workspaceId
     ) return;
 
     const epoch = ++workspaceExportEpochRef.current;
@@ -2300,7 +2678,7 @@ export function SillyOsAppV1({
       bytesWritten: 0,
       bytesTotal: 0,
     });
-    const programName = currentSession.program.name;
+    const programName = activeSubject.currentProgram.name;
     void port.exportWorkspace({
       workspaceSessionId: descriptor.workspaceSessionId,
       fileName: workspaceArchiveFileNameV1(programName),
@@ -2381,12 +2759,16 @@ export function SillyOsAppV1({
   const agentMutationPending = agentSnapshot?.phase === "running" ||
     reasoningEffortSelectionPending ||
     (agentSnapshot?.terminalRuns.length ?? 0) > 0;
+  const unownedProcessExecutionActive = hasUnownedProcessExecutionV1({
+    activeAttemptId: activeProcessAttemptId,
+    ownsAttempt: (attemptId) => ownedAgentRunsRef.current.has(attemptId),
+  });
   const agentWorkspaceLifecyclePending = agentSnapshot?.workspace.phase === "opening" ||
     agentSnapshot?.workspace.phase === "closing";
-  const executionWorkspaceReady = snapshot.route === "workspace" && snapshot.program !== null &&
-    snapshot.workspace !== null && agentSnapshot?.workspace.phase === "open" &&
-    agentSnapshot.workspace.descriptor?.programId === snapshot.program.programId &&
-    agentSnapshot.workspace.descriptor.workspaceId === snapshot.workspace.workspaceId;
+  const executionWorkspaceReady = routedProgramId !== null && routedWorkspaceId !== null &&
+    agentSnapshot?.workspace.phase === "open" &&
+    agentSnapshot.workspace.descriptor?.programId === routedProgramId &&
+    agentSnapshot.workspace.descriptor.workspaceId === routedWorkspaceId;
   const workspaceExportPending = workspaceExport.phase === "exporting" ||
     workspaceExport.phase === "cancelling" || workspaceExport.phase === "finalizing";
   const workspaceExportAvailable = agentPort !== null &&
@@ -2574,17 +2956,20 @@ export function SillyOsAppV1({
                 reasoningEffortSelectionPending ||
                 !liveCreatorReady}
               programCatalog={{
-                status: durability.phase === "loading" && durability.operation === "catalog"
-                  ? "loading"
-                  : durability.phase === "failed" && durability.operation === "catalog"
-                  ? "failed"
-                  : "ready",
-                programs: controllerSnapshot.recentPrograms,
+                status: snapshot.catalog.phase === "failed" &&
+                    snapshot.catalog.summaries.length > 0
+                  ? "ready"
+                  : snapshot.catalog.phase,
+                programs: snapshot.catalog.summaries,
                 openDisabled: durability.phase !== "ready",
                 onOpen: (programId) => {
-                  void controller.openProgram(programId).then((result) => {
-                    if (result.kind !== "completed") {
-                      reportFailure("silly_os.program_open_failed", result);
+                  void openProgramV1(programId);
+                },
+                hasMore: snapshot.catalog.nextCursor !== null,
+                onLoadMore: () => {
+                  void controller.loadMorePrograms().then((result) => {
+                    if (result.kind === "failed") {
+                      reportFailure("silly_os.program_catalog_more_failed", result);
                     }
                   });
                 },
@@ -2627,99 +3012,130 @@ export function SillyOsAppV1({
               }}
             />
           )
+          : snapshot.route === "process_loading" || snapshot.activeProcess === null ||
+              processConversationRestorePending
+          ? (
+            <main className="creator-home" data-silly-os-view="process-loading">
+              <div className="creator-home__route-state">
+                <CollectionStateV1
+                  icon={LoaderCircle}
+                  iconMotion="spin"
+                  title={copy.openingProgram}
+                  role="status"
+                  aria-live="polite"
+                />
+              </div>
+            </main>
+          )
           : (
-            <ProgramWorkspaceV1
-              key={snapshot.workspace?.workspaceId}
-              copy={copy}
-              snapshot={snapshot}
-              workspaceReview={controllerSnapshot.workspaceReview}
-              homeDisabled={durability.phase === "saving" || agentMutationPending ||
-                agentWorkspaceLifecyclePending || workspaceExportPending}
-              decisionPending={durability.phase === "saving"}
-              agentInteractionPending={durability.phase === "saving" || agentMutationPending ||
-                !executionWorkspaceReady || workspaceExportPending || !liveCreatorReady}
-              onHome={() => void openHomeV1()}
-              onLocaleChange={changeLocaleV1}
-              theme={productPreferences.theme}
-              onThemeChange={changeThemeV1}
-              {...(internalPiTest ? {} : { onOpenSettings: openSettingsV1 })}
-              onAccept={() => {
-                const proposal = snapshot.proposal;
-                if (proposal === null) {
-                  reportFailure("silly_os.proposal_unavailable", proposal);
-                  return;
-                }
-                void controller.acceptProposal(proposal).then((result) => {
-                  if (
-                    result.kind !== "completed" ||
-                    result.value.kind === "unavailable" || result.value.kind === "stale"
-                  ) {
-                    reportFailure("silly_os.proposal_accept_failed", result);
+            <ActiveProcessMountBoundaryV1 processId={snapshot.activeProcess.process.processId}>
+              <ProgramWorkspaceV1
+                copy={copy}
+                activeProcess={snapshot.activeProcess}
+                initialViewState={processViewStates.read(
+                  snapshot.activeProcess.process.processId,
+                )}
+                onViewStateChange={(next) => {
+                  processViewStates.write(snapshot.activeProcess!.process.processId, next);
+                }}
+                homeDisabled={durability.phase === "saving" || agentMutationPending ||
+                  agentWorkspaceLifecyclePending || workspaceExportPending}
+                decisionPending={durability.phase === "saving"}
+                agentInteractionPending={durability.phase === "saving" || agentMutationPending ||
+                  unownedProcessExecutionActive || !executionWorkspaceReady ||
+                  workspaceExportPending || !liveCreatorReady}
+                onHome={() => void openHomeV1()}
+                onLocaleChange={changeLocaleV1}
+                theme={productPreferences.theme}
+                onThemeChange={changeThemeV1}
+                {...(internalPiTest ? {} : { onOpenSettings: openSettingsV1 })}
+                onAccept={() => {
+                  const proposal = snapshot.activeProcess?.subject?.head.proposal ?? null;
+                  if (proposal === null) {
+                    reportFailure("silly_os.proposal_unavailable", proposal);
+                    return;
                   }
-                });
-              }}
-              onReject={() => {
-                const proposal = snapshot.proposal;
-                if (proposal === null) {
-                  reportFailure("silly_os.proposal_unavailable", proposal);
-                  return;
-                }
-                void controller.rejectProposal(proposal).then((result) => {
-                  if (
-                    result.kind !== "completed" ||
-                    result.value.kind === "unavailable" || result.value.kind === "stale"
-                  ) {
-                    reportFailure("silly_os.proposal_reject_failed", result);
+                  void controller.acceptProposal(proposal).then((result) => {
+                    if (
+                      result.kind !== "completed" ||
+                      result.value.kind === "unavailable" || result.value.kind === "stale"
+                    ) {
+                      reportFailure("silly_os.proposal_accept_failed", result);
+                    }
+                  });
+                }}
+                onReject={() => {
+                  const proposal = snapshot.activeProcess?.subject?.head.proposal ?? null;
+                  if (proposal === null) {
+                    reportFailure("silly_os.proposal_unavailable", proposal);
+                    return;
                   }
-                });
-              }}
-              onSend={sendFollowUpV1}
-              {...(internalPiTest ? {} : {
-                creatorReadiness,
-                onOpenCreatorSettings: (
-                  target: Exclude<CreatorReadinessRecoveryTargetV1, null>,
-                ) => openCreatorReadinessSettingsV1("workspace", target),
-                ...(creatorReadiness.status === "ready"
-                  ? { providerModel: creatorProviderModelV1("workspace") }
-                  : {}),
-              })}
-              {...(programNetworkAccess?.programId !== routedProgramId ? {} : {
-                networkAccess: {
-                  enabled: programNetworkAccess.enabled,
-                  pending: networkAccessMutationPending,
-                  onChange: setProgramNetworkAccessV1,
-                },
-              })}
-              {...(agentSnapshot === null ? {} : {
-                executionWorkspace: agentSnapshot.workspace,
-                onRetryExecutionWorkspace: retryAgentWorkspaceV1,
-                ...(workspaceExportAvailable
-                  ? {
-                    workspaceExport,
-                    workspaceExportDisabled,
-                    onExportWorkspace: exportWorkspaceV1,
-                    onCancelWorkspaceExport: cancelWorkspaceExportV1,
+                  void controller.rejectProposal(proposal).then((result) => {
+                    if (
+                      result.kind !== "completed" ||
+                      result.value.kind === "unavailable" || result.value.kind === "stale"
+                    ) {
+                      reportFailure("silly_os.proposal_reject_failed", result);
+                    }
+                  });
+                }}
+                onSend={sendFollowUpV1}
+                onRetryInterruptedAgentRun={retryInterruptedAgentRunV1}
+                onLoadOlderTranscript={async () => {
+                  const result = await controller.loadOlderTranscript();
+                  if (result.kind === "completed") return result.value;
+                  if (result.kind === "failed") {
+                    reportFailure("silly_os.transcript_older_failed", result);
                   }
-                  : {}),
-                piAgentRun: {
-                  runtime: piRuntime,
-                  status: piAgentRunStatusV1(agentSnapshot.phase),
-                  draft: agentSnapshot.draft,
-                  diagnosticPath: agentSnapshot.diagnostic?.path ?? null,
-                  onCancel: () => {
-                    const current = agentPortRef.current;
-                    const activeRunId = agentSnapshot.activeRunId;
-                    if (current === null || activeRunId === null) return;
-                    void current.cancel(activeRunId).then((result) => {
-                      if (result.kind === "unavailable") {
-                        reportFailure("silly_os.browser_pi_cancel_failed", result.diagnostic);
-                      }
-                    });
+                  return false;
+                }}
+                {...(internalPiTest ? {} : {
+                  creatorReadiness,
+                  onOpenCreatorSettings: (
+                    target: Exclude<CreatorReadinessRecoveryTargetV1, null>,
+                  ) => openCreatorReadinessSettingsV1("workspace", target),
+                  ...(creatorReadiness.status === "ready"
+                    ? { providerModel: creatorProviderModelV1("workspace") }
+                    : {}),
+                })}
+                {...(programNetworkAccess?.programId !== routedProgramId ? {} : {
+                  networkAccess: {
+                    enabled: programNetworkAccess.enabled,
+                    pending: networkAccessMutationPending,
+                    onChange: setProgramNetworkAccessV1,
                   },
-                  onForget: forgetPiAgentV1,
-                },
-              })}
-            />
+                })}
+                {...(agentSnapshot === null ? {} : {
+                  executionWorkspace: agentSnapshot.workspace,
+                  onRetryExecutionWorkspace: retryAgentWorkspaceV1,
+                  ...(workspaceExportAvailable
+                    ? {
+                      workspaceExport,
+                      workspaceExportDisabled,
+                      onExportWorkspace: exportWorkspaceV1,
+                      onCancelWorkspaceExport: cancelWorkspaceExportV1,
+                    }
+                    : {}),
+                  piAgentRun: {
+                    runtime: piRuntime,
+                    status: piAgentRunStatusV1(agentSnapshot.phase),
+                    draft: agentSnapshot.draft,
+                    diagnosticPath: agentSnapshot.diagnostic?.path ?? null,
+                    onCancel: () => {
+                      const current = agentPortRef.current;
+                      const activeRunId = agentSnapshot.activeRunId;
+                      if (current === null || activeRunId === null) return;
+                      void current.cancel(activeRunId).then((result) => {
+                        if (result.kind === "unavailable") {
+                          reportFailure("silly_os.browser_pi_cancel_failed", result.diagnostic);
+                        }
+                      });
+                    },
+                    onForget: forgetPiAgentV1,
+                  },
+                })}
+              />
+            </ActiveProcessMountBoundaryV1>
           )}
         {(durability.phase === "saving" || durability.phase === "failed") && (
           <aside

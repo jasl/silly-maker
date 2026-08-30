@@ -2,8 +2,8 @@
 import type { WebGuiApplicationV1 } from "@sillymaker/web/gui-application";
 
 import { createBrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
+import { createBrowserProgramDataRepositoryV1 } from "../product/browser-program-data-repository.ts";
 import { createCreatorControllerV1 } from "../product/creator-controller.ts";
-import { createDeterministicFakeCreatorV1 } from "../product/fake-creator.ts";
 import { SillyOsAppV1, type SillyOsAgentDrainRegistryV1 } from "../ui/silly-os-app.tsx";
 
 export interface SillyOsAgentDrainOwnerV1 {
@@ -101,10 +101,11 @@ export const sillyOsApplicationV1: WebGuiApplicationV1 = {
     fallbackSize: { width: 1440, height: 900 },
   },
   ui: ({ reportFailure }) => {
-    const workspaceAuthority = createBrowserProgramWorkspaceAuthorityV1();
+    const repository = createBrowserProgramDataRepositoryV1();
+    const workspaceAuthority = createBrowserProgramWorkspaceAuthorityV1({ repository });
     const controller = createCreatorControllerV1({
-      creator: createDeterministicFakeCreatorV1(),
-      authority: workspaceAuthority,
+      repository,
+      workspace: workspaceAuthority,
     });
     const agentDrainOwner = createSillyOsAgentDrainOwnerV1(reportFailure);
     let disposalPromise: Promise<void> | null = null;

@@ -467,7 +467,6 @@ const customProfileBaseUrlMaximumUtf8BytesV1 = 2_048;
 const customProfileModelIdMaximumUtf8BytesV1 = 256;
 const customProfileContextWindowMaximumV1 = 32_000_000;
 const customProfileMaxTokensMaximumV1 = 4_000_000;
-const workspaceReceiptMaximumV1 = 32;
 const workspacePathMaximumUtf8BytesV1 = 512;
 const workspacePathMaximumComponentsV1 = 32;
 
@@ -510,8 +509,11 @@ function isPositiveSafeIntegerV1(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-function exactArrayV1(value: unknown, maximumLength: number): readonly unknown[] | null {
-  if (!Array.isArray(value) || value.length > maximumLength) return null;
+function exactArrayV1(value: unknown, maximumLength: number | null): readonly unknown[] | null {
+  if (
+    !Array.isArray(value) ||
+    (maximumLength !== null && value.length > maximumLength)
+  ) return null;
   try {
     if (Object.getPrototypeOf(value) !== Array.prototype) return null;
     if (Object.getOwnPropertySymbols(value).length !== 0) return null;
@@ -1036,7 +1038,10 @@ export function admitBrowserPiWorkspaceSnapshotWireV1(
     !isIdentifierV1(snapshot.workspaceSessionId) ||
     !isPositiveSafeIntegerV1(snapshot.generation)
   ) return null;
-  const rawReceipts = exactArrayV1(snapshot.receipts, workspaceReceiptMaximumV1);
+  // This is the complete unacknowledged receipt suffix owned by the Workspace
+  // runtime. Its length follows real mutations and the acknowledgement watermark;
+  // admission must not invent a second semantic ceiling that can close transport.
+  const rawReceipts = exactArrayV1(snapshot.receipts, null);
   if (rawReceipts === null) return null;
   const receipts: BrowserPiWorkspaceMutationReceiptWireV1[] = [];
   for (const rawReceipt of rawReceipts) {

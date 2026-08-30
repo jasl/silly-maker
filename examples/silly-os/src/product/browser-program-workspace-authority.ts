@@ -20,36 +20,35 @@ import {
   type ProgramWorkspaceReviewProjectionV1,
   type ProgramWorkspaceSnapshotReceiptV1,
 } from "../workspace/contracts.ts";
-import { createBrowserProgramRepositoryV3 } from "./browser-program-repository.ts";
+import { createBrowserProgramDataRepositoryV1 } from "./browser-program-data-repository.ts";
+import {
+  programCatalogOperationalPayloadMaximumBytesV1,
+  type ProgramCatalogApplyRevisionInputV1,
+  type ProgramCatalogContinuationV1,
+  type ProgramCatalogCreateInputV1,
+  type ProgramCatalogDecideInputV1,
+  type ProgramCatalogRecordV1,
+  type ProgramCatalogReviewBindingV1,
+} from "./program-catalog-repository.ts";
+import type {
+  ProgramDataRepositoryV1,
+  ProgramProcessCompositeCommitResultV1,
+  ProgramProcessCreateCompositeCommitResultV1,
+  ProgramProcessCreateBundleInputV1,
+  ProgramProcessDecisionBundleInputV1,
+  ProgramProcessExecutionCompositeCommitResultV1,
+  ProgramProcessRevisionBundleInputV1,
+} from "./program-data-repository.ts";
+import type { ProcessExecutionLeaseV1 } from "./process-execution-repository.ts";
 import type {
   ProgramNetworkAccessMutationResultV1,
   ProgramNetworkAccessMutationV1,
   ProgramNetworkAccessV1,
 } from "./program-network-access.ts";
-import {
-  advanceBrowserProgramContinuationV1,
-  applyProgramRepositoryAgentRunTerminalV3,
-  applyProgramRepositoryDecisionV3,
-  applyProgramRepositoryRevisionV3,
-  browserProgramContinuationManifestsEqualV1,
-  browserProgramContinuationMatchesAggregateV1,
-  buildProgramRepositoryCreateV3,
-  programRepositoryAggregatesEqualV3,
-  type BrowserProgramContinuationManifestV1,
-  type ProgramRepositoryAggregateV3,
-  type ProgramRepositoryApplyRevisionInputV3,
-  type ProgramRepositoryCommitResultV3,
-  type ProgramRepositoryCreateInputV3,
-  type ProgramRepositoryDecideInputV3,
-  type ProgramRepositoryReviewBindingV3,
-  type ProgramRepositorySettleAgentRunInputV3,
-  type ProgramRepositorySummaryV3,
-  type ProgramRepositoryWithWorkspaceContinuationV1,
-} from "./program-repository.ts";
 
 interface DurableProgramPairV1 {
-  readonly aggregate: ProgramRepositoryAggregateV3;
-  readonly continuation: BrowserProgramContinuationManifestV1;
+  readonly record: ProgramCatalogRecordV1;
+  readonly continuation: ProgramCatalogContinuationV1;
 }
 
 interface ActiveWorkspaceV1 {
@@ -79,56 +78,86 @@ export interface BrowserProgramWorkspaceDataResetResultV1 {
   readonly workspaceVolumes: BrowserProgramWorkspaceDataResetStateV1;
 }
 
-export type BrowserProgramWorkspaceCreateInputV1 = Pick<
-  ProgramRepositoryCreateInputV3,
-  "snapshot" | "updatedAt"
->;
-
-export type BrowserProgramWorkspaceApplyRevisionInputV1 = Omit<
-  ProgramRepositoryApplyRevisionInputV3,
-  "continuation" | "reviewedHead"
->;
-
-export type BrowserProgramWorkspaceSettleAgentRunInputV1 = Omit<
-  ProgramRepositorySettleAgentRunInputV3,
-  "continuation" | "reviewedHead"
->;
-
-interface BrowserProgramWorkspaceDecisionInputBaseV1 {
-  readonly programId: ProgramRepositoryDecideInputV3["programId"];
-  readonly expectedRepositoryRevision: ProgramRepositoryDecideInputV3["expectedRepositoryRevision"];
-  readonly expectedProposal: ProgramRepositoryDecideInputV3["expectedProposal"];
-  readonly snapshot: ProgramRepositoryDecideInputV3["snapshot"];
-  readonly updatedAt: ProgramRepositoryDecideInputV3["updatedAt"];
+export interface BrowserProgramWorkspaceCreateInputV1 {
+  readonly workspaceId: string;
+  readonly catalog: Omit<ProgramCatalogCreateInputV1, "continuation" | "reviewedHead">;
+  readonly process: ProgramProcessCreateBundleInputV1["process"];
+  readonly transcript: ProgramProcessCreateBundleInputV1["transcript"];
 }
 
+type ProgramProcessRevisionTranscriptV1 = ProgramProcessRevisionBundleInputV1["transcript"];
+
+type BrowserProgramWorkspaceDeterministicRevisionTranscriptV1 =
+  & Omit<ProgramProcessRevisionTranscriptV1, "attemptBinding" | "terminalAttemptReceipt">
+  & {
+    readonly attemptBinding: null;
+    readonly terminalAttemptReceipt: null;
+  };
+
+type BrowserProgramWorkspaceAttemptRevisionTranscriptV1 =
+  & Omit<ProgramProcessRevisionTranscriptV1, "attemptBinding" | "checkpoint">
+  & {
+    readonly attemptBinding: NonNullable<ProgramProcessRevisionTranscriptV1["attemptBinding"]>;
+    readonly checkpoint: NonNullable<ProgramProcessRevisionTranscriptV1["checkpoint"]>;
+  };
+
+type BrowserProgramWorkspaceRevisionTranscriptV1 =
+  | BrowserProgramWorkspaceDeterministicRevisionTranscriptV1
+  | BrowserProgramWorkspaceAttemptRevisionTranscriptV1;
+
+export interface BrowserProgramWorkspaceApplyRevisionInputV1 {
+  readonly catalog: Omit<
+    ProgramCatalogApplyRevisionInputV1,
+    "continuation" | "reviewedHead"
+  >;
+  readonly transcript: BrowserProgramWorkspaceRevisionTranscriptV1;
+}
+
+export interface BrowserProgramWorkspaceApplyAgentRevisionInputV1 {
+  readonly lease: ProcessExecutionLeaseV1;
+  readonly observedAt: number;
+  readonly catalog: BrowserProgramWorkspaceApplyRevisionInputV1["catalog"];
+  readonly transcript: BrowserProgramWorkspaceAttemptRevisionTranscriptV1;
+}
+
+type BrowserProgramWorkspaceAcceptedDecisionCatalogInputV1 = Omit<
+  Extract<ProgramCatalogDecideInputV1, { readonly status: "accepted" }>,
+  "continuation" | "snapshotReceipt"
+>;
+
+type BrowserProgramWorkspaceRejectedDecisionCatalogInputV1 = Omit<
+  Extract<ProgramCatalogDecideInputV1, { readonly status: "rejected" }>,
+  "continuation"
+>;
+
 export type BrowserProgramWorkspaceDecideInputV1 =
-  | (BrowserProgramWorkspaceDecisionInputBaseV1 & { readonly status: "accepted" })
-  | (BrowserProgramWorkspaceDecisionInputBaseV1 & { readonly status: "rejected" });
+  | {
+    readonly catalog: BrowserProgramWorkspaceAcceptedDecisionCatalogInputV1;
+    readonly transcript: ProgramProcessDecisionBundleInputV1["transcript"];
+  }
+  | {
+    readonly catalog: BrowserProgramWorkspaceRejectedDecisionCatalogInputV1;
+    readonly transcript: ProgramProcessDecisionBundleInputV1["transcript"];
+  };
 
 export interface BrowserProgramWorkspaceAuthorityV1 {
   initialize(): Promise<void>;
-  list(): Promise<readonly ProgramRepositorySummaryV3[]>;
-  load(programId: string): Promise<ProgramRepositoryAggregateV3 | null>;
   inspectProgramWorkspace(
     programId: string,
     options?: { readonly hostAccess?: "required" | "active_only" },
-  ): Promise<
-    {
-      readonly aggregate: ProgramRepositoryAggregateV3;
-      readonly review: ProgramWorkspaceReviewProjectionV1;
-    } | null
-  >;
+  ): Promise<ProgramWorkspaceReviewProjectionV1 | null>;
   create(
     input: BrowserProgramWorkspaceCreateInputV1,
-  ): Promise<ProgramRepositoryCommitResultV3>;
+  ): Promise<ProgramProcessCreateCompositeCommitResultV1>;
   applyRevision(
     input: BrowserProgramWorkspaceApplyRevisionInputV1,
-  ): Promise<ProgramRepositoryCommitResultV3>;
-  settleAgentRun(
-    input: BrowserProgramWorkspaceSettleAgentRunInputV1,
-  ): Promise<ProgramRepositoryCommitResultV3>;
-  decide(input: BrowserProgramWorkspaceDecideInputV1): Promise<ProgramRepositoryCommitResultV3>;
+  ): Promise<ProgramProcessCompositeCommitResultV1>;
+  applyAgentRevision(
+    input: BrowserProgramWorkspaceApplyAgentRevisionInputV1,
+  ): Promise<ProgramProcessExecutionCompositeCommitResultV1>;
+  decide(
+    input: BrowserProgramWorkspaceDecideInputV1,
+  ): Promise<ProgramProcessCompositeCommitResultV1>;
   loadProgramNetworkAccess(programId: string): Promise<ProgramNetworkAccessV1 | null>;
   setProgramNetworkAccess(
     input: ProgramNetworkAccessMutationV1,
@@ -138,6 +167,7 @@ export interface BrowserProgramWorkspaceAuthorityV1 {
     readonly workspaceSessionId: string;
     readonly expectedProgramRevision: number;
     readonly expectedRepositoryRevision: number;
+    readonly expectedCheckpointId: string;
     readonly expectedGeneration: number;
     readonly operation: (access: ProgramNetworkAccessV1) => Promise<T>;
   }): Promise<T>;
@@ -166,8 +196,7 @@ export interface BrowserProgramWorkspaceAuthorityV1 {
 }
 
 export interface BrowserProgramWorkspaceAuthorityOptionsV1 {
-  readonly repository?: ProgramRepositoryWithWorkspaceContinuationV1;
-  readonly createRepository?: () => ProgramRepositoryWithWorkspaceContinuationV1;
+  readonly repository?: ProgramDataRepositoryV1;
   readonly host?: BrowserWorkspaceHostPagePortV1;
   readonly createSnapshotId?: () => string;
   readonly operationFence?: BrowserProgramWorkspaceOperationFenceV1;
@@ -233,8 +262,27 @@ function cancelledExportV1(): BrowserProgramWorkspaceExportResultV1 {
   };
 }
 
+function recordsShareVersionV1(
+  left: ProgramCatalogRecordV1,
+  right: ProgramCatalogRecordV1,
+): boolean {
+  return left.head.programId === right.head.programId &&
+    left.head.repositoryRevision === right.head.repositoryRevision;
+}
+
+function continuationsEqualV1(
+  left: ProgramCatalogContinuationV1,
+  right: ProgramCatalogContinuationV1,
+): boolean {
+  return left.revision === right.revision && left.programId === right.programId &&
+    left.workspaceId === right.workspaceId && left.volumeId === right.volumeId &&
+    left.workspaceFormat === right.workspaceFormat &&
+    left.programRevision === right.programRevision &&
+    left.repositoryRevision === right.repositoryRevision;
+}
+
 function anchorFromContinuationV1(
-  continuation: BrowserProgramContinuationManifestV1,
+  continuation: ProgramCatalogContinuationV1,
 ): BrowserWorkspaceVolumeAnchorWireV1 {
   return {
     revision: 1,
@@ -248,34 +296,42 @@ function anchorFromContinuationV1(
 function continuationFromCandidateV1(
   input: BrowserProgramWorkspaceCreateInputV1,
   candidate: BrowserWorkspaceVolumeCandidateWireV1,
-): BrowserProgramContinuationManifestV1 {
-  const program = input.snapshot.program;
-  const workspace = input.snapshot.workspace;
+): ProgramCatalogContinuationV1 {
   if (
-    program === null || workspace === null ||
-    candidate.anchor.programId !== program.programId ||
-    candidate.anchor.workspaceId !== workspace.workspaceId
+    candidate.anchor.programId !== input.catalog.program.programId ||
+    candidate.anchor.workspaceId !== input.workspaceId
   ) throw authorityErrorV1("candidate_identity_mismatch");
   return {
     revision: 1,
-    programId: program.programId,
-    workspaceId: workspace.workspaceId,
+    programId: input.catalog.program.programId,
+    workspaceId: input.workspaceId,
     volumeId: candidate.anchor.volumeId,
     workspaceFormat: candidate.anchor.workspaceFormat,
-    programRevision: program.revision,
+    programRevision: input.catalog.program.revision,
     repositoryRevision: 1,
   };
 }
 
 function predecessorContinuationV1(
-  stored: BrowserProgramContinuationManifestV1,
+  stored: ProgramCatalogContinuationV1,
   programRevision: number,
   repositoryRevision: number,
-): BrowserProgramContinuationManifestV1 {
+): ProgramCatalogContinuationV1 {
+  return { ...stored, programRevision, repositoryRevision };
+}
+
+function transcriptAtReviewedHeadV1(
+  transcript: BrowserProgramWorkspaceApplyRevisionInputV1["transcript"],
+  reviewedHead: { readonly checkpointId: string; readonly generation: number },
+): ProgramProcessRevisionBundleInputV1["transcript"] {
+  if (transcript.checkpoint === null) return transcript;
   return {
-    ...stored,
-    programRevision,
-    repositoryRevision,
+    ...transcript,
+    checkpoint: {
+      ...transcript.checkpoint,
+      workspaceCheckpointId: reviewedHead.checkpointId,
+      workspaceGeneration: reviewedHead.generation,
+    },
   };
 }
 
@@ -284,69 +340,59 @@ function pairWorkspaceV1(
   programId: string,
   workspaceId?: string,
 ): DurableProgramPairV1 {
-  const program = pair.aggregate.snapshot.program;
-  const workspace = pair.aggregate.snapshot.workspace;
   if (
-    pair.aggregate.programId !== programId || program?.programId !== programId ||
-    workspace === null || pair.continuation.programId !== programId ||
-    pair.continuation.workspaceId !== workspace.workspaceId ||
-    (workspaceId !== undefined && workspace.workspaceId !== workspaceId)
+    pair.record.head.programId !== programId ||
+    pair.record.currentProgram.programId !== programId ||
+    pair.continuation.programId !== programId ||
+    pair.continuation.workspaceId !== pair.record.head.workspaceId ||
+    pair.continuation.programRevision !== pair.record.head.currentProgramRevision ||
+    pair.continuation.repositoryRevision !== pair.record.head.repositoryRevision ||
+    (workspaceId !== undefined && pair.record.head.workspaceId !== workspaceId)
   ) throw authorityErrorV1("program_workspace_mismatch");
   return pair;
 }
 
 function pairsEqualV1(left: DurableProgramPairV1, right: DurableProgramPairV1): boolean {
-  return programRepositoryAggregatesEqualV3(left.aggregate, right.aggregate) &&
-    browserProgramContinuationManifestsEqualV1(left.continuation, right.continuation);
+  return recordsShareVersionV1(left.record, right.record) &&
+    continuationsEqualV1(left.continuation, right.continuation);
 }
 
-function successAggregateV1(
-  result: ProgramRepositoryCommitResultV3,
-): ProgramRepositoryAggregateV3 | null {
-  return result.kind === "conflict" ? null : result.aggregate;
-}
-
-function acceptedDecisionReferencesReceiptV1(
-  aggregate: ProgramRepositoryAggregateV3,
+function receiptMatchesBindingV1(
   receipt: ProgramWorkspaceSnapshotReceiptV1,
+  binding: ProgramCatalogReviewBindingV1,
 ): boolean {
-  return aggregate.decisions.some((decision) =>
-    decision.status === "accepted" &&
-    programWorkspaceSnapshotReceiptsEqualV1(decision.snapshot, receipt)
-  );
+  return receipt.programId === binding.programId && receipt.workspaceId === binding.workspaceId &&
+    receipt.volumeId === binding.volumeId &&
+    receipt.workspaceFormat === binding.workspaceFormat &&
+    receipt.proposalId === binding.proposalId &&
+    receipt.programRevision === binding.programRevision &&
+    receipt.baseRepositoryRevision === binding.repositoryRevision &&
+    receipt.checkpointId === binding.checkpointId && receipt.generation === binding.generation;
 }
 
-function acceptedDecisionForInputV1(
-  aggregate: ProgramRepositoryAggregateV3,
-  input: BrowserProgramWorkspaceDecisionInputBaseV1,
-): ProgramWorkspaceSnapshotReceiptV1 | null {
-  const decision = aggregate.decisions.find((candidate) =>
-    candidate.proposalId === input.expectedProposal.proposalId &&
-    candidate.programRevision === input.expectedProposal.programRevision
-  );
-  return decision?.status === "accepted" ? decision.snapshot : null;
-}
-
-function acceptedDecisionReceiptsV1(
-  aggregate: ProgramRepositoryAggregateV3,
-): readonly ProgramWorkspaceSnapshotReceiptV1[] {
-  return aggregate.decisions.flatMap((decision) =>
-    decision.status === "accepted" ? [decision.snapshot] : []
-  );
-}
-
-function latestAcceptedDecisionReceiptV1(
-  aggregate: ProgramRepositoryAggregateV3,
-): ProgramWorkspaceSnapshotReceiptV1 | null {
-  return acceptedDecisionReceiptsV1(aggregate).at(-1) ?? null;
+function acceptedInputMatchesCurrentReviewV1(
+  pair: DurableProgramPairV1,
+  input: BrowserProgramWorkspaceAcceptedDecisionCatalogInputV1,
+): boolean {
+  const head = pair.record.head;
+  const binding = head.pendingReviewBinding;
+  return head.repositoryRevision === input.expectedRepositoryRevision && binding !== null &&
+    head.proposal.status === "pending" &&
+    head.proposal.proposalId === input.expectedProposal.proposalId &&
+    head.proposal.programRevision === input.expectedProposal.programRevision &&
+    head.currentProgramRevision === input.expectedProposal.programRevision &&
+    binding.programId === input.programId &&
+    binding.proposalId === input.expectedProposal.proposalId &&
+    binding.programRevision === input.expectedProposal.programRevision &&
+    binding.repositoryRevision === input.expectedRepositoryRevision;
 }
 
 function reviewProjectionV1(
-  aggregate: ProgramRepositoryAggregateV3,
+  record: ProgramCatalogRecordV1,
+  accepted: ProgramWorkspaceSnapshotReceiptV1 | null,
   mutableHead: { readonly checkpointId: string; readonly generation: number } | null,
 ): ProgramWorkspaceReviewProjectionV1 {
-  const accepted = latestAcceptedDecisionReceiptV1(aggregate);
-  const pending = aggregate.reviewBinding;
+  const pending = record.head.pendingReviewBinding;
   const statusV1 = (
     anchor: { readonly checkpointId: string; readonly generation: number } | null,
   ): "matches" | "changed" | "unavailable" | null => {
@@ -379,54 +425,20 @@ function reviewProjectionV1(
   };
 }
 
-function acceptedInputMatchesCurrentReviewV1(
-  aggregate: ProgramRepositoryAggregateV3,
-  input: BrowserProgramWorkspaceDecisionInputBaseV1,
-): boolean {
-  const binding = aggregate.reviewBinding;
-  const proposal = aggregate.snapshot.proposal;
-  const program = aggregate.snapshot.program;
-  return aggregate.repositoryRevision === input.expectedRepositoryRevision && binding !== null &&
-    proposal !== null && proposal.status === "pending" && program !== null &&
-    proposal.proposalId === input.expectedProposal.proposalId &&
-    proposal.programRevision === input.expectedProposal.programRevision &&
-    program.revision === input.expectedProposal.programRevision &&
-    binding.programId === input.programId &&
-    binding.proposalId === input.expectedProposal.proposalId &&
-    binding.programRevision === input.expectedProposal.programRevision &&
-    binding.repositoryRevision === input.expectedRepositoryRevision;
-}
-
-function receiptMatchesBindingV1(
-  receipt: ProgramWorkspaceSnapshotReceiptV1,
-  binding: ProgramRepositoryReviewBindingV3,
-): boolean {
-  return receipt.programId === binding.programId && receipt.workspaceId === binding.workspaceId &&
-    receipt.volumeId === binding.volumeId &&
-    receipt.workspaceFormat === binding.workspaceFormat &&
-    receipt.proposalId === binding.proposalId &&
-    receipt.programRevision === binding.programRevision &&
-    receipt.baseRepositoryRevision === binding.repositoryRevision &&
-    receipt.checkpointId === binding.checkpointId &&
-    receipt.generation === binding.generation;
-}
-
 /**
- * Owns the only product composition between Repository currentness and Browser
- * Workspace Host publication. The Controller supplies product-domain successors;
- * continuation, review-head, snapshot, and recovery facts remain private here.
+ * Owns the only product composition between Catalog currentness and Browser
+ * Workspace Host publication. Process attempts remain a separate product
+ * authority; callers must commit them before requesting Agent admission.
  */
 export function createBrowserProgramWorkspaceAuthorityV1(
   options: BrowserProgramWorkspaceAuthorityOptionsV1 = {},
 ): BrowserProgramWorkspaceAuthorityV1 {
-  const createRepository = options.createRepository ?? createBrowserProgramRepositoryV3;
+  const repository = options.repository ?? createBrowserProgramDataRepositoryV1();
   const createSnapshotId = options.createSnapshotId ?? defaultSnapshotIdV1;
-  let repository = options.repository ?? createRepository();
   const host = options.host ?? createBrowserWorkspaceHostPagePortV1({
     transport: createBrowserWorkspaceSandboxFrameTransportV1(),
   });
-  const operationFence = options.operationFence ??
-    createBrowserProgramWorkspaceOperationFenceV1();
+  const operationFence = options.operationFence ?? createBrowserProgramWorkspaceOperationFenceV1();
   let initialized: Promise<void> | null = null;
   let activeWorkspace: ActiveWorkspaceV1 | null = null;
   let operationTail: Promise<void> = Promise.resolve();
@@ -461,27 +473,21 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     return initialized;
   };
 
-  const replaceRepositoryAfterUnknownV1 = async (): Promise<void> => {
-    const predecessor = repository;
-    const successor = createRepository();
-    await successor.initialize();
-    repository = successor;
-    initialized = Promise.resolve();
-    await predecessor.dispose().catch(() => undefined);
-  };
-
   const loadPairV1 = async (programId: string): Promise<DurableProgramPairV1 | null> => {
     await initializeRepositoryV1();
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const [aggregate, continuation] = await Promise.all([
+      const [record, continuation] = await Promise.all([
         repository.load(programId),
-        repository.loadWorkspaceContinuation(programId),
+        repository.loadContinuation(programId),
       ]);
-      if (aggregate === null && continuation === null) return null;
-      if (
-        aggregate !== null && continuation !== null &&
-        browserProgramContinuationMatchesAggregateV1(continuation, aggregate)
-      ) return { aggregate, continuation };
+      if (record === null && continuation === null) return null;
+      if (record !== null && continuation !== null) {
+        try {
+          return pairWorkspaceV1({ record, continuation }, programId);
+        } catch {
+          // A concurrent Catalog successor may have split the two read calls.
+        }
+      }
     }
     throw authorityErrorV1("repository_pair_changed");
   };
@@ -496,13 +502,11 @@ export function createBrowserProgramWorkspaceAuthorityV1(
   };
 
   const matchingActiveSessionForPairV1 = (pair: DurableProgramPairV1): string | null => {
-    const workspace = pair.aggregate.snapshot.workspace;
     const active = activeWorkspace;
-    if (workspace === null) throw authorityErrorV1("program_workspace_mismatch");
     if (active === null) return null;
     if (
-      active.programId !== pair.aggregate.programId ||
-      active.workspaceId !== workspace.workspaceId
+      active.programId !== pair.record.head.programId ||
+      active.workspaceId !== pair.record.head.workspaceId
     ) throw authorityErrorV1("workspace_busy");
     return active.workspaceSessionId;
   };
@@ -512,11 +516,10 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     pair: DurableProgramPairV1,
     workspaceSessionId: string,
   ): BrowserWorkspaceHostSnapshotWireV1 => {
-    const workspace = pair.aggregate.snapshot.workspace;
     if (
-      workspace === null || snapshot.phase !== "open" ||
-      snapshot.descriptor.programId !== pair.aggregate.programId ||
-      snapshot.descriptor.workspaceId !== workspace.workspaceId ||
+      snapshot.phase !== "open" ||
+      snapshot.descriptor.programId !== pair.record.head.programId ||
+      snapshot.descriptor.workspaceId !== pair.record.head.workspaceId ||
       snapshot.descriptor.workspaceSessionId !== workspaceSessionId ||
       snapshot.volumeId !== pair.continuation.volumeId ||
       snapshot.anchor.programId !== pair.continuation.programId ||
@@ -530,18 +533,16 @@ export function createBrowserProgramWorkspaceAuthorityV1(
   const ensureHostSessionForPairV1 = async (pair: DurableProgramPairV1): Promise<string> => {
     const matching = matchingActiveSessionForPairV1(pair);
     if (matching !== null) return matching;
-    const workspace = pair.aggregate.snapshot.workspace;
-    if (workspace === null) throw authorityErrorV1("program_workspace_mismatch");
     return await host.withBootstrapLease({
-      programId: pair.aggregate.programId,
-      workspaceId: workspace.workspaceId,
+      programId: pair.record.head.programId,
+      workspaceId: pair.record.head.workspaceId,
       operation: async () => {
         const opened = await host.openWorkspace(anchorFromContinuationV1(pair.continuation));
         try {
           validateHostSnapshotV1(opened, pair, opened.descriptor.workspaceSessionId);
           activeWorkspace = {
-            programId: pair.aggregate.programId,
-            workspaceId: workspace.workspaceId,
+            programId: pair.record.head.programId,
+            workspaceId: pair.record.head.workspaceId,
             workspaceSessionId: opened.descriptor.workspaceSessionId,
             environmentAttached: false,
           };
@@ -569,42 +570,40 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     };
   };
 
-  const settleRepositoryMutationV1 = async (input: {
-    readonly programId: string;
-    readonly current: DurableProgramPairV1;
-    readonly expected: ProgramRepositoryCommitResultV3;
-    readonly commit: (
-      target: ProgramRepositoryWithWorkspaceContinuationV1,
-    ) => Promise<ProgramRepositoryCommitResultV3>;
-  }): Promise<ProgramRepositoryCommitResultV3> => {
-    const expectedAggregate = successAggregateV1(input.expected);
-    const expectedContinuation = expectedAggregate === null
-      ? null
-      : advanceBrowserProgramContinuationV1(input.current.continuation, expectedAggregate);
-    try {
-      const settled = await input.commit(repository);
-      if (settled.kind === "conflict") return settled;
-      if (
-        expectedAggregate === null ||
-        !programRepositoryAggregatesEqualV3(settled.aggregate, expectedAggregate)
-      ) throw authorityErrorV1("repository_response_mismatch");
-      return settled;
-    } catch (error) {
-      if (failureCodeV1(error) !== "outcome_unknown") throw error;
-      await replaceRepositoryAfterUnknownV1();
-      const reconciled = await loadPairV1(input.programId);
-      if (
-        reconciled !== null && expectedAggregate !== null && expectedContinuation !== null &&
-        programRepositoryAggregatesEqualV3(reconciled.aggregate, expectedAggregate) &&
-        browserProgramContinuationManifestsEqualV1(
-          reconciled.continuation,
-          expectedContinuation,
-        )
-      ) {
-        return { kind: "unchanged", aggregate: reconciled.aggregate };
-      }
-      throw error;
-    }
+  const latestAcceptedReceiptV1 = async (
+    programId: string,
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> => {
+    const decision = await repository.loadLatestAcceptedDecision(programId);
+    return decision?.snapshot ?? null;
+  };
+
+  const acceptedReceiptsV1 = async (
+    programId: string,
+  ): Promise<readonly ProgramWorkspaceSnapshotReceiptV1[]> => {
+    const receipts: ProgramWorkspaceSnapshotReceiptV1[] = [];
+    let beforeProgramRevision: number | null = null;
+    do {
+      const page = await repository.listAcceptedDecisions({
+        programId,
+        beforeProgramRevision,
+        maximumBytes: programCatalogOperationalPayloadMaximumBytesV1,
+      });
+      receipts.push(...page.decisions.map((decision) => decision.snapshot));
+      beforeProgramRevision = page.nextCursor;
+    } while (beforeProgramRevision !== null);
+    return receipts;
+  };
+
+  const decisionReferencesReceiptV1 = async (
+    receipt: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<boolean> => {
+    const decision = await repository.loadDecision(
+      receipt.programId,
+      receipt.proposalId,
+      receipt.programRevision,
+    );
+    return decision?.status === "accepted" &&
+      programWorkspaceSnapshotReceiptsEqualV1(decision.snapshot, receipt);
   };
 
   const ensureAcceptedSnapshotAvailableV1 = async (
@@ -612,13 +611,8 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     receipt: ProgramWorkspaceSnapshotReceiptV1,
   ): Promise<void> => {
     try {
-      const retained = await host.queryRetainedSnapshot({
-        workspaceSessionId,
-        expected: receipt,
-      });
-      if (
-        retained !== null && programWorkspaceSnapshotReceiptsEqualV1(retained, receipt)
-      ) return;
+      const retained = await host.queryRetainedSnapshot({ workspaceSessionId, expected: receipt });
+      if (retained !== null && programWorkspaceSnapshotReceiptsEqualV1(retained, receipt)) return;
       const candidate = await host.querySnapshotCandidate(workspaceSessionId);
       if (candidate !== null && programWorkspaceSnapshotReceiptsEqualV1(candidate, receipt)) {
         try {
@@ -632,17 +626,17 @@ export function createBrowserProgramWorkspaceAuthorityV1(
         workspaceSessionId,
         expected: receipt,
       });
-      if (
-        reconciled !== null && programWorkspaceSnapshotReceiptsEqualV1(reconciled, receipt)
-      ) return;
+      if (reconciled !== null && programWorkspaceSnapshotReceiptsEqualV1(reconciled, receipt)) {
+        return;
+      }
     } catch {
-      // Durable acceptance converts every unavailable/mismatched Host state into recovery.
+      // Durable acceptance converts unavailable or mismatched Host state into recovery.
     }
     throw authorityErrorV1("recovery_required");
   };
 
   const reconcileAcceptedSnapshotsV1 = async (pair: DurableProgramPairV1): Promise<void> => {
-    const receipts = acceptedDecisionReceiptsV1(pair.aggregate);
+    const receipts = await acceptedReceiptsV1(pair.record.head.programId);
     if (receipts.length === 0) return;
     const workspaceSessionId = await ensureHostSessionForPairV1(pair);
     for (const receipt of receipts) {
@@ -653,39 +647,23 @@ export function createBrowserProgramWorkspaceAuthorityV1(
   const inspectProgramWorkspaceV1 = async (
     programId: string,
     hostAccess: "required" | "active_only",
-  ): Promise<
-    {
-      readonly aggregate: ProgramRepositoryAggregateV3;
-      readonly review: ProgramWorkspaceReviewProjectionV1;
-    } | null
-  > => {
+  ): Promise<ProgramWorkspaceReviewProjectionV1 | null> => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const loaded = await loadPairV1(programId);
-      if (loaded === null) return null;
-      const initial = pairWorkspaceV1(loaded, programId);
-      const accepted = latestAcceptedDecisionReceiptV1(initial.aggregate);
+      const initial = await loadPairV1(programId);
+      if (initial === null) return null;
+      const accepted = await latestAcceptedReceiptV1(programId);
       if (hostAccess === "required" && accepted !== null) {
         await reconcileAcceptedSnapshotsV1(initial);
       }
 
-      const workspace = initial.aggregate.snapshot.workspace;
-      if (workspace === null) throw authorityErrorV1("program_workspace_mismatch");
       let workspaceSessionId: string | null = null;
       if (
-        hostAccess === "active_only" &&
-        activeWorkspace?.programId === initial.aggregate.programId &&
-        activeWorkspace.workspaceId === workspace.workspaceId
+        activeWorkspace?.programId === programId &&
+        activeWorkspace.workspaceId === initial.record.head.workspaceId
       ) {
         workspaceSessionId = activeWorkspace.workspaceSessionId;
-      } else if (hostAccess === "required" && accepted !== null) {
-        workspaceSessionId = matchingActiveSessionForPairV1(initial) ??
-          await ensureHostSessionForPairV1(initial);
-      } else if (
-        hostAccess === "required" &&
-        activeWorkspace?.programId === initial.aggregate.programId &&
-        activeWorkspace.workspaceId === workspace.workspaceId
-      ) {
-        workspaceSessionId = activeWorkspace.workspaceSessionId;
+      } else if (hostAccess === "required") {
+        workspaceSessionId = await ensureHostSessionForPairV1(initial);
       }
 
       let mutableHead: { readonly checkpointId: string; readonly generation: number } | null = null;
@@ -701,15 +679,14 @@ export function createBrowserProgramWorkspaceAuthorityV1(
         };
       }
 
-      const reloaded = await loadPairV1(programId);
-      if (reloaded !== null) {
-        const current = pairWorkspaceV1(reloaded, programId);
-        if (pairsEqualV1(initial, current)) {
-          return {
-            aggregate: current.aggregate,
-            review: reviewProjectionV1(current.aggregate, mutableHead),
-          };
-        }
+      const current = await loadPairV1(programId);
+      if (current !== null && pairsEqualV1(initial, current)) {
+        const currentAccepted = await latestAcceptedReceiptV1(programId);
+        if (
+          (accepted === null && currentAccepted === null) ||
+          (accepted !== null && currentAccepted !== null &&
+            programWorkspaceSnapshotReceiptsEqualV1(accepted, currentAccepted))
+        ) return reviewProjectionV1(current.record, currentAccepted, mutableHead);
       }
     }
     throw authorityErrorV1("repository_pair_changed");
@@ -718,9 +695,8 @@ export function createBrowserProgramWorkspaceAuthorityV1(
   const discardUnreferencedSnapshotV1 = async (
     workspaceSessionId: string,
     receipt: ProgramWorkspaceSnapshotReceiptV1,
-    current: ProgramRepositoryAggregateV3 | null,
   ): Promise<void> => {
-    if (current !== null && acceptedDecisionReferencesReceiptV1(current, receipt)) {
+    if (await decisionReferencesReceiptV1(receipt)) {
       await ensureAcceptedSnapshotAvailableV1(workspaceSessionId, receipt);
       return;
     }
@@ -730,11 +706,12 @@ export function createBrowserProgramWorkspaceAuthorityV1(
 
   const prepareAcceptedSnapshotV1 = async (
     pair: DurableProgramPairV1,
-    input: BrowserProgramWorkspaceDecisionInputBaseV1,
-  ): Promise<
-    { readonly workspaceSessionId: string; readonly receipt: ProgramWorkspaceSnapshotReceiptV1 }
-  > => {
-    const binding = pair.aggregate.reviewBinding;
+    input: BrowserProgramWorkspaceAcceptedDecisionCatalogInputV1,
+  ): Promise<{
+    readonly workspaceSessionId: string;
+    readonly receipt: ProgramWorkspaceSnapshotReceiptV1;
+  }> => {
+    const binding = pair.record.head.pendingReviewBinding;
     if (
       binding === null || binding.proposalId !== input.expectedProposal.proposalId ||
       binding.programRevision !== input.expectedProposal.programRevision ||
@@ -757,121 +734,18 @@ export function createBrowserProgramWorkspaceAuthorityV1(
       if (!receiptMatchesBindingV1(candidate, binding)) {
         throw authorityErrorV1("snapshot_mismatch");
       }
-      receipt = await host.resumeSnapshotPublication({
-        workspaceSessionId,
-        expected: candidate,
-      });
+      receipt = await host.resumeSnapshotPublication({ workspaceSessionId, expected: candidate });
       if (!programWorkspaceSnapshotReceiptsEqualV1(receipt, candidate)) {
         throw authorityErrorV1("snapshot_mismatch");
       }
     }
-    if (!receiptMatchesBindingV1(receipt, binding)) {
-      throw authorityErrorV1("snapshot_mismatch");
-    }
+    if (!receiptMatchesBindingV1(receipt, binding)) throw authorityErrorV1("snapshot_mismatch");
     return { workspaceSessionId, receipt };
-  };
-
-  const decideAcceptedV1 = async (
-    input: Extract<BrowserProgramWorkspaceDecideInputV1, { readonly status: "accepted" }>,
-  ): Promise<ProgramRepositoryCommitResultV3> => {
-    const initial = await requirePairV1(input.programId);
-    const existingReceipt = acceptedDecisionForInputV1(initial.aggregate, input);
-    if (
-      existingReceipt === null && !acceptedInputMatchesCurrentReviewV1(initial.aggregate, input)
-    ) {
-      return { kind: "conflict", current: initial.aggregate };
-    }
-    if (existingReceipt !== null) {
-      const replay = applyProgramRepositoryDecisionV3(initial.aggregate, {
-        ...input,
-        continuation: predecessorContinuationV1(
-          initial.continuation,
-          input.expectedProposal.programRevision,
-          input.expectedRepositoryRevision,
-        ),
-        snapshotReceipt: existingReceipt,
-      });
-      if (replay.kind === "conflict") return replay;
-    }
-    let workspaceSessionId: string;
-    let receipt: ProgramWorkspaceSnapshotReceiptV1;
-    if (existingReceipt !== null) {
-      workspaceSessionId = await ensureHostSessionForPairV1(initial);
-      receipt = existingReceipt;
-    } else {
-      const prepared = await prepareAcceptedSnapshotV1(initial, input);
-      workspaceSessionId = prepared.workspaceSessionId;
-      receipt = prepared.receipt;
-      const rechecked = await requirePairV1(input.programId);
-      if (!pairsEqualV1(initial, rechecked)) {
-        if (acceptedDecisionReferencesReceiptV1(rechecked.aggregate, receipt)) {
-          await ensureAcceptedSnapshotAvailableV1(workspaceSessionId, receipt);
-        } else {
-          await discardUnreferencedSnapshotV1(workspaceSessionId, receipt, rechecked.aggregate);
-        }
-        return { kind: "conflict", current: rechecked.aggregate };
-      }
-    }
-
-    const continuation = predecessorContinuationV1(
-      initial.continuation,
-      input.expectedProposal.programRevision,
-      input.expectedRepositoryRevision,
-    );
-    const repositoryInput: ProgramRepositoryDecideInputV3 = {
-      ...input,
-      continuation,
-      snapshotReceipt: receipt,
-    };
-    const expected = applyProgramRepositoryDecisionV3(initial.aggregate, repositoryInput);
-    const expectedAggregate = successAggregateV1(expected);
-    const expectedContinuation = expectedAggregate === null
-      ? null
-      : advanceBrowserProgramContinuationV1(initial.continuation, expectedAggregate);
-    try {
-      const settled = await repository.decide(repositoryInput);
-      if (settled.kind === "conflict") {
-        if (
-          settled.current !== null && acceptedDecisionReferencesReceiptV1(settled.current, receipt)
-        ) {
-          await ensureAcceptedSnapshotAvailableV1(workspaceSessionId, receipt);
-        } else {
-          await discardUnreferencedSnapshotV1(workspaceSessionId, receipt, settled.current);
-        }
-        return settled;
-      }
-      if (
-        expectedAggregate === null ||
-        !programRepositoryAggregatesEqualV3(settled.aggregate, expectedAggregate) ||
-        !acceptedDecisionReferencesReceiptV1(settled.aggregate, receipt)
-      ) throw authorityErrorV1("repository_response_mismatch");
-      await ensureAcceptedSnapshotAvailableV1(workspaceSessionId, receipt);
-      return settled;
-    } catch (error) {
-      if (failureCodeV1(error) !== "outcome_unknown") throw error;
-      await replaceRepositoryAfterUnknownV1();
-      const reconciled = await loadPairV1(input.programId);
-      if (
-        reconciled !== null && acceptedDecisionReferencesReceiptV1(reconciled.aggregate, receipt)
-      ) {
-        await ensureAcceptedSnapshotAvailableV1(workspaceSessionId, receipt);
-        if (
-          expectedAggregate !== null && expectedContinuation !== null &&
-          programRepositoryAggregatesEqualV3(reconciled.aggregate, expectedAggregate) &&
-          browserProgramContinuationManifestsEqualV1(
-            reconciled.continuation,
-            expectedContinuation,
-          )
-        ) return { kind: "unchanged", aggregate: reconciled.aggregate };
-        return { kind: "conflict", current: reconciled.aggregate };
-      }
-      throw error;
-    }
   };
 
   const loadExportContinuationV1 = async (
     snapshot: BrowserWorkspaceHostSnapshotWireV1,
-  ): Promise<BrowserProgramContinuationManifestV1> => {
+  ): Promise<ProgramCatalogContinuationV1> => {
     const pair = await requirePairV1(
       snapshot.descriptor.programId,
       snapshot.descriptor.workspaceId,
@@ -883,26 +757,30 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     return pair.continuation;
   };
 
+  const compositeConflictV1 = async (
+    currentProgram: ProgramCatalogRecordV1 | null,
+    processId: string,
+  ): Promise<Extract<ProgramProcessCompositeCommitResultV1, { readonly kind: "conflict" }>> => ({
+    kind: "conflict",
+    currentProgram,
+    currentProcess: await repository.loadProcess(processId),
+  });
+
+  const executionCompositeConflictV1 = async (
+    currentProgram: ProgramCatalogRecordV1 | null,
+    processId: string,
+  ): Promise<
+    Extract<ProgramProcessExecutionCompositeCommitResultV1, { readonly kind: "conflict" }>
+  > => ({
+    kind: "conflict",
+    currentProgram,
+    currentProcess: await repository.loadProcess(processId),
+    currentLease: await repository.loadProcessExecutionLease(processId),
+  });
+
   return {
     initialize() {
       return serializeV1(async () => await initializeRepositoryV1());
-    },
-
-    list() {
-      return serializeV1(async () => {
-        await initializeRepositoryV1();
-        return await repository.list();
-      });
-    },
-
-    load(programId) {
-      return serializeV1(async () => {
-        const pair = await loadPairV1(programId);
-        if (pair === null) return null;
-        matchingActiveSessionForPairV1(pair);
-        await reconcileAcceptedSnapshotsV1(pair);
-        return pair.aggregate;
-      });
     },
 
     inspectProgramWorkspace(programId, inspectionOptions) {
@@ -917,96 +795,82 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     create(input) {
       return serializeV1(async () => {
         await initializeRepositoryV1();
-        const program = input.snapshot.program;
-        const workspace = input.snapshot.workspace;
-        if (program === null || workspace === null) throw authorityErrorV1("program_unavailable");
-        if (activeWorkspace !== null && activeWorkspace.programId !== program.programId) {
+        const catalog = input.catalog;
+        if (
+          activeWorkspace !== null && activeWorkspace.programId !== catalog.program.programId
+        ) {
           throw authorityErrorV1("workspace_busy");
         }
         return await host.withBootstrapLease({
-          programId: program.programId,
-          workspaceId: workspace.workspaceId,
+          programId: catalog.program.programId,
+          workspaceId: input.workspaceId,
           operation: async () => {
-            const existing = await loadPairV1(program.programId);
+            const existing = await loadPairV1(catalog.program.programId);
             if (existing !== null) {
-              const binding = existing.aggregate.reviewBinding;
+              const binding = existing.record.head.pendingReviewBinding;
               if (
-                existing.aggregate.repositoryRevision !== 1 || binding === null ||
-                binding.programRevision !== 1
-              ) return { kind: "conflict", current: existing.aggregate };
-              return await repository.create({
-                ...input,
-                continuation: existing.continuation,
-                reviewedHead: {
-                  checkpointId: binding.checkpointId,
-                  generation: binding.generation,
+                existing.record.head.repositoryRevision !== 1 || binding === null ||
+                binding.programRevision !== 1 ||
+                existing.record.head.workspaceId !== input.workspaceId
+              ) return await compositeConflictV1(existing.record, input.process.processId);
+              return await repository.createProgramWithProcess({
+                catalog: {
+                  ...catalog,
+                  continuation: existing.continuation,
+                  reviewedHead: {
+                    checkpointId: binding.checkpointId,
+                    generation: binding.generation,
+                  },
                 },
+                process: input.process,
+                transcript: input.transcript,
               });
             }
 
             const candidate = await host.createCandidate({
-              programId: program.programId,
-              workspaceId: workspace.workspaceId,
+              programId: catalog.program.programId,
+              workspaceId: input.workspaceId,
             });
             const continuation = continuationFromCandidateV1(input, candidate);
-            const repositoryInput: ProgramRepositoryCreateInputV3 = {
-              ...input,
+            const repositoryInput: ProgramCatalogCreateInputV1 = {
+              ...catalog,
               continuation,
               reviewedHead: {
                 checkpointId: candidate.checkpointId,
                 generation: candidate.generation,
               },
             };
-            const expectedAggregate = buildProgramRepositoryCreateV3(repositoryInput);
-            const ownsCandidateV1 = (pair: DurableProgramPairV1 | null): boolean =>
-              pair !== null &&
-              programRepositoryAggregatesEqualV3(pair.aggregate, expectedAggregate) &&
-              browserProgramContinuationManifestsEqualV1(
-                pair.continuation,
-                continuation,
-              );
-            const discardKnownUnownedCandidateV1 = async (): Promise<void> => {
-              await host.discardCandidate(candidate.anchor.volumeId);
-            };
             try {
-              const settled = await repository.create(repositoryInput);
-              if (settled.kind === "conflict") {
-                await discardKnownUnownedCandidateV1();
+              const settled = await repository.createProgramWithProcess({
+                catalog: repositoryInput,
+                process: input.process,
+                transcript: input.transcript,
+              });
+              if (settled.kind === "conflict" || settled.kind === "program_definition_missing") {
+                await host.discardCandidate(candidate.anchor.volumeId);
                 return settled;
               }
-              if (!programRepositoryAggregatesEqualV3(settled.aggregate, expectedAggregate)) {
-                const mismatch = authorityErrorV1("repository_response_mismatch");
-                let durable: DurableProgramPairV1 | null;
-                try {
-                  durable = await loadPairV1(program.programId);
-                } catch {
-                  throw mismatch;
-                }
-                if (!ownsCandidateV1(durable)) {
-                  await discardKnownUnownedCandidateV1();
-                }
-                throw mismatch;
-              }
+              const binding = settled.record.head.pendingReviewBinding;
+              const ownsCandidate = settled.record.head.programId === catalog.program.programId &&
+                settled.record.currentProgram.programId === catalog.program.programId &&
+                settled.record.currentProgram.revision === catalog.program.revision &&
+                settled.record.head.repositoryRevision === 1 &&
+                settled.record.head.currentProgramRevision === catalog.program.revision &&
+                settled.record.head.workspaceId === input.workspaceId && binding !== null &&
+                binding.workspaceId === input.workspaceId &&
+                binding.volumeId === continuation.volumeId &&
+                binding.checkpointId === candidate.checkpointId &&
+                binding.generation === candidate.generation;
+              if (!ownsCandidate) throw authorityErrorV1("repository_response_mismatch");
               return settled;
             } catch (error) {
-              if (failureCodeV1(error) === "outcome_unknown") {
-                try {
-                  await replaceRepositoryAfterUnknownV1();
-                  const reconciled = await loadPairV1(program.programId);
-                  if (reconciled !== null && ownsCandidateV1(reconciled)) {
-                    return { kind: "unchanged", aggregate: reconciled.aggregate };
-                  }
-                  await discardKnownUnownedCandidateV1();
-                } catch {
-                  // Unknown durable truth preserves the candidate for exact reconciliation.
-                }
+              const code = failureCodeV1(error);
+              if (code === "outcome_unknown" || code === "repository_response_mismatch") {
+                // The candidate may be the committed durable volume. Preserve it
+                // until application recovery rebuilds the single Repository owner.
                 throw error;
               }
-              if (
-                error instanceof TypeError &&
-                error.message === "sillyos.browser_program_workspace.repository_response_mismatch"
-              ) throw error;
-              await discardKnownUnownedCandidateV1();
+              await host.discardCandidate(candidate.anchor.volumeId);
               throw error;
             }
           },
@@ -1016,102 +880,181 @@ export function createBrowserProgramWorkspaceAuthorityV1(
 
     applyRevision(input) {
       return serializeV1(async () => {
-        const current = await requirePairV1(input.programId);
+        const catalog = input.catalog;
+        if (
+          (input.transcript.attemptBinding !== null ||
+            input.transcript.terminalAttemptReceipt !== null) &&
+          input.transcript.checkpoint === null
+        ) {
+          throw authorityErrorV1("process_checkpoint_missing");
+        }
+        const current = await requirePairV1(catalog.programId);
         const continuation = predecessorContinuationV1(
           current.continuation,
-          input.expectedBase.baseProgramRevision,
-          input.expectedRepositoryRevision,
+          catalog.expectedProposal.programRevision,
+          catalog.expectedRepositoryRevision,
         );
+        if (
+          input.transcript.checkpoint !== null &&
+          input.transcript.checkpoint.workspaceId !== current.continuation.workspaceId
+        ) {
+          throw authorityErrorV1("process_checkpoint_workspace_mismatch");
+        }
         let reviewedHead: { readonly checkpointId: string; readonly generation: number };
-        if (current.aggregate.repositoryRevision === input.expectedRepositoryRevision) {
+        if (current.record.head.repositoryRevision === catalog.expectedRepositoryRevision) {
           reviewedHead = await captureReviewedHeadV1(current);
-        } else if (current.aggregate.reviewBinding !== null) {
+        } else if (current.record.head.pendingReviewBinding !== null) {
           reviewedHead = {
-            checkpointId: current.aggregate.reviewBinding.checkpointId,
-            generation: current.aggregate.reviewBinding.generation,
+            checkpointId: current.record.head.pendingReviewBinding.checkpointId,
+            generation: current.record.head.pendingReviewBinding.generation,
           };
         } else {
-          return { kind: "conflict", current: current.aggregate };
+          return await compositeConflictV1(current.record, input.transcript.processId);
         }
-        const repositoryInput: ProgramRepositoryApplyRevisionInputV3 = {
-          ...input,
-          continuation,
-          reviewedHead,
-        };
-        return await settleRepositoryMutationV1({
-          programId: input.programId,
-          current,
-          expected: applyProgramRepositoryRevisionV3(current.aggregate, repositoryInput),
-          commit: (target) => target.applyRevision(repositoryInput),
+        return await repository.applyProgramRevisionWithProcessTranscript({
+          catalog: { ...catalog, continuation, reviewedHead },
+          transcript: transcriptAtReviewedHeadV1(
+            input.transcript,
+            reviewedHead,
+          ),
         });
       });
     },
 
-    settleAgentRun(input) {
+    applyAgentRevision(input) {
       return serializeV1(async () => {
-        const current = await requirePairV1(input.programId);
+        const catalog = input.catalog;
+        const current = await requirePairV1(catalog.programId);
         const continuation = predecessorContinuationV1(
           current.continuation,
-          input.terminal.run.baseProgramRevision,
-          input.expectedRepositoryRevision,
+          catalog.expectedProposal.programRevision,
+          catalog.expectedRepositoryRevision,
         );
-        let reviewedHead: { readonly checkpointId: string; readonly generation: number } | null =
-          null;
-        if (input.terminal.outcome === "completed") {
-          if (current.aggregate.repositoryRevision === input.expectedRepositoryRevision) {
-            reviewedHead = await captureReviewedHeadV1(current);
-          } else if (current.aggregate.reviewBinding !== null) {
-            reviewedHead = {
-              checkpointId: current.aggregate.reviewBinding.checkpointId,
-              generation: current.aggregate.reviewBinding.generation,
-            };
-          } else {
-            return { kind: "conflict", current: current.aggregate };
-          }
+        if (input.transcript.checkpoint.workspaceId !== current.continuation.workspaceId) {
+          throw authorityErrorV1("process_checkpoint_workspace_mismatch");
         }
-        const repositoryInput: ProgramRepositorySettleAgentRunInputV3 = {
-          ...input,
-          continuation,
-          reviewedHead,
+        let reviewedHead: { readonly checkpointId: string; readonly generation: number };
+        if (current.record.head.repositoryRevision === catalog.expectedRepositoryRevision) {
+          reviewedHead = await captureReviewedHeadV1(current);
+        } else if (current.record.head.pendingReviewBinding !== null) {
+          reviewedHead = {
+            checkpointId: current.record.head.pendingReviewBinding.checkpointId,
+            generation: current.record.head.pendingReviewBinding.generation,
+          };
+        } else {
+          return await executionCompositeConflictV1(
+            current.record,
+            input.transcript.processId,
+          );
+        }
+        const operationInput = {
+          lease: input.lease,
+          observedAt: input.observedAt,
+          catalog: { ...catalog, continuation, reviewedHead },
+          transcript: transcriptAtReviewedHeadV1(input.transcript, reviewedHead),
         };
-        return await settleRepositoryMutationV1({
-          programId: input.programId,
-          current,
-          expected: applyProgramRepositoryAgentRunTerminalV3(current.aggregate, repositoryInput),
-          commit: (target) => target.settleAgentRun(repositoryInput),
-        });
+        try {
+          return await repository.commitProgramRevisionWithProcessExecutionTerminal(
+            operationInput,
+          );
+        } catch (error) {
+          if (failureCodeV1(error) !== "outcome_unknown") throw error;
+          const queried = await repository.queryProcessOperation({
+            operation: "program_revision_terminal",
+            input: operationInput,
+          });
+          if (queried.kind === "absent") throw error;
+          if (queried.kind === "mismatch") {
+            throw authorityErrorV1("repository_response_mismatch");
+          }
+          const [record, process] = await Promise.all([
+            repository.load(catalog.programId),
+            repository.loadProcess(input.transcript.processId),
+          ]);
+          const receipt = queried.receipt;
+          if (
+            record === null || process === null ||
+            receipt.programId !== catalog.programId ||
+            receipt.programRevision !== record.currentProgram.revision ||
+            receipt.repositoryRevision !== record.head.repositoryRevision ||
+            receipt.processId !== process.processId ||
+            receipt.processRevision !== process.revision ||
+            receipt.transcriptFrontier !== process.transcriptFrontier
+          ) throw authorityErrorV1("repository_response_mismatch");
+          return {
+            kind: "unchanged",
+            record,
+            process,
+            entries: operationInput.transcript.entries,
+            operationReceipt: receipt,
+          };
+        }
       });
     },
 
     decide(input) {
       return serializeV1(async () => {
-        if (input.status === "accepted") return await decideAcceptedV1(input);
-        const current = await requirePairV1(input.programId);
-        const repositoryInput: ProgramRepositoryDecideInputV3 = {
-          ...input,
-          continuation: predecessorContinuationV1(
-            current.continuation,
-            input.expectedProposal.programRevision,
-            input.expectedRepositoryRevision,
-          ),
-        };
-        const settled = await settleRepositoryMutationV1({
-          programId: input.programId,
-          current,
-          expected: applyProgramRepositoryDecisionV3(current.aggregate, repositoryInput),
-          commit: (target) => target.decide(repositoryInput),
-        });
-        if (settled.kind === "conflict") return settled;
-        const durable = await requirePairV1(input.programId);
-        const workspaceSessionId = await ensureHostSessionForPairV1(durable);
-        const candidate = await host.querySnapshotCandidate(workspaceSessionId);
-        if (candidate !== null) {
-          await discardUnreferencedSnapshotV1(
-            workspaceSessionId,
-            candidate,
-            durable.aggregate,
-          );
+        const catalog = input.catalog;
+        const initial = await requirePairV1(catalog.programId);
+        const continuation = predecessorContinuationV1(
+          initial.continuation,
+          catalog.expectedProposal.programRevision,
+          catalog.expectedRepositoryRevision,
+        );
+        if (catalog.status === "rejected") {
+          const settled = await repository.decideProgramWithProcessTranscript({
+            catalog: { ...catalog, continuation },
+            transcript: input.transcript,
+          });
+          if (settled.kind === "conflict") return settled;
+          const durable = await requirePairV1(catalog.programId);
+          const workspaceSessionId = await ensureHostSessionForPairV1(durable);
+          const candidate = await host.querySnapshotCandidate(workspaceSessionId);
+          if (candidate !== null) {
+            await discardUnreferencedSnapshotV1(workspaceSessionId, candidate);
+          }
+          return settled;
         }
+
+        const existing = await repository.loadDecision(
+          catalog.programId,
+          catalog.expectedProposal.proposalId,
+          catalog.expectedProposal.programRevision,
+        );
+        if (existing?.status === "rejected") {
+          return await compositeConflictV1(initial.record, input.transcript.processId);
+        }
+        if (existing === null && !acceptedInputMatchesCurrentReviewV1(initial, catalog)) {
+          return await compositeConflictV1(initial.record, input.transcript.processId);
+        }
+        let workspaceSessionId: string;
+        let receipt: ProgramWorkspaceSnapshotReceiptV1;
+        if (existing?.status === "accepted") {
+          workspaceSessionId = await ensureHostSessionForPairV1(initial);
+          receipt = existing.snapshot;
+        } else {
+          const prepared = await prepareAcceptedSnapshotV1(initial, catalog);
+          workspaceSessionId = prepared.workspaceSessionId;
+          receipt = prepared.receipt;
+          const rechecked = await requirePairV1(catalog.programId);
+          if (!pairsEqualV1(initial, rechecked)) {
+            await discardUnreferencedSnapshotV1(workspaceSessionId, receipt);
+            return await compositeConflictV1(rechecked.record, input.transcript.processId);
+          }
+        }
+        const settled = await repository.decideProgramWithProcessTranscript({
+          catalog: {
+            ...catalog,
+            continuation,
+            snapshotReceipt: receipt,
+          },
+          transcript: input.transcript,
+        });
+        if (settled.kind === "conflict") {
+          await discardUnreferencedSnapshotV1(workspaceSessionId, receipt);
+          return settled;
+        }
+        await ensureAcceptedSnapshotAvailableV1(workspaceSessionId, receipt);
         return settled;
       });
     },
@@ -1121,30 +1064,17 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     },
 
     setProgramNetworkAccess(input) {
-      return serializeV1(async () => {
-        try {
-          return await repository.setProgramNetworkAccess(input);
-        } catch (error) {
-          if (failureCodeV1(error) !== "outcome_unknown") throw error;
-          await replaceRepositoryAfterUnknownV1();
-          const reconciled = await repository.loadProgramNetworkAccess(input.programId);
-          if (reconciled !== null && reconciled.enabled === input.enabled) {
-            return { kind: "unchanged", value: reconciled };
-          }
-          throw error;
-        }
-      });
+      return serializeV1(() => repository.setProgramNetworkAccess(input));
     },
 
     withAgentSubmitAdmission(input) {
       return serializeV1(async () => {
         const pair = await requirePairV1(input.programId);
         const access = await repository.loadProgramNetworkAccess(input.programId);
-        const program = pair.aggregate.snapshot.program;
         const active = activeWorkspace;
         if (
-          program === null || program.revision !== input.expectedProgramRevision ||
-          pair.aggregate.repositoryRevision !== input.expectedRepositoryRevision
+          pair.record.head.currentProgramRevision !== input.expectedProgramRevision ||
+          pair.record.head.repositoryRevision !== input.expectedRepositoryRevision
         ) throw authorityErrorV1("agent_submit_stale");
         if (
           active === null || active.programId !== input.programId ||
@@ -1156,7 +1086,10 @@ export function createBrowserProgramWorkspaceAuthorityV1(
           pair,
           input.workspaceSessionId,
         );
-        if (snapshot.descriptor.generation !== input.expectedGeneration) {
+        if (
+          snapshot.checkpointId !== input.expectedCheckpointId ||
+          snapshot.descriptor.generation !== input.expectedGeneration
+        ) {
           throw authorityErrorV1("agent_submit_stale");
         }
         if (access === null || access.programId !== input.programId) {
@@ -1171,9 +1104,7 @@ export function createBrowserProgramWorkspaceAuthorityV1(
         const pair = await requirePairV1(input.programId, input.workspaceId);
         await reconcileAcceptedSnapshotsV1(pair);
         const workspaceSessionId = await ensureHostSessionForPairV1(pair);
-        if (activeWorkspace?.environmentAttached === true) {
-          throw authorityErrorV1("workspace_busy");
-        }
+        if (activeWorkspace?.environmentAttached === true) throw authorityErrorV1("workspace_busy");
         const attached = await host.attachEnvironment({ workspaceSessionId });
         validateHostSnapshotV1(attached.snapshot, pair, workspaceSessionId);
         activeWorkspace = {
@@ -1182,10 +1113,7 @@ export function createBrowserProgramWorkspaceAuthorityV1(
           workspaceSessionId,
           environmentAttached: true,
         };
-        return {
-          snapshot: attached.snapshot,
-          environmentPort: attached.environmentPort,
-        };
+        return { snapshot: attached.snapshot, environmentPort: attached.environmentPort };
       });
     },
 
@@ -1230,12 +1158,9 @@ export function createBrowserProgramWorkspaceAuthorityV1(
               ) throw authorityErrorV1("export_anchor_changed");
               const currentContinuation = await loadExportContinuationV1(currentSnapshot);
               if (input.signal.aborted) return false;
-              if (
-                !browserProgramContinuationManifestsEqualV1(
-                  currentContinuation,
-                  initialContinuation,
-                )
-              ) throw authorityErrorV1("export_anchor_changed");
+              if (!continuationsEqualV1(currentContinuation, initialContinuation)) {
+                throw authorityErrorV1("export_anchor_changed");
+              }
               return true;
             };
             if (!(await assertCurrentExportV1())) return "cancel";
@@ -1257,12 +1182,13 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     },
 
     detachWorkspaceEnvironment(workspaceSessionId) {
-      return serializeV1(async () => {
+      return serializeV1(() => {
         if (activeWorkspace?.workspaceSessionId !== workspaceSessionId) {
           throw authorityErrorV1("workspace_mismatch");
         }
-        if (!activeWorkspace.environmentAttached) return;
+        if (!activeWorkspace.environmentAttached) return Promise.resolve();
         activeWorkspace = { ...activeWorkspace, environmentAttached: false };
+        return Promise.resolve();
       });
     },
 
@@ -1300,44 +1226,17 @@ export function createBrowserProgramWorkspaceAuthorityV1(
             workspaceVolumes: { kind: "failed", diagnosticCode: "workspace_busy" },
           };
         }
-
         await initializeRepositoryV1();
         try {
           await repository.reset();
         } catch (error) {
-          if (failureCodeV1(error) === "outcome_unknown") {
-            try {
-              await replaceRepositoryAfterUnknownV1();
-              // Repository reset is one physical transaction across all owned
-              // stores, so an empty catalog reconciles the unknown outcome.
-              const resetReconciled = (await repository.list()).length === 0;
-              if (!resetReconciled) {
-                return {
-                  productRepository: {
-                    kind: "failed",
-                    diagnosticCode: "repository_outcome_unknown",
-                  },
-                  workspaceVolumes: { kind: "retained" },
-                };
-              }
-            } catch {
-              return {
-                productRepository: {
-                  kind: "failed",
-                  diagnosticCode: "repository_outcome_unknown",
-                },
-                workspaceVolumes: { kind: "retained" },
-              };
-            }
-          } else {
-            return {
-              productRepository: {
-                kind: "failed",
-                diagnosticCode: failureCodeV1(error) ?? "repository_reset_failed",
-              },
-              workspaceVolumes: { kind: "retained" },
-            };
-          }
+          return {
+            productRepository: {
+              kind: "failed",
+              diagnosticCode: failureCodeV1(error) ?? "repository_reset_failed",
+            },
+            workspaceVolumes: { kind: "retained" },
+          };
         }
 
         if (activeWorkspace !== null) {
@@ -1388,9 +1287,7 @@ export function createBrowserProgramWorkspaceAuthorityV1(
         fatalListeners.clear();
         const sessionId = activeWorkspace?.workspaceSessionId ?? null;
         activeWorkspace = null;
-        if (sessionId !== null) {
-          await host.closeWorkspace(sessionId).catch(() => undefined);
-        }
+        if (sessionId !== null) await host.closeWorkspace(sessionId).catch(() => undefined);
         host.dispose();
         await repository.dispose().catch(() => undefined);
         lifecycle = "disposed";

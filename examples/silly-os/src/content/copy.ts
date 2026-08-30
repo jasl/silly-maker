@@ -21,18 +21,6 @@ export type SillyOsLocaleV1 = (typeof sillyOsLocaleRegistryV1)[number]["value"];
 
 const defaultSillyOsLocaleV1: SillyOsLocaleV1 = "en";
 
-export interface SillyOsActivityKindLabelsV1 {
-  readonly intent_submitted: string;
-  readonly follow_up_submitted: string;
-  readonly proposal_created: string;
-  readonly proposal_revised: string;
-  readonly proposal_accepted: string;
-  readonly proposal_rejected: string;
-  readonly agent_run_failed: string;
-  readonly agent_run_cancelled: string;
-  readonly agent_run_replaced: string;
-}
-
 export interface SillyOsCopyV1 {
   readonly locale: SillyOsLocaleV1;
   readonly productName: string;
@@ -49,7 +37,10 @@ export interface SillyOsCopyV1 {
   readonly recentProgramsEmpty: string;
   readonly programsLoading: string;
   readonly programsUnavailable: string;
+  readonly loadMorePrograms: string;
+  readonly loadingMorePrograms: string;
   readonly openProgram: string;
+  readonly openingProgram: string;
   readonly savingProgram: string;
   readonly retry: string;
   readonly persistenceFailure: string;
@@ -61,10 +52,19 @@ export interface SillyOsCopyV1 {
   readonly programKindGeneral: string;
   readonly home: string;
   readonly chat: string;
+  readonly loadOlderTranscript: string;
+  readonly loadingOlderTranscript: string;
+  readonly transcriptUnavailable: string;
+  readonly transcriptInterrupted: string;
+  readonly retryInterruptedRun: string;
+  readonly transcriptSystem: string;
+  readonly transcriptTool: string;
+  readonly transcriptReasoning: string;
+  readonly transcriptToolCall: string;
+  readonly transcriptToolResult: string;
+  readonly transcriptArtifact: string;
   readonly previewTab: string;
   readonly capabilitiesTab: string;
-  readonly activityTab: string;
-  readonly activityKindLabels: SillyOsActivityKindLabelsV1;
   readonly fullscreen: string;
   readonly exitFullscreen: string;
   readonly closePreview: string;
@@ -321,7 +321,10 @@ const englishV1: SillyOsCopyV1 = {
   recentProgramsEmpty: "Programs you create here will appear in this browser.",
   programsLoading: "Opening the local Program catalog…",
   programsUnavailable: "The local Program catalog is unavailable.",
+  loadMorePrograms: "Load more programs",
+  loadingMorePrograms: "Loading more programs…",
   openProgram: "Open program",
+  openingProgram: "Opening program…",
   savingProgram: "Saving Program…",
   retry: "Retry",
   persistenceFailure: "The Program was not saved. Your previous committed version is unchanged.",
@@ -333,20 +336,19 @@ const englishV1: SillyOsCopyV1 = {
   programKindGeneral: "Creator tool",
   home: "Creator home",
   chat: "Chat",
+  loadOlderTranscript: "Load earlier messages",
+  loadingOlderTranscript: "Loading earlier messages…",
+  transcriptUnavailable: "The conversation could not be loaded.",
+  transcriptInterrupted: "This response was interrupted before it completed.",
+  retryInterruptedRun: "Retry interrupted run",
+  transcriptSystem: "System",
+  transcriptTool: "Tool",
+  transcriptReasoning: "Reasoning summary",
+  transcriptToolCall: "Tool call",
+  transcriptToolResult: "Tool result",
+  transcriptArtifact: "Artifact",
   previewTab: "View",
   capabilitiesTab: "Capabilities",
-  activityTab: "Activity",
-  activityKindLabels: {
-    intent_submitted: "Intent submitted",
-    follow_up_submitted: "Follow-up submitted",
-    proposal_created: "Proposal created",
-    proposal_revised: "Proposal revised",
-    proposal_accepted: "Proposal accepted",
-    proposal_rejected: "Proposal rejected",
-    agent_run_failed: "Agent run failed",
-    agent_run_cancelled: "Agent run cancelled",
-    agent_run_replaced: "Agent run replaced",
-  },
   fullscreen: "Open full screen",
   exitFullscreen: "Exit full screen",
   closePreview: "Close workpiece",
@@ -655,7 +657,10 @@ const chineseV1: SillyOsCopyV1 = {
   recentProgramsEmpty: "你在这里创建的程序会出现在此浏览器中。",
   programsLoading: "正在打开本地 Program 目录……",
   programsUnavailable: "本地 Program 目录当前不可用。",
+  loadMorePrograms: "载入更多程序",
+  loadingMorePrograms: "正在载入更多程序……",
   openProgram: "打开程序",
+  openingProgram: "正在打开程序……",
   savingProgram: "正在保存 Program……",
   retry: "重试",
   persistenceFailure: "Program 未保存；上一个已提交版本保持不变。",
@@ -667,20 +672,19 @@ const chineseV1: SillyOsCopyV1 = {
   programKindGeneral: "创作工具",
   home: "Creator 首页",
   chat: "对话",
+  loadOlderTranscript: "载入更早的消息",
+  loadingOlderTranscript: "正在载入更早的消息……",
+  transcriptUnavailable: "无法载入当前对话。",
+  transcriptInterrupted: "这条回复在完成前被中断。",
+  retryInterruptedRun: "重试中断的运行",
+  transcriptSystem: "系统",
+  transcriptTool: "工具",
+  transcriptReasoning: "推理摘要",
+  transcriptToolCall: "工具调用",
+  transcriptToolResult: "工具结果",
+  transcriptArtifact: "产物",
   previewTab: "界面",
   capabilitiesTab: "能力",
-  activityTab: "活动",
-  activityKindLabels: {
-    intent_submitted: "已提交初始意图",
-    follow_up_submitted: "已提交后续修改",
-    proposal_created: "已创建方案",
-    proposal_revised: "已修订方案",
-    proposal_accepted: "已接受方案",
-    proposal_rejected: "已拒绝方案",
-    agent_run_failed: "Agent 运行失败",
-    agent_run_cancelled: "已取消 Agent 运行",
-    agent_run_replaced: "已替换 Agent 运行",
-  },
   fullscreen: "全屏打开",
   exitFullscreen: "退出全屏",
   closePreview: "关闭工作界面",

@@ -19,6 +19,13 @@ beforeAll(() => {
 });
 
 const copyV1 = getSillyOsCopyV1("en");
+const emptyTranscriptV1 = {
+  entries: [],
+  byteLength: 0,
+  nextBeforeSequence: null,
+  newerOmitted: false,
+  phase: "ready" as const,
+};
 const providerModelV1: ComposerModelControlV1 = {
   status: "ready",
   selectedValue: "builtin:anthropic:claude-opus-5",
@@ -53,6 +60,8 @@ describe("Creator readiness UI", () => {
           programs: [],
           openDisabled: false,
           onOpen: vi.fn(),
+          hasMore: false,
+          onLoadMore: vi.fn(),
         }}
       />,
     );
@@ -72,6 +81,8 @@ describe("Creator readiness UI", () => {
           programs: [],
           openDisabled: false,
           onOpen: vi.fn(),
+          hasMore: false,
+          onLoadMore: vi.fn(),
         }}
       />,
     );
@@ -90,6 +101,8 @@ describe("Creator readiness UI", () => {
           programs: [],
           openDisabled: false,
           onOpen: vi.fn(),
+          hasMore: false,
+          onLoadMore: vi.fn(),
         }}
       />,
     );
@@ -99,6 +112,59 @@ describe("Creator readiness UI", () => {
     expect(empty).not.toBeNull();
     expect(empty).not.toHaveAttribute("role");
     expect(empty).not.toHaveAttribute("aria-live");
+  });
+
+  it("keeps Program catalog pagination explicit and disables it while the next page loads", () => {
+    const onLoadMore = vi.fn();
+    const program = {
+      programId: "program.catalog.1",
+      name: "Translation desk",
+      kind: "translation" as const,
+      programRevision: 1,
+      proposalStatus: "pending" as const,
+    };
+    const view = render(
+      <CreatorHomeV1
+        copy={copyV1}
+        onCreate={vi.fn()}
+        onLocaleChange={vi.fn()}
+        theme="system"
+        onThemeChange={vi.fn()}
+        programCatalog={{
+          status: "ready",
+          programs: [program],
+          openDisabled: false,
+          onOpen: vi.fn(),
+          hasMore: true,
+          onLoadMore,
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: copyV1.loadMorePrograms }));
+    expect(onLoadMore).toHaveBeenCalledOnce();
+
+    view.rerender(
+      <CreatorHomeV1
+        copy={copyV1}
+        onCreate={vi.fn()}
+        onLocaleChange={vi.fn()}
+        theme="system"
+        onThemeChange={vi.fn()}
+        programCatalog={{
+          status: "loading_more",
+          programs: [program],
+          openDisabled: true,
+          onOpen: vi.fn(),
+          hasMore: true,
+          onLoadMore,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: copyV1.loadingMorePrograms })).toBeDisabled();
+    expect(screen.getByRole("button", { name: `${copyV1.openProgram}: ${program.name}` }))
+      .toBeDisabled();
   });
 
   it("renders one actionable Home blocker instead of a model picker", () => {
@@ -156,7 +222,7 @@ describe("Creator readiness UI", () => {
     const view = render(
       <ChatPaneV1
         copy={copyV1}
-        messages={[]}
+        transcript={emptyTranscriptV1}
         proposal={{ proposalId: "proposal.readiness.1", programRevision: 1, status: "pending" }}
         program={{
           programId: "program.readiness",

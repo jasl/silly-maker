@@ -7,11 +7,7 @@ import { createRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getSillyOsCopyV1 } from "../content/copy.ts";
-import type {
-  CreatorActivityV1,
-  PreviewProgramV1,
-  ProgramProposalV1,
-} from "../product/contracts.ts";
+import type { PreviewProgramV1, ProgramProposalV1 } from "../product/contracts.ts";
 import {
   type WorkpieceExecutionWorkspaceV1,
   WorkpiecePaneV1,
@@ -45,15 +41,6 @@ const proposalV1: ProgramProposalV1 = {
   status: "accepted",
 };
 
-const activityV1: readonly CreatorActivityV1[] = [
-  {
-    activityId: "activity.truthful-workpiece.1",
-    sequence: 1,
-    kind: "proposal_accepted",
-    summary: "Accepted the exact revision 7 proposal.",
-  },
-];
-
 const executionWorkspaceV1: WorkpieceExecutionWorkspaceV1 = {
   phase: "open",
   descriptor: {
@@ -79,7 +66,6 @@ function renderWorkpieceV1(activeTab: WorkpieceTabV1, locale: "en" | "zh-CN" = "
       copy={getSillyOsCopyV1(locale)}
       program={programV1}
       proposal={proposalV1}
-      activity={activityV1}
       activeTab={activeTab}
       fullscreen={false}
       agentMode="pi_provider"
@@ -122,7 +108,7 @@ describe("SillyOS truthful Workpiece presentation", () => {
   it("keeps proposed capability facts without claiming that they are active", () => {
     renderWorkpieceV1("capabilities");
 
-    expect(screen.getAllByRole("tab")).toHaveLength(3);
+    expect(screen.getAllByRole("tab")).toHaveLength(2);
     expect(screen.getByText("Exact review queue")).toBeVisible();
     expect(
       screen.getByText("Keep review decisions attached to the current Program revision."),
@@ -138,25 +124,5 @@ describe("SillyOS truthful Workpiece presentation", () => {
         "The product-pinned Agent runtime uses your selected model. Provider credentials stay separate from the Workspace, and Workspace tools run only through the Sandbox bound to this Program.",
       ),
     ).toBeVisible();
-  });
-
-  it("retains exact session-local Workspace receipt facts in Activity", () => {
-    renderWorkpieceV1("activity");
-
-    expect(screen.getByText("Program workspace checkpoint")).toBeVisible();
-    expect(screen.getByText(/Open · generation 7/u)).toBeVisible();
-    expect(
-      screen.getByText("Last write: succeeded / changed · /workspace/output/chapter-01.txt"),
-    ).toBeVisible();
-    expect(screen.getByText("Accepted the exact revision 7 proposal.")).toBeVisible();
-    expect(screen.getByText("Proposal accepted")).toBeVisible();
-  });
-
-  it("projects Activity kinds through the active locale instead of exposing internal enums", () => {
-    renderWorkpieceV1("activity", "zh-CN");
-
-    expect(screen.getByText("已接受方案")).toBeVisible();
-    expect(screen.queryByText("proposal accepted")).toBeNull();
-    expect(screen.queryByText("proposal_accepted")).toBeNull();
   });
 });

@@ -386,6 +386,10 @@ function productRunV1(
 ): CreatorAgentRunRequestV1 {
   return {
     agentRunId: "agent.run.product.1",
+    processId: "process.creator.product.1",
+    processAttemptGeneration: 1,
+    workspaceCheckpointId: "checkpoint.workspace.preview.1",
+    workspaceGeneration: 1,
     proposalId: submitV1.proposalId,
     programId: submitV1.programId,
     baseProgramRevision: submitV1.baseProgramRevision,
@@ -835,6 +839,10 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   private disposed = false;
   closeWorkspaceCalls = 0;
   agentSubmitAdmissionCalls = 0;
+  lastAgentSubmitAdmission: {
+    readonly expectedCheckpointId: string;
+    readonly expectedGeneration: number;
+  } | null = null;
   readonly detachWorkspaceEnvironmentCalls: string[] = [];
   holdDetachWorkspaceEnvironment = false;
   disposeCalls = 0;
@@ -898,6 +906,10 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     throw new Error("test repository revision is unavailable");
   }
 
+  async applyAgentRevision(): Promise<never> {
+    throw new Error("test repository Agent revision is unavailable");
+  }
+
   async settleAgentRun(): Promise<never> {
     throw new Error("test repository Agent settlement is unavailable");
   }
@@ -929,11 +941,16 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
       readonly workspaceSessionId: string;
       readonly expectedProgramRevision: number;
       readonly expectedRepositoryRevision: number;
+      readonly expectedCheckpointId: string;
       readonly expectedGeneration: number;
       readonly operation: (access: ProgramNetworkAccessV1) => Promise<T>;
     },
   ): Promise<T> {
     this.agentSubmitAdmissionCalls += 1;
+    this.lastAgentSubmitAdmission = {
+      expectedCheckpointId: input.expectedCheckpointId,
+      expectedGeneration: input.expectedGeneration,
+    };
     return await input.operation(await this.loadProgramNetworkAccess(input.programId));
   }
 
@@ -1311,6 +1328,7 @@ class RuntimeMismatchBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
 /** Minimal controllable Worker used only to drive product-terminal edge cases. */
 class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   terminated = false;
+  deferReceiptAcknowledgementResponses = false;
   dropCloseWorkspaceResponses = false;
   dropSubmitResponses = false;
   failConfiguration = false;
@@ -1327,6 +1345,7 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
     readonly enabled: boolean;
   }> = [];
   readonly workspaceReceiptAcknowledgements: number[] = [];
+  private readonly deferredWorkspaceReceiptAcknowledgementResponses: unknown[] = [];
   private configuredRuntime: unknown = null;
   private configuredSelection: unknown = null;
   private configuredPreferredReasoningEffort: unknown = null;
@@ -1351,6 +1370,11 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
 
   emitWorkerError(): void {
     for (const listener of [...this.errorListeners]) listener(new Event("error"));
+  }
+
+  releaseReceiptAcknowledgementResponses(): void {
+    const responses = this.deferredWorkspaceReceiptAcknowledgementResponses.splice(0);
+    for (const response of responses) this.emit(response);
   }
 
   postMessage(message: unknown, transfer: Transferable[] = []): void {
@@ -1492,13 +1516,21 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
           snapshot: workspace,
         }
         : { method: record.method, snapshot: workspace };
-      this.emit({
+      const outbound = {
         revision: 1,
         kind: "workspace_response",
         requestId: envelope.requestId,
         ok: true,
         response,
-      });
+      };
+      if (
+        record.method === "acknowledge_workspace_receipts" &&
+        this.deferReceiptAcknowledgementResponses
+      ) {
+        this.deferredWorkspaceReceiptAcknowledgementResponses.push(outbound);
+      } else {
+        this.emit(outbound);
+      }
       return;
     }
     if (record.method === "start") {
@@ -4256,12 +4288,10 @@ describe("SillyOS Browser Pi transport and product port", () => {
         Promise.reject(new Error("test repository is unavailable"));
       const authority: BrowserProgramWorkspaceAuthorityV1 = {
         initialize: () => Promise.resolve(),
-        list: repositoryUnavailable,
-        load: repositoryUnavailable,
         inspectProgramWorkspace: repositoryUnavailable,
         create: repositoryUnavailable,
         applyRevision: repositoryUnavailable,
-        settleAgentRun: repositoryUnavailable,
+        applyAgentRevision: repositoryUnavailable,
         decide: repositoryUnavailable,
         loadProgramNetworkAccess: (programId) =>
           Promise.resolve(createDefaultProgramNetworkAccessV1(programId)),
@@ -4436,7 +4466,21 @@ describe("SillyOS Browser Pi transport and product port", () => {
     });
     expect(worker.networkAccessReplacements).toEqual([]);
 
-    await expect(port.submit(productRunV1())).resolves.toEqual({
+    await expect(port.submit(productRunV1({ workspaceCheckpointId: "/invalid" }))).resolves
+      .toEqual({
+        kind: "unavailable",
+        diagnostic: { code: "submit_invalid", path: "/run" },
+      });
+    await expect(port.submit(productRunV1({ workspaceGeneration: 0 }))).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "submit_invalid", path: "/run" },
+    });
+
+    const run = productRunV1({
+      workspaceCheckpointId: "checkpoint.durable.before-submit",
+      workspaceGeneration: 7,
+    });
+    await expect(port.submit(run)).resolves.toEqual({
       kind: "submitted",
       agentRunId: "agent.run.product.1",
     });
@@ -4447,6 +4491,10 @@ describe("SillyOS Browser Pi transport and product port", () => {
     }]);
     expect(worker.requestOrder).toEqual(["replace_network_access", "submit"]);
     expect(workspaceAuthority.agentSubmitAdmissionCalls).toBe(1);
+    expect(workspaceAuthority.lastAgentSubmitAdmission).toEqual({
+      expectedCheckpointId: run.workspaceCheckpointId,
+      expectedGeneration: run.workspaceGeneration,
+    });
     await port.dispose();
   });
 
@@ -5061,7 +5109,9 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(workspaceAuthority.closeWorkspaceCalls).toBe(0);
     await waitUntilV1(() => workspaceAuthority.detachWorkspaceEnvironmentCalls.length === 1);
     expect(workspaceAuthority.detachWorkspaceEnvironmentCalls).toEqual([workspaceSessionIdV1]);
-    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
+    await expect(port.acknowledgeTerminal(run.agentRunId)).resolves.toEqual({
+      kind: "acknowledged",
+    });
     expect(port.getSnapshot()).toMatchObject({
       phase: "failed",
       diagnostic: { code: "connection_failed", path: "/workspace/host" },
@@ -5172,25 +5222,24 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(workspace).toMatchObject({
       phase: "open",
       descriptor: { generation: 2 },
-      receipts: [
-        {
-          revision: 1,
-          sequence: 1,
-          programId: run.programId,
-          workspaceId: workspaceIdV1,
-          agentRunId: run.agentRunId,
-          tool: "write",
-          expectedGeneration: 1,
-          baseGeneration: 1,
-          resultingGeneration: 2,
-          outcome: "succeeded",
-          effect: "changed",
-          changedPaths: [".sillyos/p3a-round-trip.txt"],
-          diagnosticCode: null,
-        },
-      ],
+      receipts: [],
+      lastReceipt: {
+        revision: 1,
+        sequence: 1,
+        programId: run.programId,
+        workspaceId: workspaceIdV1,
+        agentRunId: run.agentRunId,
+        tool: "write",
+        expectedGeneration: 1,
+        baseGeneration: 1,
+        resultingGeneration: 2,
+        outcome: "succeeded",
+        effect: "changed",
+        changedPaths: [".sillyos/p3a-round-trip.txt"],
+        diagnosticCode: null,
+      },
     });
-    expect(`${workspaceRootV1}/${workspace.receipts[0]?.changedPaths[0]}`).toBe(
+    expect(`${workspaceRootV1}/${workspace.lastReceipt?.changedPaths[0]}`).toBe(
       roundTripArtifactPathV1,
     );
     const serializedWorkspace = JSON.stringify(workspace);
@@ -5198,15 +5247,13 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(serializedWorkspace).not.toContain("sillyos.run.1");
     expect(serializedWorkspace).not.toContain('"sessionId"');
     expect(serializedWorkspace).not.toContain('"runId"');
-    await expect(port.acknowledgeWorkspaceReceipts(1)).resolves.toEqual({
-      kind: "acknowledged",
-      throughSequence: 1,
-    });
     expect(port.getSnapshot().workspace.receipts).toEqual([]);
 
-    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
+    await expect(port.acknowledgeTerminal(run.agentRunId)).resolves.toEqual({
+      kind: "acknowledged",
+    });
     expect(port.getSnapshot()).toMatchObject({ phase: "ready", terminalRuns: [] });
-    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(false);
+    await expect(port.acknowledgeTerminal(run.agentRunId)).resolves.toEqual({ kind: "idle" });
     await port.forget();
     expect(port.getSnapshot()).toMatchObject({
       phase: "forgotten",
@@ -5216,6 +5263,192 @@ describe("SillyOS Browser Pi transport and product port", () => {
     });
     expect((worker as unknown as InMemoryBrowserPiWorkerV1).terminated).toBe(true);
   });
+
+  it("releases more than 32 sequential Workspace mutations without a semantic receipt ceiling", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => worker,
+    });
+    await configureAndTestProductPortV1(port);
+    await openProductWorkspaceV1(port);
+    const run = productRunV1({ agentRunId: "agent.run.long-workspace" });
+    await expect(port.submit(run)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: run.agentRunId,
+    });
+
+    for (let ordinal = 1; ordinal <= 40; ordinal += 1) {
+      worker.emitWorkspaceMutation(undefined, `.sillyos/long-run-${String(ordinal)}.txt`);
+      await waitUntilV1(() => worker.workspaceReceiptAcknowledgements.at(-1) === ordinal);
+    }
+    await waitUntilV1(() => port.getSnapshot().workspace.receipts.length === 0);
+
+    expect(worker.workspaceReceiptAcknowledgements).toHaveLength(40);
+    expect(worker.workspaceReceiptAcknowledgements.at(-1)).toBe(40);
+    expect(port.getSnapshot().workspace).toMatchObject({
+      phase: "open",
+      descriptor: { generation: 41 },
+      receipts: [],
+      lastReceipt: {
+        sequence: 40,
+        agentRunId: run.agentRunId,
+        resultingGeneration: 41,
+        changedPaths: [".sillyos/long-run-40.txt"],
+      },
+      diagnostic: null,
+    });
+
+    worker.emitCompleted(run, "Long Workspace run completed.");
+    await waitUntilV1(() => port.getSnapshot().terminalRuns.length === 1);
+    await expect(port.acknowledgeTerminal(run.agentRunId)).resolves.toEqual({
+      kind: "acknowledged",
+    });
+    await port.dispose();
+  });
+
+  it("coalesces same-turn Workspace receipts through the last observed watermark", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => worker,
+    });
+    await configureAndTestProductPortV1(port);
+    await openProductWorkspaceV1(port);
+    const run = productRunV1({ agentRunId: "agent.run.coalesced-workspace" });
+    await expect(port.submit(run)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: run.agentRunId,
+    });
+
+    for (let ordinal = 1; ordinal <= 40; ordinal += 1) {
+      worker.emitWorkspaceMutation(
+        undefined,
+        `.sillyos/coalesced-${String(ordinal)}.txt`,
+      );
+    }
+    worker.emitCompleted(run, "Coalesced Workspace run completed.");
+    await waitUntilV1(() => worker.workspaceReceiptAcknowledgements.length === 1);
+    await waitUntilV1(() => port.getSnapshot().workspace.receipts.length === 0);
+    await waitUntilV1(() => port.getSnapshot().terminalRuns.length === 1);
+
+    expect(worker.workspaceReceiptAcknowledgements).toEqual([40]);
+    expect(port.getSnapshot().workspace).toMatchObject({
+      descriptor: { generation: 41 },
+      receipts: [],
+      lastReceipt: { sequence: 40, changedPaths: [".sillyos/coalesced-40.txt"] },
+    });
+    expect(port.getSnapshot().terminalRuns).toMatchObject([{
+      run: { agentRunId: run.agentRunId },
+      outcome: "completed",
+    }]);
+    await expect(port.acknowledgeTerminal(run.agentRunId)).resolves.toEqual({
+      kind: "acknowledged",
+    });
+    await port.dispose();
+  });
+
+  it("holds terminal release behind the exact coalesced Workspace watermark", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    worker.deferReceiptAcknowledgementResponses = true;
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => worker,
+    });
+    await configureAndTestProductPortV1(port);
+    await openProductWorkspaceV1(port);
+    const run = productRunV1({ agentRunId: "agent.run.ack-race" });
+    await expect(port.submit(run)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: run.agentRunId,
+    });
+
+    worker.emitWorkspaceMutation(undefined, ".sillyos/ack-race-1.txt");
+    await waitUntilV1(() => worker.workspaceReceiptAcknowledgements.length === 1);
+    worker.emitWorkspaceMutation(undefined, ".sillyos/ack-race-2.txt");
+    worker.emitCompleted(run, "Workspace acknowledgement race completed.");
+    await waitUntilV1(() => port.getSnapshot().terminalRuns.length === 1);
+
+    let terminalSettled = false;
+    const terminalSettlement = port.acknowledgeTerminal(run.agentRunId).then((result) => {
+      terminalSettled = true;
+      return result;
+    });
+    await Promise.resolve();
+    expect(terminalSettled).toBe(false);
+    expect(port.getSnapshot().terminalRuns).toHaveLength(1);
+
+    worker.releaseReceiptAcknowledgementResponses();
+    await waitUntilV1(() => worker.workspaceReceiptAcknowledgements.length === 2);
+    expect(worker.workspaceReceiptAcknowledgements).toEqual([1, 2]);
+    expect(terminalSettled).toBe(false);
+    worker.releaseReceiptAcknowledgementResponses();
+
+    await expect(terminalSettlement).resolves.toEqual({ kind: "acknowledged" });
+    expect(port.getSnapshot().terminalRuns).toEqual([]);
+    expect(port.getSnapshot().workspace).toMatchObject({
+      descriptor: { generation: 3 },
+      receipts: [],
+      lastReceipt: { sequence: 2, changedPaths: [".sillyos/ack-race-2.txt"] },
+    });
+    await port.dispose();
+  });
+
+  it.each(["close", "dispose"] as const)(
+    "waits for an in-flight Workspace receipt acknowledgement before %s",
+    async (operation) => {
+      const worker = new ControllableBrowserPiWorkerV1();
+      worker.deferReceiptAcknowledgementResponses = true;
+      const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
+      const port = createBrowserCreatorAgentPortV1({
+        runtime: "deterministic_test",
+        workspaceAuthority,
+        workerFactory: () => worker,
+      });
+      await configureAndTestProductPortV1(port);
+      await openProductWorkspaceV1(port);
+      const workspaceSessionId = port.getSnapshot().workspace.descriptor?.workspaceSessionId;
+      if (workspaceSessionId === undefined) throw new Error("expected an open Workspace");
+      const run = productRunV1({ agentRunId: `agent.run.${operation}-ack` });
+      await expect(port.submit(run)).resolves.toEqual({
+        kind: "submitted",
+        agentRunId: run.agentRunId,
+      });
+      worker.emitWorkspaceMutation(undefined, `.sillyos/${operation}-ack.txt`);
+      workspaceAuthority.reflectControlledWorkerGeneration(2);
+      await waitUntilV1(() => worker.workspaceReceiptAcknowledgements.length === 1);
+      worker.emitRunFailure("cancelled");
+      await waitUntilV1(() => port.getSnapshot().terminalRuns.length === 1);
+
+      let settled = false;
+      const settlement = operation === "close"
+        ? port.closeWorkspace(workspaceSessionId).then((result) => {
+          settled = true;
+          return result;
+        })
+        : port.dispose().then(() => {
+          settled = true;
+          return null;
+        });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      worker.releaseReceiptAcknowledgementResponses();
+      if (operation === "close") {
+        const closeResult = await settlement;
+        if (closeResult?.kind !== "closed") {
+          throw new Error(`unexpected close result: ${JSON.stringify(closeResult)}`);
+        }
+        await port.dispose();
+      } else {
+        await expect(settlement).resolves.toBeNull();
+      }
+      expect(worker.terminated).toBe(true);
+    },
+  );
 
   it("retains a predecessor replacement after the latest run becomes current", async () => {
     const port = createBrowserCreatorAgentPortV1({
@@ -5268,11 +5501,15 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(JSON.stringify(terminals)).not.toContain('"sessionId"');
     expect(JSON.stringify(terminals)).not.toContain('"runId"');
 
-    expect(port.acknowledgeTerminal(firstRun.agentRunId)).toBe(true);
+    await expect(port.acknowledgeTerminal(firstRun.agentRunId)).resolves.toEqual({
+      kind: "acknowledged",
+    });
     expect(port.getSnapshot().terminalRuns.map(({ run }) => run.agentRunId)).toEqual([
       latestRun.agentRunId,
     ]);
-    expect(port.acknowledgeTerminal(latestRun.agentRunId)).toBe(true);
+    await expect(port.acknowledgeTerminal(latestRun.agentRunId)).resolves.toEqual({
+      kind: "acknowledged",
+    });
     expect(port.getSnapshot().terminalRuns).toEqual([]);
     await port.dispose();
   });
@@ -5313,7 +5550,9 @@ describe("SillyOS Browser Pi transport and product port", () => {
     });
     expect(worker.terminated).toBe(true);
     expect(connectionLosses).toBe(1);
-    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
+    await expect(port.acknowledgeTerminal(run.agentRunId)).resolves.toEqual({
+      kind: "acknowledged",
+    });
 
     const retry = productRunV1({ agentRunId: "agent.run.after-session-gap" });
     await expect(port.submit(retry)).resolves.toEqual({
@@ -5356,7 +5595,9 @@ describe("SillyOS Browser Pi transport and product port", () => {
     }]);
     expect(JSON.stringify(port.getSnapshot().terminalRuns)).not.toContain(piRunId);
     expect(JSON.stringify(port.getSnapshot().terminalRuns)).not.toContain("controlled.session.1");
-    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
+    await expect(port.acknowledgeTerminal(run.agentRunId)).resolves.toEqual({
+      kind: "acknowledged",
+    });
     await port.dispose();
   });
 
@@ -5383,7 +5624,9 @@ describe("SillyOS Browser Pi transport and product port", () => {
       diagnosticCode: "protocol_invalid",
     }]);
     expect(port.getSnapshot().phase).toBe("failed");
-    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
+    await expect(port.acknowledgeTerminal(run.agentRunId)).resolves.toEqual({
+      kind: "acknowledged",
+    });
     await port.dispose();
   });
 
@@ -5417,8 +5660,10 @@ describe("SillyOS Browser Pi transport and product port", () => {
       .toHaveLength(1);
     expect(JSON.stringify(port.getSnapshot().terminalRuns)).not.toContain(piRunId);
     expect(JSON.stringify(port.getSnapshot().terminalRuns)).not.toContain("controlled.session.1");
-    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
-    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(false);
+    await expect(port.acknowledgeTerminal(run.agentRunId)).resolves.toEqual({
+      kind: "acknowledged",
+    });
+    await expect(port.acknowledgeTerminal(run.agentRunId)).resolves.toEqual({ kind: "idle" });
     worker.emitTextDeltas(2_049, 2, piRunId);
     expect(port.getSnapshot()).toMatchObject({ phase: "ready", terminalRuns: [] });
     await port.dispose();

@@ -54,10 +54,10 @@ API-key 表单，也不会显示可用的 Test connection。
 
 - 从 Creator Home 提交翻译、写作、角色扮演或通用创作意图；
 - 查看确定性的本地 Creator 回复和带明确版本的 Program proposal；
-- 在 Program workspace 中同时查看人类/Creator 对话、proposal、预览和 activity；
+- 在 Program workspace 中同时查看人类/Creator 的分页富文本 Conversation、proposal 与预览；
 - 接受或拒绝当前精确版本；补充要求会形成新的 `pending` 版本，旧版本决定会被完整拒绝；
-- Program 会在事务提交后写入此浏览器的本地目录，返回 Home 或刷新页面后可以从“最近的
-  程序”重开同一修订、决定、消息和 Activity。
+- Program 与 Creator Process 会在同一事务提交后写入此浏览器；返回 Home 或刷新页面后可以从
+  “最近的程序”重开同一修订、决定和完整 pageable Conversation。
 
 固定 Pi 提供窄 `fetch_url({ url })` 与 `download({ url, destination, overwrite? })` 工具。每个
 Program 只有一个 **允许网络访问** 复选框，默认关闭；关闭时工具在 Network Broker 收到请求前
@@ -94,13 +94,76 @@ HTTPS endpoint 的精确 binding 加密持久化；修改 endpoint 不会隐式�
 binding，并可从独立 Vault 列表 Forget 已不再使用的旧 binding。最近一次测试状态不会持久化，
 一次测试成功也不会升级成 SillyOS 的 built-in 双浏览器资格结论。
 
-当前产品已经有由 Dedicated Worker 持有的 Browser IndexedDB Program repository；它只
-保存有界的产品 Program 投影与 Program 网络授权，不保存 API Key、Pi session、附件内容或
-workspace 文件。Credential Vault 使用独立 Worker 与独立 IndexedDB database 保存 Vault header、
+当前产品已经有由 Dedicated Worker 持有的 Browser IndexedDB Program Data
+Repository；它按行保存 Program head/revision/decision、Creator Process、分页富文本
+Conversation、Process lease/fencing 状态、`process_commits` 中的精确 operation receipt、
+Workspace continuation 与 Program 网络开关。它不保存
+API Key、Pi 私有 session/continuation 内容、附件字节或 workspace 文件。Credential Vault
+使用独立 Worker 与独立 IndexedDB database 保存 Vault header、
 非秘密绑定 metadata 和密文；这属于存储所有权分离，不是同一 origin 内的物理权限隔离。
 初始 proposal 仍由本地 deterministic preview 产生；接受 proposal 会把精确复核过的
 workspace head 发布为本地不可变 Program snapshot，但不会因此生成、部署或托管一个真实
 应用。这个边界会在界面中如实显示，不使用假网络层来伪装后端。
+
+## 已完成的 P4-A 执行与恢复边界
+
+P4-A 已于 2026-08-30 在本地完成并通过独立审查。交付的产品体验是
+可分页的 rich Conversation，以及一次只挂载一个 active Process 的 bounded UI projection。
+切换 Process 会卸载旧富文本、工具和媒体子树，但不会截断或删除它的持久 Conversation。
+
+执行侧只需要三种 Product Repository 语义原子事务；lease renewal 是单独的活性 CAS，不推进语义
+checkpoint：
+
+1. 在 Pi submit 前，原子写入已接受的用户 entry、active attempt、起始 Process/Workspace
+   checkpoint 与 `process_commits` 中的精确幂等 operation receipt；
+2. 成功时，原子写入 successor Program、admitted terminal transcript batch、绑定当前 lease
+   generation 且命名 exact Workspace checkpoint 的最终 Process checkpoint，以及 exact terminal
+   operation receipt，避免 Program 成功和 Process 终态只出现一边；
+3. 失败、取消、替换或中断时，只写 admitted terminal transcript batch/Process terminal
+   与 exact terminal operation receipt；不伪造新的 Program revision，也不推进新的语义
+   Workspace checkpoint。
+
+每个正在运行的 attempt 由 **Process-scoped renewable lease** 保护。每个新 attempt（首次执行或
+用户明确重试）都会获得严格递增的 fencing generation；heartbeat 只续租，不代表语义进度，也不是 Conversation 或
+Workspace checkpoint。任何旧 generation 即使在页面或 Worker 恢复后也不能再发布。
+闲置标签页不占有执行资源；它只按续租节奏检查持久 Process revision，发现变化后才刷新
+Conversation，并将其他标签页拥有的 active attempt 显示为只读。如果本页在 acquire 竞争中失败，
+则立即刷新。这只是 UI 投影失效通知，页面冻结或漏轮询也不会削弱 IndexedDB generation fence。
+
+冷启动以原子提交的 Process head 为语义真相：已提交的 terminal 已清空 active attempt
+并记录 `lastTerminalAttempt`；仍有 exact active attempt 和 expired lease 则表示 terminal 尚未提交。
+后者用 attempt 起点与 Sandbox authority 的 Workspace checkpoint 判断应标记
+`interrupted/retryable` 还是 `interrupted/unrecoverable`。发起该 mutation 的同一调用若收到
+`outcome_unknown`，只查询它的同一个 exact operation receipt；不扫描整段 Conversation、
+不根据 UI 猜测，也不盲目重放写操作。
+
+已经提交的 interrupted terminal 是不可改写的历史。之后只有当前 Workspace review 与 Process
+保存的 checkpoint 仍精确一致时才展示和接受重试；Workspace 后续漂移或不可用时，重试返回
+unavailable，界面从当前投影中移除按钮，但不改写 `lastTerminalAttempt`、不推进 Process revision，
+也不增加第四种语义事务。
+
+Process lease 与 Sandbox volume lock 是两个分离的权威。lease 已过期但 Workspace
+仍报告 `workspace_busy` 时，界面保持可读且处于 recovery-pending；不抢占 volume，
+也不把临时锁争用判定为 unrecoverable。只有能读取权威 Workspace checkpoint 后才会
+结算过期 attempt。
+
+这不是逐工具 event sourcing：P4-A 只允许在 lease-bound terminal batch 中持久化面向用户的工具
+调用/状态/结果；运行中的 rich parts、interrupted partial、每个 tool 的 mutation receipt 和 workflow
+stage 都不作为中途恢复日志。需要持久中间阶段的真实 workflow 必须另开后续 lane。P4-A 也不建设
+通用 workflow 引擎、不声称 IndexedDB 与 Sandbox OPFS 可以跨 origin 原子提交，也不提供通用
+rollback/replay，或通过反向扫描 Conversation/receipt trail 重建结果。浏览器可能暂停或丢弃后台
+执行；lease、fence、receipt 与 checkpoint 的目标是让恢复结果诚实，而不是承诺后台永远继续运行。
+
+P4-A0–P4-A4 均已完成。聚焦独立合同通过 `97/97`；P4-A 的 rich Conversation、reload 与受控 discard
+旅程在 Chromium/WebKit 通过 `4/4`，真实双页面 Process lease 竞争/被动观察旅程在两引擎通过
+`2/2`。`deno task check` 通过 `481` files / `6,251` tests，并覆盖 public Mod 外部消费者、Browser、
+应用 build 与结构排除 gate；React Doctor 的 24 条建议均被归类为非阻断建议，没有机械套用。
+完整 Chromium SillyOS 产品套件也通过 `27/28`：一个既有平台条件 case 被跳过，其余 27 个
+实际执行 case 全部通过，其中包含 DS1 视觉基线和两条 P4-A journey。
+
+大历史 Browser fixture 只直接播种旧 Conversation 前缀以测量存储、分页与渲染；同一旅程的
+attempt/terminal 仍走真实 lease-bound Repository 路径。页面正常销毁目前也不会主动释放 Process
+lease，竞争者最久可能等待约 30 秒过期；单调 generation fence 仍保证旧 owner 无法发布。
 
 ## Browser 安全与执行边界
 
@@ -137,9 +200,11 @@ database，因此普通 Program 生命周期与导出不会拥有或混入凭据
 中把普通 Program 的唯一 Authority 切到独立 Sandbox origin：控制面创建精确 origin frame
 transport，Sandbox 内固定 Host Worker 独占 OPFS、
 snapshot/export 与 volume 生命周期，旧控制-origin Host Worker 和 fallback 已删除。物理 Product
-Repository V7 保留 Program/continuation stores，删除旧 network grants，并增加缺行即默认关闭的
-Program network access store；V6→V7 不迁移历史授权。旧控制-origin OPFS bytes 可能仍由浏览器
-保留，但产品不再可达，也不会把它们作为迁移输入。
+Repository V9 已用规范化 Program/Process/Conversation stores、Process execution lease
+与单一 `process_commits` operation-receipt authority 清洁替换旧 preview aggregate，
+并保留 Program-scoped Workspace continuation 与缺行即默认关闭的 network-access row。
+预览数据库以 row-blind reset 切换，不读取或迁移旧 aggregate/授权。旧控制-origin
+OPFS bytes 可能仍由浏览器保留，但产品不再可达，也不会把它们作为迁移输入。
 
 Credential Vault V2 是 Provider Key 的唯一持久 owner。Fresh initialization 自动创建
 **Automatic** 模式，把不可导出的设备 AES-256-GCM `CryptoKey` 保存在 Vault IndexedDB，并在
@@ -680,7 +745,11 @@ deno run -A npm:@playwright/test test \
 
 ```sh
 deno run -A npm:vitest run \
-  src/test/creator-session.test.ts \
+  src/test/program-catalog-repository.conformance.test.ts \
+  src/test/program-process-repository.conformance.test.ts \
+  src/test/program-data-repository-indexeddb.test.ts \
+  src/test/program-data-repository-worker.test.ts \
+  src/test/creator-controller.test.ts \
   src/test/creator-agent-admission.test.ts \
   src/test/browser-control-plane-security.test.ts \
   src/test/browser-credential-vault-port.test.ts \
@@ -709,8 +778,11 @@ deno run -A npm:vitest run \
 
 | 位置                                                            | 所有权                                                                         |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `src/product/contracts.ts`                                      | Program、proposal、activity 与 Creator session 合同                            |
-| `src/product/creator-session.ts`                                | 本地 session、proposal review 与 Agent candidate 原子发布                      |
+| `src/product/contracts.ts`                                      | Program、proposal 与 Creator Agent 终态投影合同                                |
+| `src/product/program-catalog-repository.ts`                     | Program head、不可变 revision、review decision 与分页目录合同                  |
+| `src/product/program-process-repository.ts`                     | Creator Process、attempt/checkpoint 与富文本 Conversation 分页合同             |
+| `src/product/program-data-repository.ts`                        | Program 与 Process 复合提交的唯一产品持久化边界                                |
+| `src/product/creator-controller.ts`                             | 单 active Process、分页 Conversation、proposal review 与 Agent currentness     |
 | `src/product/creator-agent-admission.ts`                        | submit/candidate 的严格 product wire admission                                 |
 | `src/product/browser-provider-settings-repository.ts`           | 有界非秘密 custom HTTPS profile 持久化；不接收 key                             |
 | `src/product/fake-creator.ts`                                   | 默认初始 proposal 的确定性 fake Creator                                        |
@@ -728,7 +800,8 @@ deno run -A npm:vitest run \
 | `src/workspace/browser-workspace-sandbox-build-identity.ts`     | control/bootstrap/Host 共用的 product-derived build identity admission         |
 | `src/workspace/browser-workspace-sandbox-download-protocol.ts`  | Sandbox Host 到 bootstrap frame 的私有 download request/receipt                |
 | `src/workspace-sandbox/`                                        | Sandbox 文档 bootstrap 与同 origin 固定 Host Worker                            |
-| `src/product/indexeddb-program-repository.ts`                   | physical Product Repository V6、Program 状态与独立的网络授权 store             |
+| `src/product/indexeddb-program-data-repository.ts`              | physical Product Repository V9 与 Program/Process 原子事务                     |
+| `src/product/browser-program-data-repository.ts`                | V9 Worker client、响应 identity 与 outcome-unknown fencing                     |
 | `src/companion/pi-rpc-startup.ts`                               | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要                     |
 | `src/application/`                                              | Browser/Deno 共用的 React 产品入口与工作区表现                                 |
 | `src/test/browser-pi-worker.test.ts`                            | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown                    |

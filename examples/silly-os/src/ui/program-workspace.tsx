@@ -12,13 +12,15 @@ import {
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
 import type { SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
-import type {
-  CreatorSessionSnapshotV1,
-  CreatorWorkspaceV1,
-  PreviewProgramV1,
-} from "../product/contracts.ts";
+import type { CreatorActiveProcessProjectionV1 } from "../product/creator-controller.ts";
+import type { PreviewProgramV1, ProgramProposalV1 } from "../product/contracts.ts";
 import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
-import { ChatPaneV1, type ChatPanePropsV1 } from "./chat-pane.tsx";
+import {
+  ChatPaneV1,
+  type ChatPanePropsV1,
+  type ConversationViewStateV1,
+  createDefaultConversationViewStateV1,
+} from "./chat-pane.tsx";
 import { ButtonV1 as Button } from "./design-system/button.tsx";
 import {
   type WorkpieceBrowserStorageV1,
@@ -36,6 +38,26 @@ import {
 const chatMinimumWidthV1 = 280;
 const workpieceMinimumWidthV1 = 400;
 const chatDefaultWidthV1 = 420;
+
+export interface ProgramWorkspaceSessionViewStateV1 {
+  readonly draft: string;
+  readonly activeTab: WorkpieceTabV1;
+  readonly workpieceOpen: boolean;
+  readonly mobilePane: WorkspaceMobilePaneV1;
+  readonly chatWidth: number;
+  readonly conversation: ConversationViewStateV1;
+}
+
+export function createDefaultProgramWorkspaceSessionViewStateV1(): ProgramWorkspaceSessionViewStateV1 {
+  return {
+    draft: "",
+    activeTab: "view",
+    workpieceOpen: true,
+    mobilePane: "chat",
+    chatWidth: chatDefaultWidthV1,
+    conversation: createDefaultConversationViewStateV1(),
+  };
+}
 
 function clampV1(value: number, minimum: number, maximum: number): number {
   return Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
@@ -58,8 +80,9 @@ function useNarrowViewportV1(): boolean {
 
 export interface ProgramWorkspacePropsV1 {
   readonly copy: SillyOsCopyV1;
-  readonly snapshot: CreatorSessionSnapshotV1;
-  readonly workspaceReview: ProgramWorkspaceReviewProjectionV1 | null;
+  readonly activeProcess: CreatorActiveProcessProjectionV1;
+  readonly initialViewState: ProgramWorkspaceSessionViewStateV1;
+  readonly onViewStateChange: (viewState: ProgramWorkspaceSessionViewStateV1) => void;
   readonly onHome: () => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
   readonly theme: SillyOsThemeModeV1;
@@ -68,6 +91,8 @@ export interface ProgramWorkspacePropsV1 {
   readonly onAccept: () => void;
   readonly onReject: () => void;
   readonly onSend: ChatPanePropsV1["onSend"];
+  readonly onLoadOlderTranscript: NonNullable<ChatPanePropsV1["onLoadOlderTranscript"]>;
+  readonly onRetryInterruptedAgentRun?: () => boolean | void | Promise<boolean | void>;
   readonly providerModel?: ChatPanePropsV1["providerModel"];
   readonly creatorReadiness?: ChatPanePropsV1["creatorReadiness"];
   readonly onOpenCreatorSettings?: ChatPanePropsV1["onOpenCreatorSettings"];
@@ -131,27 +156,58 @@ export function presentWorkspaceReviewV1(
   };
 }
 
+export function interruptedRetryAvailableV1(
+  activeProcess: CreatorActiveProcessProjectionV1,
+  review: ProgramWorkspaceReviewProjectionV1 | null,
+): boolean {
+  const process = activeProcess.process;
+  const checkpoint = process.checkpoint;
+  const terminal = process.lastTerminalAttempt;
+  const mutableHead = review?.mutableHead ?? null;
+  return process.status === "interrupted_retryable" && process.activeAttempt === null &&
+    terminal?.outcome === "interrupted" && terminal.interruptionDisposition === "retryable" &&
+    checkpoint !== null && activeProcess.subject !== null &&
+    checkpoint.workspaceId === activeProcess.subject.head.workspaceId && mutableHead !== null &&
+    mutableHead.checkpointId === checkpoint.workspaceCheckpointId &&
+    mutableHead.generation === checkpoint.workspaceGeneration;
+}
+
 export function ProgramWorkspaceV1({
   ...props
 }: ProgramWorkspacePropsV1): ReactNode {
-  const workspace = props.snapshot.workspace;
-  const program = props.snapshot.program;
-  if (workspace === null || program === null) return null;
+  const program = props.activeProcess.subject?.currentProgram ?? null;
+  if (program === null) return null;
+  const processIntent =
+    props.activeProcess.transcript.entries.find((entry) => entry.role === "user")
+      ?.parts.filter((part) => part.kind === "text_markdown")
+      .map((part) => part.markdown)
+      .join("\n\n")
+      .trim() ?? "";
 
-  return <ProgramWorkspaceReadyV1 {...props} workspace={workspace} program={program} />;
+  return (
+    <ProgramWorkspaceReadyV1
+      {...props}
+      processIntent={processIntent}
+      program={program}
+      proposal={props.activeProcess.subject?.head.proposal ?? null}
+    />
+  );
 }
 
 interface ProgramWorkspaceReadyPropsV1 extends ProgramWorkspacePropsV1 {
-  readonly workspace: CreatorWorkspaceV1;
   readonly program: PreviewProgramV1;
+  readonly proposal: ProgramProposalV1 | null;
+  readonly processIntent: string;
 }
 
 function ProgramWorkspaceReadyV1({
   copy,
-  snapshot,
-  workspaceReview,
-  workspace,
+  activeProcess,
+  initialViewState,
+  onViewStateChange,
   program,
+  proposal,
+  processIntent,
   onHome,
   onLocaleChange,
   theme,
@@ -160,6 +216,8 @@ function ProgramWorkspaceReadyV1({
   onAccept,
   onReject,
   onSend,
+  onLoadOlderTranscript,
+  onRetryInterruptedAgentRun,
   providerModel,
   creatorReadiness,
   onOpenCreatorSettings,
@@ -181,16 +239,30 @@ function ProgramWorkspaceReadyV1({
   const splitRef = useRef<HTMLDivElement>(null);
   const outputRef = useRef<HTMLElement>(null);
   const focusBeforeFullscreenRef = useRef<HTMLElement | null>(null);
-  const [chatWidth, setChatWidth] = useState(chatDefaultWidthV1);
+  const viewStateRef = useRef(initialViewState);
+  const [chatWidth, setChatWidth] = useState(initialViewState.chatWidth);
   const [chatMaximumWidth, setChatMaximumWidth] = useState(chatDefaultWidthV1);
-  const [workpieceOpen, setWorkpieceOpen] = useState(true);
+  const [workpieceOpen, setWorkpieceOpen] = useState(initialViewState.workpieceOpen);
   const [fullscreen, setFullscreen] = useState(false);
-  const [activeTab, setActiveTab] = useState<WorkpieceTabV1>("view");
-  const [mobilePane, setMobilePane] = useState<WorkspaceMobilePaneV1>("chat");
+  const [activeTab, setActiveTab] = useState<WorkpieceTabV1>(initialViewState.activeTab);
+  const [mobilePane, setMobilePane] = useState<WorkspaceMobilePaneV1>(
+    initialViewState.mobilePane,
+  );
   const presentedWorkspaceReview = presentWorkspaceReviewV1(
-    workspaceReview,
+    activeProcess.workspaceReview,
     executionWorkspace,
   );
+
+  useEffect(() => {
+    const current = viewStateRef.current;
+    if (
+      current.chatWidth === chatWidth && current.workpieceOpen === workpieceOpen &&
+      current.activeTab === activeTab && current.mobilePane === mobilePane
+    ) return;
+    const next = { ...current, chatWidth, workpieceOpen, activeTab, mobilePane };
+    viewStateRef.current = next;
+    onViewStateChange(next);
+  }, [activeTab, chatWidth, mobilePane, onViewStateChange, workpieceOpen]);
 
   useEffect(() => {
     const split = splitRef.current;
@@ -264,6 +336,10 @@ function ProgramWorkspaceReadyV1({
       className="program-workspace"
       data-silly-os-view="workspace"
       data-workspace-layout={narrow ? "single-pane" : "dual-pane"}
+      data-process-id={activeProcess.process.processId}
+      data-process-status={activeProcess.process.status}
+      data-process-intent={processIntent}
+      data-transcript-phase={activeProcess.transcript.phase}
       data-program-id={program.programId}
       data-program-revision={program.revision}
       data-workspace-review-revision={presentedWorkspaceReview?.revision}
@@ -306,7 +382,7 @@ function ProgramWorkspaceReadyV1({
     >
       <ProgramWorkspaceTopbarV1
         copy={copy}
-        workspaceTitle={workspace.title}
+        workspaceTitle={program.name}
         homeDisabled={homeDisabled}
         onHome={onHome}
         onLocaleChange={onLocaleChange}
@@ -325,12 +401,22 @@ function ProgramWorkspaceReadyV1({
               <MessageCircle size={15} aria-hidden="true" />
               <span>{copy.creatorName}</span>
             </div>
-            <span>{snapshot.messages.length}</span>
+            <span>{activeProcess.process.transcriptFrontier}</span>
           </div>
           <ChatPaneV1
             copy={copy}
-            messages={snapshot.messages}
-            proposal={snapshot.proposal}
+            transcript={activeProcess.transcript}
+            onLoadOlderTranscript={onLoadOlderTranscript}
+            {...(!interruptedRetryAvailableV1(activeProcess, presentedWorkspaceReview) ||
+                onRetryInterruptedAgentRun === undefined
+              ? {}
+              : {
+                interruptedRetry: {
+                  pending: agentInteractionPending,
+                  onRetry: onRetryInterruptedAgentRun,
+                },
+              })}
+            proposal={proposal}
             program={program}
             workspaceReview={presentedWorkspaceReview}
             workpieceOpen={workpieceOpen}
@@ -341,6 +427,22 @@ function ProgramWorkspaceReadyV1({
               if (narrow) setMobilePane("preview");
             }}
             onSend={onSend}
+            initialDraft={initialViewState.draft}
+            initialConversationViewState={initialViewState.conversation}
+            onDraftChange={(draft) => {
+              const current = viewStateRef.current;
+              if (current.draft === draft) return;
+              const next = { ...current, draft };
+              viewStateRef.current = next;
+              onViewStateChange(next);
+            }}
+            onConversationViewStateChange={(conversation) => {
+              const current = viewStateRef.current;
+              if (current.conversation === conversation) return;
+              const next = { ...current, conversation };
+              viewStateRef.current = next;
+              onViewStateChange(next);
+            }}
             decisionPending={decisionPending}
             agentInteractionPending={agentInteractionPending}
             {...(providerModel === undefined ? {} : { providerModel })}
@@ -380,8 +482,7 @@ function ProgramWorkspaceReadyV1({
               <WorkpiecePaneV1
                 copy={copy}
                 program={program}
-                proposal={snapshot.proposal}
-                activity={snapshot.activity}
+                proposal={proposal}
                 activeTab={activeTab}
                 fullscreen={fullscreen}
                 {...(piAgentRun === undefined ? {} : { agentMode: piAgentRun.runtime })}
@@ -398,7 +499,7 @@ function ProgramWorkspaceReadyV1({
                 outputRef={outputRef}
                 onTabChange={(tab) => {
                   setActiveTab(tab);
-                  if (narrow) setMobilePane(tab === "activity" ? "activity" : "preview");
+                  if (narrow) setMobilePane("preview");
                 }}
                 onToggleFullscreen={toggleFullscreenV1}
                 onClose={() => {
@@ -434,13 +535,7 @@ function ProgramWorkspaceReadyV1({
         onChat={() => setMobilePane("chat")}
         onPreview={() => {
           setWorkpieceOpen(true);
-          setActiveTab(activeTab === "activity" ? "view" : activeTab);
           setMobilePane("preview");
-        }}
-        onActivity={() => {
-          setWorkpieceOpen(true);
-          setActiveTab("activity");
-          setMobilePane("activity");
         }}
       />
     </main>

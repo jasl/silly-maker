@@ -1,68 +1,41 @@
 // SPDX-License-Identifier: MIT
 
+import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
 
 import {
   createBrowserProgramWorkspaceAuthorityV1,
-  type BrowserProgramWorkspaceAuthorityV1,
   type BrowserProgramWorkspaceOperationFenceV1,
 } from "../product/browser-program-workspace-authority.ts";
-import { createCreatorSessionV1 } from "../product/creator-session.ts";
-import type {
-  CreatorAgentRunRequestV1,
-  CreatorAgentTerminalRunV1,
-  CreatorSessionSnapshotV1,
-  CreatorSessionV1,
-  ProgramProposalReferenceV1,
-} from "../product/contracts.ts";
-import { createDeterministicFakeCreatorV1 } from "../product/fake-creator.ts";
+import { createIndexedDbProgramDataRepositoryV1 } from "../product/indexeddb-program-data-repository.ts";
 import {
-  createMemoryProgramRepositoryBackingV3,
-  createMemoryProgramRepositoryV3,
-  type MemoryProgramRepositoryBackingV3,
-} from "../product/memory-program-repository.ts";
+  createProgramDataRepositoryFailureV1,
+  type ProgramDataRepositoryV1,
+} from "../product/program-data-repository.ts";
 import {
-  createProgramRepositoryFailureV3,
-  buildProgramRepositoryCreateV3,
-  type ProgramRepositoryCommitResultV3,
-  type ProgramRepositoryWithWorkspaceContinuationV1,
-} from "../product/program-repository.ts";
-import type {
-  BrowserWorkspaceHostFatalV1,
-  BrowserWorkspaceHostPagePortV1,
-} from "../workspace/browser-workspace-host-port.ts";
+  createBuiltinCreatorProgramDefinitionRevisionV1,
+  type ProcessTranscriptAppendInputV1,
+  type TranscriptEntryV1,
+} from "../product/program-process-repository.ts";
+import type { PreviewProgramV1 } from "../product/contracts.ts";
+import type { BrowserWorkspaceHostPagePortV1 } from "../workspace/browser-workspace-host-port.ts";
 import type {
   BrowserWorkspaceHostSnapshotWireV1,
   BrowserWorkspaceVolumeAnchorWireV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
-import {
-  programWorkspaceSnapshotReceiptsEqualV1,
-  type ProgramWorkspaceSnapshotReceiptV1,
-} from "../workspace/contracts.ts";
+import type { ProgramWorkspaceSnapshotReceiptV1 } from "../workspace/contracts.ts";
 
-interface DeferredV1<TValue> {
-  readonly promise: Promise<TValue>;
-  resolve(value: TValue): void;
+interface MemoryProgramDataV1 {
+  readonly repository: ReturnType<typeof createIndexedDbProgramDataRepositoryV1>;
 }
 
-function deferredV1<TValue>(): DeferredV1<TValue> {
-  let resolvePromise: ((value: TValue) => void) | null = null;
-  const promise = new Promise<TValue>((resolve) => {
-    resolvePromise = resolve;
-  });
+function createMemoryProgramDataV1(): MemoryProgramDataV1 {
   return {
-    promise,
-    resolve(value) {
-      if (resolvePromise === null) throw new Error("missing deferred resolver");
-      resolvePromise(value);
-    },
+    repository: createIndexedDbProgramDataRepositoryV1({
+      indexedDB: new IDBFactory(),
+      keyRange: IDBKeyRange,
+    }),
   };
-}
-
-function codedHostErrorV1(code: string): Error {
-  const error = new Error(`fake.workspace_host.${code}`);
-  Object.defineProperty(error, "code", { value: code, enumerable: true });
-  return error;
 }
 
 interface FakeVolumeV1 {
@@ -73,69 +46,35 @@ interface FakeVolumeV1 {
   readonly retained: Map<string, ProgramWorkspaceSnapshotReceiptV1>;
 }
 
-interface FakeHostBackingV1 {
-  readonly volumes: Map<string, FakeVolumeV1>;
-  nextVolume: number;
-  nextSession: number;
-}
-
-function fakeHostBackingV1(): FakeHostBackingV1 {
-  return { volumes: new Map(), nextVolume: 1, nextSession: 1 };
-}
-
-interface FakeHostHooksV1 {
-  beforeOpen?: () => void | Promise<void>;
-  beforeCapture?: () => void | Promise<void>;
-  beforeExportReady?: () => void | Promise<void>;
-  beforeAdopt?: () => void | Promise<void>;
-}
-
-interface FakeHostControlV1 {
-  readonly host: BrowserWorkspaceHostPagePortV1;
+interface FakeHostV1 {
+  readonly port: BrowserWorkspaceHostPagePortV1;
   readonly events: string[];
-  readonly createdVolumes: string[];
-  readonly discardedVolumes: string[];
+  readonly volumes: Map<string, FakeVolumeV1>;
+  readonly discardedCandidates: string[];
   readonly prepared: ProgramWorkspaceSnapshotReceiptV1[];
   readonly adopted: ProgramWorkspaceSnapshotReceiptV1[];
-  readonly discardedSnapshots: ProgramWorkspaceSnapshotReceiptV1[];
-  readonly exportInputs: Array<{
-    readonly programRevision: number;
-    readonly repositoryRevision: number;
-  }>;
-  readonly downloadStarts: string[];
-  readonly activeSessionId: string | null;
-  advanceHead(workspaceSessionId: string): BrowserWorkspaceHostSnapshotWireV1;
-  currentVolume(volumeId: string): FakeVolumeV1;
-  fail(fatal: BrowserWorkspaceHostFatalV1): void;
+  activeSessionId(): string | null;
+  advanceHead(): void;
 }
 
-function fakeHostV1(
-  backing: FakeHostBackingV1,
-  hooks: FakeHostHooksV1 = {},
-  sharedEvents: string[] = [],
-): FakeHostControlV1 {
-  const createdVolumes: string[] = [];
-  const discardedVolumes: string[] = [];
-  const prepared: ProgramWorkspaceSnapshotReceiptV1[] = [];
-  const adopted: ProgramWorkspaceSnapshotReceiptV1[] = [];
-  const discardedSnapshots: ProgramWorkspaceSnapshotReceiptV1[] = [];
-  const exportInputs: Array<{
-    readonly programRevision: number;
-    readonly repositoryRevision: number;
-  }> = [];
-  const downloadStarts: string[] = [];
+function fakeHostV1(): FakeHostV1 {
+  const events: string[] = [];
+  const volumes = new Map<string, FakeVolumeV1>();
   const sessions = new Map<string, BrowserWorkspaceHostSnapshotWireV1>();
   const channels = new Map<string, MessageChannel>();
-  const fatalListeners = new Set<(fatal: BrowserWorkspaceHostFatalV1) => void>();
+  const discardedCandidates: string[] = [];
+  const prepared: ProgramWorkspaceSnapshotReceiptV1[] = [];
+  const adopted: ProgramWorkspaceSnapshotReceiptV1[] = [];
+  const fatalListeners = new Set<(fatal: { readonly code: "unavailable" }) => void>();
+  let nextVolume = 1;
+  let nextSession = 1;
 
   const volumeForSessionV1 = (workspaceSessionId: string): FakeVolumeV1 => {
     const snapshot = sessions.get(workspaceSessionId);
-    if (snapshot === undefined) throw codedHostErrorV1("workspace_mismatch");
-    const volume = backing.volumes.get(snapshot.volumeId);
-    if (volume === undefined) throw codedHostErrorV1("volume_missing");
+    const volume = snapshot === undefined ? undefined : volumes.get(snapshot.volumeId);
+    if (volume === undefined) throw new Error("fake.workspace_missing");
     return volume;
   };
-
   const openSnapshotV1 = (
     volume: FakeVolumeV1,
     workspaceSessionId: string,
@@ -154,17 +93,33 @@ function fakeHostV1(
     anchor: volume.anchor,
   });
 
-  const host: BrowserWorkspaceHostPagePortV1 = {
+  const port: BrowserWorkspaceHostPagePortV1 = {
+    async inspectStorage() {
+      events.push("host:inspect");
+      return {
+        revision: 1,
+        scope: "sandbox_origin_advisory",
+        persisted: false,
+        usageBytes: volumes.size * 1024,
+      };
+    },
+    async purgeAllWorkspaces() {
+      events.push("host:purge");
+      if (sessions.size > 0) throw new Error("fake.workspace_busy");
+      volumes.clear();
+      return { revision: 1, kind: "purged" };
+    },
     async withBootstrapLease({ operation }) {
-      sharedEvents.push("host:lease");
+      events.push("host:lease");
       return await operation();
     },
     async createCandidate(input) {
-      sharedEvents.push("host:create_candidate");
-      const volumeId = `volume.authority.${String(backing.nextVolume++)}`;
+      events.push("host:create_candidate");
+      const volumeId = `volume.test.${String(nextVolume++)}`;
       const anchor: BrowserWorkspaceVolumeAnchorWireV1 = {
         revision: 1,
-        ...input,
+        programId: input.programId,
+        workspaceId: input.workspaceId,
         volumeId,
         workspaceFormat: 1,
       };
@@ -175,8 +130,7 @@ function fakeHostV1(
         candidate: null,
         retained: new Map(),
       };
-      backing.volumes.set(volumeId, volume);
-      createdVolumes.push(volumeId);
+      volumes.set(volumeId, volume);
       return {
         revision: 1,
         anchor,
@@ -185,95 +139,66 @@ function fakeHostV1(
       };
     },
     async discardCandidate(volumeId) {
-      sharedEvents.push("host:discard_candidate");
-      backing.volumes.delete(volumeId);
-      discardedVolumes.push(volumeId);
+      events.push("host:discard_candidate");
+      volumes.delete(volumeId);
+      discardedCandidates.push(volumeId);
     },
     async openWorkspace(anchor) {
-      sharedEvents.push("host:open");
-      await hooks.beforeOpen?.();
-      const volume = backing.volumes.get(anchor.volumeId);
-      if (volume === undefined || JSON.stringify(volume.anchor) !== JSON.stringify(anchor)) {
-        throw codedHostErrorV1("volume_missing");
-      }
-      const workspaceSessionId = `workspace-session.${String(backing.nextSession++)}`;
+      events.push("host:open");
+      const volume = volumes.get(anchor.volumeId);
+      if (volume === undefined) throw new Error("fake.volume_missing");
+      const workspaceSessionId = `session.test.${String(nextSession++)}`;
       const snapshot = openSnapshotV1(volume, workspaceSessionId);
       sessions.set(workspaceSessionId, snapshot);
       return snapshot;
     },
     async queryWorkspace(workspaceSessionId) {
-      sharedEvents.push("host:query");
+      events.push("host:query");
       const snapshot = sessions.get(workspaceSessionId);
-      if (snapshot === undefined) throw codedHostErrorV1("workspace_mismatch");
+      if (snapshot === undefined) throw new Error("fake.workspace_missing");
       return snapshot;
     },
     async attachEnvironment({ workspaceSessionId }) {
-      sharedEvents.push("host:attach");
+      events.push("host:attach");
       const snapshot = sessions.get(workspaceSessionId);
-      if (snapshot === undefined) throw codedHostErrorV1("workspace_mismatch");
-      const predecessor = channels.get(workspaceSessionId);
-      predecessor?.port1.close();
-      predecessor?.port2.close();
+      if (snapshot === undefined) throw new Error("fake.workspace_missing");
       const channel = new MessageChannel();
       channels.set(workspaceSessionId, channel);
       return { snapshot, environmentPort: channel.port2 };
     },
     async closeWorkspace(workspaceSessionId) {
-      sharedEvents.push("host:close");
-      const current = sessions.get(workspaceSessionId);
-      if (current === undefined) throw codedHostErrorV1("workspace_mismatch");
-      const closed = { ...current, phase: "closed" as const };
+      events.push("host:close");
+      const snapshot = sessions.get(workspaceSessionId);
+      if (snapshot === undefined) throw new Error("fake.workspace_missing");
       sessions.delete(workspaceSessionId);
       const channel = channels.get(workspaceSessionId);
       channel?.port1.close();
       channel?.port2.close();
       channels.delete(workspaceSessionId);
-      return closed;
+      return { ...snapshot, phase: "closed" };
     },
     async exportWorkspace(input) {
-      sharedEvents.push("host:export");
+      events.push("host:export");
       const snapshot = sessions.get(input.workspaceSessionId);
-      if (snapshot === undefined) throw codedHostErrorV1("workspace_mismatch");
-      exportInputs.push({
-        programRevision: input.programRevision,
-        repositoryRevision: input.repositoryRevision,
-      });
-      const progress = {
-        filesCompleted: 1,
-        filesTotal: 1,
-        bytesWritten: 64,
-        bytesTotal: 64,
-      };
-      input.onProgress?.(progress);
-      await hooks.beforeExportReady?.();
-      let downloadStarted = false;
-      const decision = await input.onReady({
-        ...progress,
+      if (snapshot === undefined) throw new Error("fake.workspace_missing");
+      const ready = {
         checkpointId: snapshot.checkpointId,
         generation: snapshot.descriptor.generation,
-      }, async () => {
-        downloadStarted = true;
-        downloadStarts.push(input.fileName);
+        filesCompleted: 1,
+        filesTotal: 1,
+        bytesWritten: 32,
+        bytesTotal: 32,
+      };
+      const disposition = await input.onReady(ready, async () => {
+        events.push("host:download");
       });
-      return decision === "release" && downloadStarted
-        ? {
-          kind: "released",
-          checkpointId: snapshot.checkpointId,
-          generation: snapshot.descriptor.generation,
-          ...progress,
-        }
-        : { kind: "cancelled", ...progress };
+      return disposition === "release"
+        ? { kind: "released", ...ready }
+        : { kind: "cancelled", ...ready };
     },
     async prepareSnapshot(input) {
-      sharedEvents.push("host:prepare");
+      events.push("host:prepare");
       const volume = volumeForSessionV1(input.workspaceSessionId);
-      if (
-        volume.checkpointId !== input.expectedCheckpointId ||
-        volume.generation !== input.expectedGeneration
-      ) throw codedHostErrorV1("snapshot_stale");
-      if (volume.candidate !== null || volume.retained.has(input.snapshotId)) {
-        throw codedHostErrorV1("snapshot_mismatch");
-      }
       const receipt: ProgramWorkspaceSnapshotReceiptV1 = {
         revision: 1,
         snapshotId: input.snapshotId,
@@ -286,100 +211,58 @@ function fakeHostV1(
         baseRepositoryRevision: input.baseRepositoryRevision,
         checkpointId: input.expectedCheckpointId,
         generation: input.expectedGeneration,
-        fileCount: 3,
-        archiveBytes: 512,
+        fileCount: 2,
+        archiveBytes: 64,
       };
       volume.candidate = receipt;
       prepared.push(receipt);
       return receipt;
     },
     async querySnapshotCandidate(workspaceSessionId) {
-      sharedEvents.push("host:query_candidate");
+      events.push("host:query_candidate");
       return volumeForSessionV1(workspaceSessionId).candidate;
     },
     async queryRetainedSnapshot({ workspaceSessionId, expected }) {
-      sharedEvents.push("host:query_retained");
-      const retained = volumeForSessionV1(workspaceSessionId).retained.get(expected.snapshotId) ??
-        null;
-      if (retained !== null && !programWorkspaceSnapshotReceiptsEqualV1(retained, expected)) {
-        throw codedHostErrorV1("snapshot_mismatch");
-      }
-      return retained;
+      events.push("host:query_retained");
+      return volumeForSessionV1(workspaceSessionId).retained.get(expected.snapshotId) ?? null;
     },
     async captureReviewHead(workspaceSessionId) {
-      sharedEvents.push("host:capture:start");
-      await hooks.beforeCapture?.();
-      sharedEvents.push("host:capture:end");
-      const snapshot = sessions.get(workspaceSessionId);
-      if (snapshot === undefined) throw codedHostErrorV1("workspace_mismatch");
-      return snapshot;
+      events.push("host:capture");
+      const volume = volumeForSessionV1(workspaceSessionId);
+      return openSnapshotV1(volume, workspaceSessionId);
     },
     async resumeSnapshotPublication({ workspaceSessionId, expected }) {
-      sharedEvents.push("host:resume");
-      const volume = volumeForSessionV1(workspaceSessionId);
-      const candidate = volume.candidate;
-      if (candidate === null || !programWorkspaceSnapshotReceiptsEqualV1(candidate, expected)) {
-        throw codedHostErrorV1("snapshot_mismatch");
-      }
-      if (
-        volume.checkpointId !== expected.checkpointId || volume.generation !== expected.generation
-      ) throw codedHostErrorV1("snapshot_stale");
+      events.push("host:resume");
+      const candidate = volumeForSessionV1(workspaceSessionId).candidate;
+      if (candidate?.snapshotId !== expected.snapshotId) throw new Error("fake.snapshot_missing");
       return candidate;
     },
     async adoptSnapshot({ workspaceSessionId, expected }) {
-      sharedEvents.push("host:adopt");
-      await hooks.beforeAdopt?.();
+      events.push("host:adopt");
       const volume = volumeForSessionV1(workspaceSessionId);
-      const retained = volume.retained.get(expected.snapshotId) ?? null;
-      if (retained !== null) {
-        if (!programWorkspaceSnapshotReceiptsEqualV1(retained, expected)) {
-          throw codedHostErrorV1("snapshot_mismatch");
-        }
-        return "already_retained";
+      if (volume.retained.has(expected.snapshotId)) return "already_retained";
+      if (volume.candidate?.snapshotId !== expected.snapshotId) {
+        throw new Error("fake.snapshot_missing");
       }
-      if (
-        volume.candidate === null ||
-        !programWorkspaceSnapshotReceiptsEqualV1(volume.candidate, expected)
-      ) throw codedHostErrorV1("snapshot_mismatch");
       volume.retained.set(expected.snapshotId, expected);
       volume.candidate = null;
       adopted.push(expected);
       return "adopted";
     },
     async discardSnapshot({ workspaceSessionId, expected }) {
-      sharedEvents.push("host:discard_snapshot");
+      events.push("host:discard_snapshot");
       const volume = volumeForSessionV1(workspaceSessionId);
       if (volume.retained.has(expected.snapshotId)) return "retained";
-      if (volume.candidate === null) return "absent";
-      if (!programWorkspaceSnapshotReceiptsEqualV1(volume.candidate, expected)) {
-        throw codedHostErrorV1("snapshot_mismatch");
-      }
-      discardedSnapshots.push(expected);
+      if (volume.candidate?.snapshotId !== expected.snapshotId) return "absent";
       volume.candidate = null;
       return "discarded";
-    },
-    async inspectStorage() {
-      sharedEvents.push("host:inspect_storage");
-      return {
-        revision: 1,
-        scope: "sandbox_origin_advisory",
-        persisted: false,
-        usageBytes: backing.volumes.size * 1_024,
-        quotaBytes: 32 * 1_024 * 1_024,
-      };
-    },
-    async purgeAllWorkspaces() {
-      sharedEvents.push("host:purge_all_workspaces");
-      if (sessions.size !== 0) throw codedHostErrorV1("volume_busy");
-      backing.volumes.clear();
-      return { revision: 1, kind: "purged" };
     },
     subscribeFatal(listener) {
       fatalListeners.add(listener);
       return () => fatalListeners.delete(listener);
     },
     dispose() {
-      sharedEvents.push("host:dispose");
+      events.push("host:dispose");
       for (const channel of channels.values()) {
         channel.port1.close();
         channel.port2.close();
@@ -391,1746 +274,928 @@ function fakeHostV1(
   };
 
   return {
-    host,
-    events: sharedEvents,
-    createdVolumes,
-    discardedVolumes,
+    port,
+    events,
+    volumes,
+    discardedCandidates,
     prepared,
     adopted,
-    discardedSnapshots,
-    exportInputs,
-    downloadStarts,
-    get activeSessionId() {
-      return [...sessions.keys()][0] ?? null;
-    },
-    advanceHead(workspaceSessionId) {
-      const current = sessions.get(workspaceSessionId);
-      if (current === undefined) throw codedHostErrorV1("workspace_mismatch");
-      const volume = volumeForSessionV1(workspaceSessionId);
+    activeSessionId: () => [...sessions.keys()][0] ?? null,
+    advanceHead() {
+      const session = [...sessions.entries()][0];
+      if (session === undefined) throw new Error("fake.workspace_missing");
+      const [sessionId, snapshot] = session;
+      const volume = volumes.get(snapshot.volumeId);
+      if (volume === undefined) throw new Error("fake.volume_missing");
       volume.generation += 1;
       volume.checkpointId = `checkpoint.${volume.anchor.volumeId}.${String(volume.generation)}`;
-      const next = openSnapshotV1(volume, workspaceSessionId);
-      sessions.set(workspaceSessionId, next);
-      return next;
-    },
-    currentVolume(volumeId) {
-      const volume = backing.volumes.get(volumeId);
-      if (volume === undefined) throw codedHostErrorV1("volume_missing");
-      return volume;
-    },
-    fail(fatal) {
-      for (const listener of [...fatalListeners]) listener(fatal);
+      sessions.set(sessionId, openSnapshotV1(volume, sessionId));
     },
   };
 }
 
-function proxyRepositoryV1(
-  delegate: ProgramRepositoryWithWorkspaceContinuationV1,
-  overrides: Partial<ProgramRepositoryWithWorkspaceContinuationV1> = {},
-): ProgramRepositoryWithWorkspaceContinuationV1 {
+const directFenceV1: BrowserProgramWorkspaceOperationFenceV1 = {
+  async run(_mode, operation) {
+    return await operation();
+  },
+};
+
+function programV1(programId: string, revision = 1): PreviewProgramV1 {
   return {
-    initialize: overrides.initialize ?? (() => delegate.initialize()),
-    list: overrides.list ?? (() => delegate.list()),
-    load: overrides.load ?? ((programId) => delegate.load(programId)),
-    loadWorkspaceContinuation: overrides.loadWorkspaceContinuation ??
-      ((programId) => delegate.loadWorkspaceContinuation(programId)),
-    loadProgramNetworkAccess: overrides.loadProgramNetworkAccess ??
-      ((programId) => delegate.loadProgramNetworkAccess(programId)),
-    setProgramNetworkAccess: overrides.setProgramNetworkAccess ??
-      ((input) => delegate.setProgramNetworkAccess(input)),
-    create: overrides.create ?? ((input) => delegate.create(input)),
-    applyRevision: overrides.applyRevision ?? ((input) => delegate.applyRevision(input)),
-    settleAgentRun: overrides.settleAgentRun ?? ((input) => delegate.settleAgentRun(input)),
-    decide: overrides.decide ?? ((input) => delegate.decide(input)),
-    reset: overrides.reset ?? (() => delegate.reset()),
-    dispose: overrides.dispose ?? (() => delegate.dispose()),
+    programId,
+    revision,
+    kind: "general",
+    name: `Program ${programId}`,
+    purpose: "Exercise the Catalog-backed Workspace authority.",
+    requirements: [`Requirement ${String(revision)}`],
+    suggestedCapabilities: [],
   };
 }
 
-interface ProgramFixtureV1 {
-  readonly session: CreatorSessionV1;
-  readonly programId: string;
-  readonly workspaceId: string;
-}
-
-function programFixtureV1(workspaceId: string): ProgramFixtureV1 {
-  const session = createCreatorSessionV1({
-    creator: createDeterministicFakeCreatorV1(),
-    createWorkspaceId: () => workspaceId,
-  });
-  if (session.submitIntent("Build a durable Browser Program.").kind !== "created") {
-    throw new Error("expected Program creation");
-  }
-  const snapshot = session.getSnapshot();
-  if (snapshot.program === null || snapshot.workspace === null) {
-    throw new Error("expected Program identity");
-  }
+function entryV1(processId: string, sequence: number, text: string): TranscriptEntryV1 {
   return {
-    session,
-    programId: snapshot.program.programId,
-    workspaceId: snapshot.workspace.workspaceId,
+    schemaVersion: 1,
+    processId,
+    sequence,
+    entryId: `${processId}.entry.${String(sequence)}`,
+    role: sequence % 2 === 0 ? "assistant" : "user",
+    state: "committed",
+    parts: [{
+      kind: "text_markdown",
+      partId: `${processId}.part.${String(sequence)}`,
+      markdown: text,
+    }],
   };
 }
 
-function sessionFromSnapshotV1(snapshot: CreatorSessionSnapshotV1): CreatorSessionV1 {
-  return createCreatorSessionV1({
-    creator: createDeterministicFakeCreatorV1(),
-    initialSnapshot: snapshot,
-  });
-}
-
-function expectedProposalV1(session: CreatorSessionV1): ProgramProposalReferenceV1 {
-  const proposal = session.getSnapshot().proposal;
-  if (proposal === null) throw new Error("expected current proposal");
-  return { proposalId: proposal.proposalId, programRevision: proposal.programRevision };
-}
-
-function currentProgramRevisionV1(session: CreatorSessionV1): number {
-  const program = session.getSnapshot().program;
-  if (program === null) throw new Error("expected current Program");
-  return program.revision;
-}
-
-function currentRunV1(
-  session: CreatorSessionV1,
-  agentRunId: string,
-  baseRepositoryRevision: number,
-): CreatorAgentRunRequestV1 {
-  const snapshot = session.getSnapshot();
-  const proposal = snapshot.proposal;
-  const program = snapshot.program;
-  if (proposal === null || program === null) throw new Error("expected current Program proposal");
+function appendV1(input: {
+  readonly processId: string;
+  readonly processRevision: number;
+  readonly frontier: number;
+  readonly sequence: number;
+  readonly text: string;
+  readonly commitId: string;
+  readonly updatedAt: number;
+  readonly checkpoint?: NonNullable<ProcessTranscriptAppendInputV1["checkpoint"]>;
+}): ProcessTranscriptAppendInputV1 & {
+  readonly attemptBinding: null;
+  readonly terminalAttemptReceipt: null;
+} {
   return {
-    agentRunId,
-    proposalId: proposal.proposalId,
-    programId: program.programId,
-    baseProgramRevision: program.revision,
-    baseRepositoryRevision,
-    text: `Apply ${agentRunId}.`,
+    processId: input.processId,
+    expectedProcessRevision: input.processRevision,
+    expectedTranscriptFrontier: input.frontier,
+    commitId: input.commitId,
+    attemptBinding: null,
+    entries: [entryV1(input.processId, input.sequence, input.text)],
+    checkpoint: input.checkpoint ?? null,
+    terminalAttemptReceipt: null,
+    updatedAt: input.updatedAt,
   };
-}
-
-function terminalV1(
-  run: CreatorAgentRunRequestV1,
-  outcome: "completed" | "failed" | "cancelled" | "replaced",
-): CreatorAgentTerminalRunV1 {
-  if (outcome === "completed") {
-    return {
-      run,
-      outcome,
-      candidate: {
-        revision: 1,
-        proposalId: run.proposalId,
-        programId: run.programId,
-        baseProgramRevision: run.baseProgramRevision,
-        text: run.text,
-        requirement: `Requirement from ${run.agentRunId}.`,
-      },
-      finalAssistantReply: `Completed ${run.agentRunId}.`,
-    };
-  }
-  if (outcome === "failed") return { run, outcome, diagnosticCode: "request_failed" };
-  return { run, outcome };
-}
-
-function applyTerminalV1(session: CreatorSessionV1, terminal: CreatorAgentTerminalRunV1): void {
-  const applied = session.applyAgentRunTerminal(terminal);
-  if (applied.kind !== "applied") throw new Error("expected applied Agent terminal");
 }
 
 interface AuthorityHarnessV1 {
-  readonly authority: BrowserProgramWorkspaceAuthorityV1;
-  readonly repositoryBacking: MemoryProgramRepositoryBackingV3;
-  readonly hostBacking: FakeHostBackingV1;
-  readonly host: FakeHostControlV1;
+  readonly authority: ReturnType<typeof createBrowserProgramWorkspaceAuthorityV1>;
+  readonly repository: ProgramDataRepositoryV1;
+  readonly host: FakeHostV1;
 }
 
-class FakeOperationFenceV1 implements BrowserProgramWorkspaceOperationFenceV1 {
-  readonly #queue: Array<{
-    readonly mode: "shared" | "exclusive";
-    readonly operation: () => Promise<unknown>;
-    readonly resolve: (value: unknown) => void;
-    readonly reject: (reason: unknown) => void;
-  }> = [];
-  #activeShared = 0;
-  #activeExclusive = false;
-
-  get activeShared(): number {
-    return this.#activeShared;
-  }
-
-  get activeExclusive(): boolean {
-    return this.#activeExclusive;
-  }
-
-  get queuedModes(): readonly ("shared" | "exclusive")[] {
-    return this.#queue.map((request) => request.mode);
-  }
-
-  run<T>(mode: "shared" | "exclusive", operation: () => Promise<T>): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      this.#queue.push({
-        mode,
-        operation,
-        resolve: (value) => resolve(value as T),
-        reject,
-      });
-      this.#drain();
-    });
-  }
-
-  #drain(): void {
-    if (this.#activeExclusive || this.#queue.length === 0) return;
-    if (this.#queue[0]?.mode === "exclusive") {
-      if (this.#activeShared !== 0) return;
-      const request = this.#queue.shift();
-      if (request === undefined) return;
-      this.#activeExclusive = true;
-      void request.operation().then(request.resolve, request.reject).finally(() => {
-        this.#activeExclusive = false;
-        this.#drain();
-      });
-      return;
-    }
-
-    while (this.#queue[0]?.mode === "shared") {
-      const request = this.#queue.shift();
-      if (request === undefined) break;
-      this.#activeShared += 1;
-      void request.operation().then(request.resolve, request.reject).finally(() => {
-        this.#activeShared -= 1;
-        this.#drain();
-      });
-    }
-  }
+async function authorityHarnessV1(
+  repositoryOverride?: ProgramDataRepositoryV1,
+): Promise<AuthorityHarnessV1> {
+  const memory = repositoryOverride === undefined ? createMemoryProgramDataV1() : null;
+  const repository = repositoryOverride ?? memory?.repository;
+  if (repository === undefined) throw new Error("missing test repository");
+  const host = fakeHostV1();
+  let nextSnapshotId = 1;
+  const authority = createBrowserProgramWorkspaceAuthorityV1({
+    repository,
+    host: host.port,
+    createSnapshotId: () => `snapshot.test.${String(nextSnapshotId++)}`,
+    operationFence: directFenceV1,
+  });
+  await authority.initialize();
+  await repository.publishProgramDefinitionRevision(
+    createBuiltinCreatorProgramDefinitionRevisionV1(),
+  );
+  return { authority, repository, host };
 }
 
-function authorityHarnessV1(input: {
-  readonly repositoryBacking?: MemoryProgramRepositoryBackingV3;
-  readonly hostBacking?: FakeHostBackingV1;
-  readonly repository?: ProgramRepositoryWithWorkspaceContinuationV1;
-  readonly createRepository?: () => ProgramRepositoryWithWorkspaceContinuationV1;
-  readonly hooks?: FakeHostHooksV1;
-  readonly events?: string[];
-  readonly operationFence?: BrowserProgramWorkspaceOperationFenceV1;
-} = {}): AuthorityHarnessV1 {
-  const repositoryBacking = input.repositoryBacking ?? createMemoryProgramRepositoryBackingV3();
-  const hostBacking = input.hostBacking ?? fakeHostBackingV1();
-  const host = fakeHostV1(hostBacking, input.hooks, input.events);
-  let nextSnapshot = 1;
-  return {
-    repositoryBacking,
-    hostBacking,
-    host,
-    authority: createBrowserProgramWorkspaceAuthorityV1({
-      repository: input.repository ??
-        createMemoryProgramRepositoryV3({ backing: repositoryBacking }),
-      createRepository: input.createRepository ??
-        (() => createMemoryProgramRepositoryV3({ backing: repositoryBacking })),
-      host: host.host,
-      createSnapshotId: () => `snapshot.authority.${String(nextSnapshot++)}`,
-      operationFence: input.operationFence ?? new FakeOperationFenceV1(),
-    }),
+async function createProgramV1(input: {
+  readonly harness: AuthorityHarnessV1;
+  readonly programId?: string;
+  readonly workspaceId?: string;
+  readonly processId?: string;
+}): Promise<{
+  readonly programId: string;
+  readonly workspaceId: string;
+  readonly processId: string;
+}> {
+  const programId = input.programId ?? "program.test.one";
+  const workspaceId = input.workspaceId ?? "workspace.test.one";
+  const processId = input.processId ?? "process.test.one";
+  const result = await input.harness.authority.create(createProgramInputV1({
+    programId,
+    workspaceId,
+    processId,
+  }));
+  if (result.kind !== "committed" && result.kind !== "unchanged") {
+    throw new Error(`unexpected create result ${result.kind}`);
+  }
+  return { programId, workspaceId, processId };
+}
+
+async function acquireExecutionV1(input: {
+  readonly harness: AuthorityHarnessV1;
+  readonly programId: string;
+  readonly workspaceId: string;
+  readonly processId: string;
+  readonly attemptId?: string;
+  readonly observedAt?: number;
+}) {
+  const process = await input.harness.repository.loadProcess(input.processId);
+  const review = await input.harness.authority.inspectProgramWorkspace(input.programId, {
+    hostAccess: "required",
+  });
+  const mutableHead = review?.mutableHead ?? null;
+  if (process === null || mutableHead === null) throw new Error("missing execution predecessor");
+  const attemptId = input.attemptId ?? "attempt.test.one";
+  const observedAt = input.observedAt ?? 2;
+  const triggerSequence = process.transcriptFrontier + 1;
+  const trigger = {
+    ...entryV1(input.processId, triggerSequence, "Run the Creator."),
+    entryId: `${attemptId}.user`,
+    role: "user" as const,
   };
-}
-
-async function createProgramV1(
-  harness: AuthorityHarnessV1,
-  workspaceId: string,
-): Promise<
-  { readonly fixture: ProgramFixtureV1; readonly result: ProgramRepositoryCommitResultV3 }
-> {
-  const fixture = programFixtureV1(workspaceId);
-  await harness.authority.initialize();
-  const result = await harness.authority.create({
-    snapshot: fixture.session.getSnapshot(),
-    updatedAt: 1,
-  });
-  if (result.kind === "conflict") throw new Error("expected committed Program");
-  return { fixture, result };
-}
-
-async function applyFollowUpV1(input: {
-  readonly authority: BrowserProgramWorkspaceAuthorityV1;
-  readonly fixture: ProgramFixtureV1;
-  readonly expectedRepositoryRevision: number;
-  readonly text: string;
-  readonly updatedAt: number;
-}): Promise<ProgramRepositoryCommitResultV3> {
-  const expectedProposal = expectedProposalV1(input.fixture.session);
-  const baseProgramRevision = currentProgramRevisionV1(input.fixture.session);
-  if (input.fixture.session.sendFollowUp(input.text).kind !== "sent") {
-    throw new Error("expected follow-up revision");
-  }
-  return await input.authority.applyRevision({
-    programId: input.fixture.programId,
-    expectedRepositoryRevision: input.expectedRepositoryRevision,
-    expectedBase: {
-      proposalId: expectedProposal.proposalId,
-      programId: input.fixture.programId,
-      baseProgramRevision,
+  const acquired = await input.harness.repository.acquireProcessExecution({
+    ownerInstanceId: "owner.test.one",
+    observedAt,
+    expiresAt: observedAt + 30_000,
+    attempt: {
+      processId: input.processId,
+      expectedProcessRevision: process.revision,
+      expectedTranscriptFrontier: process.transcriptFrontier,
+      commitId: `${attemptId}.acquire`,
+      attemptId,
+      generation: 1,
+      trigger: { kind: "new_entry", entry: trigger },
+      startingCheckpoint: {
+        checkpointId: `${attemptId}.start`,
+        throughSequence: triggerSequence,
+        workspaceId: input.workspaceId,
+        workspaceCheckpointId: mutableHead.checkpointId,
+        workspaceGeneration: mutableHead.generation,
+      },
+      updatedAt: observedAt,
     },
-    snapshot: input.fixture.session.getSnapshot(),
-    updatedAt: input.updatedAt,
   });
+  if (acquired.kind === "conflict") throw new Error("execution acquire conflict");
+  return acquired;
 }
 
-async function decideV1(input: {
-  readonly authority: BrowserProgramWorkspaceAuthorityV1;
-  readonly session: CreatorSessionV1;
-  readonly fixture: Pick<ProgramFixtureV1, "programId">;
-  readonly status: "accepted" | "rejected";
-  readonly expectedRepositoryRevision: number;
+function createProgramInputV1(input: {
+  readonly programId: string;
+  readonly workspaceId: string;
+  readonly processId: string;
+}) {
+  return {
+    workspaceId: input.workspaceId,
+    catalog: {
+      commitId: `commit.${input.programId}.create`,
+      program: programV1(input.programId),
+      proposalId: `proposal.${input.programId}.1`,
+      updatedAt: 1,
+    },
+    process: {
+      processId: input.processId,
+      programDefinition: { programId: "sillyos.builtin.creator", revision: 1 },
+      subjectProgramId: input.programId,
+      createdAt: 1,
+    },
+    transcript: appendV1({
+      processId: input.processId,
+      processRevision: 1,
+      frontier: 0,
+      sequence: 1,
+      text: "Create this Program.",
+      commitId: `commit.${input.processId}.initial`,
+      updatedAt: 1,
+    }),
+  } as const;
+}
+
+async function acceptProposalV1(input: {
+  readonly harness: AuthorityHarnessV1;
+  readonly programId: string;
+  readonly processId: string;
+  readonly proposalId: string;
+  readonly programRevision: number;
+  readonly repositoryRevision: number;
+  readonly processRevision: number;
+  readonly transcriptFrontier: number;
+  readonly sequence: number;
   readonly updatedAt: number;
-}): Promise<ProgramRepositoryCommitResultV3> {
-  const expectedProposal = expectedProposalV1(input.session);
-  const applied = input.status === "accepted"
-    ? input.session.acceptProposal(expectedProposal)
-    : input.session.rejectProposal(expectedProposal);
-  if (applied.kind !== "applied") throw new Error(`expected applied ${input.status}`);
-  return await input.authority.decide({
-    status: input.status,
-    programId: input.fixture.programId,
-    expectedRepositoryRevision: input.expectedRepositoryRevision,
-    expectedProposal,
-    snapshot: input.session.getSnapshot(),
-    updatedAt: input.updatedAt,
+}): Promise<void> {
+  const result = await input.harness.authority.decide({
+    catalog: {
+      status: "accepted",
+      programId: input.programId,
+      expectedRepositoryRevision: input.repositoryRevision,
+      expectedProposal: {
+        proposalId: input.proposalId,
+        programRevision: input.programRevision,
+      },
+      commitId: `commit.${input.programId}.accept.${String(input.programRevision)}`,
+      updatedAt: input.updatedAt,
+    },
+    transcript: appendV1({
+      processId: input.processId,
+      processRevision: input.processRevision,
+      frontier: input.transcriptFrontier,
+      sequence: input.sequence,
+      text: `Accept revision ${String(input.programRevision)}.`,
+      commitId: `commit.${input.processId}.accept.${String(input.programRevision)}`,
+      updatedAt: input.updatedAt,
+    }),
   });
+  if (result.kind !== "committed" && result.kind !== "unchanged") {
+    throw new Error(`unexpected decision result ${result.kind}`);
+  }
 }
 
-describe("Browser Program workspace authority V1", () => {
-  it("allows ordinary operations from independent tabs to share the control-origin fence", async () => {
-    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
-    const hostBacking = fakeHostBackingV1();
-    const operationFence = new FakeOperationFenceV1();
-    const releaseLists = deferredV1<void>();
-    const firstListEntered = deferredV1<void>();
-    const secondListEntered = deferredV1<void>();
-    const firstDelegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
-    const secondDelegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
-    const first = authorityHarnessV1({
-      repositoryBacking,
-      hostBacking,
-      operationFence,
-      repository: proxyRepositoryV1(firstDelegate, {
-        list: async () => {
-          firstListEntered.resolve();
-          await releaseLists.promise;
-          return await firstDelegate.list();
-        },
+describe("Browser Program Workspace authority V1", () => {
+  it("creates one Catalog/Process/Workspace unit without reconstructing the retired aggregate", async () => {
+    const harness = await authorityHarnessV1();
+    const createComposite = vi.spyOn(harness.repository, "createProgramWithProcess");
+    const identity = await createProgramV1({ harness });
+
+    const [record, continuation, process, transcript, review] = await Promise.all([
+      harness.repository.load(identity.programId),
+      harness.repository.loadContinuation(identity.programId),
+      harness.repository.loadProcess(identity.processId),
+      harness.repository.loadTranscriptPage({
+        processId: identity.processId,
+        beforeSequence: null,
+        maximumBytes: 4_096,
       }),
-    });
-    const second = authorityHarnessV1({
-      repositoryBacking,
-      hostBacking,
-      operationFence,
-      repository: proxyRepositoryV1(secondDelegate, {
-        list: async () => {
-          secondListEntered.resolve();
-          await releaseLists.promise;
-          return await secondDelegate.list();
-        },
+      harness.authority.inspectProgramWorkspace(identity.programId, {
+        hostAccess: "active_only",
       }),
-    });
-
-    await Promise.all([first.authority.initialize(), second.authority.initialize()]);
-    const firstList = first.authority.list();
-    await firstListEntered.promise;
-    const secondList = second.authority.list();
-    await secondListEntered.promise;
-
-    expect(operationFence.activeExclusive).toBe(false);
-    expect(operationFence.activeShared).toBe(2);
-    expect(operationFence.queuedModes).toEqual([]);
-
-    releaseLists.resolve();
-    await expect(Promise.all([firstList, secondList])).resolves.toEqual([[], []]);
-    await Promise.all([first.authority.dispose(), second.authority.dispose()]);
-  });
-
-  it("does not split a Program and its Workspace volume across a cross-tab reset", async () => {
-    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
-    const hostBacking = fakeHostBackingV1();
-    const operationFence = new FakeOperationFenceV1();
-    const repositoryCleared = deferredV1<void>();
-    const releaseReset = deferredV1<void>();
-    const resetDelegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
-    const resetter = authorityHarnessV1({
-      repositoryBacking,
-      hostBacking,
-      operationFence,
-      repository: proxyRepositoryV1(resetDelegate, {
-        reset: async () => {
-          await resetDelegate.reset();
-          repositoryCleared.resolve();
-          await releaseReset.promise;
-        },
-      }),
-    });
-    const creator = authorityHarnessV1({
-      repositoryBacking,
-      hostBacking,
-      operationFence,
-    });
-    await Promise.all([resetter.authority.initialize(), creator.authority.initialize()]);
-    const reset = resetter.authority.resetStoredData();
-    await repositoryCleared.promise;
-
-    const fixture = programFixtureV1("workspace.authority.cross-tab-reset");
-    const create = creator.authority.create({
-      snapshot: fixture.session.getSnapshot(),
-      updatedAt: 1,
-    });
-    try {
-      await vi.waitFor(() => {
-        expect(operationFence.activeExclusive).toBe(true);
-        expect(operationFence.queuedModes).toEqual(["shared"]);
-      });
-    } finally {
-      releaseReset.resolve();
-    }
-
-    await expect(reset).resolves.toEqual({
-      productRepository: { kind: "cleared" },
-      workspaceVolumes: { kind: "cleared" },
-    });
-    await expect(create).resolves.toMatchObject({ kind: "committed" });
-    expect(repositoryBacking.programs.has(fixture.programId)).toBe(true);
-    expect(repositoryBacking.workspaceContinuations.has(fixture.programId)).toBe(true);
-    expect(hostBacking.volumes.size).toBe(1);
-
-    await creator.authority.dispose();
-    const reopened = authorityHarnessV1({
-      repositoryBacking,
-      hostBacking,
-      operationFence,
-    });
-    await expect(reopened.authority.load(fixture.programId)).resolves.not.toBeNull();
-    const workspace = await reopened.authority.openWorkspace({
-      programId: fixture.programId,
-      workspaceId: fixture.workspaceId,
-    });
-    expect(workspace.snapshot.volumeId).toBe([...hostBacking.volumes.keys()][0]);
-    workspace.environmentPort.close();
-    await reopened.authority.detachWorkspaceEnvironment(
-      workspace.snapshot.descriptor.workspaceSessionId,
-    );
-    await Promise.all([resetter.authority.dispose(), reopened.authority.dispose()]);
-  });
-
-  it("reports Sandbox origin usage and clears each owned data plane after detaching", async () => {
-    const harness = authorityHarnessV1();
-    const { fixture } = await createProgramV1(harness, "workspace.authority.reset");
-    await harness.authority.setProgramNetworkAccess({
-      programId: fixture.programId,
-      enabled: true,
-    });
-    const opened = await harness.authority.openWorkspace({
-      programId: fixture.programId,
-      workspaceId: fixture.workspaceId,
-    });
-
-    await expect(harness.authority.inspectStorage()).resolves.toMatchObject({
-      scope: "sandbox_origin_advisory",
-      usageBytes: 1_024,
-    });
-    await expect(harness.authority.resetStoredData()).resolves.toEqual({
-      productRepository: { kind: "retained" },
-      workspaceVolumes: { kind: "failed", diagnosticCode: "workspace_busy" },
-    });
-    await expect(harness.authority.load(fixture.programId)).resolves.not.toBeNull();
-
-    opened.environmentPort.close();
-    await harness.authority.detachWorkspaceEnvironment(
-      opened.snapshot.descriptor.workspaceSessionId,
-    );
-    await expect(harness.authority.resetStoredData()).resolves.toEqual({
-      productRepository: { kind: "cleared" },
-      workspaceVolumes: { kind: "cleared" },
-    });
-    await expect(harness.authority.list()).resolves.toEqual([]);
-    await expect(harness.authority.loadProgramNetworkAccess(fixture.programId)).resolves.toBeNull();
-    expect(harness.repositoryBacking.workspaceContinuations.size).toBe(0);
-    expect(harness.hostBacking.volumes.size).toBe(0);
-    expect(harness.host.events).toContain("host:purge_all_workspaces");
-    await harness.authority.dispose();
-  });
-
-  it("retains Workspace volumes when the Product Repository reset fails", async () => {
-    const backing = createMemoryProgramRepositoryBackingV3();
-    const delegate = createMemoryProgramRepositoryV3({ backing });
-    const harness = authorityHarnessV1({
-      repositoryBacking: backing,
-      repository: proxyRepositoryV1(delegate, {
-        reset: () => Promise.reject(codedHostErrorV1("repository_reset_failed")),
-      }),
-    });
-    const { fixture } = await createProgramV1(harness, "workspace.authority.reset-failed");
-
-    await expect(harness.authority.resetStoredData()).resolves.toEqual({
-      productRepository: { kind: "failed", diagnosticCode: "repository_reset_failed" },
-      workspaceVolumes: { kind: "retained" },
-    });
-    await expect(harness.authority.load(fixture.programId)).resolves.not.toBeNull();
-    expect(harness.hostBacking.volumes.size).toBe(1);
-    expect(harness.host.events).not.toContain("host:purge_all_workspaces");
-    await harness.authority.dispose();
-  });
-
-  it("atomically creates the initial candidate/head pair and cold-reopens its exact volume", async () => {
-    const first = authorityHarnessV1();
-    const { fixture, result } = await createProgramV1(first, "workspace.authority.reopen");
-    expect(result).toMatchObject({
-      kind: "committed",
-      aggregate: {
-        repositoryRevision: 1,
-        reviewBinding: { checkpointId: "checkpoint.volume.authority.1.1", generation: 1 },
-      },
-    });
-    expect(await first.authority.list()).toEqual([
-      expect.objectContaining({ programId: fixture.programId, repositoryRevision: 1 }),
     ]);
-    expect(await first.authority.load(fixture.programId)).toMatchObject({ repositoryRevision: 1 });
 
-    const opened = await first.authority.openWorkspace(fixture);
-    expect(opened.snapshot.volumeId).toBe("volume.authority.1");
-    opened.environmentPort.close();
-    await first.authority.detachWorkspaceEnvironment(
-      opened.snapshot.descriptor.workspaceSessionId,
-    );
-    await first.authority.closeActiveWorkspace();
-    await first.authority.dispose();
-
-    const second = authorityHarnessV1({
-      repositoryBacking: first.repositoryBacking,
-      hostBacking: first.hostBacking,
+    expect(record?.head).toMatchObject({
+      programId: identity.programId,
+      repositoryRevision: 1,
+      currentProgramRevision: 1,
+      workspaceId: identity.workspaceId,
     });
-    const reopened = await second.authority.openWorkspace(fixture);
-    expect(reopened.snapshot.volumeId).toBe("volume.authority.1");
-    reopened.environmentPort.close();
-    await second.authority.detachWorkspaceEnvironment(
-      reopened.snapshot.descriptor.workspaceSessionId,
-    );
-    await second.authority.dispose();
-  });
-
-  it("projects a first pending review as unavailable without opening Host for inspection", async () => {
-    const harness = authorityHarnessV1();
-    const { fixture, result } = await createProgramV1(
-      harness,
-      "workspace.authority.inspect-unavailable",
-    );
-    if (result.kind === "conflict") throw new Error("expected initial Program");
-    const binding = result.aggregate.reviewBinding;
-    if (binding === null) throw new Error("expected pending review binding");
-    const eventsBeforeInspection = [...harness.host.events];
-
-    await expect(harness.authority.inspectProgramWorkspace(fixture.programId)).resolves.toEqual({
-      aggregate: result.aggregate,
-      review: {
-        revision: 1,
-        latestAccepted: null,
-        pendingReview: {
-          proposalId: binding.proposalId,
-          programRevision: binding.programRevision,
-          checkpointId: binding.checkpointId,
-          generation: binding.generation,
-        },
-        mutableHead: null,
-        acceptedStatus: null,
-        pendingStatus: "unavailable",
-      },
+    expect(continuation).toMatchObject({
+      programId: identity.programId,
+      workspaceId: identity.workspaceId,
+      programRevision: 1,
+      repositoryRevision: 1,
     });
-    expect(harness.host.events).toEqual(eventsBeforeInspection);
-    expect(harness.host.activeSessionId).toBeNull();
-    await harness.authority.dispose();
-  });
-
-  it("projects exact accepted and later-pending review heads against the mutable head", async () => {
-    const first = authorityHarnessV1();
-    const { fixture } = await createProgramV1(first, "workspace.authority.inspect-review");
-    const accepted = await decideV1({
-      authority: first.authority,
-      session: fixture.session,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: 1,
-      updatedAt: 2,
+    expect(process).toMatchObject({
+      processId: identity.processId,
+      subjectProgramId: identity.programId,
+      transcriptFrontier: 1,
     });
-    if (accepted.kind === "conflict") throw new Error("expected accepted revision");
-    const receipt = accepted.aggregate.decisions.flatMap((decision) =>
-      decision.status === "accepted" ? [decision.snapshot] : []
-    ).at(-1);
-    if (receipt === undefined) throw new Error("expected accepted snapshot receipt");
-    const acceptedProjection = {
-      snapshotId: receipt.snapshotId,
-      programRevision: receipt.programRevision,
-      checkpointId: receipt.checkpointId,
-      generation: receipt.generation,
-      fileCount: receipt.fileCount,
-      archiveBytes: receipt.archiveBytes,
-    };
-    await first.authority.dispose();
-
-    const harness = authorityHarnessV1({
-      repositoryBacking: first.repositoryBacking,
-      hostBacking: first.hostBacking,
+    expect(transcript?.entries.map(({ entryId }) => entryId)).toEqual([
+      `${identity.processId}.entry.1`,
+    ]);
+    expect(review).toMatchObject({
+      latestAccepted: null,
+      mutableHead: null,
+      acceptedStatus: null,
+      pendingStatus: "unavailable",
     });
-
-    await expect(harness.authority.inspectProgramWorkspace(fixture.programId)).resolves.toEqual({
-      aggregate: accepted.aggregate,
-      review: {
-        revision: 1,
-        latestAccepted: acceptedProjection,
-        pendingReview: null,
-        mutableHead: {
-          checkpointId: receipt.checkpointId,
-          generation: receipt.generation,
-        },
-        acceptedStatus: "matches",
-        pendingStatus: null,
-      },
-    });
-    expect(harness.host.events).toContain("host:query_retained");
-    expect(harness.host.events).toContain("host:query");
-
-    const workspaceSessionId = harness.host.activeSessionId;
-    if (workspaceSessionId === null) throw new Error("expected recovered Host session");
-    const laterHead = harness.host.advanceHead(workspaceSessionId);
-    const revised = await applyFollowUpV1({
-      authority: harness.authority,
-      fixture,
-      expectedRepositoryRevision: accepted.aggregate.repositoryRevision,
-      text: "Create a later independent draft.",
-      updatedAt: 3,
-    });
-    if (revised.kind === "conflict") throw new Error("expected later pending revision");
-    const pending = revised.aggregate.reviewBinding;
-    if (pending === null) throw new Error("expected later pending review binding");
-
-    await expect(harness.authority.inspectProgramWorkspace(fixture.programId)).resolves.toEqual({
-      aggregate: revised.aggregate,
-      review: {
-        revision: 1,
-        latestAccepted: acceptedProjection,
-        pendingReview: {
-          proposalId: pending.proposalId,
-          programRevision: pending.programRevision,
-          checkpointId: pending.checkpointId,
-          generation: pending.generation,
-        },
-        mutableHead: {
-          checkpointId: laterHead.checkpointId,
-          generation: laterHead.descriptor.generation,
-        },
-        acceptedStatus: "changed",
-        pendingStatus: "matches",
-      },
-    });
-
-    const newestHead = harness.host.advanceHead(workspaceSessionId);
-    await expect(harness.authority.inspectProgramWorkspace(fixture.programId)).resolves
-      .toMatchObject(
-        {
-          aggregate: revised.aggregate,
-          review: {
-            latestAccepted: acceptedProjection,
-            mutableHead: {
-              checkpointId: newestHead.checkpointId,
-              generation: newestHead.descriptor.generation,
-            },
-            acceptedStatus: "changed",
-            pendingStatus: "changed",
-          },
-        },
-      );
-    await harness.authority.dispose();
-  });
-
-  it("returns durable current for stale Accept before any snapshot Host operation", async () => {
-    const harness = authorityHarnessV1();
-    const { fixture } = await createProgramV1(harness, "workspace.authority.stale-accept");
-    const staleSession = sessionFromSnapshotV1(fixture.session.getSnapshot());
-    const revised = await applyFollowUpV1({
-      authority: harness.authority,
-      fixture,
-      expectedRepositoryRevision: 1,
-      text: "A concurrent page won with revision two.",
-      updatedAt: 2,
-    });
-    if (revised.kind === "conflict") throw new Error("expected concurrent winner");
-    const eventsBeforeAccept = [...harness.host.events];
-
-    await expect(decideV1({
-      authority: harness.authority,
-      session: staleSession,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: 1,
-      updatedAt: 3,
-    })).resolves.toEqual({ kind: "conflict", current: revised.aggregate });
-    expect(harness.host.events).toEqual(eventsBeforeAccept);
-    expect(harness.host.prepared).toHaveLength(0);
-    expect(harness.host.adopted).toHaveLength(0);
-    expect(harness.host.discardedSnapshots).toHaveLength(0);
-    await harness.authority.dispose();
-  });
-
-  it("rejects a historical accepted replay before Host and inspects its winner without opening", async () => {
-    const winner = authorityHarnessV1();
-    const { fixture } = await createProgramV1(
-      winner,
-      "workspace.authority.historical-accept",
-    );
-    const revision2 = await applyFollowUpV1({
-      authority: winner.authority,
-      fixture,
-      expectedRepositoryRevision: 1,
-      text: "Prepare accepted revision two.",
-      updatedAt: 2,
-    });
-    if (revision2.kind === "conflict") throw new Error("expected revision two");
-    const staleSession = sessionFromSnapshotV1(fixture.session.getSnapshot());
-    const accepted = await decideV1({
-      authority: winner.authority,
-      session: fixture.session,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: 2,
-      updatedAt: 3,
-    });
-    if (accepted.kind === "conflict") throw new Error("expected accepted revision two");
-    const revision3 = await applyFollowUpV1({
-      authority: winner.authority,
-      fixture,
-      expectedRepositoryRevision: 3,
-      text: "Advance the winner to revision three.",
-      updatedAt: 4,
-    });
-    if (revision3.kind === "conflict") throw new Error("expected revision three");
-    expect(winner.host.activeSessionId).not.toBeNull();
-
-    const stale = authorityHarnessV1({
-      repositoryBacking: winner.repositoryBacking,
-      hostBacking: winner.hostBacking,
-      hooks: {
-        beforeOpen() {
-          throw codedHostErrorV1("workspace_busy");
-        },
-      },
-    });
-    await stale.authority.initialize();
-    const eventsBeforeReplay = [...stale.host.events];
-    await expect(decideV1({
-      authority: stale.authority,
-      session: staleSession,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: 2,
-      updatedAt: 3,
-    })).resolves.toEqual({ kind: "conflict", current: revision3.aggregate });
-    expect(stale.host.events).toEqual(eventsBeforeReplay);
-
-    const receipt = accepted.aggregate.decisions.find((decision) =>
-      decision.status === "accepted" && decision.programRevision === 2
-    );
-    const pending = revision3.aggregate.reviewBinding;
-    if (receipt?.status !== "accepted" || pending === null) {
-      throw new Error("expected durable accepted and pending anchors");
-    }
-    await expect(stale.authority.inspectProgramWorkspace(fixture.programId, {
-      hostAccess: "active_only",
-    })).resolves.toEqual({
-      aggregate: revision3.aggregate,
-      review: {
-        revision: 1,
-        latestAccepted: {
-          snapshotId: receipt.snapshot.snapshotId,
-          programRevision: receipt.snapshot.programRevision,
-          checkpointId: receipt.snapshot.checkpointId,
-          generation: receipt.snapshot.generation,
-          fileCount: receipt.snapshot.fileCount,
-          archiveBytes: receipt.snapshot.archiveBytes,
-        },
-        pendingReview: {
-          proposalId: pending.proposalId,
-          programRevision: pending.programRevision,
-          checkpointId: pending.checkpointId,
-          generation: pending.generation,
-        },
-        mutableHead: null,
-        acceptedStatus: "unavailable",
-        pendingStatus: "unavailable",
-      },
-    });
-    expect(stale.host.events).toEqual(eventsBeforeReplay);
-    await stale.authority.dispose();
-    await winner.authority.dispose();
-  });
-
-  it("exposes a stable Authority error code while preserving the existing message", async () => {
-    const harness = authorityHarnessV1();
-    const error = await harness.authority.queryWorkspace("workspace-session.missing").then(
-      () => null,
-      (caught: unknown) => caught,
-    );
-    expect(error).toBeInstanceOf(TypeError);
-    expect(error).toMatchObject({
-      code: "workspace_mismatch",
-      message: "sillyos.browser_program_workspace.workspace_mismatch",
-    });
-    if (error === null || typeof error !== "object") throw new Error("expected Authority error");
-    expect(Reflect.set(error, "code", "changed")).toBe(false);
-    expect(Reflect.get(error, "code")).toBe("workspace_mismatch");
-    await harness.authority.dispose();
-  });
-
-  it("cleans a lost-create candidate only when fresh Repository truth is known-unowned", async () => {
-    for (const durableTruth of ["null", "different", "unknown"] as const) {
-      const repositoryBacking = createMemoryProgramRepositoryBackingV3();
-      const delegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
-      const repository = proxyRepositoryV1(delegate, {
-        async create(input) {
-          if (durableTruth === "different") {
-            const continuation = {
-              ...input.continuation,
-              volumeId: `volume.concurrent.${durableTruth}`,
-            };
-            repositoryBacking.programs.set(
-              input.continuation.programId,
-              buildProgramRepositoryCreateV3({ ...input, continuation }),
-            );
-            repositoryBacking.workspaceContinuations.set(
-              input.continuation.programId,
-              continuation,
-            );
-          }
-          throw createProgramRepositoryFailureV3("outcome_unknown", "create");
-        },
-      });
-      const harness = authorityHarnessV1({
-        repositoryBacking,
-        repository,
-        ...(durableTruth === "unknown"
-          ? {
-            createRepository: () =>
-              proxyRepositoryV1(
-                createMemoryProgramRepositoryV3({ backing: repositoryBacking }),
-                {
-                  load: () =>
-                    Promise.reject(createProgramRepositoryFailureV3("unavailable", "load")),
-                },
-              ),
-          }
-          : {}),
-      });
-      const fixture = programFixtureV1(`workspace.authority.create-${durableTruth}`);
-      await harness.authority.initialize();
-      await expect(harness.authority.create({
-        snapshot: fixture.session.getSnapshot(),
-        updatedAt: 1,
-      })).rejects.toMatchObject({ code: "outcome_unknown" });
-      expect(harness.host.discardedVolumes).toEqual(
-        durableTruth === "unknown" ? [] : ["volume.authority.1"],
-      );
-      expect(harness.hostBacking.volumes.size).toBe(durableTruth === "unknown" ? 1 : 0);
-      await harness.authority.dispose();
-    }
-  });
-
-  it("preserves exact initial ownership and reconciles a lost create response", async () => {
-    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
-    const delegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
-    const repository = proxyRepositoryV1(delegate, {
-      async create(input) {
-        await delegate.create(input);
-        throw createProgramRepositoryFailureV3("outcome_unknown", "create");
-      },
-    });
-    const harness = authorityHarnessV1({ repositoryBacking, repository });
-    const fixture = programFixtureV1("workspace.authority.create-owned");
-    await harness.authority.initialize();
-    await expect(harness.authority.create({
-      snapshot: fixture.session.getSnapshot(),
-      updatedAt: 1,
-    })).resolves.toMatchObject({ kind: "unchanged", aggregate: { repositoryRevision: 1 } });
-    expect(harness.host.discardedVolumes).toHaveLength(0);
-    expect(harness.hostBacking.volumes.size).toBe(1);
-    await harness.authority.dispose();
-  });
-
-  it("cleans a response-mismatch candidate only when fresh Repository truth is known-unowned", async () => {
-    for (const durableTruth of ["null", "different", "exact", "unknown"] as const) {
-      const repositoryBacking = createMemoryProgramRepositoryBackingV3();
-      const delegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
-      let responseReturned = false;
-      const repository = proxyRepositoryV1(delegate, {
-        load(programId) {
-          if (responseReturned && durableTruth === "unknown") {
-            return Promise.reject(createProgramRepositoryFailureV3("unavailable", "load"));
-          }
-          return delegate.load(programId);
-        },
-        async create(input) {
-          responseReturned = true;
-          const committed = durableTruth === "exact" ? await delegate.create(input) : null;
-          if (durableTruth === "different") {
-            const continuation = {
-              ...input.continuation,
-              volumeId: "volume.concurrent.response-mismatch",
-            };
-            repositoryBacking.programs.set(
-              input.continuation.programId,
-              buildProgramRepositoryCreateV3({ ...input, continuation }),
-            );
-            repositoryBacking.workspaceContinuations.set(
-              input.continuation.programId,
-              continuation,
-            );
-          }
-          const expected = committed === null || committed.kind === "conflict"
-            ? buildProgramRepositoryCreateV3(input)
-            : committed.aggregate;
-          return {
-            kind: "committed",
-            aggregate: { ...expected, updatedAt: expected.updatedAt + 1 },
-          };
-        },
-      });
-      const harness = authorityHarnessV1({ repositoryBacking, repository });
-      const fixture = programFixtureV1(`workspace.authority.mismatch-${durableTruth}`);
-      await harness.authority.initialize();
-      await expect(harness.authority.create({
-        snapshot: fixture.session.getSnapshot(),
-        updatedAt: 1,
-      })).rejects.toThrow("sillyos.browser_program_workspace.repository_response_mismatch");
-      const knownUnowned = durableTruth === "null" || durableTruth === "different";
-      expect(harness.host.discardedVolumes).toHaveLength(knownUnowned ? 1 : 0);
-      expect(harness.hostBacking.volumes.size).toBe(knownUnowned ? 0 : 1);
-      await harness.authority.dispose();
-    }
-  });
-
-  it("supports no-Pi create, follow-up, and Accept through one lazily opened Host session", async () => {
-    const harness = authorityHarnessV1();
-    const { fixture } = await createProgramV1(harness, "workspace.authority.no-pi");
     expect(harness.host.events).not.toContain("host:open");
-
-    const revised = await applyFollowUpV1({
-      authority: harness.authority,
-      fixture,
-      expectedRepositoryRevision: 1,
-      text: "Add one verified review step.",
-      updatedAt: 2,
+    expect(createComposite).toHaveBeenCalledWith({
+      catalog: expect.objectContaining({
+        continuation: expect.objectContaining({
+          workspaceId: identity.workspaceId,
+          programRevision: 1,
+          repositoryRevision: 1,
+        }),
+        reviewedHead: expect.objectContaining({ generation: 1 }),
+      }),
+      process: expect.objectContaining({ processId: identity.processId }),
+      transcript: expect.objectContaining({ processId: identity.processId }),
     });
-    expect(revised).toMatchObject({
-      kind: "committed",
-      aggregate: { repositoryRevision: 2, reviewBinding: { generation: 1 } },
-    });
-    expect(harness.host.events.filter((event) => event === "host:open")).toHaveLength(1);
-    expect(harness.host.events).not.toContain("host:attach");
-
-    const accepted = await decideV1({
-      authority: harness.authority,
-      session: fixture.session,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: 2,
-      updatedAt: 3,
-    });
-    expect(accepted).toMatchObject({
-      kind: "committed",
-      aggregate: {
-        repositoryRevision: 3,
-        reviewBinding: null,
-        decisions: [{ status: "accepted", snapshot: { generation: 1 } }],
-      },
-    });
-    expect(harness.host.adopted).toHaveLength(1);
-    expect(harness.host.events).not.toContain("host:attach");
     await harness.authority.dispose();
   });
 
-  it("captures successor heads but retains the prior head for non-producing Agent terminals", async () => {
-    const harness = authorityHarnessV1();
-    const { fixture } = await createProgramV1(harness, "workspace.authority.terminals");
-    const revised = await applyFollowUpV1({
-      authority: harness.authority,
-      fixture,
-      expectedRepositoryRevision: 1,
-      text: "Open revision two.",
-      updatedAt: 2,
-    });
-    if (revised.kind === "conflict") throw new Error("expected revision");
-    const workspaceSessionId = harness.host.activeSessionId;
-    if (workspaceSessionId === null) throw new Error("expected internal Host session");
-    const priorBinding = revised.aggregate.reviewBinding;
-    if (priorBinding === null) throw new Error("expected binding");
-    harness.host.advanceHead(workspaceSessionId);
-
-    let repositoryRevision = revised.aggregate.repositoryRevision;
-    for (const outcome of ["failed", "cancelled", "replaced"] as const) {
-      const run = currentRunV1(
-        fixture.session,
-        `agent-run.${outcome}.${String(repositoryRevision)}`,
-        repositoryRevision,
-      );
-      const terminal = terminalV1(run, outcome);
-      applyTerminalV1(fixture.session, terminal);
-      const settled = await harness.authority.settleAgentRun({
-        programId: fixture.programId,
-        expectedRepositoryRevision: repositoryRevision,
-        terminal,
-        snapshot: fixture.session.getSnapshot(),
-        updatedAt: repositoryRevision + 1,
-      });
-      if (settled.kind === "conflict") throw new Error("expected terminal settlement");
-      expect(settled.aggregate.reviewBinding).toMatchObject({
-        checkpointId: priorBinding.checkpointId,
-        generation: priorBinding.generation,
-        programRevision: priorBinding.programRevision,
-      });
-      expect(settled.aggregate.reviewBinding?.repositoryRevision).toBe(
-        settled.aggregate.repositoryRevision,
-      );
-      repositoryRevision = settled.aggregate.repositoryRevision;
-    }
-
-    const completedRun = currentRunV1(
-      fixture.session,
-      "agent-run.completed.1",
-      repositoryRevision,
+  it("captures a successor review head and accepts it with the same Process transaction", async () => {
+    const harness = await authorityHarnessV1();
+    const identity = await createProgramV1({ harness });
+    const applyComposite = vi.spyOn(
+      harness.repository,
+      "applyProgramRevisionWithProcessTranscript",
     );
-    const completed = terminalV1(completedRun, "completed");
-    applyTerminalV1(fixture.session, completed);
-    const settled = await harness.authority.settleAgentRun({
-      programId: fixture.programId,
-      expectedRepositoryRevision: repositoryRevision,
-      terminal: completed,
-      snapshot: fixture.session.getSnapshot(),
-      updatedAt: repositoryRevision + 1,
+    const decideComposite = vi.spyOn(
+      harness.repository,
+      "decideProgramWithProcessTranscript",
+    );
+    const applied = await harness.authority.applyRevision({
+      catalog: {
+        programId: identity.programId,
+        expectedRepositoryRevision: 1,
+        expectedProposal: {
+          proposalId: `proposal.${identity.programId}.1`,
+          programRevision: 1,
+        },
+        commitId: `commit.${identity.programId}.revision.2`,
+        program: programV1(identity.programId, 2),
+        proposalId: `proposal.${identity.programId}.2`,
+        updatedAt: 2,
+      },
+      transcript: appendV1({
+        processId: identity.processId,
+        processRevision: 2,
+        frontier: 1,
+        sequence: 2,
+        text: "Revise the Program.",
+        commitId: `commit.${identity.processId}.revision.2`,
+        updatedAt: 2,
+      }),
     });
-    expect(settled).toMatchObject({
-      kind: "committed",
-      aggregate: { reviewBinding: { generation: 2 } },
+    expect(applied.kind).toBe("committed");
+    expect(harness.host.events).toContain("host:capture");
+    expect(applyComposite).toHaveBeenCalledWith({
+      catalog: expect.objectContaining({
+        continuation: expect.objectContaining({
+          programRevision: 1,
+          repositoryRevision: 1,
+        }),
+        reviewedHead: expect.objectContaining({ generation: 1 }),
+      }),
+      transcript: expect.objectContaining({ processId: identity.processId }),
     });
-    expect(
-      harness.host.events.filter((event) => event === "host:capture:start"),
-    ).toHaveLength(2);
+    expect(applyComposite.mock.calls[0]?.[0].transcript.checkpoint).toBeNull();
+
+    const decided = await harness.authority.decide({
+      catalog: {
+        status: "accepted",
+        programId: identity.programId,
+        expectedRepositoryRevision: 2,
+        expectedProposal: {
+          proposalId: `proposal.${identity.programId}.2`,
+          programRevision: 2,
+        },
+        commitId: `commit.${identity.programId}.accept.2`,
+        updatedAt: 3,
+      },
+      transcript: appendV1({
+        processId: identity.processId,
+        processRevision: 3,
+        frontier: 2,
+        sequence: 3,
+        text: "Accept the proposal.",
+        commitId: `commit.${identity.processId}.accept.2`,
+        updatedAt: 3,
+      }),
+    });
+    expect(decided.kind).toBe("committed");
+    expect(harness.host.prepared).toHaveLength(1);
+    expect(harness.host.adopted).toHaveLength(1);
+
+    const review = await harness.authority.inspectProgramWorkspace(identity.programId);
+    expect(review).toMatchObject({
+      latestAccepted: {
+        snapshotId: "snapshot.test.1",
+        programRevision: 2,
+      },
+      pendingReview: null,
+      acceptedStatus: "matches",
+    });
+    expect((await harness.repository.loadProcess(identity.processId))?.transcriptFrontier).toBe(3);
+    expect(decideComposite).toHaveBeenCalledWith({
+      catalog: expect.objectContaining({
+        continuation: expect.objectContaining({
+          programRevision: 2,
+          repositoryRevision: 2,
+        }),
+        snapshotReceipt: expect.objectContaining({ snapshotId: "snapshot.test.1" }),
+      }),
+      transcript: expect.objectContaining({ processId: identity.processId }),
+    });
     await harness.authority.dispose();
   });
 
-  it("keeps Reject repository-only and clears a proven-unreferenced failed-Accept candidate", async () => {
-    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
-    const delegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
-    let failAcceptedOnce = true;
-    const repository = proxyRepositoryV1(delegate, {
-      async decide(input) {
-        if (input.status === "accepted" && failAcceptedOnce) {
-          failAcceptedOnce = false;
-          throw createProgramRepositoryFailureV3("transaction_aborted", "decide");
-        }
-        return await delegate.decide(input);
+  it("rebinds an Agent terminal checkpoint to the exact captured review head", async () => {
+    const memory = createMemoryProgramDataV1();
+    const applyComposite = vi.fn(async (
+      input: Parameters<
+        ProgramDataRepositoryV1["commitProgramRevisionWithProcessExecutionTerminal"]
+      >[0],
+    ) => ({
+      kind: "conflict" as const,
+      currentProgram: await memory.repository.load(input.catalog.programId),
+      currentProcess: await memory.repository.loadProcess(input.transcript.processId),
+      currentLease: await memory.repository.loadProcessExecutionLease(input.transcript.processId),
+    }));
+    const repository: ProgramDataRepositoryV1 = {
+      ...memory.repository,
+      commitProgramRevisionWithProcessExecutionTerminal: applyComposite,
+    };
+    const harness = await authorityHarnessV1(repository);
+    const identity = await createProgramV1({ harness });
+    const acquired = await acquireExecutionV1({ harness, ...identity });
+    const terminalSequence = acquired.process.transcriptFrontier + 1;
+    const terminalEntry = entryV1(
+      identity.processId,
+      terminalSequence,
+      "Agent completed the revision.",
+    );
+
+    await harness.authority.applyAgentRevision({
+      lease: acquired.lease,
+      observedAt: 3,
+      catalog: {
+        programId: identity.programId,
+        expectedRepositoryRevision: 1,
+        expectedProposal: {
+          proposalId: `proposal.${identity.programId}.1`,
+          programRevision: 1,
+        },
+        commitId: `commit.${identity.programId}.revision.2`,
+        program: programV1(identity.programId, 2),
+        proposalId: `proposal.${identity.programId}.2`,
+        updatedAt: 3,
+      },
+      transcript: {
+        processId: identity.processId,
+        expectedProcessRevision: acquired.process.revision,
+        expectedTranscriptFrontier: acquired.process.transcriptFrontier,
+        commitId: `commit.${identity.processId}.terminal.2`,
+        attemptBinding: { attemptId: "attempt.test.one", generation: 1 },
+        entries: [terminalEntry],
+        checkpoint: {
+          checkpointId: "process.checkpoint.revision.2",
+          throughSequence: terminalSequence,
+          workspaceId: identity.workspaceId,
+          workspaceCheckpointId: "caller.workspace.checkpoint",
+          workspaceGeneration: 999,
+        },
+        terminalAttemptReceipt: {
+          schemaVersion: 1,
+          processId: identity.processId,
+          attemptId: "attempt.test.one",
+          generation: 1,
+          outcome: "completed",
+          terminalSequence,
+          terminalEntryId: terminalEntry.entryId,
+          interruptionDisposition: null,
+        },
+        updatedAt: 3,
       },
     });
-    const harness = authorityHarnessV1({ repositoryBacking, repository });
-    const { fixture } = await createProgramV1(harness, "workspace.authority.reject-cleanup");
-    const pendingSnapshot = fixture.session.getSnapshot();
-    const attemptedAccept = sessionFromSnapshotV1(pendingSnapshot);
 
-    await expect(decideV1({
-      authority: harness.authority,
-      session: attemptedAccept,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: 1,
-      updatedAt: 2,
-    })).rejects.toMatchObject({ code: "transaction_aborted" });
-    const volumeId = harness.host.createdVolumes[0];
-    if (volumeId === undefined) throw new Error("expected volume");
-    expect(harness.host.currentVolume(volumeId).candidate).not.toBeNull();
-    await harness.authority.closeActiveWorkspace();
+    expect(applyComposite.mock.calls[0]?.[0].transcript.checkpoint).toEqual({
+      checkpointId: "process.checkpoint.revision.2",
+      throughSequence: terminalSequence,
+      workspaceId: identity.workspaceId,
+      workspaceCheckpointId: "checkpoint.volume.test.1.1",
+      workspaceGeneration: 1,
+    });
     await harness.authority.dispose();
-
-    const cold = authorityHarnessV1({
-      repositoryBacking,
-      hostBacking: harness.hostBacking,
-    });
-
-    const rejectedSession = sessionFromSnapshotV1(pendingSnapshot);
-    const rejected = await decideV1({
-      authority: cold.authority,
-      session: rejectedSession,
-      fixture,
-      status: "rejected",
-      expectedRepositoryRevision: 1,
-      updatedAt: 3,
-    });
-    if (rejected.kind === "conflict") throw new Error("expected Reject commit");
-    expect(rejected.aggregate.decisions).toEqual([
-      expect.objectContaining({ status: "rejected" }),
-    ]);
-    expect("snapshot" in rejected.aggregate.decisions[0]!).toBe(false);
-    expect(cold.host.currentVolume(volumeId).candidate).toBeNull();
-    expect(cold.host.discardedSnapshots).toHaveLength(1);
-
-    const successorFixture = { ...fixture, session: rejectedSession };
-    const revised = await applyFollowUpV1({
-      authority: cold.authority,
-      fixture: successorFixture,
-      expectedRepositoryRevision: 2,
-      text: "Try a new revision after Reject.",
-      updatedAt: 4,
-    });
-    if (revised.kind === "conflict") throw new Error("expected successor revision");
-    await expect(decideV1({
-      authority: cold.authority,
-      session: rejectedSession,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: revised.aggregate.repositoryRevision,
-      updatedAt: 5,
-    })).resolves.toMatchObject({ kind: "committed" });
-    expect(harness.host.prepared).toHaveLength(1);
-    expect(cold.host.prepared).toHaveLength(1);
-    expect(cold.host.adopted).toHaveLength(1);
-    await cold.authority.dispose();
   });
 
-  it("adopts an exact durable Accept after a lost Repository response", async () => {
-    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
-    const delegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
-    let loseDecision = true;
-    const repository = proxyRepositoryV1(delegate, {
-      async decide(input) {
-        const result = await delegate.decide(input);
-        if (loseDecision) {
-          loseDecision = false;
-          throw createProgramRepositoryFailureV3("outcome_unknown", "decide");
+  it("queries one exact composite operation when its terminal response is lost", async () => {
+    const memory = createMemoryProgramDataV1();
+    let hideCommittedResponse = true;
+    let operationQueries = 0;
+    const repository: ProgramDataRepositoryV1 = {
+      ...memory.repository,
+      async commitProgramRevisionWithProcessExecutionTerminal(input) {
+        const result = await memory.repository
+          .commitProgramRevisionWithProcessExecutionTerminal(input);
+        if (hideCommittedResponse) {
+          hideCommittedResponse = false;
+          throw createProgramDataRepositoryFailureV1(
+            "outcome_unknown",
+            "commit_program_revision_with_process_execution_terminal",
+          );
         }
         return result;
       },
+      async queryProcessOperation(input) {
+        operationQueries += 1;
+        return await memory.repository.queryProcessOperation(input);
+      },
+    };
+    const harness = await authorityHarnessV1(repository);
+    const identity = await createProgramV1({ harness });
+    const acquired = await acquireExecutionV1({ harness, ...identity });
+    const terminalSequence = acquired.process.transcriptFrontier + 1;
+    const terminalEntry = entryV1(
+      identity.processId,
+      terminalSequence,
+      "Agent completed the revision.",
+    );
+
+    const result = await harness.authority.applyAgentRevision({
+      lease: acquired.lease,
+      observedAt: 3,
+      catalog: {
+        programId: identity.programId,
+        expectedRepositoryRevision: 1,
+        expectedProposal: {
+          proposalId: `proposal.${identity.programId}.1`,
+          programRevision: 1,
+        },
+        commitId: `commit.${identity.programId}.revision.2`,
+        program: programV1(identity.programId, 2),
+        proposalId: `proposal.${identity.programId}.2`,
+        updatedAt: 3,
+      },
+      transcript: {
+        processId: identity.processId,
+        expectedProcessRevision: acquired.process.revision,
+        expectedTranscriptFrontier: acquired.process.transcriptFrontier,
+        commitId: `commit.${identity.processId}.terminal.2`,
+        attemptBinding: { attemptId: "attempt.test.one", generation: 1 },
+        entries: [terminalEntry],
+        checkpoint: {
+          checkpointId: "process.checkpoint.revision.2",
+          throughSequence: terminalSequence,
+          workspaceId: identity.workspaceId,
+          workspaceCheckpointId: "caller.workspace.checkpoint",
+          workspaceGeneration: 999,
+        },
+        terminalAttemptReceipt: {
+          schemaVersion: 1,
+          processId: identity.processId,
+          attemptId: "attempt.test.one",
+          generation: 1,
+          outcome: "completed",
+          terminalSequence,
+          terminalEntryId: terminalEntry.entryId,
+          interruptionDisposition: null,
+        },
+        updatedAt: 3,
+      },
     });
-    const harness = authorityHarnessV1({ repositoryBacking, repository });
-    const { fixture } = await createProgramV1(harness, "workspace.authority.lost-commit");
-    const accepted = await decideV1({
-      authority: harness.authority,
-      session: fixture.session,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: 1,
-      updatedAt: 2,
+
+    expect(result).toMatchObject({
+      kind: "unchanged",
+      record: { currentProgram: { revision: 2 } },
+      process: {
+        activeAttempt: null,
+        lastTerminalAttempt: { attemptId: "attempt.test.one", outcome: "completed" },
+      },
     });
-    expect(accepted).toMatchObject({ kind: "unchanged", aggregate: { repositoryRevision: 2 } });
-    expect(harness.host.adopted).toHaveLength(1);
-    expect(harness.host.discardedSnapshots).toHaveLength(0);
+    expect(operationQueries).toBe(1);
+    expect(await repository.loadProcessExecutionLease(identity.processId)).toBeNull();
     await harness.authority.dispose();
   });
 
-  it("preserves an Accept candidate when Repository truth remains unknown", async () => {
-    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
-    const delegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
-    const repository = proxyRepositoryV1(delegate, {
-      decide() {
-        return Promise.reject(createProgramRepositoryFailureV3("outcome_unknown", "decide"));
+  it("rejects a Process checkpoint for another Workspace before touching the Host", async () => {
+    const harness = await authorityHarnessV1();
+    const identity = await createProgramV1({ harness });
+    const applyComposite = vi.spyOn(
+      harness.repository,
+      "applyProgramRevisionWithProcessTranscript",
+    );
+
+    await expect(harness.authority.applyRevision({
+      catalog: {
+        programId: identity.programId,
+        expectedRepositoryRevision: 1,
+        expectedProposal: {
+          proposalId: `proposal.${identity.programId}.1`,
+          programRevision: 1,
+        },
+        commitId: `commit.${identity.programId}.revision.2`,
+        program: programV1(identity.programId, 2),
+        proposalId: `proposal.${identity.programId}.2`,
+        updatedAt: 2,
       },
-    });
-    const harness = authorityHarnessV1({ repositoryBacking, repository });
-    const { fixture } = await createProgramV1(harness, "workspace.authority.lost-no-commit");
-    await expect(decideV1({
-      authority: harness.authority,
-      session: fixture.session,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: 1,
-      updatedAt: 2,
-    })).rejects.toMatchObject({ code: "outcome_unknown" });
-    const volumeId = harness.host.createdVolumes[0];
-    if (volumeId === undefined) throw new Error("expected volume");
-    expect(harness.host.currentVolume(volumeId).candidate).not.toBeNull();
-    expect(harness.host.discardedSnapshots).toHaveLength(0);
+      transcript: appendV1({
+        processId: identity.processId,
+        processRevision: 2,
+        frontier: 1,
+        sequence: 2,
+        text: "Revise the Program.",
+        commitId: `commit.${identity.processId}.revision.2`,
+        updatedAt: 2,
+        checkpoint: {
+          checkpointId: "process.checkpoint.revision.2",
+          throughSequence: 2,
+          workspaceId: "workspace.test.other",
+          workspaceCheckpointId: "caller.workspace.checkpoint",
+          workspaceGeneration: 999,
+        },
+      }),
+    })).rejects.toMatchObject({ code: "process_checkpoint_workspace_mismatch" });
+    expect(applyComposite).not.toHaveBeenCalled();
+    expect(harness.host.events).not.toContain("host:capture");
     await harness.authority.dispose();
   });
 
-  it("exact-discards a candidate only after a known Repository conflict", async () => {
-    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
-    const delegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
-    const repository = proxyRepositoryV1(delegate, {
-      async decide(input) {
-        return { kind: "conflict", current: await delegate.load(input.programId) };
-      },
-    });
-    const harness = authorityHarnessV1({ repositoryBacking, repository });
-    const { fixture } = await createProgramV1(harness, "workspace.authority.known-conflict");
-    await expect(decideV1({
-      authority: harness.authority,
-      session: fixture.session,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: 1,
-      updatedAt: 2,
-    })).resolves.toMatchObject({ kind: "conflict" });
-    expect(harness.host.discardedSnapshots).toHaveLength(1);
-    await harness.authority.dispose();
-  });
-
-  it("validates retained accepted truth before ignoring an unrelated sole candidate", async () => {
-    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
-    const delegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
-    let acceptedCalls = 0;
-    const repository = proxyRepositoryV1(delegate, {
-      async decide(input) {
-        if (input.status === "accepted" && ++acceptedCalls === 2) {
-          throw createProgramRepositoryFailureV3("transaction_aborted", "decide");
-        }
-        return await delegate.decide(input);
-      },
-    });
-    const harness = authorityHarnessV1({ repositoryBacking, repository });
-    const { fixture } = await createProgramV1(harness, "workspace.authority.unrelated-candidate");
-    const firstAccepted = await decideV1({
-      authority: harness.authority,
-      session: fixture.session,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: 1,
+  it("requires every accepted Workspace snapshot, not only the latest decision", async () => {
+    const harness = await authorityHarnessV1();
+    const identity = await createProgramV1({ harness });
+    await acceptProposalV1({
+      harness,
+      ...identity,
+      proposalId: `proposal.${identity.programId}.1`,
+      programRevision: 1,
+      repositoryRevision: 1,
+      processRevision: 2,
+      transcriptFrontier: 1,
+      sequence: 2,
       updatedAt: 2,
     });
-    if (firstAccepted.kind === "conflict") throw new Error("expected first Accept");
-    const revised = await applyFollowUpV1({
-      authority: harness.authority,
-      fixture,
-      expectedRepositoryRevision: firstAccepted.aggregate.repositoryRevision,
-      text: "Prepare an unrelated second candidate.",
-      updatedAt: 3,
+    const applied = await harness.authority.applyRevision({
+      catalog: {
+        programId: identity.programId,
+        expectedRepositoryRevision: 2,
+        expectedProposal: {
+          proposalId: `proposal.${identity.programId}.1`,
+          programRevision: 1,
+        },
+        commitId: `commit.${identity.programId}.revision.2`,
+        program: programV1(identity.programId, 2),
+        proposalId: `proposal.${identity.programId}.2`,
+        updatedAt: 3,
+      },
+      transcript: appendV1({
+        processId: identity.processId,
+        processRevision: 3,
+        frontier: 2,
+        sequence: 3,
+        text: "Revise the Program.",
+        commitId: `commit.${identity.processId}.revision.2`,
+        updatedAt: 3,
+      }),
     });
-    if (revised.kind === "conflict") throw new Error("expected successor");
-    await expect(decideV1({
-      authority: harness.authority,
-      session: fixture.session,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: revised.aggregate.repositoryRevision,
-      updatedAt: 4,
-    })).rejects.toMatchObject({ code: "transaction_aborted" });
-    const volumeId = harness.host.createdVolumes[0];
-    if (volumeId === undefined) throw new Error("expected volume");
-    expect(harness.host.currentVolume(volumeId).candidate).toMatchObject({
+    expect(applied.kind).toBe("committed");
+    await acceptProposalV1({
+      harness,
+      ...identity,
+      proposalId: `proposal.${identity.programId}.2`,
       programRevision: 2,
-    });
-
-    const queryStart = harness.host.events.length;
-    await expect(harness.authority.load(fixture.programId)).resolves.toMatchObject({
-      repositoryRevision: revised.aggregate.repositoryRevision,
-    });
-    expect(harness.host.events.slice(queryStart, queryStart + 1)).toEqual([
-      "host:query_retained",
-    ]);
-    expect(harness.host.currentVolume(volumeId).candidate).not.toBeNull();
-    await harness.authority.dispose();
-  });
-
-  it("cold load validates every accepted snapshot reference, not only the latest", async () => {
-    const first = authorityHarnessV1();
-    const { fixture } = await createProgramV1(first, "workspace.authority.all-accepted");
-    const acceptedOne = await decideV1({
-      authority: first.authority,
-      session: fixture.session,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: 1,
-      updatedAt: 2,
-    });
-    if (acceptedOne.kind === "conflict") throw new Error("expected first Accept");
-    const revised = await applyFollowUpV1({
-      authority: first.authority,
-      fixture,
-      expectedRepositoryRevision: acceptedOne.aggregate.repositoryRevision,
-      text: "Create a second accepted revision.",
-      updatedAt: 3,
-    });
-    if (revised.kind === "conflict") throw new Error("expected successor");
-    const acceptedTwo = await decideV1({
-      authority: first.authority,
-      session: fixture.session,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: revised.aggregate.repositoryRevision,
+      repositoryRevision: 3,
+      processRevision: 4,
+      transcriptFrontier: 3,
+      sequence: 4,
       updatedAt: 4,
     });
-    if (acceptedTwo.kind === "conflict") throw new Error("expected second Accept");
-    const receipts = acceptedTwo.aggregate.decisions.flatMap((decision) =>
-      decision.status === "accepted" ? [decision.snapshot] : []
-    );
-    expect(receipts).toHaveLength(2);
-    const volumeId = receipts[0]?.volumeId;
-    if (volumeId === undefined) throw new Error("expected accepted volume");
-    await first.authority.dispose();
 
-    const volume = first.hostBacking.volumes.get(volumeId);
-    const oldest = receipts[0];
-    if (volume === undefined || oldest === undefined) throw new Error("expected retained history");
-    volume.retained.set(oldest.snapshotId, {
-      ...oldest,
-      archiveBytes: oldest.archiveBytes + 1,
-    });
-    const cold = authorityHarnessV1({
-      repositoryBacking: first.repositoryBacking,
-      hostBacking: first.hostBacking,
-    });
-    await expect(cold.authority.load(fixture.programId)).rejects.toThrow(
-      "sillyos.browser_program_workspace.recovery_required",
-    );
-    await cold.authority.dispose();
-  });
+    const volume = [...harness.host.volumes.values()][0];
+    if (volume === undefined) throw new Error("missing test volume");
+    expect([...volume.retained.keys()]).toEqual(["snapshot.test.1", "snapshot.test.2"]);
+    volume.retained.delete("snapshot.test.1");
 
-  it("cold-loads accepted candidate and retained truth, but rejects missing or corrupt bytes", async () => {
-    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
-    const hostBacking = fakeHostBackingV1();
-    let loseAdopt = true;
-    const first = authorityHarnessV1({
-      repositoryBacking,
-      hostBacking,
-      hooks: {
-        beforeAdopt() {
-          if (!loseAdopt) return;
-          loseAdopt = false;
-          throw codedHostErrorV1("outcome_unknown");
-        },
-      },
-    });
-    const { fixture } = await createProgramV1(first, "workspace.authority.cold-recovery");
-    await expect(decideV1({
-      authority: first.authority,
-      session: fixture.session,
-      fixture,
-      status: "accepted",
-      expectedRepositoryRevision: 1,
-      updatedAt: 2,
-    })).rejects.toThrow("sillyos.browser_program_workspace.recovery_required");
-    const volumeId = first.host.createdVolumes[0];
-    if (volumeId === undefined) throw new Error("expected volume");
-    const coldVolume = first.host.currentVolume(volumeId);
-    expect(coldVolume.candidate).not.toBeNull();
-    await first.authority.dispose();
-
-    coldVolume.generation += 1;
-    coldVolume.checkpointId = `checkpoint.${volumeId}.${String(coldVolume.generation)}`;
-
-    const candidateRecovery = authorityHarnessV1({ repositoryBacking, hostBacking });
-    await expect(candidateRecovery.authority.load(fixture.programId)).resolves.toMatchObject({
-      repositoryRevision: 2,
-    });
-    const retainedReceipt = candidateRecovery.host.currentVolume(volumeId).retained.values().next()
-      .value as ProgramWorkspaceSnapshotReceiptV1 | undefined;
-    if (retainedReceipt === undefined) throw new Error("expected retained snapshot");
-    expect(candidateRecovery.host.adopted).toEqual([retainedReceipt]);
-    expect(candidateRecovery.host.events).not.toContain("host:resume");
-    await candidateRecovery.authority.dispose();
-
-    const retainedRecovery = authorityHarnessV1({ repositoryBacking, hostBacking });
-    await expect(retainedRecovery.authority.load(fixture.programId)).resolves.toMatchObject({
-      repositoryRevision: 2,
-    });
-    expect(retainedRecovery.host.adopted).toHaveLength(0);
-    await retainedRecovery.authority.dispose();
-
-    hostBacking.volumes.get(volumeId)?.retained.delete(retainedReceipt.snapshotId);
-    const missing = authorityHarnessV1({ repositoryBacking, hostBacking });
-    await expect(missing.authority.load(fixture.programId)).rejects.toThrow(
-      "sillyos.browser_program_workspace.recovery_required",
-    );
-    await missing.authority.dispose();
-
-    const corruptVolume = hostBacking.volumes.get(volumeId);
-    if (corruptVolume === undefined) throw new Error("expected retained volume");
-    corruptVolume.retained.set(retainedReceipt.snapshotId, {
-      ...retainedReceipt,
-      archiveBytes: retainedReceipt.archiveBytes + 1,
-    });
-    const corrupt = authorityHarnessV1({ repositoryBacking, hostBacking });
-    await expect(corrupt.authority.load(fixture.programId)).rejects.toThrow(
-      "sillyos.browser_program_workspace.recovery_required",
-    );
-    await corrupt.authority.dispose();
-  });
-
-  it("serializes review capture, catalog reads, active close, and disposes Repository last", async () => {
-    const events: string[] = [];
-    const captureEntered = deferredV1<void>();
-    const captureRelease = deferredV1<void>();
-    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
-    const delegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
-    const repository = proxyRepositoryV1(delegate, {
-      async list() {
-        events.push("repository:list");
-        return await delegate.list();
-      },
-      async applyRevision(input) {
-        events.push("repository:apply");
-        return await delegate.applyRevision(input);
-      },
-      async dispose() {
-        events.push("repository:dispose");
-        await delegate.dispose();
-      },
-    });
-    const harness = authorityHarnessV1({
-      repositoryBacking,
-      repository,
-      events,
-      hooks: {
-        async beforeCapture() {
-          captureEntered.resolve(undefined);
-          await captureRelease.promise;
-        },
-      },
-    });
-    const { fixture } = await createProgramV1(harness, "workspace.authority.serialization");
-    const pendingRevision = applyFollowUpV1({
-      authority: harness.authority,
-      fixture,
-      expectedRepositoryRevision: 1,
-      text: "Serialize this review capture.",
-      updatedAt: 2,
-    });
-    await captureEntered.promise;
-    const pendingList = harness.authority.list();
-    const pendingClose = harness.authority.closeActiveWorkspace();
-    await Promise.resolve();
-    expect(events).not.toContain("repository:list");
-    expect(events).not.toContain("host:close");
-
-    captureRelease.resolve(undefined);
-    await pendingRevision;
-    await pendingList;
-    await pendingClose;
-    expect(events.indexOf("host:capture:end")).toBeLessThan(events.indexOf("repository:apply"));
-    expect(events.indexOf("repository:apply")).toBeLessThan(events.indexOf("repository:list"));
-    expect(events.indexOf("repository:list")).toBeLessThan(events.indexOf("host:close"));
-
-    const opened = await harness.authority.openWorkspace(fixture);
-    opened.environmentPort.close();
-    await harness.authority.detachWorkspaceEnvironment(
-      opened.snapshot.descriptor.workspaceSessionId,
-    );
-    await harness.authority.dispose();
-    const finalClose = events.lastIndexOf("host:close");
-    expect(finalClose).toBeLessThan(events.indexOf("host:dispose"));
-    expect(events.indexOf("host:dispose")).toBeLessThan(events.indexOf("repository:dispose"));
-  });
-
-  it("does not admit a new Agent submit between review-head capture and Repository CAS", async () => {
-    const captureEntered = deferredV1<void>();
-    const captureRelease = deferredV1<void>();
-    const harness = authorityHarnessV1({
-      hooks: {
-        async beforeCapture() {
-          captureEntered.resolve(undefined);
-          await captureRelease.promise;
-        },
-      },
-    });
-    const { fixture } = await createProgramV1(harness, "workspace.authority.submit-fence");
-    const opened = await harness.authority.openWorkspace(fixture);
-    const pendingRevision = applyFollowUpV1({
-      authority: harness.authority,
-      fixture,
-      expectedRepositoryRevision: 1,
-      text: "Commit before admitting another Agent run.",
-      updatedAt: 2,
-    });
-    await captureEntered.promise;
-
-    let submitInvoked = false;
-    const pendingSubmit = harness.authority.withAgentSubmitAdmission({
-      programId: fixture.programId,
-      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
-      expectedProgramRevision: 1,
-      expectedRepositoryRevision: 1,
-      expectedGeneration: opened.snapshot.descriptor.generation,
-      operation: () => {
-        submitInvoked = true;
-        return Promise.resolve("submitted" as const);
-      },
-    });
-    await Promise.resolve();
-    expect(submitInvoked).toBe(false);
-
-    captureRelease.resolve(undefined);
-    await expect(pendingRevision).resolves.toMatchObject({ kind: "committed" });
-    await expect(pendingSubmit).rejects.toThrow(
-      "sillyos.browser_program_workspace.agent_submit_stale",
-    );
-    expect(submitInvoked).toBe(false);
-    opened.environmentPort.close();
-    await harness.authority.detachWorkspaceEnvironment(
-      opened.snapshot.descriptor.workspaceSessionId,
-    );
+    await expect(
+      harness.authority.inspectProgramWorkspace(identity.programId),
+    ).rejects.toMatchObject({ code: "recovery_required" });
     await harness.authority.dispose();
   });
 
-  it("admits only the network boolean owned by the submitted Program", async () => {
-    const harness = authorityHarnessV1();
-    const first = await createProgramV1(harness, "workspace.authority.network-access-a");
-    const second = await createProgramV1(harness, "workspace.authority.network-access-b");
-    await expect(harness.authority.setProgramNetworkAccess({
-      programId: first.fixture.programId,
-      enabled: true,
-    })).resolves.toMatchObject({ kind: "committed" });
-
-    await expect(harness.authority.loadProgramNetworkAccess(first.fixture.programId)).resolves
-      .toEqual({
-        revision: 1,
-        programId: first.fixture.programId,
-        enabled: true,
-      });
-    await expect(harness.authority.loadProgramNetworkAccess(second.fixture.programId)).resolves
-      .toEqual({
-        revision: 1,
-        programId: second.fixture.programId,
-        enabled: false,
-      });
-
-    const opened = await harness.authority.openWorkspace(first.fixture);
-    let admittedAccess: unknown = null;
-    await expect(harness.authority.withAgentSubmitAdmission({
-      programId: first.fixture.programId,
-      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
-      expectedProgramRevision: 1,
-      expectedRepositoryRevision: 1,
-      expectedGeneration: opened.snapshot.descriptor.generation,
-      operation: (access) => {
-        admittedAccess = access;
-        return Promise.resolve("submitted" as const);
+  it("retains a failed Accept candidate so a later Reject can clear it explicitly", async () => {
+    const memory = createMemoryProgramDataV1();
+    let failAcceptedOnce = true;
+    const repository: ProgramDataRepositoryV1 = {
+      ...memory.repository,
+      async decideProgramWithProcessTranscript(input) {
+        if (input.catalog.status === "accepted" && failAcceptedOnce) {
+          failAcceptedOnce = false;
+          throw createProgramDataRepositoryFailureV1(
+            "transaction_aborted",
+            "decide_program_with_process_transcript",
+          );
+        }
+        return await memory.repository.decideProgramWithProcessTranscript(input);
       },
-    })).resolves.toBe("submitted");
-    expect(admittedAccess).toEqual({
-      revision: 1,
-      programId: first.fixture.programId,
+    };
+    const harness = await authorityHarnessV1(repository);
+    const identity = await createProgramV1({ harness });
+
+    await expect(acceptProposalV1({
+      harness,
+      ...identity,
+      proposalId: `proposal.${identity.programId}.1`,
+      programRevision: 1,
+      repositoryRevision: 1,
+      processRevision: 2,
+      transcriptFrontier: 1,
+      sequence: 2,
+      updatedAt: 2,
+    })).rejects.toMatchObject({ code: "transaction_aborted" });
+    const volume = [...harness.host.volumes.values()][0];
+    if (volume === undefined) throw new Error("missing test volume");
+    expect(volume.candidate).not.toBeNull();
+
+    const rejected = await harness.authority.decide({
+      catalog: {
+        status: "rejected",
+        programId: identity.programId,
+        expectedRepositoryRevision: 1,
+        expectedProposal: {
+          proposalId: `proposal.${identity.programId}.1`,
+          programRevision: 1,
+        },
+        commitId: `commit.${identity.programId}.reject.1`,
+        updatedAt: 3,
+      },
+      transcript: appendV1({
+        processId: identity.processId,
+        processRevision: 2,
+        frontier: 1,
+        sequence: 2,
+        text: "Reject the proposal.",
+        commitId: `commit.${identity.processId}.reject.1`,
+        updatedAt: 3,
+      }),
+    });
+    expect(rejected.kind).toBe("committed");
+    expect(volume.candidate).toBeNull();
+    await harness.authority.dispose();
+  });
+
+  it("admits an Agent submit only for the exact attached Workspace and current Catalog head", async () => {
+    const harness = await authorityHarnessV1();
+    const identity = await createProgramV1({ harness });
+    const opened = await harness.authority.openWorkspace(identity);
+    const access = await harness.authority.setProgramNetworkAccess({
+      programId: identity.programId,
       enabled: true,
     });
+    expect(access).toMatchObject({ kind: "committed", value: { enabled: true } });
 
-    let crossProgramOperationInvoked = false;
-    await expect(harness.authority.withAgentSubmitAdmission({
-      programId: second.fixture.programId,
+    const admitted = await harness.authority.withAgentSubmitAdmission({
+      programId: identity.programId,
       workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
       expectedProgramRevision: 1,
       expectedRepositoryRevision: 1,
+      expectedCheckpointId: opened.snapshot.checkpointId,
       expectedGeneration: opened.snapshot.descriptor.generation,
-      operation: () => {
-        crossProgramOperationInvoked = true;
-        return Promise.resolve("forbidden" as const);
-      },
-    })).rejects.toThrow("sillyos.browser_program_workspace.workspace_mismatch");
-    expect(crossProgramOperationInvoked).toBe(false);
+      operation: async (value) => value.enabled,
+    });
+    expect(admitted).toBe(true);
 
-    opened.environmentPort.close();
+    await expect(harness.authority.withAgentSubmitAdmission({
+      programId: identity.programId,
+      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+      expectedProgramRevision: 1,
+      expectedRepositoryRevision: 1,
+      expectedCheckpointId: "checkpoint.other",
+      expectedGeneration: opened.snapshot.descriptor.generation,
+      operation: async () => true,
+    })).rejects.toMatchObject({ code: "agent_submit_stale" });
+
+    await expect(harness.authority.withAgentSubmitAdmission({
+      programId: identity.programId,
+      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+      expectedProgramRevision: 1,
+      expectedRepositoryRevision: 1,
+      expectedCheckpointId: opened.snapshot.checkpointId,
+      expectedGeneration: opened.snapshot.descriptor.generation + 1,
+      operation: async () => true,
+    })).rejects.toMatchObject({ code: "agent_submit_stale" });
+
+    await expect(harness.authority.withAgentSubmitAdmission({
+      programId: identity.programId,
+      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+      expectedProgramRevision: 1,
+      expectedRepositoryRevision: 2,
+      expectedCheckpointId: opened.snapshot.checkpointId,
+      expectedGeneration: opened.snapshot.descriptor.generation,
+      operation: async () => true,
+    })).rejects.toMatchObject({ code: "agent_submit_stale" });
+
     await harness.authority.detachWorkspaceEnvironment(
       opened.snapshot.descriptor.workspaceSessionId,
     );
+    await expect(harness.authority.withAgentSubmitAdmission({
+      programId: identity.programId,
+      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+      expectedProgramRevision: 1,
+      expectedRepositoryRevision: 1,
+      expectedCheckpointId: opened.snapshot.checkpointId,
+      expectedGeneration: opened.snapshot.descriptor.generation,
+      operation: async () => true,
+    })).rejects.toMatchObject({ code: "workspace_mismatch" });
     await harness.authority.dispose();
   });
 
-  it("reconciles the exact network setting after a committed response is lost", async () => {
-    const repositoryBacking = createMemoryProgramRepositoryBackingV3();
-    const delegate = createMemoryProgramRepositoryV3({ backing: repositoryBacking });
-    let loseNextMutationResponse = false;
-    const repository = proxyRepositoryV1(delegate, {
-      async setProgramNetworkAccess(input) {
-        const result = await delegate.setProgramNetworkAccess(input);
-        if (!loseNextMutationResponse) return result;
-        loseNextMutationResponse = false;
-        throw createProgramRepositoryFailureV3(
+  it("preserves an initial Workspace candidate when the composite outcome is unknown", async () => {
+    const memory = createMemoryProgramDataV1();
+    const dispose = vi.fn(() => memory.repository.dispose());
+    const repository: ProgramDataRepositoryV1 = {
+      ...memory.repository,
+      async createProgramWithProcess(input) {
+        await memory.repository.createProgramWithProcess(input);
+        throw createProgramDataRepositoryFailureV1(
           "outcome_unknown",
-          "set_program_network_access",
+          "create_program_with_process",
         );
       },
+      dispose,
+    };
+    const harness = await authorityHarnessV1(repository);
+    const input = createProgramInputV1({
+      programId: "program.test.unknown",
+      workspaceId: "workspace.test.unknown",
+      processId: "process.test.unknown",
     });
-    const harness = authorityHarnessV1({ repositoryBacking, repository });
-    const created = await createProgramV1(
-      harness,
-      "workspace.authority.network-access-unknown",
-    );
-    await expect(harness.authority.setProgramNetworkAccess({
-      programId: created.fixture.programId,
-      enabled: true,
-    })).resolves.toMatchObject({ kind: "committed", value: { enabled: true } });
 
-    loseNextMutationResponse = true;
-    await expect(harness.authority.setProgramNetworkAccess({
-      programId: created.fixture.programId,
-      enabled: false,
-    })).resolves.toEqual({
-      kind: "unchanged",
-      value: {
-        revision: 1,
-        programId: created.fixture.programId,
-        enabled: false,
-      },
+    await expect(harness.authority.create(input)).rejects.toMatchObject({
+      code: "outcome_unknown",
+      operation: "create_program_with_process",
     });
-    expect(repositoryBacking.programNetworkAccess.has(created.fixture.programId)).toBe(false);
-    await expect(harness.authority.loadProgramNetworkAccess(created.fixture.programId)).resolves
-      .toEqual({
-        revision: 1,
-        programId: created.fixture.programId,
-        enabled: false,
-      });
+    expect(harness.host.volumes.size).toBe(1);
+    expect(harness.host.discardedCandidates).toEqual([]);
+    expect(await memory.repository.load(input.catalog.program.programId)).not.toBeNull();
+
     await harness.authority.dispose();
+    expect(dispose).toHaveBeenCalledTimes(1);
   });
 
-  it("detaches and reattaches Pi without closing Host, then Home permits another Program", async () => {
-    const harness = authorityHarnessV1();
-    const first = await createProgramV1(harness, "workspace.authority.lifecycle-a");
-    const second = await createProgramV1(harness, "workspace.authority.lifecycle-b");
-    const opened = await harness.authority.openWorkspace(first.fixture);
-    const workspaceSessionId = opened.snapshot.descriptor.workspaceSessionId;
-    await expect(harness.authority.load(second.fixture.programId)).rejects.toThrow(
-      "sillyos.browser_program_workspace.workspace_busy",
-    );
-    await expect(harness.authority.closeActiveWorkspace()).rejects.toThrow(
-      "sillyos.browser_program_workspace.workspace_busy",
-    );
+  it("does not authorize export after the live Workspace head drifts", async () => {
+    const harness = await authorityHarnessV1();
+    const identity = await createProgramV1({ harness });
+    const opened = await harness.authority.openWorkspace(identity);
+    const controller = new AbortController();
+    let startFailure: unknown = null;
 
-    opened.environmentPort.close();
-    await harness.authority.detachWorkspaceEnvironment(workspaceSessionId);
-    const reattached = await harness.authority.openWorkspace(first.fixture);
-    expect(reattached.snapshot.descriptor.workspaceSessionId).toBe(workspaceSessionId);
-    expect(harness.host.events.filter((event) => event === "host:open")).toHaveLength(1);
-    expect(harness.host.events.filter((event) => event === "host:attach")).toHaveLength(2);
-
-    reattached.environmentPort.close();
-    await harness.authority.detachWorkspaceEnvironment(workspaceSessionId);
-    await expect(harness.authority.closeActiveWorkspace()).resolves.toMatchObject({
-      phase: "closed",
-    });
-    await expect(harness.authority.closeActiveWorkspace()).resolves.toBeNull();
-    await expect(harness.authority.load(second.fixture.programId)).resolves.toMatchObject({
-      programId: second.fixture.programId,
-    });
-    await harness.authority.dispose();
-  });
-
-  it("suppresses download authorization when the Host snapshot drifts before ready", async () => {
-    let harness!: AuthorityHarnessV1;
-    let workspaceSessionId = "";
-    harness = authorityHarnessV1({
-      hooks: {
-        beforeExportReady() {
-          harness.host.advanceHead(workspaceSessionId);
-        },
-      },
-    });
-    const { fixture } = await createProgramV1(harness, "workspace.authority.export-head-drift");
-    const opened = await harness.authority.openWorkspace(fixture);
-    workspaceSessionId = opened.snapshot.descriptor.workspaceSessionId;
-    let consumerCalls = 0;
-
-    await expect(harness.authority.exportWorkspace({
-      workspaceSessionId,
-      fileName: "head-drift.sillyos.zip",
-      signal: new AbortController().signal,
-      onReady: async (_ready, startDownload) => {
-        consumerCalls += 1;
-        await startDownload();
-        return "release" as const;
-      },
-    })).rejects.toThrow("sillyos.browser_program_workspace.export_anchor_changed");
-    expect(consumerCalls).toBe(0);
-    expect(harness.host.downloadStarts).toEqual([]);
-
-    opened.environmentPort.close();
-    await harness.authority.detachWorkspaceEnvironment(workspaceSessionId);
-    await harness.authority.dispose();
-  });
-
-  it("rechecks continuation currentness when the consumer authorizes a download", async () => {
-    const harness = authorityHarnessV1();
-    const { fixture } = await createProgramV1(
-      harness,
-      "workspace.authority.export-continuation-drift",
-    );
-    const programId = fixture.programId;
-    const opened = await harness.authority.openWorkspace(fixture);
-    const originalContinuation = harness.repositoryBacking.workspaceContinuations.get(programId);
-    if (originalContinuation === undefined) throw new Error("expected continuation");
-    let consumerCalls = 0;
-
-    await expect(harness.authority.exportWorkspace({
-      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
-      fileName: "continuation-drift.sillyos.zip",
-      signal: new AbortController().signal,
-      onReady: async (_ready, startDownload) => {
-        consumerCalls += 1;
-        harness.repositoryBacking.workspaceContinuations.set(programId, {
-          ...originalContinuation,
-          repositoryRevision: originalContinuation.repositoryRevision + 1,
-        });
-        await startDownload();
-        return "release" as const;
-      },
-    })).rejects.toThrow("sillyos.program_repository.schema_invalid");
-    expect(consumerCalls).toBe(1);
-    expect(harness.host.downloadStarts).toEqual([]);
-
-    harness.repositoryBacking.workspaceContinuations.set(programId, originalContinuation);
-    opened.environmentPort.close();
-    await harness.authority.detachWorkspaceEnvironment(
-      opened.snapshot.descriptor.workspaceSessionId,
-    );
-    await harness.authority.dispose();
-  });
-
-  it("does not authorize a download when the ready consumer cancels or throws", async () => {
-    const harness = authorityHarnessV1();
-    const { fixture } = await createProgramV1(harness, "workspace.authority.export-consumer");
-    const opened = await harness.authority.openWorkspace(fixture);
-    const workspaceSessionId = opened.snapshot.descriptor.workspaceSessionId;
-
-    await expect(harness.authority.exportWorkspace({
-      workspaceSessionId,
-      fileName: "consumer-cancel.sillyos.zip",
-      signal: new AbortController().signal,
-      onReady: () => "cancel",
-    })).resolves.toMatchObject({ kind: "cancelled" });
-    await expect(harness.authority.exportWorkspace({
-      workspaceSessionId,
-      fileName: "consumer-throw.sillyos.zip",
-      signal: new AbortController().signal,
-      onReady: () => {
-        throw new Error("synthetic export consumer failure");
-      },
-    })).rejects.toThrow("synthetic export consumer failure");
-    expect(harness.host.downloadStarts).toEqual([]);
-
-    opened.environmentPort.close();
-    await harness.authority.detachWorkspaceEnvironment(workspaceSessionId);
-    await harness.authority.dispose();
-  });
-
-  it("exports only the exact durable continuation owned by the shared authority", async () => {
-    const harness = authorityHarnessV1();
-    const { fixture } = await createProgramV1(harness, "workspace.authority.export");
-    const opened = await harness.authority.openWorkspace(fixture);
-    const progress: number[] = [];
     const result = await harness.authority.exportWorkspace({
       workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
-      fileName: "authority-test.sillyos.zip",
-      signal: new AbortController().signal,
-      onProgress: (value) => progress.push(value.bytesWritten),
+      fileName: "workspace.zip",
+      signal: controller.signal,
       onReady: async (_ready, startDownload) => {
-        await startDownload();
-        return "release" as const;
+        harness.host.advanceHead();
+        try {
+          await startDownload();
+        } catch (error) {
+          startFailure = error;
+        }
+        return "cancel" as const;
       },
     });
-    expect(result).toMatchObject({ kind: "released", bytesWritten: 64 });
-    expect(progress).toEqual([64]);
-    expect(harness.host.exportInputs).toEqual([{ programRevision: 1, repositoryRevision: 1 }]);
-    expect(harness.host.downloadStarts).toEqual(["authority-test.sillyos.zip"]);
-    opened.environmentPort.close();
+
+    expect(result.kind).toBe("cancelled");
+    expect(startFailure).toMatchObject({ code: "export_anchor_changed" });
+    expect(harness.host.events).not.toContain("host:download");
+    await harness.authority.dispose();
+  });
+
+  it("resets Catalog/Process before purging detached Workspaces and disposes once", async () => {
+    const memory = createMemoryProgramDataV1();
+    const dispose = vi.fn(() => memory.repository.dispose());
+    const repository: ProgramDataRepositoryV1 = { ...memory.repository, dispose };
+    const harness = await authorityHarnessV1(repository);
+    const identity = await createProgramV1({ harness });
+    const opened = await harness.authority.openWorkspace(identity);
     await harness.authority.detachWorkspaceEnvironment(
       opened.snapshot.descriptor.workspaceSessionId,
     );
-    await harness.authority.dispose();
+
+    await expect(harness.authority.resetStoredData()).resolves.toEqual({
+      productRepository: { kind: "cleared" },
+      workspaceVolumes: { kind: "cleared" },
+    });
+    expect(await repository.load(identity.programId)).toBeNull();
+    expect(await repository.loadProcess(identity.processId)).toBeNull();
+    expect(harness.host.volumes.size).toBe(0);
+    expect(harness.host.events.indexOf("host:close")).toBeLessThan(
+      harness.host.events.indexOf("host:purge"),
+    );
+
+    await Promise.all([harness.authority.dispose(), harness.authority.dispose()]);
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(harness.host.events.at(-1)).toBe("host:dispose");
+  });
+
+  it("joins an in-flight serialized operation before disposing its Repository owner", async () => {
+    const memory = createMemoryProgramDataV1();
+    const started = Promise.withResolvers<void>();
+    const loadGate = Promise.withResolvers<void>();
+    const dispose = vi.fn(() => memory.repository.dispose());
+    const repository: ProgramDataRepositoryV1 = {
+      ...memory.repository,
+      async loadProgramNetworkAccess(programId) {
+        started.resolve();
+        await loadGate.promise;
+        return await memory.repository.loadProgramNetworkAccess(programId);
+      },
+      dispose,
+    };
+    const harness = await authorityHarnessV1(repository);
+
+    const pendingLoad = harness.authority.loadProgramNetworkAccess("program.test.missing");
+    await started.promise;
+    const pendingDispose = harness.authority.dispose();
+    await Promise.resolve();
+    expect(dispose).not.toHaveBeenCalled();
+    expect(harness.host.events).not.toContain("host:dispose");
+
+    loadGate.resolve();
+    await expect(pendingLoad).resolves.toBeNull();
+    await pendingDispose;
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(harness.host.events).toContain("host:dispose");
   });
 });

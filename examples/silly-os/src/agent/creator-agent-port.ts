@@ -37,7 +37,6 @@ import type {
   WorkspaceExecutionDescriptorV1,
   WorkspaceMutationReceiptV1,
 } from "../workspace/contracts.ts";
-import { workspaceMutationReceiptMaximumV1 } from "../workspace/contracts.ts";
 import {
   createBrowserPiWorkerConnectorV1,
   type BrowserPiCredentialHandoffV1,
@@ -167,9 +166,17 @@ export type CreatorAgentCloseWorkspaceResultV1 =
   | { readonly kind: "idle" }
   | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentWorkspaceDiagnosticV1 };
 
-export type CreatorAgentAcknowledgeWorkspaceReceiptsResultV1 =
+type CreatorAgentAcknowledgeWorkspaceReceiptsResultV1 =
   | { readonly kind: "acknowledged"; readonly throughSequence: number }
   | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentWorkspaceDiagnosticV1 };
+
+export type CreatorAgentAcknowledgeTerminalResultV1 =
+  | { readonly kind: "acknowledged" }
+  | { readonly kind: "idle" }
+  | {
+    readonly kind: "workspace_unavailable";
+    readonly diagnostic: CreatorAgentWorkspaceDiagnosticV1;
+  };
 
 export type CreatorAgentExportWorkspaceResultV1 =
   | ({
@@ -200,9 +207,6 @@ export interface CreatorAgentPortV1 {
     readonly workspaceId: string;
   }): Promise<CreatorAgentOpenWorkspaceResultV1>;
   closeWorkspace(workspaceSessionId?: string): Promise<CreatorAgentCloseWorkspaceResultV1>;
-  acknowledgeWorkspaceReceipts(
-    throughSequence: number,
-  ): Promise<CreatorAgentAcknowledgeWorkspaceReceiptsResultV1>;
   exportWorkspace(input: {
     readonly workspaceSessionId: string;
     readonly fileName: string;
@@ -218,7 +222,7 @@ export interface CreatorAgentPortV1 {
   synchronizeNetworkAccess(
     access: ProgramNetworkAccessV1,
   ): Promise<CreatorAgentSynchronizeNetworkAccessResultV1>;
-  acknowledgeTerminal(agentRunId: string): boolean;
+  acknowledgeTerminal(agentRunId: string): Promise<CreatorAgentAcknowledgeTerminalResultV1>;
   /** Fail-closed credential revocation; cleanup continues through forget(). */
   revokeCredential(): void;
   /** Explicitly terminates the Worker that owns the in-memory credential. */
@@ -334,6 +338,10 @@ function exactRecordV1(
 function normalizeCreatorAgentRunV1(value: unknown): NormalizedCreatorAgentRunV1 | null {
   const record = exactRecordV1(value, [
     "agentRunId",
+    "processId",
+    "processAttemptGeneration",
+    "workspaceCheckpointId",
+    "workspaceGeneration",
     "proposalId",
     "programId",
     "baseProgramRevision",
@@ -343,6 +351,14 @@ function normalizeCreatorAgentRunV1(value: unknown): NormalizedCreatorAgentRunV1
   if (
     record === null || typeof record.agentRunId !== "string" ||
     !identifierPatternV1.test(record.agentRunId) ||
+    typeof record.processId !== "string" || !identifierPatternV1.test(record.processId) ||
+    typeof record.processAttemptGeneration !== "number" ||
+    !Number.isSafeInteger(record.processAttemptGeneration) ||
+    record.processAttemptGeneration <= 0 ||
+    typeof record.workspaceCheckpointId !== "string" ||
+    !identifierPatternV1.test(record.workspaceCheckpointId) ||
+    typeof record.workspaceGeneration !== "number" ||
+    !Number.isSafeInteger(record.workspaceGeneration) || record.workspaceGeneration <= 0 ||
     typeof record.baseRepositoryRevision !== "number" ||
     !Number.isSafeInteger(record.baseRepositoryRevision) || record.baseRepositoryRevision <= 0
   ) return null;
@@ -356,6 +372,10 @@ function normalizeCreatorAgentRunV1(value: unknown): NormalizedCreatorAgentRunV1
   if (admitted.kind === "rejected") return null;
   const run = Object.freeze({
     agentRunId: record.agentRunId,
+    processId: record.processId,
+    processAttemptGeneration: record.processAttemptGeneration,
+    workspaceCheckpointId: record.workspaceCheckpointId,
+    workspaceGeneration: record.workspaceGeneration,
     proposalId: admitted.value.proposalId,
     programId: admitted.value.programId,
     baseProgramRevision: admitted.value.baseProgramRevision,
@@ -499,6 +519,7 @@ export function createBrowserCreatorAgentPortV1(
     string,
     BrowserPiWorkspaceMutationReceiptWireV1[]
   >();
+  const workspaceReceiptWatermarksByRunId = new Map<string, number>();
   const submitSettlementGates = new Set<string>();
   const terminalDiagnostics = new Map<string, CreatorAgentDiagnosticV1>();
   let lifecycleEpoch = 0;
@@ -521,6 +542,15 @@ export function createBrowserCreatorAgentPortV1(
   let workspaceLastReceipt: WorkspaceMutationReceiptV1 | null = null;
   let workspaceDiagnostic: CreatorAgentWorkspaceDiagnosticV1 | null = null;
   let workspaceLastObservedSequence = 0;
+  let workspaceAcknowledgedSequence = 0;
+  let workspaceAcknowledgementTargetSequence = 0;
+  let workspaceAcknowledgementEpoch = 0;
+  let workspaceAcknowledgementScheduled = false;
+  let workspaceAcknowledgementSettlement:
+    | Promise<
+      CreatorAgentAcknowledgeWorkspaceReceiptsResultV1
+    >
+    | null = null;
   let workspaceControlBusy = false;
   let workspaceExportAbort: AbortController | null = null;
   let workspaceExportSettlement: Promise<void> | null = null;
@@ -658,6 +688,161 @@ export function createBrowserCreatorAgentPortV1(
     }
   };
 
+  const resetWorkspaceAcknowledgementV1 = (): void => {
+    workspaceAcknowledgementEpoch += 1;
+    workspaceAcknowledgementScheduled = false;
+    workspaceAcknowledgementSettlement = null;
+    workspaceAcknowledgedSequence = 0;
+    workspaceAcknowledgementTargetSequence = 0;
+    workspaceReceiptWatermarksByRunId.clear();
+  };
+
+  const drainWorkspaceAcknowledgementsV1 = (): Promise<
+    CreatorAgentAcknowledgeWorkspaceReceiptsResultV1
+  > => {
+    if (workspaceAcknowledgementSettlement !== null) {
+      return workspaceAcknowledgementSettlement;
+    }
+    const descriptor = workspaceDescriptor;
+    if (descriptor === null) {
+      return Promise.resolve({
+        kind: "unavailable",
+        diagnostic: workspaceDiagnosticV1("protocol_invalid", "/workspace/acknowledge"),
+      });
+    }
+    if (workspaceAcknowledgementTargetSequence <= workspaceAcknowledgedSequence) {
+      return Promise.resolve({
+        kind: "acknowledged",
+        throughSequence: workspaceAcknowledgedSequence,
+      });
+    }
+    const expectedEpoch = workspaceAcknowledgementEpoch;
+    const expectedProgramId = descriptor.programId;
+    const expectedWorkspaceId = descriptor.workspaceId;
+    const expectedWorkspaceSessionId = descriptor.workspaceSessionId;
+    const attempt = (async (): Promise<CreatorAgentAcknowledgeWorkspaceReceiptsResultV1> => {
+      while (workspaceAcknowledgementTargetSequence > workspaceAcknowledgedSequence) {
+        if (terminal || expectedEpoch !== workspaceAcknowledgementEpoch) {
+          return {
+            kind: "unavailable",
+            diagnostic: workspaceDiagnosticV1("disposed", "/workspace/acknowledge"),
+          };
+        }
+        const throughSequence = workspaceAcknowledgementTargetSequence;
+        const targetReceipt = workspaceReceipts.find(({ sequence }) =>
+          sequence === throughSequence
+        );
+        try {
+          const result = await connector.acknowledgeWorkspaceReceipts({
+            workspaceSessionId: expectedWorkspaceSessionId,
+            throughSequence,
+          });
+          const current = workspaceDescriptor;
+          if (
+            expectedEpoch !== workspaceAcknowledgementEpoch || current === null ||
+            current.programId !== expectedProgramId ||
+            current.workspaceId !== expectedWorkspaceId ||
+            current.workspaceSessionId !== expectedWorkspaceSessionId
+          ) {
+            return {
+              kind: "unavailable",
+              diagnostic: workspaceDiagnosticV1("disposed", "/workspace/acknowledge"),
+            };
+          }
+          if (
+            result.programId !== expectedProgramId || result.workspaceId !== expectedWorkspaceId ||
+            result.workspaceSessionId !== expectedWorkspaceSessionId ||
+            (targetReceipt !== undefined &&
+              result.generation < targetReceipt.resultingGeneration)
+          ) {
+            const invalid = workspaceDiagnosticV1(
+              "protocol_invalid",
+              "/workspace/acknowledge/response",
+            );
+            failWorkspaceV1(invalid);
+            return { kind: "unavailable", diagnostic: invalid };
+          }
+          workspaceAcknowledgedSequence = throughSequence;
+          workspaceReceipts = Object.freeze(
+            workspaceReceipts.filter((receipt) => receipt.sequence > throughSequence),
+          );
+          workspaceDescriptor = Object.freeze({
+            ...current,
+            generation: Math.max(current.generation, result.generation),
+          });
+          if (finishPromise === null) workspacePhase = result.phase;
+          workspaceDiagnostic = null;
+          publish();
+        } catch (error) {
+          const mapped = mapWorkspaceFailureV1(error, "/workspace/acknowledge");
+          if (!workspaceFailedV1()) workspaceDiagnostic = mapped;
+          publish();
+          return { kind: "unavailable", diagnostic: mapped };
+        }
+      }
+      return {
+        kind: "acknowledged",
+        throughSequence: workspaceAcknowledgedSequence,
+      };
+    })();
+    workspaceAcknowledgementSettlement = attempt;
+    void attempt.then((result) => {
+      if (workspaceAcknowledgementSettlement === attempt) {
+        workspaceAcknowledgementSettlement = null;
+        if (result.kind === "acknowledged") scheduleWorkspaceAcknowledgementV1();
+      }
+    }, () => {
+      if (workspaceAcknowledgementSettlement === attempt) {
+        workspaceAcknowledgementSettlement = null;
+      }
+    });
+    return attempt;
+  };
+
+  const scheduleWorkspaceAcknowledgementV1 = (): void => {
+    if (
+      terminal || workspaceAcknowledgementScheduled || workspaceDescriptor === null ||
+      workspaceAcknowledgementTargetSequence <= workspaceAcknowledgedSequence
+    ) return;
+    workspaceAcknowledgementScheduled = true;
+    queueMicrotask(() => {
+      workspaceAcknowledgementScheduled = false;
+      if (
+        terminal || workspaceDescriptor === null ||
+        workspaceAcknowledgementTargetSequence <= workspaceAcknowledgedSequence
+      ) return;
+      void drainWorkspaceAcknowledgementsV1();
+    });
+  };
+
+  const acknowledgeWorkspaceReceiptWatermarkV1 = async (
+    throughSequence: number,
+  ): Promise<CreatorAgentAcknowledgeWorkspaceReceiptsResultV1> => {
+    if (
+      workspaceDescriptor === null || !Number.isSafeInteger(throughSequence) ||
+      throughSequence <= 0 || throughSequence > workspaceLastObservedSequence
+    ) {
+      return {
+        kind: "unavailable",
+        diagnostic: workspaceDiagnosticV1(
+          "protocol_invalid",
+          "/workspace/acknowledge/throughSequence",
+        ),
+      };
+    }
+    if (throughSequence <= workspaceAcknowledgedSequence) {
+      return { kind: "acknowledged", throughSequence };
+    }
+    workspaceAcknowledgementTargetSequence = Math.max(
+      workspaceAcknowledgementTargetSequence,
+      throughSequence,
+    );
+    const result = await drainWorkspaceAcknowledgementsV1();
+    return workspaceAcknowledgedSequence >= throughSequence
+      ? { kind: "acknowledged", throughSequence }
+      : result;
+  };
+
   const projectWorkspaceReceiptV1 = (
     tracked: TrackedCreatorAgentRunV1,
     value: BrowserPiWorkspaceMutationReceiptWireV1,
@@ -668,8 +853,7 @@ export function createBrowserCreatorAgentPortV1(
       value.workspaceId !== descriptor.workspaceId ||
       value.workspaceSessionId !== descriptor.workspaceSessionId ||
       value.programId !== tracked.run.programId ||
-      value.sequence !== workspaceLastObservedSequence + 1 ||
-      workspaceReceipts.length >= workspaceMutationReceiptMaximumV1
+      value.sequence !== workspaceLastObservedSequence + 1
     ) {
       failWorkspaceV1(workspaceDiagnosticV1("protocol_invalid", "/workspace/receipt"));
       return;
@@ -698,8 +882,11 @@ export function createBrowserCreatorAgentPortV1(
     });
     workspaceReceipts = Object.freeze([...workspaceReceipts, receipt]);
     workspaceLastReceipt = receipt;
+    workspaceReceiptWatermarksByRunId.set(tracked.run.agentRunId, receipt.sequence);
+    workspaceAcknowledgementTargetSequence = receipt.sequence;
     workspaceDiagnostic = null;
     publish();
+    scheduleWorkspaceAcknowledgementV1();
   };
 
   const bufferWorkspaceReceiptV1 = (
@@ -1284,6 +1471,7 @@ export function createBrowserCreatorAgentPortV1(
   const adoptWorkspaceSnapshotV1 = (value: BrowserPiWorkspaceSnapshotWireV1): void => {
     const nextDescriptor = workspaceDescriptorV1(value);
     if (workspaceDescriptor?.workspaceSessionId !== nextDescriptor.workspaceSessionId) {
+      resetWorkspaceAcknowledgementV1();
       workspaceReceipts = [];
       workspaceLastReceipt = null;
       workspaceLastObservedSequence = 0;
@@ -1385,6 +1573,14 @@ export function createBrowserCreatorAgentPortV1(
       workspaceExportAbort?.abort();
       await workspaceExportSettlement.catch(() => undefined);
     }
+    if (workspaceLastObservedSequence > workspaceAcknowledgedSequence) {
+      const acknowledged = await acknowledgeWorkspaceReceiptWatermarkV1(
+        workspaceLastObservedSequence,
+      );
+      if (acknowledged.kind === "unavailable") return acknowledged;
+    } else {
+      await workspaceAcknowledgementSettlement;
+    }
     if (terminal || finishPromise !== null) {
       return {
         kind: "unavailable",
@@ -1417,61 +1613,6 @@ export function createBrowserCreatorAgentPortV1(
         workspacePhase = previousPhase;
         workspaceDiagnostic = mapped;
       }
-      publish();
-      return { kind: "unavailable", diagnostic: mapped };
-    } finally {
-      workspaceControlBusy = false;
-    }
-  };
-
-  const acknowledgeWorkspaceReceipts = async (
-    throughSequence: number,
-  ): Promise<CreatorAgentAcknowledgeWorkspaceReceiptsResultV1> => {
-    if (terminal || finishPromise !== null) {
-      return {
-        kind: "unavailable",
-        diagnostic: workspaceDiagnosticV1("disposed", "/"),
-      };
-    }
-    const descriptor = workspaceDescriptor;
-    if (
-      descriptor === null || !Number.isSafeInteger(throughSequence) || throughSequence <= 0 ||
-      !workspaceReceipts.some((receipt) => receipt.sequence === throughSequence)
-    ) {
-      return {
-        kind: "unavailable",
-        diagnostic: workspaceDiagnosticV1(
-          "protocol_invalid",
-          "/workspace/acknowledge/throughSequence",
-        ),
-      };
-    }
-    if (workspaceControlBusy) {
-      return {
-        kind: "unavailable",
-        diagnostic: workspaceDiagnosticV1("workspace_busy", "/workspace/busy"),
-      };
-    }
-    workspaceControlBusy = true;
-    try {
-      const result = await connector.acknowledgeWorkspaceReceipts({
-        workspaceSessionId: descriptor.workspaceSessionId,
-        throughSequence,
-      });
-      if (result.workspaceSessionId !== descriptor.workspaceSessionId) {
-        throw new TypeError("sillyos.creator_agent.workspace_acknowledge_mismatch");
-      }
-      workspaceDescriptor = workspaceDescriptorV1(result);
-      workspaceReceipts = Object.freeze(
-        workspaceReceipts.filter((receipt) => receipt.sequence > throughSequence),
-      );
-      workspacePhase = result.phase;
-      workspaceDiagnostic = null;
-      publish();
-      return { kind: "acknowledged", throughSequence };
-    } catch (error) {
-      const mapped = mapWorkspaceFailureV1(error, "/workspace/acknowledge");
-      if (!workspaceFailedV1()) workspaceDiagnostic = mapped;
       publish();
       return { kind: "unavailable", diagnostic: mapped };
     } finally {
@@ -1588,6 +1729,13 @@ export function createBrowserCreatorAgentPortV1(
       workspaceExportAbort?.abort();
       if (!credentialRevoked) {
         await workspaceExportSettlement?.catch(() => undefined);
+        if (workspaceLastObservedSequence > workspaceAcknowledgedSequence) {
+          await acknowledgeWorkspaceReceiptWatermarkV1(workspaceLastObservedSequence).catch(
+            () => undefined,
+          );
+        } else {
+          await workspaceAcknowledgementSettlement?.catch(() => undefined);
+        }
       }
       // Keep subscriptions and Pi-to-product correlation alive until close has
       // drained its final receipt and Agent terminal records.
@@ -1605,6 +1753,7 @@ export function createBrowserCreatorAgentPortV1(
       trackedByPiRun.clear();
       pendingStreamEvents.clear();
       pendingWorkspaceReceipts.clear();
+      workspaceReceiptWatermarksByRunId.clear();
       submitSettlementGates.clear();
       pendingStreamEventCount = 0;
       pendingWorkspaceReceiptCount = 0;
@@ -1618,6 +1767,7 @@ export function createBrowserCreatorAgentPortV1(
       workspaceDescriptor = null;
       workspaceReceipts = [];
       workspaceLastReceipt = null;
+      workspaceAcknowledgementSettlement = null;
       workspaceDiagnostic = null;
       publish();
       listeners.clear();
@@ -1640,7 +1790,6 @@ export function createBrowserCreatorAgentPortV1(
     selectReasoningEffort,
     openWorkspace,
     closeWorkspace,
-    acknowledgeWorkspaceReceipts,
     exportWorkspace,
     revokeCredential(): void {
       if (terminal) return;
@@ -1730,7 +1879,8 @@ export function createBrowserCreatorAgentPortV1(
       publish();
       let serializedSubmit: string;
       try {
-        // Product-only agentRunId/baseRepositoryRevision never cross the Pi RPC boundary.
+        // Product-only Process/Workspace currentness and Repository identity
+        // never cross the Pi RPC boundary.
         serializedSubmit = serializeCreatorAgentSubmitV1(normalized.submit);
       } catch {
         removeTrackedRunV1(tracked);
@@ -1750,7 +1900,8 @@ export function createBrowserCreatorAgentPortV1(
             workspaceSessionId: submitWorkspace.workspaceSessionId,
             expectedProgramRevision: normalized.run.baseProgramRevision,
             expectedRepositoryRevision: normalized.run.baseRepositoryRevision,
-            expectedGeneration: submitWorkspace.generation,
+            expectedCheckpointId: normalized.run.workspaceCheckpointId,
+            expectedGeneration: normalized.run.workspaceGeneration,
             operation: async (access) => {
               await connector.replaceNetworkAccess({
                 access,
@@ -1844,17 +1995,34 @@ export function createBrowserCreatorAgentPortV1(
       return { kind: "cancel_requested" };
     },
     synchronizeNetworkAccess,
-    acknowledgeTerminal(agentRunId: string): boolean {
+    async acknowledgeTerminal(
+      agentRunId: string,
+    ): Promise<CreatorAgentAcknowledgeTerminalResultV1> {
       const index = terminalRuns.findIndex(({ run }) => run.agentRunId === agentRunId);
-      if (index < 0) return false;
+      if (index < 0) return { kind: "idle" };
+      const receiptWatermark = workspaceReceiptWatermarksByRunId.get(agentRunId) ?? 0;
+      if (receiptWatermark > 0) {
+        const workspaceAcknowledged = await acknowledgeWorkspaceReceiptWatermarkV1(
+          receiptWatermark,
+        );
+        if (workspaceAcknowledged.kind === "unavailable") {
+          return {
+            kind: "workspace_unavailable",
+            diagnostic: workspaceAcknowledged.diagnostic,
+          };
+        }
+      }
+      const currentIndex = terminalRuns.findIndex(({ run }) => run.agentRunId === agentRunId);
+      if (currentIndex < 0) return { kind: "idle" };
       terminalRuns = Object.freeze([
-        ...terminalRuns.slice(0, index),
-        ...terminalRuns.slice(index + 1),
+        ...terminalRuns.slice(0, currentIndex),
+        ...terminalRuns.slice(currentIndex + 1),
       ]);
       terminalDiagnostics.delete(agentRunId);
+      workspaceReceiptWatermarksByRunId.delete(agentRunId);
       if (!terminal) refreshFacadeV1();
       publish();
-      return true;
+      return { kind: "acknowledged" };
     },
     forget: () => finish("forgotten"),
     dispose: () => finish("disposed"),
