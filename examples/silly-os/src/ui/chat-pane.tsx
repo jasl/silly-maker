@@ -166,6 +166,7 @@ export function ProgramWorkspaceReviewV1({
 
 export interface ChatPanePropsV1 {
   readonly copy: SillyOsCopyV1;
+  readonly agentName?: string;
   readonly transcript: CreatorTranscriptWindowProjectionV1;
   readonly onLoadOlderTranscript?: () => boolean | void | Promise<boolean | void>;
   readonly interruptedRetry?: {
@@ -375,6 +376,7 @@ function TranscriptPartV1View({
 
 export function ChatPaneV1({
   copy,
+  agentName = copy.creatorName,
   transcript,
   onLoadOlderTranscript,
   interruptedRetry,
@@ -565,7 +567,7 @@ export function ChatPaneV1({
             <Sparkles size={16} fill="currentColor" />
           </span>
           <div>
-            <strong>{copy.creatorName}</strong>
+            <strong>{agentName}</strong>
           </div>
         </div>
 

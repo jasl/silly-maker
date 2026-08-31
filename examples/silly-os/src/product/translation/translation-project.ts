@@ -117,6 +117,7 @@ const documentFormatsV1 = new Set<TranslationDocumentFormatV1>([
   "markdown",
   "subrip",
   "sillyos_translation_json",
+  "pdf_text_reflow",
   "unknown",
 ]);
 const capabilityGradesV1 = new Set<TranslationCapabilityGradeV1>([
@@ -127,6 +128,7 @@ const capabilityGradesV1 = new Set<TranslationCapabilityGradeV1>([
 ]);
 const capabilityReasonsV1 = new Set<TranslationCapabilityReasonV1>([
   "known_format",
+  "born_digital_pdf_text",
   "format_not_declared",
   "format_hints_conflict",
   "malformed_markdown",

@@ -13,6 +13,7 @@ import type {
   ProgramProcessExecutionRevisionBundleInputV1,
   ProgramProcessRevisionBundleInputV1,
   ProcessWorkspaceCreateBundleInputV1,
+  TranslationProjectFinalizeExecutionBundleInputV1,
 } from "../product/program-data-repository.ts";
 import type {
   ProcessExecutionAcquireInputV1,
@@ -92,6 +93,14 @@ function createV9SchemaV1(database: IDBDatabase): void {
   database.createObjectStore("process_execution_leases", { keyPath: "processId" });
   database.createObjectStore("workspace_continuations", { keyPath: "programId" });
   database.createObjectStore("program_network_access", { keyPath: "programId" });
+}
+
+function createV10SchemaV1(database: IDBDatabase): void {
+  createV9SchemaV1(database);
+  const bindings = database.createObjectStore("process_workspace_bindings", {
+    keyPath: "processId",
+  });
+  bindings.createIndex("by_volume_id", "volumeId", { unique: true });
 }
 
 function programV1(programId: string, revision: number): PreviewProgramV1 {
@@ -313,6 +322,22 @@ function processWorkspaceBundleV1(
   };
 }
 
+function translationSourceBindingV1(
+  programId: string,
+  processId: string,
+  path: string,
+) {
+  return {
+    revision: 1 as const,
+    workspaceId: `workspace.${programId}`,
+    volumeId: `volume.${processId}`,
+    workspaceFormat: 1 as const,
+    path,
+    checkpointId: `workspace-checkpoint.${processId}.1`,
+    generation: 1,
+  };
+}
+
 function revisionBundleV1(
   programId: string,
   processId: string,
@@ -403,6 +428,50 @@ function executionAcquireV1(
   };
 }
 
+function translationExecutionAcquireV1(
+  programId: string,
+  processId: string,
+  ownerInstanceId = `owner.${processId}`,
+): ProcessExecutionAcquireInputV1 {
+  const attemptId = `attempt.${processId}.translation-import`;
+  return {
+    ownerInstanceId,
+    observedAt: 3,
+    expiresAt: 1_000_000,
+    attempt: {
+      processId,
+      expectedProcessRevision: 2,
+      expectedTranscriptFrontier: 1,
+      commitId: `commit.${processId}.translation-import.acquire`,
+      attemptId,
+      generation: 1,
+      trigger: { kind: "new_entry", entry: entryV1(processId, 2, "user", "Import source") },
+      startingCheckpoint: {
+        checkpointId: `process-checkpoint.${processId}.2`,
+        throughSequence: 2,
+        workspaceId: `workspace.${programId}`,
+        workspaceCheckpointId: `workspace-checkpoint.${processId}.1`,
+        workspaceGeneration: 1,
+      },
+      updatedAt: 3,
+    },
+  };
+}
+
+async function acquireTranslationLeaseV1(
+  repository: ReturnType<typeof createIndexedDbProgramDataRepositoryTestAdapterV1>,
+  programId: string,
+  processId: string,
+  ownerInstanceId = `owner.${processId}`,
+): Promise<ProcessExecutionLeaseV1> {
+  const acquired = await repository.acquireTranslationProjectImportExecution({
+    expectedProjectRevision: null,
+    execution: translationExecutionAcquireV1(programId, processId, ownerInstanceId),
+  });
+  if (acquired.kind === "conflict") throw new Error("expected Translation import lease");
+  return acquired.lease;
+}
+
 function executionTerminalV1(input: {
   readonly processId: string;
   readonly lease: ProcessExecutionLeaseV1;
@@ -452,7 +521,7 @@ function executionTerminalV1(input: {
   };
 }
 
-describe("IndexedDB Program data repository V10", () => {
+describe("IndexedDB Program data repository V11", () => {
   it("creates the exact normalized schema and indexes null subjects without scanning", async () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
@@ -538,6 +607,35 @@ describe("IndexedDB Program data repository V10", () => {
     upgraded.close();
   });
 
+  it("additively upgrades exact V10 storage without discarding durable rows", async () => {
+    const indexedDB = new IDBFactory();
+    const old = await openRawV1(indexedDB, 10, createV10SchemaV1);
+    const write = old.transaction(
+      ["program_definitions", "process_workspace_bindings"],
+      "readwrite",
+    );
+    write.objectStore("program_definitions").add(translationDefinitionV1());
+    write.objectStore("process_workspace_bindings").add({
+      revision: 1,
+      processId: "process.v10",
+      workspaceId: "workspace.v10",
+      volumeId: "volume.v10",
+      workspaceFormat: 1,
+    });
+    await transactionDoneV1(write);
+    old.close();
+
+    const repository = repositoryV1(indexedDB);
+    await repository.initialize();
+    expect(await repository.loadProgramDefinitionRevision("sillyos.builtin.translation", 1))
+      .toEqual(translationDefinitionV1());
+    expect(await repository.loadProcessWorkspaceBinding("process.v10")).toMatchObject({
+      volumeId: "volume.v10",
+    });
+    expect(await repository.loadTranslationProjectHead("process.v10")).toBeNull();
+    await repository.dispose();
+  });
+
   it("fails closed for unknown, malformed, future, and blocked databases", async () => {
     const unknownFactory = new IDBFactory();
     (await openRawV1(unknownFactory, 3, (database) => database.createObjectStore("unknown")))
@@ -557,7 +655,7 @@ describe("IndexedDB Program data repository V10", () => {
     ).rejects.toMatchObject({ code: "schema_invalid" });
 
     const futureFactory = new IDBFactory();
-    (await openRawV1(futureFactory, 11, (database) => database.createObjectStore("future")))
+    (await openRawV1(futureFactory, 12, (database) => database.createObjectStore("future")))
       .close();
     await expect(
       repositoryV1(futureFactory).initialize(),
@@ -1751,6 +1849,732 @@ describe("IndexedDB Program data repository V10", () => {
     await repository.reset();
     expect(await repository.load("program.reset")).toBeNull();
     expect(await repository.loadProgramNetworkAccess("program.reset")).toBeNull();
+    await repository.dispose();
+  });
+
+  it("rejects a Translation Project beneath a non-Translation Process", async () => {
+    const indexedDB = new IDBFactory();
+    const repository = repositoryV1(indexedDB);
+    const writingDefinition = nonCreatorDefinitionV1("writing");
+    await repository.publishProgramDefinitionRevision(writingDefinition);
+    await createProgramV1(repository, "program.translation-wrong-process");
+    await repository.createProcessWithWorkspace(
+      processWorkspaceBundleV1(
+        "program.translation-wrong-process",
+        "process.translation-wrong-process",
+        writingDefinition,
+      ),
+    );
+    const acquired = await repository.acquireProcessExecution(
+      translationExecutionAcquireV1(
+        "program.translation-wrong-process",
+        "process.translation-wrong-process",
+      ),
+    );
+    if (acquired.kind === "conflict") throw new Error("expected writing Process lease");
+    const lease = acquired.lease;
+
+    await expect(repository.beginTranslationProjectImport({
+      processId: "process.translation-wrong-process",
+      operationId: "translation.begin.wrong-process",
+      lease,
+      projectId: "translation.project.wrong-process",
+      title: "Wrong process",
+      document: {
+        format: "plain_text",
+        capabilityGrade: "round_trip_supported",
+        capabilityReason: "known_format",
+      },
+      source: {
+        fileName: "source.txt",
+        mediaType: "text/plain",
+        workspacePath: "input/source.txt",
+        byteLength: 6,
+        sha256: "a".repeat(64),
+      },
+      sourceBinding: translationSourceBindingV1(
+        "program.translation-wrong-process",
+        "process.translation-wrong-process",
+        "input/source.txt",
+      ),
+      sourceLocale: "ja",
+      targetLocale: "zh-Hans",
+      documentPurpose: "test",
+      style: "faithful",
+      expectedUnitCount: 1,
+      expectedGlossaryCount: 0,
+      updatedAt: 3,
+    })).resolves.toEqual({ kind: "conflict", current: null });
+    await repository.dispose();
+  });
+
+  it("fences every Translation import publication by the exact Process lease generation", async () => {
+    const indexedDB = new IDBFactory();
+    const repository = repositoryV1(indexedDB);
+    const programId = "program.translation.fenced";
+    const processId = "process.translation.fenced";
+    await repository.publishProgramDefinitionRevision(translationDefinitionV1());
+    await createProgramV1(repository, programId);
+    await repository.createProcessWithWorkspace(processWorkspaceBundleV1(programId, processId));
+    const predecessorLease = await acquireTranslationLeaseV1(repository, programId, processId);
+    const begin = {
+      processId,
+      operationId: "translation.begin.fenced",
+      lease: predecessorLease,
+      projectId: "translation.project.fenced",
+      title: "Fenced translation",
+      document: {
+        format: "plain_text" as const,
+        capabilityGrade: "round_trip_supported" as const,
+        capabilityReason: "known_format" as const,
+      },
+      source: {
+        fileName: "fenced.txt",
+        mediaType: "text/plain",
+        workspacePath: "input/fenced.txt",
+        byteLength: 6,
+        sha256: "f".repeat(64),
+      },
+      sourceBinding: translationSourceBindingV1(programId, processId, "input/fenced.txt"),
+      sourceLocale: "ja",
+      targetLocale: "zh-Hans",
+      documentPurpose: "test",
+      style: "faithful",
+      expectedUnitCount: 1,
+      expectedGlossaryCount: 0,
+      updatedAt: 4,
+    };
+    expect(await repository.beginTranslationProjectImport(begin)).toMatchObject({
+      kind: "committed",
+      head: { revision: 1, phase: "staging" },
+    });
+
+    const released = await repository.releaseProcessExecutionLease({
+      lease: predecessorLease,
+      observedAt: 5,
+    });
+    if (released.kind === "conflict") throw new Error("expected predecessor release");
+    const interrupted = executionTerminalV1({
+      processId,
+      lease: released.lease,
+      observedAt: 6,
+      expectedProcessRevision: 3,
+      expectedTranscriptFrontier: 2,
+      sequence: 3,
+      outcome: "interrupted",
+      interruptionDisposition: "retryable",
+      workspaceCheckpointId: `workspace-checkpoint.${processId}.1`,
+      workspaceGeneration: 1,
+    });
+    const settled = await repository.commitProcessExecutionTerminal(interrupted);
+    if (settled.kind === "conflict" || settled.process.checkpoint === null) {
+      throw new Error("expected interrupted predecessor terminal");
+    }
+    const successor = await repository.acquireTranslationProjectImportExecution({
+      expectedProjectRevision: 1,
+      execution: {
+        ownerInstanceId: "owner.translation.successor",
+        observedAt: 7,
+        expiresAt: 1_000_001,
+        attempt: {
+          processId,
+          expectedProcessRevision: settled.process.revision,
+          expectedTranscriptFrontier: settled.process.transcriptFrontier,
+          commitId: "commit.translation.successor.acquire",
+          attemptId: "attempt.translation.successor",
+          generation: 2,
+          trigger: {
+            kind: "existing_entry",
+            entryId: `entry.${processId}.2`,
+            sequence: 2,
+          },
+          startingCheckpoint: settled.process.checkpoint,
+          updatedAt: 7,
+        },
+      },
+    });
+    if (successor.kind === "conflict") throw new Error("expected successor lease");
+
+    // Receipt replay remains historical evidence and does not grant the old
+    // owner authority for a new publication.
+    expect(await repository.beginTranslationProjectImport(begin)).toMatchObject({
+      kind: "unchanged",
+      head: { revision: 1 },
+    });
+    const append = {
+      processId,
+      operationId: "translation.append.fenced",
+      expectedProjectRevision: 1,
+      units: [{
+        unitId: "unit.fenced.0",
+        order: 0,
+        locator: "line:1",
+        context: null,
+        durationMilliseconds: null,
+        source: "Source",
+        protectedSegments: [],
+      }],
+      glossaryEntries: [],
+      updatedAt: 8,
+    };
+    expect(
+      await repository.appendTranslationProjectImport({
+        ...append,
+        operationId: "translation.append.predecessor",
+        lease: predecessorLease,
+        updatedAt: 4,
+      }),
+    ).toMatchObject({ kind: "conflict", current: { revision: 1 } });
+    expect(
+      await repository.appendTranslationProjectImport({ ...append, lease: successor.lease }),
+    ).toMatchObject({ kind: "committed", head: { revision: 2, stagedUnitCount: 1 } });
+    const predecessorTerminal = executionTerminalV1({
+      processId,
+      lease: predecessorLease,
+      observedAt: 4,
+      expectedProcessRevision: 5,
+      expectedTranscriptFrontier: 3,
+      sequence: 4,
+      outcome: "completed",
+      interruptionDisposition: null,
+      workspaceCheckpointId: begin.sourceBinding.checkpointId,
+      workspaceGeneration: begin.sourceBinding.generation,
+      commitId: "commit.translation.finalize.predecessor.terminal",
+    });
+    expect(
+      await repository.commitTranslationProjectFinalizeWithProcessExecutionTerminal({
+        project: {
+          processId,
+          operationId: "translation.finalize.predecessor",
+          lease: predecessorLease,
+          expectedProjectRevision: 2,
+          sourceBinding: begin.sourceBinding,
+          updatedAt: 4,
+        },
+        terminal: predecessorTerminal,
+      }),
+    ).toMatchObject({
+      kind: "conflict",
+      currentProject: { revision: 2, phase: "staging" },
+    });
+    const successorTerminal = executionTerminalV1({
+      processId,
+      lease: successor.lease,
+      observedAt: 9,
+      expectedProcessRevision: 5,
+      expectedTranscriptFrontier: 3,
+      sequence: 4,
+      outcome: "completed",
+      interruptionDisposition: null,
+      workspaceCheckpointId: begin.sourceBinding.checkpointId,
+      workspaceGeneration: begin.sourceBinding.generation,
+      commitId: "commit.translation.finalize.successor.terminal",
+    });
+    expect(
+      await repository.commitTranslationProjectFinalizeWithProcessExecutionTerminal({
+        project: {
+          processId,
+          operationId: "translation.finalize.successor",
+          lease: successor.lease,
+          expectedProjectRevision: 2,
+          sourceBinding: begin.sourceBinding,
+          updatedAt: 9,
+        },
+        terminal: successorTerminal,
+      }),
+    ).toMatchObject({
+      kind: "committed",
+      head: { revision: 3, phase: "ready" },
+      process: { activeAttempt: null, lastTerminalAttempt: { outcome: "completed" } },
+    });
+    await repository.dispose();
+  });
+
+  it("binds the exact Translation Project expectation into the acquire receipt", async () => {
+    const indexedDB = new IDBFactory();
+    const repository = repositoryV1(indexedDB);
+    const programId = "program.translation.acquire-receipt";
+    const processId = "process.translation.acquire-receipt";
+    await repository.publishProgramDefinitionRevision(translationDefinitionV1());
+    await createProgramV1(repository, programId);
+    await repository.createProcessWithWorkspace(processWorkspaceBundleV1(programId, processId));
+    const input = {
+      expectedProjectRevision: null,
+      execution: translationExecutionAcquireV1(programId, processId),
+    };
+    const committed = await repository.acquireTranslationProjectImportExecution(input);
+    expect(committed).toMatchObject({
+      kind: "committed",
+      operationReceipt: { operation: "translation_project_execution_acquire" },
+    });
+    expect(await repository.acquireTranslationProjectImportExecution(input)).toMatchObject({
+      kind: "unchanged",
+      operationReceipt: committed.kind === "conflict" ? null : committed.operationReceipt,
+    });
+    expect(
+      await repository.queryProcessOperation({
+        operation: "translation_project_execution_acquire",
+        input,
+      }),
+    ).toMatchObject({
+      kind: "committed",
+      receipt: { operation: "translation_project_execution_acquire" },
+    });
+    expect(
+      await repository.queryProcessOperation({
+        operation: "translation_project_execution_acquire",
+        input: { ...input, expectedProjectRevision: 1 },
+      }),
+    ).toMatchObject({ kind: "mismatch" });
+    await repository.dispose();
+  });
+
+  it("atomically rejects a stale Translation acquire after another tab finalizes ready", async () => {
+    const indexedDB = new IDBFactory();
+    const first = repositoryV1(indexedDB);
+    const second = repositoryV1(indexedDB);
+    const programId = "program.translation.ready-race";
+    const processId = "process.translation.ready-race";
+    await first.publishProgramDefinitionRevision(translationDefinitionV1());
+    await createProgramV1(first, programId);
+    await first.createProcessWithWorkspace(processWorkspaceBundleV1(programId, processId));
+    const lease = await acquireTranslationLeaseV1(first, programId, processId);
+    const sourceBinding = translationSourceBindingV1(programId, processId, "input/source.txt");
+    const begin = {
+      processId,
+      operationId: "translation.begin.ready-race",
+      lease,
+      projectId: "translation.project.ready-race",
+      title: "Ready race",
+      document: {
+        format: "plain_text" as const,
+        capabilityGrade: "round_trip_supported" as const,
+        capabilityReason: "known_format" as const,
+      },
+      source: {
+        fileName: "source.txt",
+        mediaType: "text/plain",
+        workspacePath: sourceBinding.path,
+        byteLength: 0,
+        sha256: "a".repeat(64),
+      },
+      sourceBinding,
+      sourceLocale: "ja",
+      targetLocale: "en",
+      documentPurpose: "test",
+      style: "faithful",
+      expectedUnitCount: 0,
+      expectedGlossaryCount: 0,
+      updatedAt: 4,
+    };
+    expect(await first.beginTranslationProjectImport(begin)).toMatchObject({
+      kind: "committed",
+      head: { revision: 1, phase: "staging" },
+    });
+    const terminal = executionTerminalV1({
+      processId,
+      lease,
+      observedAt: 5,
+      expectedProcessRevision: 3,
+      expectedTranscriptFrontier: 2,
+      sequence: 3,
+      outcome: "completed",
+      interruptionDisposition: null,
+      workspaceCheckpointId: sourceBinding.checkpointId,
+      workspaceGeneration: sourceBinding.generation,
+      commitId: "translation.terminal.ready-race",
+    });
+    const finalized = await first
+      .commitTranslationProjectFinalizeWithProcessExecutionTerminal({
+        project: {
+          processId,
+          operationId: "translation.finalize.ready-race",
+          lease,
+          expectedProjectRevision: 1,
+          sourceBinding,
+          updatedAt: 5,
+        },
+        terminal,
+      });
+    if (finalized.kind === "conflict" || finalized.process.checkpoint === null) {
+      throw new Error("expected ready Translation project");
+    }
+    const beforeProcess = await first.loadProcess(processId);
+    const beforeTranscript = await first.loadTranscriptPage({
+      processId,
+      beforeSequence: null,
+      maximumBytes: 8_192,
+    });
+    const staleAcquire = {
+      expectedProjectRevision: 1,
+      execution: {
+        ownerInstanceId: "owner.translation.ready-race.stale",
+        observedAt: 6,
+        expiresAt: 1_000,
+        attempt: {
+          processId,
+          expectedProcessRevision: finalized.process.revision,
+          expectedTranscriptFrontier: finalized.process.transcriptFrontier,
+          commitId: "translation.acquire.ready-race.stale",
+          attemptId: "translation.attempt.ready-race.stale",
+          generation: 2,
+          trigger: {
+            kind: "new_entry" as const,
+            entry: entryV1(processId, 4, "user", "Import source again"),
+          },
+          startingCheckpoint: {
+            ...finalized.process.checkpoint,
+            checkpointId: "process-checkpoint.translation.ready-race.4",
+            throughSequence: 4,
+          },
+          updatedAt: 6,
+        },
+      },
+    };
+    expect(await second.acquireTranslationProjectImportExecution(staleAcquire)).toMatchObject({
+      kind: "conflict",
+      currentProject: { revision: 2, phase: "ready" },
+      currentProcess: { lastTerminalAttempt: { outcome: "completed", generation: 1 } },
+      currentLease: null,
+    });
+    expect(
+      await second.queryProcessOperation({
+        operation: "translation_project_execution_acquire",
+        input: staleAcquire,
+      }),
+    ).toEqual({ kind: "absent" });
+    await expect(second.acquireProcessExecution(staleAcquire.execution)).rejects.toThrow(
+      "A Translation Process must acquire execution with its Project expectation",
+    );
+    expect(await second.loadProcess(processId)).toEqual(beforeProcess);
+    expect(
+      await second.loadTranscriptPage({
+        processId,
+        beforeSequence: null,
+        maximumBytes: 8_192,
+      }),
+    ).toEqual(beforeTranscript);
+    expect(await second.loadProcessExecutionLease(processId)).toBeNull();
+    await first.dispose();
+    await second.dispose();
+  });
+
+  it("pages 10k Translation units across cold readers and reconciles exact operation receipts", async () => {
+    const indexedDB = new IDBFactory();
+    const writer = repositoryV1(indexedDB);
+    await writer.publishProgramDefinitionRevision(translationDefinitionV1());
+    await createProgramV1(writer, "program.translation.large");
+    await writer.createProcessWithWorkspace(
+      processWorkspaceBundleV1("program.translation.large", "process.translation.large"),
+    );
+    const lease = await acquireTranslationLeaseV1(
+      writer,
+      "program.translation.large",
+      "process.translation.large",
+    );
+    const begin = {
+      processId: "process.translation.large",
+      operationId: "translation.begin.large",
+      lease,
+      projectId: "translation.project.large",
+      title: "Large translation",
+      document: {
+        format: "plain_text" as const,
+        capabilityGrade: "round_trip_supported" as const,
+        capabilityReason: "known_format" as const,
+      },
+      source: {
+        fileName: "large.txt",
+        mediaType: "text/plain",
+        workspacePath: "input/large.txt",
+        byteLength: 100_000,
+        sha256: "a".repeat(64),
+      },
+      sourceBinding: translationSourceBindingV1(
+        "program.translation.large",
+        "process.translation.large",
+        "input/large.txt",
+      ),
+      sourceLocale: "ja",
+      targetLocale: "zh-Hans",
+      documentPurpose: "VN script",
+      style: "faithful",
+      expectedUnitCount: 10_000,
+      expectedGlossaryCount: 0,
+      updatedAt: 3,
+    };
+    expect(await writer.beginTranslationProjectImport(begin)).toMatchObject({
+      kind: "committed",
+      head: { phase: "staging", sourceBinding: begin.sourceBinding },
+    });
+    let revision = 1;
+    for (let offset = 0; offset < 10_000; offset += 500) {
+      const result = await writer.appendTranslationProjectImport({
+        processId: begin.processId,
+        operationId: `translation.append.${String(offset)}`,
+        lease,
+        expectedProjectRevision: revision,
+        units: Array.from({ length: 500 }, (_, index) => {
+          const order = offset + index;
+          return {
+            unitId: `unit.${String(order)}`,
+            order,
+            locator: `line:${String(order + 1)}`,
+            context: null,
+            durationMilliseconds: null,
+            source: `Source ${String(order)}`,
+            protectedSegments: [],
+          };
+        }),
+        glossaryEntries: [],
+        updatedAt: 4 + offset,
+      });
+      expect(result.kind).toBe("committed");
+      if (result.kind === "committed") revision = result.head.revision;
+    }
+    const terminalV1 = (input: {
+      readonly observedAt: number;
+      readonly operationId: string;
+      readonly sourceBinding: typeof begin.sourceBinding;
+    }) =>
+      executionTerminalV1({
+        processId: begin.processId,
+        lease,
+        observedAt: input.observedAt,
+        expectedProcessRevision: 3,
+        expectedTranscriptFrontier: 2,
+        sequence: 3,
+        outcome: "completed",
+        interruptionDisposition: null,
+        workspaceCheckpointId: input.sourceBinding.checkpointId,
+        workspaceGeneration: input.sourceBinding.generation,
+        commitId: input.operationId,
+      });
+    const mismatchedBinding = { ...begin.sourceBinding, generation: 2 };
+    expect(
+      await writer.commitTranslationProjectFinalizeWithProcessExecutionTerminal({
+        project: {
+          processId: begin.processId,
+          operationId: "translation.finalize.mismatched-binding",
+          lease,
+          expectedProjectRevision: revision,
+          sourceBinding: mismatchedBinding,
+          updatedAt: 20_004,
+        },
+        terminal: terminalV1({
+          observedAt: 20_004,
+          operationId: "translation.terminal.mismatched-binding",
+          sourceBinding: mismatchedBinding,
+        }),
+      }),
+    ).toMatchObject({
+      kind: "conflict",
+      currentProject: { phase: "staging", sourceBinding: begin.sourceBinding },
+    });
+    const finalizeBundle: TranslationProjectFinalizeExecutionBundleInputV1 = {
+      project: {
+        processId: begin.processId,
+        operationId: "translation.finalize.large",
+        lease,
+        expectedProjectRevision: revision,
+        sourceBinding: begin.sourceBinding,
+        updatedAt: 20_005,
+      },
+      terminal: terminalV1({
+        observedAt: 20_005,
+        operationId: "translation.terminal.large",
+        sourceBinding: begin.sourceBinding,
+      }),
+    };
+    await expect(writer.commitProcessExecutionTerminal(finalizeBundle.terminal)).rejects.toThrow(
+      "A Translation Process must publish a completed terminal with its Project finalize",
+    );
+    const originalAdd = FakeIDBObjectStore.prototype.add;
+    vi.spyOn(FakeIDBObjectStore.prototype, "add").mockImplementation(function (
+      this: IDBObjectStore,
+      ...args: Parameters<typeof originalAdd>
+    ) {
+      if (this.name === "process_commits") {
+        throw new DOMException("synthetic quota", "QuotaExceededError");
+      }
+      return originalAdd.apply(this, args);
+    });
+    try {
+      await expect(
+        writer.commitTranslationProjectFinalizeWithProcessExecutionTerminal(finalizeBundle),
+      ).rejects.toMatchObject({
+        code: "quota_exceeded",
+        operation: "commit_translation_project_finalize_with_process_execution_terminal",
+      });
+    } finally {
+      vi.restoreAllMocks();
+    }
+    expect(await writer.loadTranslationProjectHead(begin.processId)).toMatchObject({
+      revision,
+      phase: "staging",
+    });
+    expect(await writer.loadProcess(begin.processId)).toMatchObject({
+      revision: 3,
+      activeAttempt: { attemptId: lease.attemptId, generation: lease.generation },
+    });
+    expect(await writer.loadProcessExecutionLease(begin.processId)).toEqual(lease);
+    expect(
+      await writer.queryTranslationProjectOperation({
+        operation: "finalize",
+        input: finalizeBundle.project,
+      }),
+    ).toEqual({ kind: "absent" });
+    expect(
+      await writer.queryProcessOperation({
+        operation: "execution_terminal",
+        input: finalizeBundle.terminal,
+      }),
+    ).toEqual({ kind: "absent" });
+    const finalized = await writer
+      .commitTranslationProjectFinalizeWithProcessExecutionTerminal(finalizeBundle);
+    expect(finalized).toMatchObject({
+      kind: "committed",
+      head: { phase: "ready", stagedUnitCount: 10_000 },
+      process: { activeAttempt: null, lastTerminalAttempt: { outcome: "completed" } },
+      projectOperationReceipt: { operation: "finalize" },
+      processOperationReceipt: { operation: "execution_terminal" },
+    });
+    if (finalized.kind !== "committed") throw new Error("expected finalized Translation project");
+    expect(
+      await writer.commitTranslationProjectFinalizeWithProcessExecutionTerminal(finalizeBundle),
+    ).toMatchObject({
+      kind: "unchanged",
+      projectOperationReceipt: finalized.projectOperationReceipt,
+      processOperationReceipt: finalized.processOperationReceipt,
+    });
+    await writer.dispose();
+
+    const readers = [repositoryV1(indexedDB), repositoryV1(indexedDB), repositoryV1(indexedDB)];
+    const windows = await Promise.all(
+      [0, 4_000, 9_990].map((fromOrder, index) =>
+        readers[index]!.loadTranslationProjectUnitPage({
+          processId: begin.processId,
+          expectedProjectRevision: finalized.head.revision,
+          fromOrder,
+          maximumRows: 20,
+          maximumBytes: 16_384,
+        })
+      ),
+    );
+    expect(windows.map((result) =>
+      result.kind === "page"
+        ? {
+          firstOrder: result.page.rows[0]?.order,
+          lastOrder: result.page.rows.at(-1)?.order,
+          rowCount: result.page.rows.length,
+          nextOrder: result.page.nextOrder,
+        }
+        : null
+    )).toEqual([
+      { firstOrder: 0, lastOrder: 19, rowCount: 20, nextOrder: 20 },
+      { firstOrder: 4_000, lastOrder: 4_019, rowCount: 20, nextOrder: 4_020 },
+      { firstOrder: 9_990, lastOrder: 9_999, rowCount: 10, nextOrder: null },
+    ]);
+    await expect(readers[0]!.loadTranslationProjectUnitPage({
+      processId: begin.processId,
+      expectedProjectRevision: finalized.head.revision,
+      fromOrder: 0,
+      maximumRows: 20,
+      maximumBytes: 1,
+    })).rejects.toMatchObject({
+      code: "page_budget_too_small",
+      operation: "load_translation_project_unit_page",
+    });
+    expect(await readers[0]!.queryTranslationProjectOperation({ operation: "begin", input: begin }))
+      .toMatchObject({ kind: "committed", receipt: { projectRevision: 1 } });
+    expect(
+      await readers[0]!.queryTranslationProjectOperation({
+        operation: "begin",
+        input: { ...begin, title: "Different" },
+      }),
+    ).toMatchObject({ kind: "mismatch" });
+    await Promise.all(readers.map((reader) => reader.dispose()));
+  });
+
+  it("keeps Translation projects isolated and rolls back a failed append transaction", async () => {
+    const indexedDB = new IDBFactory();
+    const repository = repositoryV1(indexedDB);
+    await repository.publishProgramDefinitionRevision(translationDefinitionV1());
+    const leases = new Map<string, ProcessExecutionLeaseV1>();
+    for (const suffix of ["one", "two"] as const) {
+      await createProgramV1(repository, `program.translation.${suffix}`);
+      await repository.createProcessWithWorkspace(
+        processWorkspaceBundleV1(`program.translation.${suffix}`, `process.translation.${suffix}`),
+      );
+      const lease = await acquireTranslationLeaseV1(
+        repository,
+        `program.translation.${suffix}`,
+        `process.translation.${suffix}`,
+      );
+      leases.set(suffix, lease);
+      await repository.beginTranslationProjectImport({
+        processId: `process.translation.${suffix}`,
+        operationId: `translation.begin.${suffix}`,
+        lease,
+        projectId: `translation.project.${suffix}`,
+        title: suffix,
+        document: {
+          format: "plain_text",
+          capabilityGrade: "round_trip_supported",
+          capabilityReason: "known_format",
+        },
+        source: {
+          fileName: `${suffix}.txt`,
+          mediaType: "text/plain",
+          workspacePath: `input/${suffix}.txt`,
+          byteLength: 1,
+          sha256: suffix === "one" ? "1".repeat(64) : "2".repeat(64),
+        },
+        sourceBinding: translationSourceBindingV1(
+          `program.translation.${suffix}`,
+          `process.translation.${suffix}`,
+          `input/${suffix}.txt`,
+        ),
+        sourceLocale: "ja",
+        targetLocale: "zh-Hans",
+        documentPurpose: "test",
+        style: "faithful",
+        expectedUnitCount: 2,
+        expectedGlossaryCount: 0,
+        updatedAt: 3,
+      });
+    }
+    const failed = {
+      processId: "process.translation.one",
+      operationId: "translation.append.failed",
+      lease: leases.get("one")!,
+      expectedProjectRevision: 1,
+      units: [0, 1].map((order) => ({
+        unitId: "duplicate.unit",
+        order,
+        locator: "line",
+        context: null,
+        durationMilliseconds: null,
+        source: "x",
+        protectedSegments: [],
+      })),
+      glossaryEntries: [],
+      updatedAt: 4,
+    };
+    await expect(repository.appendTranslationProjectImport(failed)).rejects.toMatchObject({
+      operation: "append_translation_project_import",
+    });
+    expect(await repository.loadTranslationProjectHead("process.translation.one")).toMatchObject({
+      revision: 1,
+      stagedUnitCount: 0,
+    });
+    expect(await repository.loadTranslationProjectHead("process.translation.two")).toMatchObject({
+      projectId: "translation.project.two",
+      revision: 1,
+    });
+    expect(
+      await repository.queryTranslationProjectOperation({ operation: "append", input: failed }),
+    ).toEqual({ kind: "absent" });
     await repository.dispose();
   });
 });

@@ -4,6 +4,7 @@ import type { WebGuiApplicationV1 } from "@sillymaker/web/gui-application";
 import { createBrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
 import { createBrowserProgramDataRepositoryV1 } from "../product/browser-program-data-repository.ts";
 import { createCreatorControllerV1 } from "../product/creator-controller.ts";
+import { createTranslationProcessControllerV1 } from "../product/translation/translation-process-controller.ts";
 import { SillyOsAppV1, type SillyOsAgentDrainRegistryV1 } from "../ui/silly-os-app.tsx";
 
 export interface SillyOsAgentDrainOwnerV1 {
@@ -110,12 +111,21 @@ export const sillyOsApplicationV1: WebGuiApplicationV1 = {
         reportFailure("silly_os.browser_workspace_temporary_close_failed", error);
       },
     });
+    const translationController = createTranslationProcessControllerV1({
+      repository,
+      workspace: workspaceAuthority,
+    });
     const agentDrainOwner = createSillyOsAgentDrainOwnerV1(reportFailure);
     let disposalPromise: Promise<void> | null = null;
     const disposeProduct = (): Promise<void> => {
       disposalPromise ??= disposeSillyOsProductV1({
         agentDrainOwner,
-        controller,
+        controller: {
+          async dispose() {
+            translationController.dispose();
+            await controller.dispose();
+          },
+        },
         workspaceAuthority,
         reportFailure,
       });
@@ -125,6 +135,7 @@ export const sillyOsApplicationV1: WebGuiApplicationV1 = {
       content: (
         <SillyOsAppV1
           controller={controller}
+          translationController={translationController}
           workspaceAuthority={workspaceAuthority}
           agentDrainRegistry={agentDrainOwner.registry}
           reportFailure={reportFailure}

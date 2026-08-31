@@ -68,6 +68,8 @@ import {
   normalizeProgramProcessDecisionBundleInputV1,
   normalizeProgramProcessExecutionRevisionBundleInputV1,
   normalizeProgramProcessRevisionBundleInputV1,
+  normalizeTranslationProjectImportExecutionAcquireInputV1,
+  normalizeTranslationProjectFinalizeExecutionBundleInputV1,
   type ProgramDataProcessOperationExpectationV1,
   type ProgramDataRepositoryFailureCodeV1,
   type ProgramDataRepositoryOperationV1,
@@ -80,6 +82,8 @@ import {
   type ProgramProcessRevisionBundleInputV1,
   type ProcessWorkspaceBindingV1,
   type ProcessWorkspaceCreateCompositeCommitResultV1,
+  type TranslationProjectFinalizeExecutionCompositeCommitResultV1,
+  type TranslationProjectImportExecutionAcquireResultV1,
 } from "./program-data-repository.ts";
 import {
   cloneProcessExecutionLeaseV1,
@@ -93,11 +97,45 @@ import {
   type ProcessOperationReceiptV1,
 } from "./process-execution-repository.ts";
 import type { PreviewProgramV1 } from "./contracts.ts";
+import {
+  normalizeTranslationProjectAppendImportInputV1,
+  normalizeTranslationProjectBeginImportInputV1,
+  normalizeTranslationProjectFinalizeImportInputV1,
+  normalizeTranslationProjectOperationExpectationV1,
+  normalizeTranslationProjectPageRequestV1,
+  normalizeTranslationProjectSourceBindingV1,
+  translationProjectRowUtf8ByteLengthV1,
+  type TranslationProjectGlossaryEntryV1,
+  type TranslationProjectHeadV1,
+  type TranslationProjectOperationExpectationV1,
+  type TranslationProjectOperationReceiptV1,
+  type TranslationProjectUnitV1,
+} from "./translation/translation-project-repository.ts";
+import { builtinTranslationProgramIdV1 } from "./translation/translation-program-definition.ts";
 
 export const programDataDatabaseNameV1 = "sillymaker.example-silly-os.programs";
-export const programDataDatabaseVersionV1 = 10;
+export const programDataDatabaseVersionV1 = 11;
 
 export const programDataStoreNamesV1 = [
+  "catalog_commits",
+  "process_commits",
+  "process_execution_leases",
+  "process_workspace_bindings",
+  "processes",
+  "program_decisions",
+  "program_definitions",
+  "program_heads",
+  "program_network_access",
+  "program_revisions",
+  "transcript_entries",
+  "translation_glossary_entries",
+  "translation_project_heads",
+  "translation_project_operations",
+  "translation_project_units",
+  "workspace_continuations",
+] as const;
+
+const programDataV10StoreNamesV1 = [
   "catalog_commits",
   "process_commits",
   "process_execution_leases",
@@ -213,6 +251,42 @@ type PreparedExecutionTerminalV1 =
     readonly write: () => Promise<void>;
   };
 
+type PreparedExecutionAcquireV1 =
+  | {
+    readonly kind: "unchanged";
+    readonly process: ProcessHeadV1;
+    readonly entries: readonly TranscriptEntryV1[];
+    readonly lease: ProcessExecutionLeaseV1;
+    readonly operationReceipt: ProcessOperationReceiptV1;
+  }
+  | {
+    readonly kind: "conflict";
+    readonly currentProcess: ProcessHeadV1 | null;
+    readonly currentLease: ProcessExecutionLeaseV1 | null;
+  }
+  | {
+    readonly kind: "committed";
+    readonly process: ProcessHeadV1;
+    readonly entries: readonly TranscriptEntryV1[];
+    readonly lease: ProcessExecutionLeaseV1;
+    readonly operationReceipt: ProcessOperationReceiptV1;
+    readonly write: () => Promise<void>;
+  };
+
+type PreparedTranslationFinalizeV1 =
+  | {
+    readonly kind: "unchanged";
+    readonly head: TranslationProjectHeadV1;
+    readonly operationReceipt: TranslationProjectOperationReceiptV1;
+  }
+  | { readonly kind: "conflict"; readonly current: TranslationProjectHeadV1 | null }
+  | {
+    readonly kind: "committed";
+    readonly head: TranslationProjectHeadV1;
+    readonly operationReceipt: TranslationProjectOperationReceiptV1;
+    readonly write: () => Promise<void>;
+  };
+
 const noSubjectProgramIndexKeyV1 = "none:";
 const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 const textEncoderV1 = new TextEncoder();
@@ -294,6 +368,26 @@ function createV10StoresV1(database: IDBDatabase): void {
   createProcessWorkspaceBindingsStoreV1(database);
 }
 
+function createTranslationProjectStoresV1(database: IDBDatabase): void {
+  database.createObjectStore("translation_project_heads", { keyPath: "processId" });
+  const units = database.createObjectStore("translation_project_units", {
+    keyPath: ["processId", "order"],
+  });
+  units.createIndex("by_process_unit_id", ["processId", "unitId"], { unique: true });
+  const glossary = database.createObjectStore("translation_glossary_entries", {
+    keyPath: ["processId", "order"],
+  });
+  glossary.createIndex("by_process_entry_id", ["processId", "entryId"], { unique: true });
+  database.createObjectStore("translation_project_operations", {
+    keyPath: ["processId", "operationId"],
+  });
+}
+
+function createV11StoresV1(database: IDBDatabase): void {
+  createV10StoresV1(database);
+  createTranslationProjectStoresV1(database);
+}
+
 function hasExactV9StoresV1(transaction: IDBTransaction): boolean {
   return exactStoreV1(transaction.objectStore("program_definitions"), [
     "programId",
@@ -331,10 +425,10 @@ function hasExactV9StoresV1(transaction: IDBTransaction): boolean {
     exactStoreV1(transaction.objectStore("program_network_access"), "programId");
 }
 
-function hasExactV10SchemaV1(database: IDBDatabase): boolean {
+function hasExactV11SchemaV1(database: IDBDatabase): boolean {
   try {
     if (
-      database.version !== 10 || !exactNamesV1(database.objectStoreNames, programDataStoreNamesV1)
+      database.version !== 11 || !exactNamesV1(database.objectStoreNames, programDataStoreNamesV1)
     ) return false;
     const transaction = database.transaction(programDataStoreNamesV1, "readonly");
     return hasExactV9StoresV1(transaction) &&
@@ -342,7 +436,26 @@ function hasExactV10SchemaV1(database: IDBDatabase): boolean {
         name: "by_volume_id",
         keyPath: "volumeId",
         unique: true,
-      }]);
+      }]) &&
+      exactStoreV1(transaction.objectStore("translation_project_heads"), "processId") &&
+      exactStoreV1(transaction.objectStore("translation_project_units"), ["processId", "order"], [{
+        name: "by_process_unit_id",
+        keyPath: ["processId", "unitId"],
+        unique: true,
+      }]) &&
+      exactStoreV1(
+        transaction.objectStore("translation_glossary_entries"),
+        ["processId", "order"],
+        [{
+          name: "by_process_entry_id",
+          keyPath: ["processId", "entryId"],
+          unique: true,
+        }],
+      ) &&
+      exactStoreV1(transaction.objectStore("translation_project_operations"), [
+        "processId",
+        "operationId",
+      ]);
   } catch {
     return false;
   }
@@ -370,7 +483,7 @@ function resetExactLegacyV1(request: IDBOpenDBRequest, oldVersion: number): void
     }
   }
   for (const name of expected) request.result.deleteObjectStore(name);
-  createV10StoresV1(request.result);
+  createV11StoresV1(request.result);
 }
 
 function resetExactV8V1(request: IDBOpenDBRequest): void {
@@ -386,7 +499,7 @@ function resetExactV8V1(request: IDBOpenDBRequest): void {
     throw createProgramDataRepositoryFailureV1("schema_invalid", "initialize");
   }
   for (const name of expected) request.result.deleteObjectStore(name);
-  createV10StoresV1(request.result);
+  createV11StoresV1(request.result);
 }
 
 function upgradeExactV9V1(request: IDBOpenDBRequest): void {
@@ -397,6 +510,22 @@ function upgradeExactV9V1(request: IDBOpenDBRequest): void {
     !hasExactV9StoresV1(transaction)
   ) throw createProgramDataRepositoryFailureV1("schema_invalid", "initialize");
   createProcessWorkspaceBindingsStoreV1(request.result);
+  createTranslationProjectStoresV1(request.result);
+}
+
+function upgradeExactV10V1(request: IDBOpenDBRequest): void {
+  const transaction = request.transaction;
+  if (
+    transaction === null ||
+    !exactNamesV1(request.result.objectStoreNames, programDataV10StoreNamesV1) ||
+    !hasExactV9StoresV1(transaction) ||
+    !exactStoreV1(transaction.objectStore("process_workspace_bindings"), "processId", [{
+      name: "by_volume_id",
+      keyPath: "volumeId",
+      unique: true,
+    }])
+  ) throw createProgramDataRepositoryFailureV1("schema_invalid", "initialize");
+  createTranslationProjectStoresV1(request.result);
 }
 
 function domExceptionNameV1(value: unknown): string | null {
@@ -456,7 +585,7 @@ function openDatabaseV1(input: {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest;
     try {
-      request = input.indexedDB.open(input.databaseName, 10);
+      request = input.indexedDB.open(input.databaseName, 11);
     } catch (error) {
       reject(mapFailureV1(error, input.operation));
       return;
@@ -474,16 +603,17 @@ function openDatabaseV1(input: {
         return;
       }
       try {
-        if (event.newVersion !== 10 || ![0, 4, 5, 6, 7, 8, 9].includes(event.oldVersion)) {
+        if (event.newVersion !== 11 || ![0, 4, 5, 6, 7, 8, 9, 10].includes(event.oldVersion)) {
           throw createProgramDataRepositoryFailureV1("schema_invalid", input.operation);
         }
         if (event.oldVersion === 0) {
           if (request.result.objectStoreNames.length !== 0) {
             throw createProgramDataRepositoryFailureV1("schema_invalid", input.operation);
           }
-          createV10StoresV1(request.result);
+          createV11StoresV1(request.result);
         } else if (event.oldVersion === 8) resetExactV8V1(request);
         else if (event.oldVersion === 9) upgradeExactV9V1(request);
+        else if (event.oldVersion === 10) upgradeExactV10V1(request);
         else resetExactLegacyV1(request, event.oldVersion);
       } catch (error) {
         upgradeFailure = error;
@@ -500,7 +630,7 @@ function openDatabaseV1(input: {
         database.close();
         return;
       }
-      if (!hasExactV10SchemaV1(database)) {
+      if (!hasExactV11SchemaV1(database)) {
         database.close();
         rejectOnce(createProgramDataRepositoryFailureV1("schema_invalid", input.operation));
         return;
@@ -1525,6 +1655,171 @@ export function createIndexedDbProgramDataRepositoryV1(
     };
   };
 
+  const prepareExecutionAcquireV1 = async (input: {
+    readonly transaction: IDBTransaction;
+    readonly value: ReturnType<typeof normalizeProcessExecutionAcquireInputV1>;
+    readonly digest: string;
+    readonly operation: "execution_acquire" | "translation_project_execution_acquire";
+    readonly repositoryOperation: ProgramDataRepositoryOperationV1;
+  }): Promise<PreparedExecutionAcquireV1> => {
+    const operationId = input.value.attempt.commitId;
+    const [replay, current, currentLease] = await Promise.all([
+      replayExecutionOperationV1({
+        transaction: input.transaction,
+        processId: input.value.attempt.processId,
+        operationId,
+        operation: input.operation,
+        digest: input.digest,
+        repositoryOperation: input.repositoryOperation,
+      }),
+      loadProcessTxV1(
+        input.transaction,
+        input.value.attempt.processId,
+        input.repositoryOperation,
+      ),
+      loadProcessExecutionLeaseTxV1(
+        input.transaction,
+        input.value.attempt.processId,
+        input.repositoryOperation,
+      ),
+    ]);
+    if (replay !== "absent") {
+      if (
+        replay === "conflict" || replay.lease === null || current === null ||
+        currentLease === null ||
+        current.activeAttempt?.attemptId !== replay.attemptId ||
+        current.activeAttempt.generation !== replay.generation ||
+        currentLease.ownerInstanceId !== replay.lease.ownerInstanceId ||
+        currentLease.attemptId !== replay.attemptId ||
+        currentLease.generation !== replay.generation
+      ) return { kind: "conflict", currentProcess: current, currentLease };
+      let entries: readonly TranscriptEntryV1[] = [];
+      if (input.value.attempt.trigger.kind === "new_entry") {
+        const row = await requestResultV1(
+          input.transaction.objectStore("transcript_entries").get([
+            current.processId,
+            current.activeAttempt.triggerSequence,
+          ]),
+        );
+        if (row === undefined) {
+          throw createProgramDataRepositoryFailureV1("schema_invalid", input.repositoryOperation);
+        }
+        const entry = storedEntryV1(row, input.repositoryOperation);
+        if (
+          entry.entryId !== current.activeAttempt.triggerEntryId || entry.role !== "user" ||
+          entry.state !== "committed" ||
+          !exactJsonValuesEqualV1(entry, input.value.attempt.trigger.entry)
+        ) {
+          throw createProgramDataRepositoryFailureV1("schema_invalid", input.repositoryOperation);
+        }
+        entries = [entry];
+      }
+      return {
+        kind: "unchanged",
+        process: current,
+        entries,
+        lease: currentLease,
+        operationReceipt: replay,
+      };
+    }
+    let triggerEntry: TranscriptEntryV1 | null;
+    if (input.value.attempt.trigger.kind === "new_entry") {
+      triggerEntry = input.value.attempt.trigger.entry;
+    } else {
+      const row = await requestResultV1(
+        input.transaction.objectStore("transcript_entries").get([
+          input.value.attempt.processId,
+          input.value.attempt.trigger.sequence,
+        ]),
+      );
+      triggerEntry = row === undefined ? null : storedEntryV1(row, input.repositoryOperation);
+    }
+    const appends = input.value.attempt.trigger.kind === "new_entry";
+    const nextFrontier = appends
+      ? input.value.attempt.expectedTranscriptFrontier + 1
+      : input.value.attempt.expectedTranscriptFrontier;
+    if (
+      current === null || currentLease !== null ||
+      current.revision !== input.value.attempt.expectedProcessRevision ||
+      current.transcriptFrontier !== input.value.attempt.expectedTranscriptFrontier ||
+      current.activeAttempt !== null || current.status === "interrupted_unrecoverable" ||
+      (appends && current.status !== "active") ||
+      (appends && triggerEntry?.sequence !== current.transcriptFrontier + 1) ||
+      (!appends && current.status !== "interrupted_retryable") ||
+      (!appends &&
+        (current.lastTerminalAttempt?.outcome !== "interrupted" ||
+          current.lastTerminalAttempt.triggerEntryId !== triggerEntry?.entryId ||
+          current.lastTerminalAttempt.triggerSequence !== triggerEntry?.sequence)) ||
+      triggerEntry === null || triggerEntry.role !== "user" ||
+      triggerEntry.state !== "committed" ||
+      triggerEntry.entryId !==
+        (input.value.attempt.trigger.kind === "new_entry"
+          ? input.value.attempt.trigger.entry.entryId
+          : input.value.attempt.trigger.entryId) ||
+      input.value.attempt.generation <= (current.lastTerminalAttempt?.generation ?? 0) ||
+      !checkpointCanAdvanceV1(
+        current.checkpoint,
+        input.value.attempt.startingCheckpoint,
+        nextFrontier,
+      )
+    ) return { kind: "conflict", currentProcess: current, currentLease };
+    const entries = appends ? [triggerEntry] : [];
+    if (!await entriesAreAvailableV1(input.transaction, entries)) {
+      return { kind: "conflict", currentProcess: current, currentLease };
+    }
+    const lease = cloneProcessExecutionLeaseV1({
+      processId: input.value.attempt.processId,
+      ownerInstanceId: input.value.ownerInstanceId,
+      attemptId: input.value.attempt.attemptId,
+      generation: input.value.attempt.generation,
+      expiresAt: input.value.expiresAt,
+    });
+    const next = cloneProcessHeadV1({
+      ...current,
+      revision: current.revision + 1,
+      status: "active",
+      transcriptFrontier: nextFrontier,
+      activeAttempt: {
+        attemptId: input.value.attempt.attemptId,
+        generation: input.value.attempt.generation,
+        triggerEntryId: triggerEntry.entryId,
+        triggerSequence: triggerEntry.sequence,
+        startingCheckpoint: input.value.attempt.startingCheckpoint,
+      },
+      checkpoint: input.value.attempt.startingCheckpoint,
+      updatedAt: input.value.observedAt,
+    });
+    const receipt = operationReceiptV1({
+      process: next,
+      operationId,
+      operation: input.operation,
+      operationDigest: input.digest,
+      attemptId: lease.attemptId,
+      generation: lease.generation,
+      terminalOutcome: null,
+      lease,
+    });
+    return {
+      kind: "committed",
+      process: next,
+      entries,
+      lease,
+      operationReceipt: receipt,
+      write: async () => {
+        await Promise.all([
+          requestResultV1(input.transaction.objectStore("processes").put(encodeProcessV1(next))),
+          ...entries.map((entry) =>
+            requestResultV1(input.transaction.objectStore("transcript_entries").add(entry))
+          ),
+          requestResultV1(input.transaction.objectStore("process_execution_leases").add(lease)),
+          requestResultV1(
+            input.transaction.objectStore("process_commits").add(encodeProcessOperationV1(receipt)),
+          ),
+        ]);
+      },
+    };
+  };
+
   const prepareExecutionTerminalV1 = async (input: {
     readonly transaction: IDBTransaction;
     readonly value: ReturnType<typeof normalizeProcessExecutionTerminalInputV1>;
@@ -1747,8 +2042,14 @@ export function createIndexedDbProgramDataRepositoryV1(
         "query_process_operation",
       );
     }
-    if (input.expectation.operation === "execution_acquire") {
-      const trigger = input.expectation.input.attempt.trigger;
+    if (
+      input.expectation.operation === "execution_acquire" ||
+      input.expectation.operation === "translation_project_execution_acquire"
+    ) {
+      const acquire = input.expectation.operation === "execution_acquire"
+        ? input.expectation.input
+        : input.expectation.input.execution;
+      const trigger = acquire.attempt.trigger;
       if (trigger.kind === "new_entry") {
         const row = await requestResultV1(
           input.transaction.objectStore("transcript_entries").get([
@@ -1825,6 +2126,234 @@ export function createIndexedDbProgramDataRepositoryV1(
       }
     }
   };
+
+  const loadTranslationHeadTxV1 = async (
+    transaction: IDBTransaction,
+    processId: string,
+  ): Promise<TranslationProjectHeadV1 | null> => {
+    const row = await requestResultV1(
+      transaction.objectStore("translation_project_heads").get(processId),
+    );
+    if (row === undefined) return null;
+    const head = structuredClone(row) as TranslationProjectHeadV1;
+    if (
+      head.schemaVersion !== 1 || head.processId !== processId ||
+      !Number.isSafeInteger(head.revision) || head.revision < 1
+    ) throw createProgramDataRepositoryFailureV1("schema_invalid", "load_translation_project_head");
+    try {
+      normalizeTranslationProjectSourceBindingV1(
+        head.sourceBinding,
+        head.source.workspacePath,
+      );
+    } catch {
+      throw createProgramDataRepositoryFailureV1(
+        "schema_invalid",
+        "load_translation_project_head",
+      );
+    }
+    return head;
+  };
+
+  const translationReceiptTxV1 = async (
+    transaction: IDBTransaction,
+    expectation:
+      import("./translation/translation-project-repository.ts").TranslationProjectOperationExpectationV1,
+    digest: string,
+  ): Promise<TranslationProjectOperationReceiptV1 | "absent" | "mismatch"> => {
+    const row = await requestResultV1(
+      transaction.objectStore("translation_project_operations").get([
+        expectation.input.processId,
+        expectation.input.operationId,
+      ]),
+    );
+    if (row === undefined) return "absent";
+    const receipt = structuredClone(row) as TranslationProjectOperationReceiptV1;
+    if (
+      receipt.processId !== expectation.input.processId ||
+      receipt.operationId !== expectation.input.operationId
+    ) {
+      throw createProgramDataRepositoryFailureV1(
+        "schema_invalid",
+        "query_translation_project_operation",
+      );
+    }
+    return receipt.operation === expectation.operation && receipt.operationDigest === digest
+      ? receipt
+      : "mismatch";
+  };
+
+  const translationReceiptV1 = (
+    expectation:
+      import("./translation/translation-project-repository.ts").TranslationProjectOperationExpectationV1,
+    digest: string,
+    revision: number,
+  ): TranslationProjectOperationReceiptV1 => ({
+    processId: expectation.input.processId,
+    operationId: expectation.input.operationId,
+    operation: expectation.operation,
+    operationDigest: digest,
+    projectRevision: revision,
+  });
+
+  const translationImportLeaseIsCurrentTxV1 = async (
+    transaction: IDBTransaction,
+    input: TranslationProjectOperationExpectationV1["input"],
+    operation:
+      | "begin_translation_project_import"
+      | "append_translation_project_import"
+      | "commit_translation_project_finalize_with_process_execution_terminal",
+  ): Promise<boolean> => {
+    const [processRow, leaseRow] = await Promise.all([
+      requestResultV1(transaction.objectStore("processes").get(input.processId)),
+      requestResultV1(
+        transaction.objectStore("process_execution_leases").get(input.processId),
+      ),
+    ]);
+    if (processRow === undefined || leaseRow === undefined) return false;
+    const process = storedProcessV1(processRow, operation);
+    const lease = storedProcessExecutionLeaseV1(leaseRow, operation);
+    return input.updatedAt < input.lease.expiresAt &&
+      exactJsonValuesEqualV1(lease, input.lease) &&
+      process.activeAttempt?.attemptId === input.lease.attemptId &&
+      process.activeAttempt.generation === input.lease.generation;
+  };
+
+  const prepareTranslationFinalizeV1 = async (input: {
+    readonly transaction: IDBTransaction;
+    readonly value: ReturnType<typeof normalizeTranslationProjectFinalizeImportInputV1>;
+    readonly digest: string;
+    readonly repositoryOperation:
+      "commit_translation_project_finalize_with_process_execution_terminal";
+  }): Promise<PreparedTranslationFinalizeV1> => {
+    const expectation = { operation: "finalize" as const, input: input.value };
+    const [replay, current] = await Promise.all([
+      translationReceiptTxV1(input.transaction, expectation, input.digest),
+      loadTranslationHeadTxV1(input.transaction, input.value.processId),
+    ]);
+    if (replay !== "absent") {
+      if (
+        replay === "mismatch" || current === null || current.phase !== "ready" ||
+        current.revision !== replay.projectRevision ||
+        !exactJsonValuesEqualV1(current.sourceBinding, input.value.sourceBinding)
+      ) return { kind: "conflict", current };
+      return { kind: "unchanged", head: current, operationReceipt: replay };
+    }
+    const [leaseIsCurrent, bindingRow] = await Promise.all([
+      translationImportLeaseIsCurrentTxV1(
+        input.transaction,
+        input.value,
+        input.repositoryOperation,
+      ),
+      requestResultV1(
+        input.transaction.objectStore("process_workspace_bindings").get(input.value.processId),
+      ),
+    ]);
+    if (
+      !leaseIsCurrent || current === null || current.phase !== "staging" ||
+      current.revision !== input.value.expectedProjectRevision ||
+      current.stagedUnitCount !== current.expectedUnitCount ||
+      current.stagedGlossaryCount !== current.expectedGlossaryCount || bindingRow === undefined ||
+      cloneProcessWorkspaceBindingV1(bindingRow as ProcessWorkspaceBindingV1).workspaceId !==
+        input.value.sourceBinding.workspaceId ||
+      !exactJsonValuesEqualV1(current.sourceBinding, input.value.sourceBinding) ||
+      current.source.workspacePath !== input.value.sourceBinding.path
+    ) return { kind: "conflict", current };
+    const revision = current.revision + 1;
+    const head: TranslationProjectHeadV1 = {
+      ...current,
+      revision,
+      phase: "ready",
+      updatedAt: input.value.updatedAt,
+    };
+    const receipt = translationReceiptV1(expectation, input.digest, revision);
+    return {
+      kind: "committed",
+      head,
+      operationReceipt: receipt,
+      write: async () => {
+        await Promise.all([
+          requestResultV1(
+            input.transaction.objectStore("translation_project_heads").put(head),
+          ),
+          requestResultV1(
+            input.transaction.objectStore("translation_project_operations").add(receipt),
+          ),
+        ]);
+      },
+    };
+  };
+
+  const loadTranslationPageV1 = async <
+    TRow extends { readonly processId: string; readonly order: number },
+  >(
+    input:
+      import("./translation/translation-project-repository.ts").TranslationProjectPageRequestV1,
+    storeName: "translation_project_units" | "translation_glossary_entries",
+    operation: "load_translation_project_unit_page" | "load_translation_project_glossary_page",
+  ): Promise<
+    import("./translation/translation-project-repository.ts").TranslationProjectPageResultV1<TRow>
+  > =>
+    await runV1(
+      operation,
+      ["translation_project_heads", storeName],
+      "readonly",
+      async (transaction) => {
+        const head = await loadTranslationHeadTxV1(transaction, input.processId);
+        if (head === null || head.revision !== input.expectedProjectRevision) {
+          return { kind: "conflict" as const, current: head };
+        }
+        const rows: TRow[] = [];
+        let byteLength = 0;
+        let stopped = false;
+        let expectedOrder = input.fromOrder;
+        const stagedCount = storeName === "translation_project_units"
+          ? head.stagedUnitCount
+          : head.stagedGlossaryCount;
+        const range = keyRange.bound([input.processId, input.fromOrder], [
+          input.processId,
+          Number.MAX_SAFE_INTEGER,
+        ]);
+        await cursorWalkV1(transaction.objectStore(storeName).openCursor(range), (cursor) => {
+          const row = structuredClone(cursor.value) as TRow;
+          if (
+            row.processId !== input.processId || !Number.isSafeInteger(row.order) ||
+            row.order !== expectedOrder
+          ) {
+            throw createProgramDataRepositoryFailureV1("schema_invalid", operation);
+          }
+          const bytes = translationProjectRowUtf8ByteLengthV1(row);
+          if (byteLength + bytes > input.maximumBytes) {
+            stopped = true;
+            return "stop";
+          }
+          rows.push(row);
+          byteLength += bytes;
+          expectedOrder += 1;
+          if (rows.length === input.maximumRows) {
+            stopped = expectedOrder < stagedCount;
+            return "stop";
+          }
+          return "continue";
+        });
+        if (stopped && rows.length === 0) {
+          throw createProgramDataRepositoryFailureV1("page_budget_too_small", operation);
+        }
+        if (expectedOrder < stagedCount && !stopped) {
+          throw createProgramDataRepositoryFailureV1("schema_invalid", operation);
+        }
+        return {
+          kind: "page" as const,
+          page: {
+            processId: input.processId,
+            projectRevision: head.revision,
+            fromOrder: input.fromOrder,
+            rows,
+            byteLength,
+            nextOrder: expectedOrder < stagedCount ? expectedOrder : null,
+          },
+        };
+      },
+    );
 
   const repository: IndexedDbProgramDataRepositoryImplementationV1 = {
     async initialize() {
@@ -2851,174 +3380,101 @@ export function createIndexedDbProgramDataRepositoryV1(
 
     async acquireProcessExecution(rawInput) {
       const input = normalizeProcessExecutionAcquireInputV1(rawInput);
-      const operationId = input.attempt.commitId;
       const digest = await digestV1(input);
       return await runV1(
         "acquire_process_execution",
         ["processes", "transcript_entries", "process_commits", "process_execution_leases"],
         "readwrite",
         async (transaction) => {
-          const replay = await replayExecutionOperationV1({
+          const prepared = await prepareExecutionAcquireV1({
             transaction,
-            processId: input.attempt.processId,
-            operationId,
+            value: input,
             operation: "execution_acquire",
             digest,
             repositoryOperation: "acquire_process_execution",
           });
-          const current = await loadProcessTxV1(
-            transaction,
-            input.attempt.processId,
-            "acquire_process_execution",
-          );
-          const currentLease = await loadProcessExecutionLeaseTxV1(
-            transaction,
-            input.attempt.processId,
-            "acquire_process_execution",
-          );
-          if (replay !== "absent") {
-            if (
-              replay === "conflict" || replay.lease === null || current === null ||
-              currentLease === null ||
-              current.activeAttempt?.attemptId !== replay.attemptId ||
-              current.activeAttempt.generation !== replay.generation ||
-              currentLease.ownerInstanceId !== replay.lease.ownerInstanceId ||
-              currentLease.attemptId !== replay.attemptId ||
-              currentLease.generation !== replay.generation
-            ) {
-              return { kind: "conflict", currentProcess: current, currentLease } as const;
-            }
-            let entries: readonly TranscriptEntryV1[] = [];
-            if (input.attempt.trigger.kind === "new_entry") {
-              const row = await requestResultV1(
-                transaction.objectStore("transcript_entries").get([
-                  current.processId,
-                  current.activeAttempt.triggerSequence,
-                ]),
-              );
-              if (row === undefined) {
-                throw createProgramDataRepositoryFailureV1(
-                  "schema_invalid",
-                  "acquire_process_execution",
-                );
-              }
-              const entry = storedEntryV1(row, "acquire_process_execution");
-              if (
-                entry.entryId !== current.activeAttempt.triggerEntryId ||
-                entry.role !== "user" || entry.state !== "committed" ||
-                !exactJsonValuesEqualV1(entry, input.attempt.trigger.entry)
-              ) {
-                throw createProgramDataRepositoryFailureV1(
-                  "schema_invalid",
-                  "acquire_process_execution",
-                );
-              }
-              entries = [entry];
-            }
+          if (
+            prepared.kind !== "conflict" &&
+            prepared.process.programDefinition.programId === builtinTranslationProgramIdV1 &&
+            prepared.process.programDefinition.revision === 1
+          ) {
+            throw new TypeError(
+              "A Translation Process must acquire execution with its Project expectation",
+            );
+          }
+          if (prepared.kind === "committed") await prepared.write();
+          if (prepared.kind === "conflict") {
+            return {
+              kind: "conflict" as const,
+              currentProcess: prepared.currentProcess,
+              currentLease: prepared.currentLease,
+            };
+          }
+          return {
+            kind: prepared.kind,
+            process: prepared.process,
+            entries: prepared.entries,
+            lease: prepared.lease,
+            operationReceipt: prepared.operationReceipt,
+          };
+        },
+      );
+    },
+
+    async acquireTranslationProjectImportExecution(rawInput) {
+      const input = normalizeTranslationProjectImportExecutionAcquireInputV1(rawInput);
+      const digest = await digestV1(input);
+      const operation = "acquire_translation_project_import_execution" as const;
+      return await runV1(
+        operation,
+        [
+          "processes",
+          "transcript_entries",
+          "process_commits",
+          "process_execution_leases",
+          "translation_project_heads",
+        ],
+        "readwrite",
+        async (transaction): Promise<TranslationProjectImportExecutionAcquireResultV1> => {
+          const processId = input.execution.attempt.processId;
+          const [currentProject, currentProcess, currentLease, prepared] = await Promise.all([
+            loadTranslationHeadTxV1(transaction, processId),
+            loadProcessTxV1(transaction, processId, operation),
+            loadProcessExecutionLeaseTxV1(transaction, processId, operation),
+            prepareExecutionAcquireV1({
+              transaction,
+              value: input.execution,
+              operation: "translation_project_execution_acquire",
+              digest,
+              repositoryOperation: operation,
+            }),
+          ]);
+          if (prepared.kind === "unchanged") {
             return {
               kind: "unchanged",
-              process: current,
-              entries,
-              lease: currentLease,
-              operationReceipt: replay,
-            } as const;
+              process: prepared.process,
+              entries: prepared.entries,
+              lease: prepared.lease,
+              operationReceipt: prepared.operationReceipt,
+            };
           }
-          let triggerEntry: TranscriptEntryV1 | null;
-          if (input.attempt.trigger.kind === "new_entry") {
-            triggerEntry = input.attempt.trigger.entry;
-          } else {
-            const row = await requestResultV1(
-              transaction.objectStore("transcript_entries").get([
-                input.attempt.processId,
-                input.attempt.trigger.sequence,
-              ]),
-            );
-            triggerEntry = row === undefined
-              ? null
-              : storedEntryV1(row, "acquire_process_execution");
-          }
-          const appends = input.attempt.trigger.kind === "new_entry";
-          const nextFrontier = appends
-            ? input.attempt.expectedTranscriptFrontier + 1
-            : input.attempt.expectedTranscriptFrontier;
           if (
-            current === null || currentLease !== null ||
-            current.revision !== input.attempt.expectedProcessRevision ||
-            current.transcriptFrontier !== input.attempt.expectedTranscriptFrontier ||
-            current.activeAttempt !== null || current.status === "interrupted_unrecoverable" ||
-            (appends && current.status !== "active") ||
-            (appends && triggerEntry?.sequence !== current.transcriptFrontier + 1) ||
-            (!appends && current.status !== "interrupted_retryable") ||
-            (!appends &&
-              (current.lastTerminalAttempt?.outcome !== "interrupted" ||
-                current.lastTerminalAttempt.triggerEntryId !== triggerEntry?.entryId ||
-                current.lastTerminalAttempt.triggerSequence !== triggerEntry?.sequence)) ||
-            triggerEntry === null || triggerEntry.role !== "user" ||
-            triggerEntry.state !== "committed" ||
-            triggerEntry.entryId !==
-              (input.attempt.trigger.kind === "new_entry"
-                ? input.attempt.trigger.entry.entryId
-                : input.attempt.trigger.entryId) ||
-            input.attempt.generation <= (current.lastTerminalAttempt?.generation ?? 0) ||
-            !checkpointCanAdvanceV1(
-              current.checkpoint,
-              input.attempt.startingCheckpoint,
-              nextFrontier,
-            )
-          ) return { kind: "conflict", currentProcess: current, currentLease } as const;
-          const entries = appends ? [triggerEntry] : [];
-          if (!await entriesAreAvailableV1(transaction, entries)) {
-            return { kind: "conflict", currentProcess: current, currentLease } as const;
-          }
-          const lease = cloneProcessExecutionLeaseV1({
-            processId: input.attempt.processId,
-            ownerInstanceId: input.ownerInstanceId,
-            attemptId: input.attempt.attemptId,
-            generation: input.attempt.generation,
-            expiresAt: input.expiresAt,
-          });
-          const next = cloneProcessHeadV1({
-            ...current,
-            revision: current.revision + 1,
-            status: "active",
-            transcriptFrontier: nextFrontier,
-            activeAttempt: {
-              attemptId: input.attempt.attemptId,
-              generation: input.attempt.generation,
-              triggerEntryId: triggerEntry.entryId,
-              triggerSequence: triggerEntry.sequence,
-              startingCheckpoint: input.attempt.startingCheckpoint,
-            },
-            checkpoint: input.attempt.startingCheckpoint,
-            updatedAt: input.observedAt,
-          });
-          const receipt = operationReceiptV1({
-            process: next,
-            operationId,
-            operation: "execution_acquire",
-            operationDigest: digest,
-            attemptId: lease.attemptId,
-            generation: lease.generation,
-            terminalOutcome: null,
-            lease,
-          });
-          await Promise.all([
-            requestResultV1(transaction.objectStore("processes").put(encodeProcessV1(next))),
-            ...entries.map((entry) =>
-              requestResultV1(transaction.objectStore("transcript_entries").add(entry))
-            ),
-            requestResultV1(transaction.objectStore("process_execution_leases").add(lease)),
-            requestResultV1(
-              transaction.objectStore("process_commits").add(encodeProcessOperationV1(receipt)),
-            ),
-          ]);
+            prepared.kind === "conflict" ||
+            prepared.process.programDefinition.programId !== builtinTranslationProgramIdV1 ||
+            prepared.process.programDefinition.revision !== 1 ||
+            (input.expectedProjectRevision === null
+              ? currentProject !== null
+              : currentProject === null || currentProject.phase !== "staging" ||
+                currentProject.revision !== input.expectedProjectRevision)
+          ) return { kind: "conflict", currentProject, currentProcess, currentLease };
+          await prepared.write();
           return {
             kind: "committed",
-            process: next,
-            entries,
-            lease,
-            operationReceipt: receipt,
-          } as const;
+            process: prepared.process,
+            entries: prepared.entries,
+            lease: prepared.lease,
+            operationReceipt: prepared.operationReceipt,
+          };
         },
       );
     },
@@ -3169,6 +3625,11 @@ export function createIndexedDbProgramDataRepositoryV1(
                   "A Creator Process must publish a completed terminal with its Program successor",
                 );
               }
+              if (definition.kind === "translation") {
+                throw new TypeError(
+                  "A Translation Process must publish a completed terminal with its Project finalize",
+                );
+              }
             }
           }
           const prepared = await prepareExecutionTerminalV1({
@@ -3294,6 +3755,13 @@ export function createIndexedDbProgramDataRepositoryV1(
         expectedOperation = "execution_acquire";
         expectedInput = input;
         normalizedExpectation = { operation: "execution_acquire", input };
+      } else if (expectation.operation === "translation_project_execution_acquire") {
+        const input = normalizeTranslationProjectImportExecutionAcquireInputV1(expectation.input);
+        processId = input.execution.attempt.processId;
+        operationId = input.execution.attempt.commitId;
+        expectedOperation = "translation_project_execution_acquire";
+        expectedInput = input;
+        normalizedExpectation = { operation: "translation_project_execution_acquire", input };
       } else if (expectation.operation === "execution_terminal") {
         const input = normalizeProcessExecutionTerminalInputV1(expectation.input);
         processId = input.transcript.processId;
@@ -3410,6 +3878,296 @@ export function createIndexedDbProgramDataRepositoryV1(
             byteLength,
             nextBeforeSequence: stopped && oldest !== undefined ? oldest.sequence : null,
           };
+        },
+      );
+    },
+
+    async beginTranslationProjectImport(rawInput) {
+      const input = normalizeTranslationProjectBeginImportInputV1(rawInput);
+      const expectation = { operation: "begin" as const, input };
+      const digest = await digestV1(expectation);
+      return await runV1(
+        "begin_translation_project_import",
+        [
+          "processes",
+          "process_execution_leases",
+          "process_workspace_bindings",
+          "translation_project_heads",
+          "translation_project_operations",
+        ],
+        "readwrite",
+        async (transaction) => {
+          const [replay, current] = await Promise.all([
+            translationReceiptTxV1(transaction, expectation, digest),
+            loadTranslationHeadTxV1(transaction, input.processId),
+          ]);
+          if (replay !== "absent") {
+            if (
+              replay === "mismatch" || current === null ||
+              current.revision !== replay.projectRevision
+            ) return { kind: "conflict" as const, current };
+            return { kind: "unchanged" as const, head: current, operationReceipt: replay };
+          }
+          if (current !== null) return { kind: "conflict" as const, current };
+          const [leaseIsCurrent, process, binding] = await Promise.all([
+            translationImportLeaseIsCurrentTxV1(
+              transaction,
+              input,
+              "begin_translation_project_import",
+            ),
+            requestResultV1(transaction.objectStore("processes").get(input.processId)),
+            requestResultV1(
+              transaction.objectStore("process_workspace_bindings").get(input.processId),
+            ),
+          ]);
+          if (!leaseIsCurrent || process === undefined || binding === undefined) {
+            return { kind: "conflict" as const, current: null };
+          }
+          const processHead = storedProcessV1(process, "begin_translation_project_import");
+          const workspace = cloneProcessWorkspaceBindingV1(
+            binding as ProcessWorkspaceBindingV1,
+          );
+          const checkpoint = processHead.checkpoint;
+          if (
+            processHead.programDefinition.programId !== builtinTranslationProgramIdV1 ||
+            processHead.programDefinition.revision !== 1 ||
+            processHead.subjectProgramId === null || workspace.processId !== input.processId ||
+            checkpoint === null || checkpoint.workspaceId !== workspace.workspaceId ||
+            input.sourceBinding.workspaceId !== workspace.workspaceId ||
+            input.sourceBinding.volumeId !== workspace.volumeId ||
+            input.sourceBinding.workspaceFormat !== workspace.workspaceFormat
+          ) return { kind: "conflict" as const, current: null };
+          const head: TranslationProjectHeadV1 = {
+            schemaVersion: 1,
+            processId: input.processId,
+            projectId: input.projectId,
+            revision: 1,
+            phase: "staging",
+            title: input.title,
+            document: structuredClone(input.document),
+            source: structuredClone(input.source),
+            sourceBinding: structuredClone(input.sourceBinding),
+            sourceLocale: input.sourceLocale,
+            targetLocale: input.targetLocale,
+            documentPurpose: input.documentPurpose,
+            style: input.style,
+            expectedUnitCount: input.expectedUnitCount,
+            stagedUnitCount: 0,
+            expectedGlossaryCount: input.expectedGlossaryCount,
+            stagedGlossaryCount: 0,
+            createdAt: input.updatedAt,
+            updatedAt: input.updatedAt,
+          };
+          const receipt = translationReceiptV1(expectation, digest, 1);
+          await Promise.all([
+            requestResultV1(transaction.objectStore("translation_project_heads").add(head)),
+            requestResultV1(transaction.objectStore("translation_project_operations").add(receipt)),
+          ]);
+          return {
+            kind: "committed" as const,
+            head: structuredClone(head),
+            operationReceipt: receipt,
+          };
+        },
+      );
+    },
+
+    async appendTranslationProjectImport(rawInput) {
+      const input = normalizeTranslationProjectAppendImportInputV1(rawInput);
+      const expectation = { operation: "append" as const, input };
+      const digest = await digestV1(expectation);
+      return await runV1(
+        "append_translation_project_import",
+        [
+          "processes",
+          "process_execution_leases",
+          "translation_project_heads",
+          "translation_project_units",
+          "translation_glossary_entries",
+          "translation_project_operations",
+        ],
+        "readwrite",
+        async (transaction) => {
+          const [replay, current] = await Promise.all([
+            translationReceiptTxV1(transaction, expectation, digest),
+            loadTranslationHeadTxV1(transaction, input.processId),
+          ]);
+          if (replay !== "absent") {
+            if (
+              replay === "mismatch" || current === null ||
+              current.revision !== replay.projectRevision
+            ) return { kind: "conflict" as const, current };
+            return { kind: "unchanged" as const, head: current, operationReceipt: replay };
+          }
+          const leaseIsCurrent = await translationImportLeaseIsCurrentTxV1(
+            transaction,
+            input,
+            "append_translation_project_import",
+          );
+          if (
+            !leaseIsCurrent ||
+            current === null || current.phase !== "staging" ||
+            current.revision !== input.expectedProjectRevision
+          ) return { kind: "conflict" as const, current };
+          const orderedUnits = input.units.toSorted((left, right) => left.order - right.order);
+          const orderedGlossary = input.glossaryEntries.toSorted((left, right) =>
+            left.order - right.order
+          );
+          if (
+            orderedUnits.some((row, index) => row.order !== current.stagedUnitCount + index) ||
+            orderedGlossary.some((row, index) =>
+              row.order !== current.stagedGlossaryCount + index
+            ) ||
+            current.stagedUnitCount + orderedUnits.length > current.expectedUnitCount ||
+            current.stagedGlossaryCount + orderedGlossary.length > current.expectedGlossaryCount
+          ) return { kind: "conflict" as const, current };
+          const revision = current.revision + 1;
+          const head: TranslationProjectHeadV1 = {
+            ...current,
+            revision,
+            stagedUnitCount: current.stagedUnitCount + orderedUnits.length,
+            stagedGlossaryCount: current.stagedGlossaryCount + orderedGlossary.length,
+            updatedAt: input.updatedAt,
+          };
+          const receipt = translationReceiptV1(expectation, digest, revision);
+          const unitStore = transaction.objectStore("translation_project_units");
+          const glossaryStore = transaction.objectStore("translation_glossary_entries");
+          await Promise.all([
+            ...orderedUnits.map((row) =>
+              requestResultV1(unitStore.add({ processId: input.processId, ...row }))
+            ),
+            ...orderedGlossary.map((row) =>
+              requestResultV1(glossaryStore.add({ processId: input.processId, ...row }))
+            ),
+            requestResultV1(transaction.objectStore("translation_project_heads").put(head)),
+            requestResultV1(transaction.objectStore("translation_project_operations").add(receipt)),
+          ]);
+          return {
+            kind: "committed" as const,
+            head: structuredClone(head),
+            operationReceipt: receipt,
+          };
+        },
+      );
+    },
+
+    async commitTranslationProjectFinalizeWithProcessExecutionTerminal(rawInput) {
+      const input = normalizeTranslationProjectFinalizeExecutionBundleInputV1(rawInput);
+      const projectExpectation = { operation: "finalize" as const, input: input.project };
+      const [projectDigest, processDigest] = await Promise.all([
+        digestV1(projectExpectation),
+        digestV1(input.terminal),
+      ]);
+      const operation =
+        "commit_translation_project_finalize_with_process_execution_terminal" as const;
+      return await runV1(
+        operation,
+        [
+          "processes",
+          "transcript_entries",
+          "process_commits",
+          "process_execution_leases",
+          "process_workspace_bindings",
+          "translation_project_heads",
+          "translation_project_operations",
+        ],
+        "readwrite",
+        async (
+          transaction,
+        ): Promise<TranslationProjectFinalizeExecutionCompositeCommitResultV1> => {
+          const [currentProject, currentProcess, currentLease, project, terminal] = await Promise
+            .all([
+              loadTranslationHeadTxV1(transaction, input.project.processId),
+              loadProcessTxV1(transaction, input.project.processId, operation),
+              loadProcessExecutionLeaseTxV1(transaction, input.project.processId, operation),
+              prepareTranslationFinalizeV1({
+                transaction,
+                value: input.project,
+                digest: projectDigest,
+                repositoryOperation: operation,
+              }),
+              prepareExecutionTerminalV1({
+                transaction,
+                value: input.terminal,
+                digest: processDigest,
+                operation: "execution_terminal",
+                repositoryOperation: operation,
+              }),
+            ]);
+          if (
+            project.kind === "conflict" || terminal.kind === "conflict" ||
+            project.kind !== terminal.kind ||
+            terminal.process.programDefinition.programId !== builtinTranslationProgramIdV1 ||
+            terminal.process.programDefinition.revision !== 1
+          ) {
+            return { kind: "conflict", currentProject, currentProcess, currentLease };
+          }
+          if (project.kind === "committed" && terminal.kind === "committed") {
+            await Promise.all([project.write(), terminal.write()]);
+          }
+          return {
+            kind: project.kind,
+            head: structuredClone(project.head),
+            projectOperationReceipt: project.operationReceipt,
+            process: terminal.process,
+            entries: terminal.entries,
+            processOperationReceipt: terminal.operationReceipt,
+          };
+        },
+      );
+    },
+
+    async loadTranslationProjectHead(rawProcessId) {
+      const processId = normalizeProcessIdV1(rawProcessId);
+      return await runV1(
+        "load_translation_project_head",
+        ["translation_project_heads"],
+        "readonly",
+        (transaction) => loadTranslationHeadTxV1(transaction, processId),
+      );
+    },
+
+    async loadTranslationProjectUnitPage(rawInput) {
+      const input = normalizeTranslationProjectPageRequestV1(rawInput);
+      return await loadTranslationPageV1<TranslationProjectUnitV1>(
+        input,
+        "translation_project_units",
+        "load_translation_project_unit_page",
+      );
+    },
+
+    async loadTranslationProjectGlossaryPage(rawInput) {
+      const input = normalizeTranslationProjectPageRequestV1(rawInput);
+      return await loadTranslationPageV1<TranslationProjectGlossaryEntryV1>(
+        input,
+        "translation_glossary_entries",
+        "load_translation_project_glossary_page",
+      );
+    },
+
+    async queryTranslationProjectOperation(rawExpectation) {
+      const expectation = normalizeTranslationProjectOperationExpectationV1(rawExpectation);
+      const digest = await digestV1(expectation);
+      return await runV1(
+        "query_translation_project_operation",
+        ["translation_project_operations"],
+        "readonly",
+        async (transaction) => {
+          const result = await translationReceiptTxV1(transaction, expectation, digest);
+          if (result === "absent") return { kind: "absent" as const };
+          if (result === "mismatch") {
+            const row = await requestResultV1(
+              transaction.objectStore("translation_project_operations").get([
+                expectation.input.processId,
+                expectation.input.operationId,
+              ]),
+            );
+            return {
+              kind: "mismatch" as const,
+              receipt: structuredClone(row) as TranslationProjectOperationReceiptV1,
+            };
+          }
+          return { kind: "committed" as const, receipt: result };
         },
       );
     },

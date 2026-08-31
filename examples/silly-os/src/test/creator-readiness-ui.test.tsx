@@ -59,7 +59,7 @@ describe("Creator readiness UI", () => {
           status: "loading",
           programs: [],
           openDisabled: false,
-          onOpen: vi.fn(),
+          onEdit: vi.fn(),
           hasMore: false,
           onLoadMore: vi.fn(),
         }}
@@ -80,7 +80,7 @@ describe("Creator readiness UI", () => {
           status: "failed",
           programs: [],
           openDisabled: false,
-          onOpen: vi.fn(),
+          onEdit: vi.fn(),
           hasMore: false,
           onLoadMore: vi.fn(),
         }}
@@ -100,7 +100,7 @@ describe("Creator readiness UI", () => {
           status: "ready",
           programs: [],
           openDisabled: false,
-          onOpen: vi.fn(),
+          onEdit: vi.fn(),
           hasMore: false,
           onLoadMore: vi.fn(),
         }}
@@ -134,7 +134,7 @@ describe("Creator readiness UI", () => {
           status: "ready",
           programs: [program],
           openDisabled: false,
-          onOpen: vi.fn(),
+          onEdit: vi.fn(),
           hasMore: true,
           onLoadMore,
         }}
@@ -155,7 +155,7 @@ describe("Creator readiness UI", () => {
           status: "loading_more",
           programs: [program],
           openDisabled: true,
-          onOpen: vi.fn(),
+          onEdit: vi.fn(),
           hasMore: true,
           onLoadMore,
         }}
@@ -163,7 +163,7 @@ describe("Creator readiness UI", () => {
     );
 
     expect(screen.getByRole("button", { name: copyV1.loadingMorePrograms })).toBeDisabled();
-    expect(screen.getByRole("button", { name: `${copyV1.openProgram}: ${program.name}` }))
+    expect(screen.getByRole("button", { name: `${copyV1.editProgram}: ${program.name}` }))
       .toBeDisabled();
   });
 

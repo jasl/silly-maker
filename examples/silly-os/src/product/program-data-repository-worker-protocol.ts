@@ -57,6 +57,8 @@ import {
   normalizeProgramProcessExecutionRevisionBundleInputV1,
   normalizeProgramProcessRevisionBundleInputV1,
   normalizeProcessWorkspaceCreateBundleInputV1,
+  normalizeTranslationProjectImportExecutionAcquireInputV1,
+  normalizeTranslationProjectFinalizeExecutionBundleInputV1,
   type ProgramDataProcessOperationExpectationV1,
   type ProgramDataRepositoryFailureCodeV1,
   type ProgramDataRepositoryOperationV1,
@@ -70,6 +72,10 @@ import {
   type ProcessWorkspaceBindingV1,
   type ProcessWorkspaceCreateCompositeCommitResultV1,
   type ProcessWorkspaceCreateBundleInputV1,
+  type TranslationProjectFinalizeExecutionBundleInputV1,
+  type TranslationProjectFinalizeExecutionCompositeCommitResultV1,
+  type TranslationProjectImportExecutionAcquireInputV1,
+  type TranslationProjectImportExecutionAcquireResultV1,
 } from "./program-data-repository.ts";
 import {
   normalizeProcessExecutionAcquireInputV1,
@@ -89,6 +95,21 @@ import {
   type ProcessOperationReceiptV1,
   type ProcessOperationReceiptQueryResultV1,
 } from "./process-execution-repository.ts";
+import {
+  normalizeTranslationProjectAppendImportInputV1,
+  normalizeTranslationProjectBeginImportInputV1,
+  normalizeTranslationProjectFinalizeImportInputV1,
+  normalizeTranslationProjectOperationExpectationV1,
+  normalizeTranslationProjectPageRequestV1,
+  type TranslationProjectHeadV1,
+  type TranslationProjectMutationResultV1,
+  type TranslationProjectOperationExpectationV1,
+  type TranslationProjectOperationQueryResultV1,
+  type TranslationProjectPageRequestV1,
+  type TranslationProjectPageResultV1,
+  type TranslationProjectGlossaryEntryV1,
+  type TranslationProjectUnitV1,
+} from "./translation/translation-project-repository.ts";
 
 export type ProgramDataRepositoryWorkerRequestV1 =
   | { readonly method: "initialize" | "reset" | "dispose" }
@@ -141,6 +162,10 @@ export type ProgramDataRepositoryWorkerRequestV1 =
   | { readonly method: "list_process_summaries"; readonly input: ProcessSummaryListInputV1 }
   | { readonly method: "acquire_process_execution"; readonly input: ProcessExecutionAcquireInputV1 }
   | {
+    readonly method: "acquire_translation_project_import_execution";
+    readonly input: TranslationProjectImportExecutionAcquireInputV1;
+  }
+  | {
     readonly method: "renew_process_execution_lease";
     readonly input: ProcessExecutionLeaseRenewInputV1;
   }
@@ -160,6 +185,33 @@ export type ProgramDataRepositoryWorkerRequestV1 =
   | {
     readonly method: "query_process_operation";
     readonly input: ProgramDataProcessOperationExpectationV1;
+  }
+  | {
+    readonly method: "begin_translation_project_import";
+    readonly input:
+      import("./translation/translation-project-repository.ts").TranslationProjectBeginImportInputV1;
+  }
+  | {
+    readonly method: "append_translation_project_import";
+    readonly input:
+      import("./translation/translation-project-repository.ts").TranslationProjectAppendImportInputV1;
+  }
+  | {
+    readonly method: "commit_translation_project_finalize_with_process_execution_terminal";
+    readonly input: TranslationProjectFinalizeExecutionBundleInputV1;
+  }
+  | { readonly method: "load_translation_project_head"; readonly processId: string }
+  | {
+    readonly method: "load_translation_project_unit_page";
+    readonly input: TranslationProjectPageRequestV1;
+  }
+  | {
+    readonly method: "load_translation_project_glossary_page";
+    readonly input: TranslationProjectPageRequestV1;
+  }
+  | {
+    readonly method: "query_translation_project_operation";
+    readonly input: TranslationProjectOperationExpectationV1;
   }
   | {
     readonly method: "load_transcript_page";
@@ -203,6 +255,8 @@ interface ProgramDataRepositoryWorkerSuccessValueMapV1 {
   readonly load_process: ProcessHeadV1 | null;
   readonly list_process_summaries: ProcessSummaryPageV1;
   readonly acquire_process_execution: ProcessExecutionAcquireResultV1;
+  readonly acquire_translation_project_import_execution:
+    TranslationProjectImportExecutionAcquireResultV1;
   readonly renew_process_execution_lease: ProcessExecutionLeaseMutationResultV1;
   readonly release_process_execution_lease: ProcessExecutionLeaseMutationResultV1;
   readonly load_process_execution_lease: ProcessExecutionLeaseV1 | null;
@@ -210,6 +264,18 @@ interface ProgramDataRepositoryWorkerSuccessValueMapV1 {
   readonly commit_program_revision_with_process_execution_terminal:
     ProgramProcessExecutionCompositeCommitResultV1;
   readonly query_process_operation: ProcessOperationReceiptQueryResultV1;
+  readonly begin_translation_project_import: TranslationProjectMutationResultV1;
+  readonly append_translation_project_import: TranslationProjectMutationResultV1;
+  readonly commit_translation_project_finalize_with_process_execution_terminal:
+    TranslationProjectFinalizeExecutionCompositeCommitResultV1;
+  readonly load_translation_project_head: TranslationProjectHeadV1 | null;
+  readonly load_translation_project_unit_page: TranslationProjectPageResultV1<
+    TranslationProjectUnitV1
+  >;
+  readonly load_translation_project_glossary_page: TranslationProjectPageResultV1<
+    TranslationProjectGlossaryEntryV1
+  >;
+  readonly query_translation_project_operation: TranslationProjectOperationQueryResultV1;
   readonly load_transcript_page: TranscriptPageV1 | null;
   readonly load_program_network_access: ProgramNetworkAccessV1 | null;
   readonly set_program_network_access: ProgramNetworkAccessMutationResultV1;
@@ -460,7 +526,8 @@ function admitRequestRecordV1(
     processLoad !== null &&
     (processLoad.method === "load_process" ||
       processLoad.method === "load_process_execution_lease" ||
-      processLoad.method === "load_process_workspace_binding")
+      processLoad.method === "load_process_workspace_binding" ||
+      processLoad.method === "load_translation_project_head")
   ) {
     const processId = normalizeProcessIdWireV1(processLoad.processId);
     return processId === null
@@ -533,6 +600,11 @@ function admitRequestRecordV1(
     normalized = normalizeExactV1(call.input, normalizeProcessSummaryListInputV1);
   } else if (call.method === "acquire_process_execution") {
     normalized = normalizeExactV1(call.input, normalizeProcessExecutionAcquireInputV1);
+  } else if (call.method === "acquire_translation_project_import_execution") {
+    normalized = normalizeExactV1(
+      call.input,
+      normalizeTranslationProjectImportExecutionAcquireInputV1,
+    );
   } else if (call.method === "renew_process_execution_lease") {
     normalized = normalizeExactV1(call.input, normalizeProcessExecutionLeaseRenewInputV1);
   } else if (call.method === "release_process_execution_lease") {
@@ -552,6 +624,12 @@ function admitRequestRecordV1(
         normalizeProcessExecutionAcquireInputV1,
       );
       normalized = input === null ? null : { operation: expectation.operation, input };
+    } else if (expectation?.operation === "translation_project_execution_acquire") {
+      const input = normalizeExactV1(
+        expectation.input,
+        normalizeTranslationProjectImportExecutionAcquireInputV1,
+      );
+      normalized = input === null ? null : { operation: expectation.operation, input };
     } else if (expectation?.operation === "execution_terminal") {
       const input = normalizeExactV1(
         expectation.input,
@@ -565,6 +643,37 @@ function admitRequestRecordV1(
       );
       normalized = input === null ? null : { operation: expectation.operation, input };
     }
+  } else if (call.method === "begin_translation_project_import") {
+    normalized = normalizeExactV1(call.input, normalizeTranslationProjectBeginImportInputV1);
+  } else if (call.method === "append_translation_project_import") {
+    normalized = normalizeExactV1(call.input, normalizeTranslationProjectAppendImportInputV1);
+  } else if (
+    call.method === "commit_translation_project_finalize_with_process_execution_terminal"
+  ) {
+    const row = exactRecordV1(call.input, ["project", "terminal"]);
+    const project = row === null
+      ? null
+      : normalizeExactV1(row.project, normalizeTranslationProjectFinalizeImportInputV1);
+    const terminal = row === null
+      ? null
+      : normalizeExactV1(row.terminal, normalizeProcessExecutionTerminalInputV1);
+    if (project !== null && terminal !== null) {
+      try {
+        normalized = normalizeTranslationProjectFinalizeExecutionBundleInputV1({
+          project,
+          terminal,
+        });
+      } catch {
+        normalized = null;
+      }
+    }
+  } else if (
+    call.method === "load_translation_project_unit_page" ||
+    call.method === "load_translation_project_glossary_page"
+  ) {
+    normalized = normalizeExactV1(call.input, normalizeTranslationProjectPageRequestV1);
+  } else if (call.method === "query_translation_project_operation") {
+    normalized = normalizeExactV1(call.input, normalizeTranslationProjectOperationExpectationV1);
   } else if (call.method === "load_transcript_page") {
     normalized = normalizeExactV1(call.input, normalizeTranscriptPageRequestV1);
   } else if (call.method === "set_program_network_access") {
@@ -930,15 +1039,22 @@ function executionLeaseIdentityMatchesV1(
 function operationExpectationKeyV1(
   expectation: ProgramDataProcessOperationExpectationV1,
 ): { readonly processId: string; readonly operationId: string } {
-  return expectation.operation === "execution_acquire"
-    ? {
+  if (expectation.operation === "execution_acquire") {
+    return {
       processId: expectation.input.attempt.processId,
       operationId: expectation.input.attempt.commitId,
-    }
-    : {
-      processId: expectation.input.transcript.processId,
-      operationId: expectation.input.transcript.commitId,
     };
+  }
+  if (expectation.operation === "translation_project_execution_acquire") {
+    return {
+      processId: expectation.input.execution.attempt.processId,
+      operationId: expectation.input.execution.attempt.commitId,
+    };
+  }
+  return {
+    processId: expectation.input.transcript.processId,
+    operationId: expectation.input.transcript.commitId,
+  };
 }
 
 function operationReceiptMatchesExpectationV1(
@@ -947,8 +1063,13 @@ function operationReceiptMatchesExpectationV1(
 ): boolean {
   const key = operationExpectationKeyV1(expectation);
   if (receipt.processId !== key.processId || receipt.operationId !== key.operationId) return false;
-  if (expectation.operation === "execution_acquire") {
-    const input = expectation.input;
+  if (
+    expectation.operation === "execution_acquire" ||
+    expectation.operation === "translation_project_execution_acquire"
+  ) {
+    const input = expectation.operation === "execution_acquire"
+      ? expectation.input
+      : expectation.input.execution;
     const expectedLease: ProcessExecutionLeaseV1 = {
       processId: input.attempt.processId,
       ownerInstanceId: input.ownerInstanceId,
@@ -956,7 +1077,7 @@ function operationReceiptMatchesExpectationV1(
       generation: input.attempt.generation,
       expiresAt: input.expiresAt,
     };
-    return receipt.operation === "execution_acquire" &&
+    return receipt.operation === expectation.operation &&
       receipt.attemptId === input.attempt.attemptId &&
       receipt.generation === input.attempt.generation &&
       receipt.processRevision === input.attempt.expectedProcessRevision + 1 &&
@@ -983,8 +1104,20 @@ function operationReceiptMatchesExpectationV1(
 
 function cloneExecutionAcquireResultV1(
   value: unknown,
-  request: Extract<ProgramDataRepositoryWorkerRequestV1, { method: "acquire_process_execution" }>,
-): ProcessExecutionAcquireResultV1 | null {
+  request:
+    | Extract<ProgramDataRepositoryWorkerRequestV1, { method: "acquire_process_execution" }>
+    | Extract<
+      ProgramDataRepositoryWorkerRequestV1,
+      { method: "acquire_translation_project_import_execution" }
+    >,
+): ProcessExecutionAcquireResultV1 | TranslationProjectImportExecutionAcquireResultV1 | null {
+  const input = request.method === "acquire_process_execution"
+    ? request.input
+    : request.input.execution;
+  const expectation: ProgramDataProcessOperationExpectationV1 =
+    request.method === "acquire_process_execution"
+      ? { operation: "execution_acquire", input }
+      : { operation: "translation_project_execution_acquire", input: request.input };
   const result = exactRecordV1(value, [
     "kind",
     "process",
@@ -997,30 +1130,27 @@ function cloneExecutionAcquireResultV1(
     const lease = cloneExecutionLeaseV1(result.lease);
     const receipt = cloneExactV1(result.operationReceipt, normalizeProcessOperationReceiptV1);
     const activeAttempt = process.kind === "admitted" ? process.value.activeAttempt : null;
-    const trigger = request.input.attempt.trigger;
+    const trigger = input.attempt.trigger;
     if (
       process.kind === "rejected" || lease === null || receipt === null ||
-      process.value.processId !== request.input.attempt.processId ||
-      !operationReceiptMatchesExpectationV1(receipt, {
-        operation: "execution_acquire",
-        input: request.input,
-      }) || receipt.lease === null ||
+      process.value.processId !== input.attempt.processId ||
+      !operationReceiptMatchesExpectationV1(receipt, expectation) || receipt.lease === null ||
       !executionLeaseIdentityMatchesV1(lease, receipt.lease) ||
       lease.expiresAt < receipt.lease.expiresAt ||
       process.value.revision !== receipt.processRevision ||
       process.value.transcriptFrontier !== receipt.transcriptFrontier ||
       process.value.status !== "active" ||
-      activeAttempt?.attemptId !== request.input.attempt.attemptId ||
-      activeAttempt.generation !== request.input.attempt.generation ||
+      activeAttempt?.attemptId !== input.attempt.attemptId ||
+      activeAttempt.generation !== input.attempt.generation ||
       activeAttempt.triggerEntryId !==
         (trigger.kind === "new_entry" ? trigger.entry.entryId : trigger.entryId) ||
       activeAttempt.triggerSequence !==
         (trigger.kind === "new_entry" ? trigger.entry.sequence : trigger.sequence) ||
       !exactDataEqualV1(
         activeAttempt.startingCheckpoint,
-        request.input.attempt.startingCheckpoint,
+        input.attempt.startingCheckpoint,
       ) ||
-      !exactDataEqualV1(process.value.checkpoint, request.input.attempt.startingCheckpoint) ||
+      !exactDataEqualV1(process.value.checkpoint, input.attempt.startingCheckpoint) ||
       !Array.isArray(result.entries)
     ) return null;
     const entries: TranscriptEntryV1[] = [];
@@ -1031,8 +1161,8 @@ function cloneExecutionAcquireResultV1(
       }
       entries.push(entry.value);
     }
-    const expected = request.input.attempt.trigger.kind === "new_entry"
-      ? [request.input.attempt.trigger.entry]
+    const expected = input.attempt.trigger.kind === "new_entry"
+      ? [input.attempt.trigger.entry]
       : [];
     return exactDataEqualV1(entries, expected)
       ? {
@@ -1044,7 +1174,12 @@ function cloneExecutionAcquireResultV1(
       }
       : null;
   }
-  const conflict = exactRecordV1(value, ["kind", "currentProcess", "currentLease"]);
+  const conflict = exactRecordV1(
+    value,
+    request.method === "acquire_process_execution"
+      ? ["kind", "currentProcess", "currentLease"]
+      : ["kind", "currentProject", "currentProcess", "currentLease"],
+  );
   if (conflict?.kind !== "conflict") return null;
   const process = conflict.currentProcess === null
     ? null
@@ -1054,15 +1189,23 @@ function cloneExecutionAcquireResultV1(
     : cloneExecutionLeaseV1(conflict.currentLease);
   if (
     process !== null && (process.kind === "rejected" ||
-        process.value.processId !== request.input.attempt.processId) ||
+        process.value.processId !== input.attempt.processId) ||
     conflict.currentLease !== null &&
-      (lease === null || lease.processId !== request.input.attempt.processId)
+      (lease === null || lease.processId !== input.attempt.processId)
   ) return null;
-  return {
-    kind: "conflict",
-    currentProcess: process?.kind === "admitted" ? process.value : null,
-    currentLease: lease,
-  };
+  const currentProcess = process?.kind === "admitted" ? process.value : null;
+  if (request.method === "acquire_process_execution") {
+    return { kind: "conflict", currentProcess, currentLease: lease };
+  }
+  const currentProject = conflict.currentProject === null
+    ? null
+    : structuredClone(conflict.currentProject) as TranslationProjectHeadV1;
+  if (
+    conflict.currentProject !== null &&
+    (currentProject === null || typeof currentProject !== "object" ||
+      currentProject.schemaVersion !== 1 || currentProject.processId !== input.attempt.processId)
+  ) return null;
+  return { kind: "conflict", currentProject, currentProcess, currentLease: lease };
 }
 
 function cloneExecutionTerminalResultV1(
@@ -1120,6 +1263,98 @@ function cloneExecutionTerminalResultV1(
     kind: "conflict",
     currentProcess: process?.kind === "admitted" ? process.value : null,
     currentLease: lease,
+  };
+}
+
+function cloneTranslationFinalizeExecutionResultV1(
+  value: unknown,
+  request: Extract<
+    ProgramDataRepositoryWorkerRequestV1,
+    { method: "commit_translation_project_finalize_with_process_execution_terminal" }
+  >,
+): TranslationProjectFinalizeExecutionCompositeCommitResultV1 | null {
+  const result = exactRecordV1(value, [
+    "kind",
+    "head",
+    "projectOperationReceipt",
+    "process",
+    "entries",
+    "processOperationReceipt",
+  ]);
+  if (result !== null && (result.kind === "committed" || result.kind === "unchanged")) {
+    const head = structuredClone(result.head) as TranslationProjectHeadV1;
+    const projectReceipt = exactRecordV1(result.projectOperationReceipt, [
+      "processId",
+      "operationId",
+      "operation",
+      "operationDigest",
+      "projectRevision",
+    ]);
+    const terminal = cloneExecutionTerminalResultV1(
+      {
+        kind: result.kind,
+        process: result.process,
+        entries: result.entries,
+        operationReceipt: result.processOperationReceipt,
+      },
+      request.input.terminal,
+    );
+    if (
+      head === null || typeof head !== "object" || head.schemaVersion !== 1 ||
+      head.processId !== request.input.project.processId || head.phase !== "ready" ||
+      projectReceipt === null ||
+      projectReceipt.processId !== request.input.project.processId ||
+      projectReceipt.operationId !== request.input.project.operationId ||
+      projectReceipt.operation !== "finalize" ||
+      typeof projectReceipt.operationDigest !== "string" ||
+      !/^[0-9a-f]{64}$/u.test(projectReceipt.operationDigest) ||
+      !positiveIntegerV1(projectReceipt.projectRevision) ||
+      projectReceipt.projectRevision !== head.revision || terminal === null ||
+      terminal.kind === "conflict" || terminal.kind !== result.kind
+    ) return null;
+    return {
+      kind: result.kind,
+      head,
+      projectOperationReceipt: {
+        processId: projectReceipt.processId,
+        operationId: projectReceipt.operationId,
+        operation: "finalize",
+        operationDigest: projectReceipt.operationDigest,
+        projectRevision: projectReceipt.projectRevision,
+      },
+      process: terminal.process,
+      entries: terminal.entries,
+      processOperationReceipt: terminal.operationReceipt,
+    };
+  }
+  const conflict = exactRecordV1(
+    value,
+    ["kind", "currentProject", "currentProcess", "currentLease"],
+  );
+  if (conflict?.kind !== "conflict") return null;
+  const currentProject = conflict.currentProject === null
+    ? null
+    : structuredClone(conflict.currentProject) as TranslationProjectHeadV1;
+  const terminal = cloneExecutionTerminalResultV1(
+    {
+      kind: "conflict",
+      currentProcess: conflict.currentProcess,
+      currentLease: conflict.currentLease,
+    },
+    request.input.terminal,
+  );
+  if (
+    terminal === null || terminal.kind !== "conflict" ||
+    conflict.currentProject !== null &&
+      (currentProject === null || typeof currentProject !== "object" ||
+        currentProject.schemaVersion !== 1 ||
+        currentProject.processId !== request.input.project.processId)
+  ) return null;
+  return {
+    kind: "conflict",
+    currentProject,
+    currentProcess: terminal.currentProcess,
+    currentLease: terminal.currentLease,
   };
 }
 
@@ -1473,9 +1708,14 @@ function admitSuccessValueV1(
     const page = cloneProcessSummaryPageV1(value, request.input);
     return page === null ? null : { kind: "success", method, value: page };
   }
-  if (method === "acquire_process_execution") {
+  if (
+    method === "acquire_process_execution" ||
+    method === "acquire_translation_project_import_execution"
+  ) {
     const result = cloneExecutionAcquireResultV1(value, request);
-    return result === null ? null : { kind: "success", method, value: result };
+    return result === null
+      ? null
+      : { kind: "success", method, value: result } as ProgramDataRepositoryWorkerSuccessV1;
   }
   if (
     method === "renew_process_execution_lease" ||
@@ -1499,9 +1739,75 @@ function admitSuccessValueV1(
     const result = cloneProgramExecutionTerminalResultV1(value, request);
     return result === null ? null : { kind: "success", method, value: result };
   }
+  if (method === "commit_translation_project_finalize_with_process_execution_terminal") {
+    const result = cloneTranslationFinalizeExecutionResultV1(value, request);
+    return result === null ? null : { kind: "success", method, value: result };
+  }
   if (method === "query_process_operation") {
     const result = cloneOperationQueryResultV1(value, request.input);
     return result === null ? null : { kind: "success", method, value: result };
+  }
+  if (
+    method === "begin_translation_project_import" ||
+    method === "append_translation_project_import"
+  ) {
+    const result = structuredClone(value) as TranslationProjectMutationResultV1;
+    const input = request.input;
+    const valid = result !== null && typeof result === "object" &&
+      (result.kind === "conflict"
+        ? result.current === null || result.current.processId === input.processId
+        : (result.kind === "committed" || result.kind === "unchanged") &&
+          result.head.processId === input.processId &&
+          result.operationReceipt.processId === input.processId &&
+          result.operationReceipt.operationId === input.operationId &&
+          result.operationReceipt.operation ===
+            (method === "begin_translation_project_import" ? "begin" : "append") &&
+          result.operationReceipt.projectRevision === result.head.revision);
+    return valid
+      ? { kind: "success", method, value: result } as ProgramDataRepositoryWorkerSuccessV1
+      : null;
+  }
+  if (method === "load_translation_project_head") {
+    const head = value === null ? null : structuredClone(value) as TranslationProjectHeadV1;
+    return head === null || head.schemaVersion === 1 && head.processId === request.processId
+      ? { kind: "success", method, value: head }
+      : null;
+  }
+  if (
+    method === "load_translation_project_unit_page" ||
+    method === "load_translation_project_glossary_page"
+  ) {
+    const result = structuredClone(value) as TranslationProjectPageResultV1<
+      TranslationProjectUnitV1 & TranslationProjectGlossaryEntryV1
+    >;
+    const valid = result !== null && typeof result === "object" &&
+      (result.kind === "conflict"
+        ? result.current === null || result.current.processId === request.input.processId
+        : result.kind === "page" &&
+          result.page.processId === request.input.processId &&
+          result.page.projectRevision === request.input.expectedProjectRevision &&
+          result.page.fromOrder === request.input.fromOrder &&
+          result.page.byteLength <= request.input.maximumBytes &&
+          result.page.rows.length <= request.input.maximumRows &&
+          (result.page.nextOrder === null ||
+            result.page.rows.length > 0 &&
+              result.page.nextOrder === request.input.fromOrder + result.page.rows.length) &&
+          result.page.rows.every((row, index) =>
+            row.processId === request.input.processId &&
+            row.order === request.input.fromOrder + index
+          ));
+    return valid
+      ? { kind: "success", method, value: result } as ProgramDataRepositoryWorkerSuccessV1
+      : null;
+  }
+  if (method === "query_translation_project_operation") {
+    const result = structuredClone(value) as TranslationProjectOperationQueryResultV1;
+    const valid = result !== null && typeof result === "object" &&
+      (result.kind === "absent" ||
+        (result.kind === "committed" || result.kind === "mismatch") &&
+          result.receipt.processId === request.input.input.processId &&
+          result.receipt.operationId === request.input.input.operationId);
+    return valid ? { kind: "success", method, value: result } : null;
   }
   if (method === "load_transcript_page") {
     const page = cloneTranscriptPageV1(value, request.input);

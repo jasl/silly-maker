@@ -46,7 +46,8 @@ export interface CreatorHomePropsV1 {
       readonly proposalStatus: ProgramProposalStatusV1;
     }[];
     readonly openDisabled: boolean;
-    readonly onOpen: (programId: string) => void;
+    readonly onEdit: (programId: string) => void;
+    readonly onRun?: (programId: string) => void;
     readonly hasMore: boolean;
     readonly onLoadMore: () => void;
   };
@@ -278,35 +279,58 @@ export function CreatorHomeV1({
               : (
                 <>
                   <div className="creator-home__program-grid">
-                    {programCatalog.programs.map((program) => (
-                      <button
-                        type="button"
-                        className="creator-home__program"
-                        key={program.programId}
-                        data-program-id={program.programId}
-                        aria-label={`${copy.openProgram}: ${program.name}`}
-                        disabled={programCatalog.openDisabled}
-                        onClick={() => programCatalog.onOpen(program.programId)}
-                      >
-                        <span className="creator-home__program-icon" aria-hidden="true">
-                          <FolderOpen size={17} />
-                        </span>
-                        <span className="creator-home__program-main">
-                          <strong>{program.name}</strong>
-                          <small>{programKindLabelV1(program.kind)}</small>
-                        </span>
-                        <span className="creator-home__program-meta">
-                          {`v${String(program.programRevision)} · ${
-                            program.proposalStatus === "pending"
-                              ? copy.preview
-                              : program.proposalStatus === "accepted"
-                              ? copy.accepted
-                              : copy.rejected
-                          }`}
-                        </span>
-                        <ArrowRight size={16} aria-hidden="true" />
-                      </button>
-                    ))}
+                    {programCatalog.programs.map((program) => {
+                      const runnable = program.kind === "translation" &&
+                        program.proposalStatus === "accepted" &&
+                        programCatalog.onRun !== undefined;
+                      return (
+                        <article
+                          className="creator-home__program"
+                          key={program.programId}
+                          data-program-id={program.programId}
+                        >
+                          <span className="creator-home__program-icon" aria-hidden="true">
+                            <FolderOpen size={17} />
+                          </span>
+                          <span className="creator-home__program-main">
+                            <strong>{program.name}</strong>
+                            <small>{programKindLabelV1(program.kind)}</small>
+                          </span>
+                          <span className="creator-home__program-meta">
+                            {`v${String(program.programRevision)} · ${
+                              program.proposalStatus === "pending"
+                                ? copy.preview
+                                : program.proposalStatus === "accepted"
+                                ? copy.accepted
+                                : copy.rejected
+                            }`}
+                          </span>
+                          <span className="creator-home__program-actions">
+                            {runnable && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                aria-label={`${copy.runProgram}: ${program.name}`}
+                                disabled={programCatalog.openDisabled}
+                                onClick={() => programCatalog.onRun?.(program.programId)}
+                              >
+                                {copy.runProgram}
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              aria-label={`${copy.editProgram}: ${program.name}`}
+                              disabled={programCatalog.openDisabled}
+                              onClick={() => programCatalog.onEdit(program.programId)}
+                            >
+                              {copy.editProgram}
+                            </Button>
+                          </span>
+                        </article>
+                      );
+                    })}
                   </div>
                   {programCatalog.hasMore && (
                     <div className="creator-home__catalog-more">

@@ -34,6 +34,7 @@ import {
   createBuiltinCreatorProgramDefinitionRevisionV1,
   operationalStructuredPayloadMaximumBytesV1,
   type ProcessHeadV1,
+  type ProcessSummaryV1,
   type ProgramDefinitionRevisionV1,
   type TranscriptEntryV1,
   type TranscriptPageV1,
@@ -46,11 +47,17 @@ import type {
   BrowserProgramWorkspaceCreateInputV1,
   BrowserProgramWorkspaceDecideInputV1,
 } from "./browser-program-workspace-authority.ts";
-import type {
-  ProcessExecutionAcquireInputV1,
-  ProcessExecutionLeaseV1,
-  ProcessExecutionTerminalInputV1,
+import {
+  defaultProcessExecutionLeaseDurationMillisecondsV1,
+  defaultProcessExecutionLeaseRenewalIntervalMillisecondsV1,
+  type ProcessExecutionAcquireInputV1,
+  type ProcessExecutionLeaseV1,
+  type ProcessExecutionTerminalInputV1,
 } from "./process-execution-repository.ts";
+export const creatorProcessExecutionLeaseDurationMillisecondsV1 =
+  defaultProcessExecutionLeaseDurationMillisecondsV1;
+export const creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1 =
+  defaultProcessExecutionLeaseRenewalIntervalMillisecondsV1;
 
 export type CreatorDurabilityOperationV1 =
   | "catalog"
@@ -207,16 +214,6 @@ type RetryCommandV1 = () => Promise<boolean>;
 const creatorDefaultListPageMaximumBytesV1 = 128 * 1_024;
 const creatorDefaultTranscriptPageMaximumBytesV1 = 128 * 1_024;
 const creatorDefaultTranscriptWindowMaximumBytesV1 = creatorDefaultTranscriptPageMaximumBytesV1 * 3;
-
-/**
- * A foreground owner renews every ten seconds and therefore gets three missed
- * renewal opportunities before another page may recover the Process. Browser
- * suspension may still exceed this window; correctness comes from fencing,
- * not from timer delivery.
- */
-export const creatorProcessExecutionLeaseDurationMillisecondsV1 = 30_000;
-export const creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1 =
-  creatorProcessExecutionLeaseDurationMillisecondsV1 / 3;
 
 const defaultBudgetsV1: CreatorControllerBudgetsV1 = {
   programCatalogPageMaximumBytes: creatorDefaultListPageMaximumBytesV1,
@@ -824,13 +821,23 @@ export function createCreatorControllerV1(input: {
     if (disposed) return { kind: "failed", code: "disposed" };
     const epoch = beginProcessLoadV1();
     try {
-      const page = await repository.listProcessSummaries({
-        subjectProgramId: programId,
-        before: null,
-        maximumBytes: budgets.processSummaryPageMaximumBytes,
-      });
-      if (disposed || epoch !== processEpoch) return { kind: "failed", code: "superseded" };
-      const process = page.summaries[0];
+      let before = null;
+      let process: ProcessSummaryV1 | undefined;
+      do {
+        const page = await repository.listProcessSummaries({
+          subjectProgramId: programId,
+          before,
+          maximumBytes: budgets.processSummaryPageMaximumBytes,
+        });
+        if (disposed || epoch !== processEpoch) {
+          return { kind: "failed", code: "superseded" };
+        }
+        process = page.summaries.find((summary) =>
+          summary.programDefinition.programId === builtinCreatorProgramIdV1 &&
+          summary.programDefinition.revision === 1
+        );
+        before = page.nextCursor;
+      } while (process === undefined && before !== null);
       if (process === undefined) return fail("open", "process_not_found", null, null);
       return await openProcessAtEpochV1(process.processId, epoch);
     } catch (error) {

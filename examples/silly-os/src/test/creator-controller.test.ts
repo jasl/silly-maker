@@ -18,6 +18,7 @@ import {
   transcriptEntryUtf8ByteLengthV1,
   type TranscriptEntryV1,
 } from "../product/program-process-repository.ts";
+import { createBuiltinTranslationProgramDefinitionRevisionV1 } from "../product/translation/translation-program-definition.ts";
 import type { CreatorAgentTerminalRunV1, PreviewProgramV1 } from "../product/contracts.ts";
 import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
 import {
@@ -276,12 +277,13 @@ async function seedProcessV1(input: {
   readonly programId: string;
   readonly processId: string;
   readonly createdAt: number;
+  readonly definition?: { readonly programId: string; readonly revision: number };
   readonly entries?: number;
   readonly entryBytes?: number;
 }): Promise<void> {
   const created = await input.repository.createProcess({
     processId: input.processId,
-    programDefinition: { programId: "sillyos.builtin.creator", revision: 1 },
+    programDefinition: input.definition ?? { programId: "sillyos.builtin.creator", revision: 1 },
     subjectProgramId: input.programId,
     createdAt: input.createdAt,
   });
@@ -409,6 +411,46 @@ describe("Creator Controller Program/Process projection", () => {
     expect(
       controller.getSnapshot().activeProcess?.transcript.entries.map(({ processId }) => processId),
     ).toEqual(["process.newer"]);
+  });
+
+  it("keeps Program editing pinned to the newest Creator Process when a newer gameplay Process exists", async () => {
+    const repository = createMemoryProgramDataRepositoryV1();
+    await repository.publishProgramDefinitionRevision(
+      createBuiltinCreatorProgramDefinitionRevisionV1(),
+    );
+    await repository.publishProgramDefinitionRevision(
+      createBuiltinTranslationProgramDefinitionRevisionV1(),
+    );
+    await seedProgramV1({ repository, programId: "program.subject", updatedAt: 1 });
+    await seedProcessV1({
+      repository,
+      programId: "program.subject",
+      processId: "process.creator",
+      createdAt: 2,
+    });
+    for (let index = 0; index < 8; index += 1) {
+      await seedProcessV1({
+        repository,
+        programId: "program.subject",
+        processId: `process.translation.${String(index)}`,
+        createdAt: 3 + index,
+        definition: { programId: "sillyos.builtin.translation", revision: 1 },
+      });
+    }
+    const controller = createControllerV1(repository, { budgets: ordinaryBudgetsV1 });
+    await controller.initialize();
+
+    expect(await controller.openProgram("program.subject")).toEqual({
+      kind: "completed",
+      value: true,
+    });
+    expect(controller.getSnapshot()).toMatchObject({
+      route: "process",
+      activeProcess: {
+        process: { processId: "process.creator" },
+        definition: { programId: "sillyos.builtin.creator", revision: 1 },
+      },
+    });
   });
 
   it("loads older transcript pages while keeping the mounted window byte-bounded", async () => {

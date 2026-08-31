@@ -57,7 +57,19 @@ API-key 表单，也不会显示可用的 Test connection。
 - 在 Program workspace 中同时查看人类/Creator 的分页富文本 Conversation、proposal 与预览；
 - 接受或拒绝当前精确版本；补充要求会形成新的 `pending` 版本，旧版本决定会被完整拒绝；
 - Program 与 Creator Process 会在同一事务提交后写入此浏览器；返回 Home 或刷新页面后可以从
-  “最近的程序”重开同一修订、决定和完整 pageable Conversation。
+  “最近的程序”重开同一修订、决定和完整 pageable Conversation；
+- 已接受的 Translation Program 可以进入真实的 `sillyos.builtin.translation` revision 1
+  Process 路由。该路线创建独立
+  Process Workspace，并能 cold-reopen 同一 Process、Conversation、Workspace binding 与 V11
+  Translation Project head。guided workbench 已把上传控件和分页 Project source 接到
+  controller。导入取得 Process execution lease 时，会在同一个 IndexedDB transaction 核对
+  Project 仍不存在或仍是调用方见到的精确 staging revision；取得 lease 后，Workspace 原件写入、Project begin、每页
+  append 与 finalize 都核对同一 attempt/generation；耗时的 Workspace 写入在前台按统一 lease
+  cadence 续租，但浏览器冻结后仍以 generation fence 而非后台持续执行作保证。过期且未完成的导入 Process 会保留为
+  `interrupted_unrecoverable` 供按 ID 审查，而 Home 的下一次启动会创建新 Process，不会被旧
+  Process 永久阻塞。Project ready 与 completed Process terminal/checkpoint 在同一个 IndexedDB
+  transaction 发布，避免出现已完成 Project 配上失败 Conversation 的双重事实。当前仍只是
+  import-and-browse 基础，不是可完成翻译的普通用户旅程。
 
 固定 Pi 提供窄 `fetch_url({ url })` 与 `download({ url, destination, overwrite? })` 工具。每个
 Program 只有一个 **允许网络访问** 复选框，默认关闭；关闭时工具在 Network Broker 收到请求前
@@ -95,10 +107,13 @@ binding，并可从独立 Vault 列表 Forget 已不再使用的旧 binding。�
 一次测试成功也不会升级成 SillyOS 的 built-in 双浏览器资格结论。
 
 当前产品已经有由 Dedicated Worker 持有的 Browser IndexedDB Program Data
-Repository；它按行保存 Program head/revision/decision、Creator Process、分页富文本
+Repository V11；它按行保存 Program head/revision/decision、Process、分页富文本
 Conversation、Process lease/fencing 状态、`process_commits` 中的精确 operation receipt、
-Workspace continuation 与 Program 网络开关。它不保存
-API Key、Pi 私有 session/continuation 内容、附件字节或 workspace 文件。Credential Vault
+Workspace continuation、Program 网络开关，以及 Translation Project head、精确 import
+receipt 和可分页 unit/glossary rows。原始 Translation 文件由同一个 Browser Workspace
+Authority 写入 Process 自己的 Workspace；Repository 只保存其 SHA-256、规范相对路径和精确
+checkpoint binding。它不保存 API Key、Pi 私有 session/continuation 内容、附件字节或
+workspace 文件。Credential Vault
 使用独立 Worker 与独立 IndexedDB database 保存 Vault header、
 非秘密绑定 metadata 和密文；这属于存储所有权分离，不是同一 origin 内的物理权限隔离。
 初始 proposal 仍由本地 deterministic preview 产生；接受 proposal 会把精确复核过的
@@ -212,16 +227,18 @@ database，因此普通 Program 生命周期与导出不会拥有或混入凭据
 中把普通 Program 的唯一 Authority 切到独立 Sandbox origin：控制面创建精确 origin frame
 transport，Sandbox 内固定 Host Worker 独占 OPFS、
 snapshot/export 与 volume 生命周期，旧控制-origin Host Worker 和 fallback 已删除。物理 Product
-Repository V10 建立在已完成的 V9 clean replacement 上：规范化
+Repository V11 建立在已完成的 V9 clean replacement 上：规范化
 Program/Process/Conversation stores、Process execution lease 与单一
 `process_commits` operation-receipt authority 保持不变，并新增唯一
 `process_workspace_bindings`，把一个非 Creator Process 精确绑定到自己的
-Workspace/OPFS volume。Program-scoped Workspace continuation 与缺行即默认关闭的
+Workspace/OPFS volume；V11 另外增加 Translation Project head、import receipt 与分页
+unit/glossary stores。Program-scoped Workspace continuation 与缺行即默认关闭的
 network-access row 仍是不同 authority。Process、首个 transcript checkpoint 和 binding
 可在一个 IndexedDB transaction 中提交；OPFS volume 的物理创建仍由 Sandbox Host
 单独拥有，不伪装成跨 IndexedDB/OPFS transaction。
-预览数据库以 row-blind reset 切换，不读取或迁移旧 aggregate/授权。旧控制-origin
-OPFS bytes 可能仍由浏览器保留，但产品不再可达，也不会把它们作为迁移输入。
+V4–V8 预览数据库在 V9 clean replacement 时以 row-blind reset 切换，不读取或迁移旧
+aggregate/授权；exact V9/V10 到 V11 只增补 stores 并保留 durable rows。旧控制-origin OPFS
+bytes 可能仍由浏览器保留，但产品不再可达，也不会把它们作为迁移输入。
 
 Credential Vault V2 是 Provider Key 的唯一持久 owner。Fresh initialization 自动创建
 **Automatic** 模式，把不可导出的设备 AES-256-GCM `CryptoKey` 保存在 Vault IndexedDB，并在
@@ -311,14 +328,15 @@ control port 上的 `download_started`。控制面不接收 URL、Blob、archive
 `start_download` 之前，cancel、abort、consumer return/throw、30 秒 ready timeout 或任一次
 currentness drift 都不会调用 broker，也不会产生浏览器 download；授权后 Close/Forget 会等待
 download-started、handoff、release 与 cleanup 全部 drain。目前仍没有
-import/restore reader。Agent Forget 会清理 Pi/执行态并释放 lease，但
+Workspace ZIP import/restore reader。Agent Forget 会清理 Pi/执行态并释放 lease，但
 不会删除 durable volume。
 
 Accept 现在会保留另一份 Host-owned immutable snapshot，并在审查卡片中分别显示最新 accepted
 snapshot、pending proposal 的 reviewed head 与当前 mutable head。Pi 工具在运行中推进 generation
 时，旧 checkpoint 不会继续显示成 current；Host 不可用时 currentness 会明确显示 unavailable。
 后续 pending/rejected revision 也不会抹掉已接受 snapshot 的身份。当前“下载工作区 ZIP”仍只
-导出 mutable head；产品尚未提供 accepted snapshot 的用户下载按钮或 import/restore。
+导出 mutable head；产品尚未提供 accepted snapshot 的用户下载按钮或 Workspace archive
+import/restore。
 
 路线仍是 **Browser 优先、Desktop 保留**，但不是要求两个目标使用同一个物理 runtime。
 两边共享 Program/volume identity、逻辑 `/workspace`、Pi native tool 语义、lifecycle、
@@ -382,7 +400,7 @@ bounded bash case 又分别在 Chromium 1/1、持久 WebKit 1/1 通过并在本�
 回退同源 Worker。cwd/env、非零退出、timeout/abort、
 aggregate overflow、128 次 mutation attempt、64 个 changed path 以及
 receipt-before-terminal 已有 focused unit/Host 证据。
-BYO Sandbox、Wasm/更完整执行环境和 import 仍未激活。Desktop
+BYO Sandbox、Wasm/更完整执行环境和 general archive/package import 仍未激活。Desktop
 底层仍计划由私有 companion 启动产品打包的 Pi coding-agent，但当前没有激活。
 
 这 4 条 ordinary case 证明 active frame 精确来自 `41740`、`41739` control origin 没有新
@@ -397,10 +415,13 @@ reload。单独的 Chromium/WebKit qualification 各 3/3
 防截断和视觉验收矩阵见 [DESIGN.md](./DESIGN.md)。从真实 Pi typed RPC、产品数据库、
 Pi 工具到 workspace runtime 的转发、Pi 能力组合、OpenUI 到 SillyMaker 组件映射，
 再到翻译/写作/角色扮演产品的分阶段路径见 [PLAN.md](./PLAN.md)。Translation P5-A
-只完成了四格式确定性 round-trip laboratory 和双路线 model-protocol smoke；Process
-Workspace、Host import 与 Browser dispatch 仍是未接入普通 UI 的后续 substrate，不代表
-Translation Program 已可用或任一路线已通过资格。当前 Browser workspace 已交付独立 origin
-的单一工作卷、受限 shell/QJS，以及
+完成了四格式确定性 round-trip laboratory 和双路线 model-protocol smoke；后续正式基础已经
+加入真实 Translation Process 路由、独立 Process Workspace、同一 Authority 的原件导入、V11
+Project head/分页 rows、cold reopen，以及按需加载的文字型 PDF text-reflow。它们仍不代表
+Translation Program 已可用或任一路线已通过资格：真实 Agent batch/commit/resume、结构化
+Review/QA、最终 exporter 与 OpenUI 都尚未完成。guided intake 与分页 Project source 已接到
+controller，但当前只形成 import-and-browse 基础。
+当前 Browser workspace 已交付独立 origin 的单一工作卷、受限 shell/QJS，以及
 `mkdir`/`touch`/`cp`/`mv`/`rm` 文件操作；更广的执行 profile 仍是研究门。每个变更 entry
 独立推进 generation，复合命令是保留已完成前缀的 best-effort 操作而非原子事务；空目录可冷重开，
 但 portable ZIP 与 immutable snapshot V1 仍只保存文件。WASM 是可选执行机制，不是产品契约。
@@ -803,6 +824,9 @@ deno run -A npm:vitest run \
 | `src/product/program-process-repository.ts`                     | Creator Process、attempt/checkpoint 与富文本 Conversation 分页合同             |
 | `src/product/program-data-repository.ts`                        | Program 与 Process 复合提交的唯一产品持久化边界                                |
 | `src/product/creator-controller.ts`                             | 单 active Process、分页 Conversation、proposal review 与 Agent currentness     |
+| `src/product/translation/translation-process-controller.ts`     | Translation Process 路由、原件导入、cold reopen 与 Project 分页投影            |
+| `src/product/translation/translation-project-repository.ts`     | V11 Translation Project head、import receipt 与 unit/glossary pages            |
+| `src/product/translation/pdf/`                                  | 按需 born-digital PDF text-reflow；不提供 OCR 或 PDF round-trip                |
 | `src/product/creator-agent-admission.ts`                        | submit/candidate 的严格 product wire admission                                 |
 | `src/product/browser-provider-settings-repository.ts`           | 有界非秘密 custom HTTPS profile 持久化；不接收 key                             |
 | `src/product/fake-creator.ts`                                   | 默认初始 proposal 的确定性 fake Creator                                        |
@@ -820,8 +844,8 @@ deno run -A npm:vitest run \
 | `src/workspace/browser-workspace-sandbox-build-identity.ts`     | control/bootstrap/Host 共用的 product-derived build identity admission         |
 | `src/workspace/browser-workspace-sandbox-download-protocol.ts`  | Sandbox Host 到 bootstrap frame 的私有 download request/receipt                |
 | `src/workspace-sandbox/`                                        | Sandbox 文档 bootstrap 与同 origin 固定 Host Worker                            |
-| `src/product/indexeddb-program-data-repository.ts`              | physical Product Repository V10 与 Program/Process 原子事务                    |
-| `src/product/browser-program-data-repository.ts`                | V10 Worker client、响应 identity 与 outcome-unknown fencing                    |
+| `src/product/indexeddb-program-data-repository.ts`              | physical Product Repository V11、Program/Process 与 Translation Project 事务   |
+| `src/product/browser-program-data-repository.ts`                | V11 Worker client、响应 identity 与 outcome-unknown fencing                    |
 | `src/companion/pi-rpc-startup.ts`                               | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要                     |
 | `src/application/`                                              | Browser/Deno 共用的 React 产品入口与工作区表现                                 |
 | `src/test/browser-pi-worker.test.ts`                            | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown                    |

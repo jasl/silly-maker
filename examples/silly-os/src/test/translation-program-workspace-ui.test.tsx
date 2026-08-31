@@ -8,9 +8,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { prepareTranslationDocumentV1 } from "../product/translation/translation-document-codec.ts";
 import {
   createTranslationProjectV1,
+  readTranslationProjectRowWindowV1,
+  type TranslationProjectUnitV1,
   type TranslationProjectV1,
 } from "../product/translation/translation-project.ts";
-import { TranslationProgramWorkspaceV1 } from "../ui/translation-program-workspace.tsx";
+import {
+  type TranslationProjectPresentationSourceV1,
+  TranslationProgramWorkspaceV1,
+} from "../ui/translation-program-workspace.tsx";
 
 const originalOffsetHeight = Object.getOwnPropertyDescriptor(
   HTMLElement.prototype,
@@ -81,6 +86,78 @@ function tenThousandUnitProjectV1(): TranslationProjectV1 {
   });
 }
 
+function presentationSourceV1(
+  project: TranslationProjectV1,
+  options: {
+    readonly revision?: number;
+    readonly rowOverride?: (row: TranslationProjectUnitV1) => TranslationProjectUnitV1;
+    readonly load?: TranslationProjectPresentationSourceV1["loadRowWindow"];
+  } = {},
+): {
+  readonly source: TranslationProjectPresentationSourceV1;
+  readonly loadRowWindow: ReturnType<
+    typeof vi.fn<TranslationProjectPresentationSourceV1["loadRowWindow"]>
+  >;
+} {
+  const loadRowWindow = vi.fn<TranslationProjectPresentationSourceV1["loadRowWindow"]>(
+    options.load ?? ((request) => {
+      if (request.signal.aborted) return Promise.reject(request.signal.reason);
+      const window = readTranslationProjectRowWindowV1(project, request);
+      return Promise.resolve({
+        ...window,
+        rows: options.rowOverride === undefined
+          ? window.rows
+          : window.rows.map(options.rowOverride),
+      });
+    }),
+  );
+  return {
+    source: {
+      projectId: project.projectId,
+      revision: options.revision ?? project.revision,
+      title: project.title,
+      documentPurpose: project.documentPurpose,
+      sourceLocale: project.sourceLocale,
+      targetLocale: project.targetLocale,
+      totalUnitCount: project.units.length,
+      committedUnitCount: project.committedUnitCount,
+      committedBatchCount: project.committedBatchIds.length,
+      glossaryTermCount: project.glossary.length,
+      loadRowWindow,
+    },
+    loadRowWindow,
+  };
+}
+
+function renderProjectV1(
+  projectSource: TranslationProjectPresentationSourceV1,
+  onSaveTarget = vi.fn(),
+) {
+  return render(
+    <TranslationProgramWorkspaceV1
+      processId="process.translation.large-vn"
+      locale="zh-CN"
+      mode="guided"
+      onModeChange={vi.fn()}
+      projectSource={projectSource}
+      stage="review"
+      run={null}
+      conversationSurface={<div>Conversation</div>}
+      onImportFile={vi.fn()}
+      onSaveTarget={onSaveTarget}
+    />,
+  );
+}
+
+function scrollTableToOrderV1(viewport: HTMLElement, order: number): void {
+  Object.defineProperty(viewport, "scrollTop", {
+    configurable: true,
+    writable: true,
+    value: order * 68,
+  });
+  fireEvent.scroll(viewport);
+}
+
 describe("SillyOS Translation Program workspace", () => {
   it("submits the selected File and locale preferences from the initial Program UI", async () => {
     const onImportFile = vi.fn();
@@ -90,7 +167,7 @@ describe("SillyOS Translation Program workspace", () => {
         locale="zh-CN"
         mode="guided"
         onModeChange={vi.fn()}
-        project={null}
+        projectSource={null}
         stage="import"
         run={null}
         conversationSurface={<div>Conversation</div>}
@@ -116,52 +193,119 @@ describe("SillyOS Translation Program workspace", () => {
     expect(view.container).not.toHaveTextContent(/接受|拒绝|Accept|Reject/u);
   });
 
-  it("windows a 10,000-unit Project while keeping visible rows selectable and editable", async () => {
+  it("loads initial, middle and final row windows without requesting the 10,000-unit Project", async () => {
     const project = tenThousandUnitProjectV1();
-    const onSaveTarget = vi.fn();
-    const view = render(
-      <TranslationProgramWorkspaceV1
-        processId="process.translation.large-vn"
-        locale="zh-CN"
-        mode="guided"
-        onModeChange={vi.fn()}
-        project={project}
-        stage="review"
-        run={null}
-        conversationSurface={<div>Conversation</div>}
-        onImportFile={vi.fn()}
-        onSaveTarget={onSaveTarget}
-      />,
-    );
-
+    const { source, loadRowWindow } = presentationSourceV1(project);
+    const view = renderProjectV1(source);
     const table = screen.getByRole("region", { name: "10,000 个条目" });
-    await waitFor(() => {
-      expect(table.querySelectorAll(".translation-unit-table__row").length).toBeGreaterThan(1);
-    });
-    const rows = Array.from(
-      table.querySelectorAll<HTMLButtonElement>(".translation-unit-table__row"),
+    const viewport = view.container.querySelector<HTMLElement>(
+      ".translation-unit-table__viewport",
     );
-    expect(rows.length).toBeLessThan(100);
-    expect(rows.length).toBeLessThan(project.units.length / 100);
+    expect(viewport).not.toBeNull();
 
-    const selectedRow = rows[1];
-    expect(selectedRow).toBeDefined();
+    expect(await within(table).findByText("第 1 行等待翻译。")).toBeVisible();
+    scrollTableToOrderV1(viewport!, 5_000);
+    const middleSource = await within(table).findByText("第 5001 行等待翻译。");
+    expect(middleSource).toBeVisible();
+    fireEvent.click(middleSource.closest("button")!);
+    scrollTableToOrderV1(viewport!, 9_999);
+    expect(await within(table).findByText("第 10000 行等待翻译。")).toBeVisible();
+
+    const rows = table.querySelectorAll(".translation-unit-table__row");
+    expect(rows.length).toBeLessThan(100);
+    expect(loadRowWindow.mock.calls.length).toBeGreaterThanOrEqual(3);
+    for (const [request] of loadRowWindow.mock.calls) {
+      expect(request.limit).toBeLessThan(100);
+      expect(request.limit).not.toBe(project.units.length);
+    }
+    const callsBeforeReturn = loadRowWindow.mock.calls.length;
+    scrollTableToOrderV1(viewport!, 0);
+    expect(await within(table).findByText("第 1 行等待翻译。")).toBeVisible();
+    await waitFor(() => expect(loadRowWindow.mock.calls.length).toBeGreaterThan(callsBeforeReturn));
+  });
+
+  it("aborts a superseded visible window instead of accumulating fast-scroll reads", async () => {
+    const project = tenThousandUnitProjectV1();
+    type RequestV1 = Parameters<TranslationProjectPresentationSourceV1["loadRowWindow"]>[0];
+    type WindowV1 = Awaited<
+      ReturnType<TranslationProjectPresentationSourceV1["loadRowWindow"]>
+    >;
+    const pending: {
+      readonly request: RequestV1;
+      readonly resolve: (window: WindowV1) => void;
+      readonly reject: (error: unknown) => void;
+    }[] = [];
+    const { source } = presentationSourceV1(project, {
+      load: (request) =>
+        new Promise<WindowV1>((resolve, reject) => {
+          request.signal.addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+          pending.push({ request, resolve, reject });
+        }),
+    });
+    const view = renderProjectV1(source);
+    const viewport = view.container.querySelector<HTMLElement>(
+      ".translation-unit-table__viewport",
+    );
+    expect(viewport).not.toBeNull();
+
+    await waitFor(() => expect(pending).toHaveLength(1));
+    pending[0]!.resolve(readTranslationProjectRowWindowV1(project, pending[0]!.request));
+    await screen.findByText("第 1 行等待翻译。", {
+      selector: ".translation-unit-table__text",
+    });
+
+    scrollTableToOrderV1(viewport!, 5_000);
+    await waitFor(() => expect(pending).toHaveLength(2));
+    expect(pending[1]!.request.signal.aborted).toBe(false);
+    scrollTableToOrderV1(viewport!, 9_999);
+    await waitFor(() => expect(pending[1]!.request.signal.aborted).toBe(true));
+    await waitFor(() => expect(pending).toHaveLength(3));
+    pending[2]!.resolve(readTranslationProjectRowWindowV1(project, pending[2]!.request));
+    expect(
+      await screen.findByText("第 10000 行等待翻译。", {
+        selector: ".translation-unit-table__text",
+      }),
+    ).toBeVisible();
+  });
+
+  it("saves the exact selected async row identity and its dirty target", async () => {
+    const project = tenThousandUnitProjectV1();
+    const { source } = presentationSourceV1(project);
+    const onSaveTarget = vi.fn();
+    const view = renderProjectV1(source, onSaveTarget);
+    const viewport = view.container.querySelector<HTMLElement>(
+      ".translation-unit-table__viewport",
+    );
+    expect(viewport).not.toBeNull();
+
+    await screen.findByText("第 1 行等待翻译。", {
+      selector: ".translation-unit-table__text",
+    });
+    scrollTableToOrderV1(viewport!, 5_000);
+    const sourceCell = await screen.findByText("第 5001 行等待翻译。", {
+      selector: ".translation-unit-table__text",
+    });
+    const selectedRow = sourceCell.closest<HTMLButtonElement>("button");
+    expect(selectedRow).not.toBeNull();
     fireEvent.click(selectedRow!);
     expect(selectedRow).toHaveAttribute("data-selected", "true");
 
-    const editor = screen.getByRole("textbox", { name: "译文" });
-    fireEvent.change(editor, { target: { value: "Translated visible row." } });
+    const editor = await screen.findByRole("textbox", { name: "译文" });
+    fireEvent.change(editor, { target: { value: "Translated middle row." } });
     fireEvent.click(screen.getByRole("button", { name: "保存译文" }));
 
     await waitFor(() => expect(onSaveTarget).toHaveBeenCalledTimes(1));
-    const selectedOrder =
-      Number(selectedRow!.querySelector(".translation-unit-table__order")?.textContent) - 1;
     expect(onSaveTarget).toHaveBeenCalledWith(
       expect.objectContaining({
-        order: selectedOrder,
-        source: `第 ${String(selectedOrder + 1)} 行等待翻译。`,
+        unitId: project.units[5_000]?.unitId,
+        order: 5_000,
+        source: "第 5001 行等待翻译。",
       }),
-      "Translated visible row.",
+      "Translated middle row.",
     );
     expect(
       within(view.container).queryByRole("button", {
@@ -170,8 +314,9 @@ describe("SillyOS Translation Program workspace", () => {
     ).toBeNull();
   });
 
-  it("preserves an unsaved target when an unrelated Project revision arrives", async () => {
+  it("resets row cache on Project revision while preserving a dirty draft for the same unit", async () => {
     const project = tenThousandUnitProjectV1();
+    const first = presentationSourceV1(project);
     const commonProps = {
       processId: "process.translation.concurrent-revision",
       locale: "zh-CN" as const,
@@ -184,21 +329,74 @@ describe("SillyOS Translation Program workspace", () => {
       onSaveTarget: vi.fn(),
     };
     const view = render(
-      <TranslationProgramWorkspaceV1 {...commonProps} project={project} />,
+      <TranslationProgramWorkspaceV1 {...commonProps} projectSource={first.source} />,
     );
 
     const editor = await screen.findByRole("textbox", { name: "译文" });
     fireEvent.change(editor, { target: { value: "尚未保存的人工译文" } });
+    const second = presentationSourceV1(project, {
+      revision: project.revision + 1,
+      rowOverride: (row) =>
+        row.order === 0
+          ? { ...row, source: "修订后的第一行。", target: "Authoritative target" }
+          : row,
+    });
 
     view.rerender(
+      <TranslationProgramWorkspaceV1 {...commonProps} projectSource={second.source} />,
+    );
+
+    expect(
+      await screen.findByText("修订后的第一行。", {
+        selector: ".translation-unit-table__text",
+      }),
+    ).toBeVisible();
+    expect(second.loadRowWindow).toHaveBeenCalled();
+    expect(await screen.findByRole("textbox", { name: "译文" })).toHaveValue(
+      "尚未保存的人工译文",
+    );
+  });
+
+  it("shows asynchronous loading and offers a retry after a row-window failure", async () => {
+    const project = tenThousandUnitProjectV1();
+    let rejectWindows = true;
+    const onOperationError = vi.fn();
+    const { source } = presentationSourceV1(project, {
+      load: async (request) => {
+        await Promise.resolve();
+        if (rejectWindows) throw new Error("temporary row read failure");
+        return readTranslationProjectRowWindowV1(project, request);
+      },
+    });
+    const view = render(
       <TranslationProgramWorkspaceV1
-        {...commonProps}
-        project={{ ...project, revision: project.revision + 1 }}
+        processId="process.translation.retry"
+        locale="zh-CN"
+        mode="guided"
+        onModeChange={vi.fn()}
+        projectSource={source}
+        stage="review"
+        run={null}
+        conversationSurface={<div>Conversation</div>}
+        onImportFile={vi.fn()}
+        onOperationError={onOperationError}
       />,
     );
 
-    expect(screen.getByRole("textbox", { name: "译文" })).toHaveValue(
-      "尚未保存的人工译文",
+    expect(screen.getByRole("status")).toHaveTextContent("正在加载翻译条目");
+    expect(await screen.findByRole("alert")).toHaveTextContent("翻译条目加载失败");
+    expect(onOperationError).toHaveBeenCalled();
+
+    rejectWindows = false;
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    expect(
+      await screen.findByText("第 1 行等待翻译。", {
+        selector: ".translation-unit-table__text",
+      }),
+    ).toBeVisible();
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(view.container.querySelectorAll(".translation-unit-table__row").length).toBeLessThan(
+      100,
     );
   });
 });

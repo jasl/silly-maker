@@ -1266,7 +1266,7 @@ async function openRecentTranslationProgramV1(
   },
 ): Promise<Locator> {
   const recentProgram = page.getByRole("button", {
-    name: "Open program: Translation Workshop",
+    name: "Edit program: Translation Workshop",
     exact: true,
   });
   await expect(recentProgram).toBeVisible();
@@ -2473,6 +2473,63 @@ test("Creator Home persists and reopens an exact accepted Program", async ({ dur
   ).toBeVisible();
 });
 
+test("an accepted Translation Program imports and cold-reopens one durable Process Project", async ({ durableProgramPage: page }) => {
+  const creatorWorkspace = await openTranslationWorkspaceV1(page);
+  const programId = await readProgramIdV1(creatorWorkspace);
+  await page.getByRole("button", { name: "Accept program" }).click();
+  await expectProgramStorageReadyV1(page);
+  await page.getByRole("button", { name: "Creator home" }).click();
+
+  const runProgram = page.getByRole("button", {
+    name: "Start or continue: Translation Workshop",
+    exact: true,
+  });
+  await expect(runProgram).toBeVisible();
+  await runProgram.click();
+
+  const processWorkspace = page.locator('[data-silly-os-view="translation-workspace"]');
+  await expect(processWorkspace).toBeVisible();
+  await expect(processWorkspace).toHaveAttribute("data-program-id", programId);
+  const processId = await processWorkspace.getAttribute("data-process-id");
+  expect(processId).not.toBeNull();
+
+  await processWorkspace.locator('input[type="file"]').setInputFiles({
+    name: "sound-check.srt",
+    mimeType: "application/x-subrip",
+    buffer: Buffer.from([
+      "1",
+      "00:00:00,000 --> 00:00:01,500",
+      "第一句：保持原意。",
+      "",
+      "2",
+      "00:00:02,000 --> 00:00:04,000",
+      "Second line with {name}.",
+      "",
+    ].join("\n")),
+  });
+  await expect(page.getByRole("heading", { name: "sound-check.srt" })).toBeVisible();
+  await expect(page.getByRole("button", {
+    name: /^1 第一句：保持原意。 — Pending$/u,
+  })).toBeVisible();
+  await expect(page.getByRole("button", {
+    name: /^2 Second line with ⟦SM:\d+⟧\. — Pending$/u,
+  })).toBeVisible();
+
+  await page.reload();
+  await expectProgramStorageReadyV1(page);
+  await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+  await page.getByRole("button", {
+    name: "Start or continue: Translation Workshop",
+    exact: true,
+  }).click();
+  const reopened = page.locator('[data-silly-os-view="translation-workspace"]');
+  await expect(reopened).toHaveAttribute("data-process-id", processId!);
+  await expect(page.getByRole("heading", { name: "sound-check.srt" })).toBeVisible();
+  await expect(page.getByRole("button", {
+    name: /^1 第一句：保持原意。 — Pending$/u,
+  })).toBeVisible();
+});
+
 test("a pending Program remains locally reviewable without a Provider credential", async ({ durableProgramPage: page }) => {
   const initialWorkspace = await openTranslationWorkspaceV1(page);
   const programId = await readProgramIdV1(initialWorkspace);
@@ -2485,7 +2542,7 @@ test("a pending Program remains locally reviewable without a Provider credential
   const readiness = page.locator('[data-creator-readiness-surface="home"]');
   await expect(readiness).toHaveAttribute("data-creator-readiness", "credential_required");
   const recentProgram = page.getByRole("button", {
-    name: "Open program: Translation Workshop",
+    name: "Edit program: Translation Workshop",
     exact: true,
   });
   await expect(recentProgram).toHaveAttribute("data-program-id", programId);
@@ -3161,7 +3218,7 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   await expect(page.getByRole("heading", { name: "Recent programs", level: 2 })).toBeVisible();
 
   const recentProgram = page.getByRole("button", {
-    name: "Open program: Translation Workshop",
+    name: "Edit program: Translation Workshop",
     exact: true,
   });
   await expect(recentProgram).toHaveAttribute("data-program-id", programId);
@@ -3531,11 +3588,11 @@ test("@s1a-ordinary an active Process becomes read-only in another page and its 
   ]);
 
   const firstRecent = page.getByRole("button", {
-    name: "Open program: Translation Workshop",
+    name: "Edit program: Translation Workshop",
     exact: true,
   });
   const secondRecent = contenderPage.getByRole("button", {
-    name: "Open program: Translation Workshop",
+    name: "Edit program: Translation Workshop",
     exact: true,
   });
   await Promise.all([expect(firstRecent).toBeEnabled(), expect(secondRecent).toBeEnabled()]);
@@ -3629,7 +3686,7 @@ test("Playwright WebKit's non-persistent context reports unavailable OPFS withou
   await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
   await expect(page.getByRole("main", { name: "SillyOS program workspace" })).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Open program: Translation Workshop", exact: true }),
+    page.getByRole("button", { name: "Edit program: Translation Workshop", exact: true }),
   ).toHaveCount(0);
   await expect(readProgramCatalogSummariesV1(page)).resolves.toEqual([]);
 });

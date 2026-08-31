@@ -290,6 +290,24 @@
   min-inline-size: 620px;
 }
 
+.translation-unit-table__load-state {
+  position: sticky;
+  z-index: 3;
+  inset-block-start: calc(var(--translation-table-header-height) + 12px);
+  display: flex;
+  inline-size: fit-content;
+  margin-inline: auto;
+  padding: 8px 10px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--sos-line);
+  border-radius: var(--sos-radius-control);
+  color: var(--sos-ink-muted);
+  background: var(--sos-surface);
+  box-shadow: var(--sos-shadow-raised);
+  font-size: 11px;
+}
+
 .translation-unit-table__row {
   position: absolute;
   inset: 0 0 auto;

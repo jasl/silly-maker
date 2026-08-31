@@ -14,11 +14,13 @@ import type {
 } from "../product/program-catalog-repository.ts";
 import {
   createProgramDataRepositoryFailureV1,
+  normalizeTranslationProjectFinalizeExecutionBundleInputV1,
   type ProgramDataRepositoryV1,
   type ProgramProcessCreateBundleInputV1,
   type ProgramProcessDecisionBundleInputV1,
   type ProgramProcessRevisionBundleInputV1,
   type ProcessWorkspaceCreateBundleInputV1,
+  type TranslationProjectFinalizeExecutionBundleInputV1,
 } from "../product/program-data-repository.ts";
 import {
   admitProgramDataRepositoryWorkerRequestEnvelopeV1,
@@ -27,7 +29,10 @@ import {
   type ProgramDataRepositoryWorkerResponseEnvelopeV1,
 } from "../product/program-data-repository-worker-protocol.ts";
 import { createProgramDataRepositoryWorkerRuntimeV1 } from "../product/program-data-repository-worker-runtime.ts";
-import type { ProcessExecutionAcquireInputV1 } from "../product/process-execution-repository.ts";
+import type {
+  ProcessExecutionAcquireInputV1,
+  ProcessExecutionLeaseV1,
+} from "../product/process-execution-repository.ts";
 import {
   createBuiltinCreatorProgramDefinitionRevisionV1,
   transcriptEntryUtf8ByteLengthV1,
@@ -252,6 +257,54 @@ function processWorkspaceBundleV1(
   };
 }
 
+async function acquireTranslationLeaseV1(
+  repository: ProgramDataRepositoryV1,
+  processId: string,
+): Promise<ProcessExecutionLeaseV1> {
+  const acquired = await repository.acquireTranslationProjectImportExecution({
+    expectedProjectRevision: null,
+    execution: {
+      ownerInstanceId: `owner.${processId}`,
+      observedAt: 3,
+      expiresAt: 1_000_000,
+      attempt: {
+        processId,
+        expectedProcessRevision: 2,
+        expectedTranscriptFrontier: 1,
+        commitId: `commit.${processId}.translation-import.acquire`,
+        attemptId: `attempt.${processId}.translation-import`,
+        generation: 1,
+        trigger: {
+          kind: "new_entry",
+          entry: entryV1({ processId, sequence: 2, role: "user" }),
+        },
+        startingCheckpoint: {
+          checkpointId: `process.checkpoint.${processId}.2`,
+          throughSequence: 2,
+          workspaceId: `workspace.${processId}`,
+          workspaceCheckpointId: `workspace.checkpoint.${processId}.1`,
+          workspaceGeneration: 1,
+        },
+        updatedAt: 3,
+      },
+    },
+  });
+  if (acquired.kind === "conflict") throw new Error("expected Translation import lease");
+  return acquired.lease;
+}
+
+function translationSourceBindingV1(processId: string, path: string) {
+  return {
+    revision: 1 as const,
+    workspaceId: `workspace.${processId}`,
+    volumeId: `volume.${processId}`,
+    workspaceFormat: 1 as const,
+    path,
+    checkpointId: `workspace.checkpoint.${processId}.1`,
+    generation: 1,
+  };
+}
+
 function revisionBundleV1(
   programId: string,
   processId: string,
@@ -463,6 +516,9 @@ describe("Program data repository Worker boundary", () => {
       createWorker: () => loopback.worker,
     });
     await repository.initialize();
+    await repository.publishProgramDefinitionRevision(
+      createBuiltinCreatorProgramDefinitionRevisionV1(),
+    );
     await repository.publishProgramDefinitionRevision(
       createBuiltinCreatorProgramDefinitionRevisionV1(),
     );
@@ -1420,6 +1476,128 @@ describe("Program data repository Worker boundary", () => {
     await repository.dispose();
   });
 
+  it("recovers an exact Translation Project-guarded acquire through a fresh Worker", async () => {
+    const indexedDB = new IDBFactory();
+    const firstLoopback = createLoopbackWorkerV1({
+      repository: createIndexedDbProgramDataRepositoryV1({ indexedDB, keyRange: IDBKeyRange }),
+      throwResponse: (message) =>
+        message.record.method === "acquire_translation_project_import_execution",
+    });
+    const secondLoopback = createLoopbackWorkerV1({
+      repository: createIndexedDbProgramDataRepositoryV1({ indexedDB, keyRange: IDBKeyRange }),
+    });
+    const workers = [firstLoopback.worker, secondLoopback.worker];
+    const repository = createBrowserProgramDataRepositoryV1({
+      createWorker: () => {
+        const worker = workers.shift();
+        if (worker === undefined) throw new Error("unexpected Worker generation");
+        return worker;
+      },
+    });
+    await repository.publishProgramDefinitionRevision(
+      createBuiltinCreatorProgramDefinitionRevisionV1(),
+    );
+    await repository.createProgramWithProcess(
+      createBundleV1(
+        "program.translation-acquire-query",
+        "process.creator.translation-acquire-query",
+      ),
+    );
+    await repository.publishProgramDefinitionRevision(translationDefinitionV1());
+    await repository.createProcessWithWorkspace(
+      processWorkspaceBundleV1(
+        "process.translation-acquire-query",
+        "program.translation-acquire-query",
+      ),
+    );
+    const processId = "process.translation-acquire-query";
+    const input = {
+      expectedProjectRevision: null,
+      execution: {
+        ownerInstanceId: "owner.translation-acquire-query",
+        observedAt: 3,
+        expiresAt: 1_000,
+        attempt: {
+          processId,
+          expectedProcessRevision: 2,
+          expectedTranscriptFrontier: 1,
+          commitId: "commit.translation-acquire-query",
+          attemptId: "attempt.translation-acquire-query",
+          generation: 1,
+          trigger: {
+            kind: "new_entry" as const,
+            entry: entryV1({ processId, sequence: 2, role: "user" }),
+          },
+          startingCheckpoint: {
+            checkpointId: "process.checkpoint.translation-acquire-query.2",
+            throughSequence: 2,
+            workspaceId: `workspace.${processId}`,
+            workspaceCheckpointId: `workspace.checkpoint.${processId}.1`,
+            workspaceGeneration: 1,
+          },
+          updatedAt: 3,
+        },
+      },
+    };
+    expect(
+      admitProgramDataRepositoryWorkerRequestEnvelopeV1({
+        revision: 1,
+        kind: "rpc_request",
+        requestId: "request.translation-acquire-query.invalid",
+        record: {
+          method: "acquire_translation_project_import_execution",
+          input: { ...input, expectedProjectRevision: 0 },
+        },
+      }).kind,
+    ).toBe("rejected");
+    await expect(repository.acquireTranslationProjectImportExecution(input)).rejects.toMatchObject({
+      code: "outcome_unknown",
+      operation: "acquire_translation_project_import_execution",
+    });
+    expect(firstLoopback.worker.terminated).toBe(true);
+    expect(
+      await repository.queryProcessOperation({
+        operation: "translation_project_execution_acquire",
+        input,
+      }),
+    ).toMatchObject({
+      kind: "committed",
+      receipt: {
+        operation: "translation_project_execution_acquire",
+        attemptId: input.execution.attempt.attemptId,
+      },
+    });
+    expect(
+      await repository.queryProcessOperation({
+        operation: "translation_project_execution_acquire",
+        input: { ...input, expectedProjectRevision: 1 },
+      }),
+    ).toMatchObject({ kind: "mismatch" });
+    expect(await repository.loadProcessExecutionLease(processId)).toMatchObject({
+      ownerInstanceId: input.execution.ownerInstanceId,
+      attemptId: input.execution.attempt.attemptId,
+    });
+    expect(
+      await repository.acquireTranslationProjectImportExecution({
+        ...input,
+        execution: {
+          ...input.execution,
+          ownerInstanceId: "owner.translation-acquire-query.competing",
+          attempt: {
+            ...input.execution.attempt,
+            commitId: "commit.translation-acquire-query.competing",
+            attemptId: "attempt.translation-acquire-query.competing",
+          },
+        },
+      }),
+    ).toMatchObject({
+      kind: "conflict",
+      currentProject: null,
+      currentLease: { attemptId: input.execution.attempt.attemptId },
+    });
+    await repository.dispose();
+  });
+
   it("fences a delivered composite and exact-replays both authorities through a new Worker", async () => {
     const indexedDB = new IDBFactory();
     const firstLoopback = createLoopbackWorkerV1({
@@ -1489,6 +1667,261 @@ describe("Program data repository Worker boundary", () => {
       workspace: bundle.workspace,
     });
     await second.dispose();
+  });
+
+  it("round-trips Translation Project paging and receipt reconciliation through the Worker", async () => {
+    const indexedDB = new IDBFactory();
+    const physical = createTestProgramDataRepositoryV1({ indexedDB });
+    const loopback = createLoopbackWorkerV1({
+      repository: physical,
+      throwResponse: (message) =>
+        message.record.method ===
+          "commit_translation_project_finalize_with_process_execution_terminal",
+    });
+    const repository = createBrowserProgramDataRepositoryV1({
+      createWorker: () => loopback.worker,
+    });
+    await repository.initialize();
+    await repository.publishProgramDefinitionRevision(
+      createBuiltinCreatorProgramDefinitionRevisionV1(),
+    );
+    expect(
+      await repository.createProgramWithProcess(
+        createBundleV1("program.translation.worker", "process.creator.translation.worker"),
+      ),
+    ).toMatchObject({ kind: "committed" });
+    expect(await repository.publishProgramDefinitionRevision(translationDefinitionV1()))
+      .toMatchObject({ kind: "committed" });
+    expect(
+      await repository.createProcessWithWorkspace(
+        processWorkspaceBundleV1("process.translation.worker", "program.translation.worker"),
+      ),
+    ).toMatchObject({ kind: "committed" });
+    const lease = await acquireTranslationLeaseV1(repository, "process.translation.worker");
+    const begin = {
+      processId: "process.translation.worker",
+      operationId: "translation.begin.worker",
+      lease,
+      projectId: "translation.project.worker",
+      title: "Worker translation",
+      document: {
+        format: "plain_text" as const,
+        capabilityGrade: "round_trip_supported" as const,
+        capabilityReason: "known_format" as const,
+      },
+      source: {
+        fileName: "worker.txt",
+        mediaType: "text/plain",
+        workspacePath: "input/worker.txt",
+        byteLength: 7,
+        sha256: "a".repeat(64),
+      },
+      sourceBinding: translationSourceBindingV1(
+        "process.translation.worker",
+        "input/worker.txt",
+      ),
+      sourceLocale: "ja",
+      targetLocale: "zh-Hans",
+      documentPurpose: "test",
+      style: "faithful",
+      expectedUnitCount: 2,
+      expectedGlossaryCount: 2,
+      updatedAt: 3,
+    };
+    const { lease: _omittedLease, ...beginWithoutLease } = begin;
+    expect(
+      admitProgramDataRepositoryWorkerRequestEnvelopeV1({
+        revision: 1,
+        kind: "rpc_request",
+        requestId: "request.translation-begin-without-lease",
+        record: {
+          method: "begin_translation_project_import",
+          input: beginWithoutLease,
+        },
+      }).kind,
+    ).toBe("rejected");
+    expect(await repository.beginTranslationProjectImport(begin)).toMatchObject({
+      kind: "committed",
+      head: { revision: 1 },
+    });
+    expect(
+      await repository.appendTranslationProjectImport({
+        processId: begin.processId,
+        operationId: "translation.append.worker",
+        lease,
+        expectedProjectRevision: 1,
+        units: [0, 1].map((order) => ({
+          unitId: `unit.worker.${String(order)}`,
+          order,
+          locator: `line:${String(order + 1)}`,
+          context: null,
+          durationMilliseconds: null,
+          source: `Source ${String(order)}`,
+          protectedSegments: [],
+        })),
+        glossaryEntries: [0, 1].map((order) => ({
+          entryId: `glossary.worker.${String(order)}`,
+          order,
+          source: `Source ${String(order)}`,
+          target: `译文 ${String(order)}`,
+          note: null,
+          locked: true,
+        })),
+        updatedAt: 4,
+      }),
+    ).toMatchObject({
+      kind: "committed",
+      head: { revision: 2, stagedUnitCount: 2, stagedGlossaryCount: 2 },
+    });
+    expect(
+      await repository.loadTranslationProjectUnitPage({
+        processId: begin.processId,
+        expectedProjectRevision: 2,
+        fromOrder: 0,
+        maximumRows: 1,
+        maximumBytes: 4_096,
+      }),
+    ).toMatchObject({
+      kind: "page",
+      page: { rows: [{ unitId: "unit.worker.0" }], nextOrder: 1 },
+    });
+    expect(
+      admitProgramDataRepositoryWorkerRequestEnvelopeV1({
+        revision: 1,
+        kind: "rpc_request",
+        requestId: "request.translation-page-without-row-window",
+        record: {
+          method: "load_translation_project_unit_page",
+          input: {
+            processId: begin.processId,
+            expectedProjectRevision: 2,
+            fromOrder: 0,
+            maximumBytes: 4_096,
+          },
+        },
+      }).kind,
+    ).toBe("rejected");
+    expect(
+      await repository.loadTranslationProjectGlossaryPage({
+        processId: begin.processId,
+        expectedProjectRevision: 2,
+        fromOrder: 0,
+        maximumRows: 1,
+        maximumBytes: 4_096,
+      }),
+    ).toMatchObject({
+      kind: "page",
+      page: { rows: [{ entryId: "glossary.worker.0" }], nextOrder: 1 },
+    });
+    expect(await repository.queryTranslationProjectOperation({ operation: "begin", input: begin }))
+      .toMatchObject({ kind: "committed", receipt: { projectRevision: 1 } });
+    const terminalEntry = entryV1({ processId: begin.processId, sequence: 3, role: "system" });
+    const finalizeBundle: TranslationProjectFinalizeExecutionBundleInputV1 = {
+      project: {
+        processId: begin.processId,
+        operationId: "translation.finalize.worker",
+        lease,
+        expectedProjectRevision: 2,
+        sourceBinding: begin.sourceBinding,
+        updatedAt: 5,
+      },
+      terminal: {
+        lease,
+        observedAt: 5,
+        transcript: {
+          processId: begin.processId,
+          expectedProcessRevision: 3,
+          expectedTranscriptFrontier: 2,
+          commitId: "translation.terminal.worker",
+          attemptBinding: { attemptId: lease.attemptId, generation: lease.generation },
+          entries: [terminalEntry],
+          checkpoint: {
+            checkpointId: "process.checkpoint.translation.worker.3",
+            throughSequence: 3,
+            workspaceId: begin.sourceBinding.workspaceId,
+            workspaceCheckpointId: begin.sourceBinding.checkpointId,
+            workspaceGeneration: begin.sourceBinding.generation,
+          },
+          terminalAttemptReceipt: {
+            schemaVersion: 1,
+            processId: begin.processId,
+            attemptId: lease.attemptId,
+            generation: lease.generation,
+            outcome: "completed",
+            terminalSequence: 3,
+            terminalEntryId: terminalEntry.entryId,
+            interruptionDisposition: null,
+          },
+          updatedAt: 5,
+        },
+      },
+    };
+    expect(
+      admitProgramDataRepositoryWorkerRequestEnvelopeV1({
+        revision: 1,
+        kind: "rpc_request",
+        requestId: "request.translation-finalize-time-mismatch",
+        record: {
+          method: "commit_translation_project_finalize_with_process_execution_terminal",
+          input: {
+            ...finalizeBundle,
+            project: { ...finalizeBundle.project, updatedAt: 4 },
+          },
+        },
+      }).kind,
+    ).toBe("rejected");
+    const admittedFinalize = admitProgramDataRepositoryWorkerRequestEnvelopeV1({
+      revision: 1,
+      kind: "rpc_request",
+      requestId: "request.translation-finalize",
+      record: {
+        method: "commit_translation_project_finalize_with_process_execution_terminal",
+        input: finalizeBundle,
+      },
+    });
+    normalizeTranslationProjectFinalizeExecutionBundleInputV1(finalizeBundle);
+    if (admittedFinalize.kind === "rejected") throw new Error(admittedFinalize.path);
+    await expect(
+      repository.commitTranslationProjectFinalizeWithProcessExecutionTerminal(finalizeBundle),
+    ).rejects.toMatchObject({
+      code: "outcome_unknown",
+      operation: "commit_translation_project_finalize_with_process_execution_terminal",
+    });
+    expect(loopback.worker.terminated).toBe(true);
+
+    const reopenedLoopback = createLoopbackWorkerV1({
+      repository: createTestProgramDataRepositoryV1({ indexedDB }),
+    });
+    const reopened = createBrowserProgramDataRepositoryV1({
+      createWorker: () => reopenedLoopback.worker,
+    });
+    expect(
+      await reopened.queryTranslationProjectOperation({
+        operation: "finalize",
+        input: finalizeBundle.project,
+      }),
+    ).toMatchObject({
+      kind: "committed",
+      receipt: { operation: "finalize", projectRevision: 3 },
+    });
+    expect(await reopened.loadTranslationProjectHead(begin.processId)).toMatchObject({
+      revision: 3,
+      phase: "ready",
+    });
+    expect(await reopened.loadProcess(begin.processId)).toMatchObject({
+      revision: 4,
+      activeAttempt: null,
+      lastTerminalAttempt: { outcome: "completed" },
+    });
+    expect(
+      await reopened.commitTranslationProjectFinalizeWithProcessExecutionTerminal(finalizeBundle),
+    ).toMatchObject({
+      kind: "unchanged",
+      head: { revision: 3, phase: "ready" },
+      processOperationReceipt: { operation: "execution_terminal" },
+    });
+    await reopened.dispose();
+    await loopback.runtime.dispose();
   });
 
   it("waits for asynchronous repository disposal before acknowledging Browser disposal", async () => {

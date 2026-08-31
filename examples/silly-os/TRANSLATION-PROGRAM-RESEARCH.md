@@ -2,9 +2,11 @@
 
 Status: **P5-A completed on 2026-08-31; prompt revisions 4 and 5 have recorded
 model-protocol evidence, including a revision-5 confirmed-plan ablation. The
-first formal P5-B UI/domain foundation is implemented, while the ordinary
-Translation Process route, durable import-to-export workflow, real Agent batch
-loop, and P5-B through P5-D qualification remain incomplete**.
+first formal P5-B route/storage foundation is implemented: an ordinary
+Translation Process, Process-owned Workspace source import, durable V11 Project
+head and pageable rows, cold reopen, and lazy born-digital PDF text projection.
+The real Agent batch/commit/review/export workflow, OpenUI, and P5-B through
+P5-D qualification remain incomplete**.
 
 This plan activates the first real Program study described by
 [PLAN.md](./PLAN.md#p5--translation-program). It asks whether SillyOS can carry
@@ -55,14 +57,46 @@ foundations:
   indeterminate. Elapsed time, cancellation, and expansion are supported, but
   the UI invents no completion percentage or ETA;
 - a Translation workbench with import and language inputs, workflow stages,
-  exact committed-unit progress, a virtualized unit list, and an editable target
-  detail path on desktop and mobile. The 10,000-unit contract proves that only
-  the visible row window enters the DOM; it does not claim repository paging or
-  that a complete 10,000-unit aggregate is cheap to move through a Worker;
-- an admitted in-memory `TranslationProjectV1` domain shape with a human-facing
-  title, immutable source/unit structure, glossary, target and committed-batch
-  bindings, materialized O(1) progress, and bounded row-window projection. It
-  intentionally has no arbitrary project-size or unit-count ceiling;
+  a virtualized unit list, and a target-detail/editor presentation on desktop
+  and mobile. Durable target save/mutation is disabled and committed counters
+  remain zero until the future candidate-commit loop. The 10,000-unit contract proves that only
+  the visible row window enters the DOM. The later V11 repository slice now
+  stores one compact Project head plus separately pageable unit and glossary
+  rows; the UI paging source asks only for the visible bounded row window and
+  does not move a complete aggregate through the Worker;
+- an ordinary Translation Process route and controller. It publishes the
+  built-in `sillyos.builtin.translation` Definition at revision 1, opens only an accepted Translation
+  subject, creates one Process with its own Workspace and initial transcript,
+  and cold-reopens the exact Process/Workspace binding without pre-acquiring an
+  idle Workspace. Removing a subject from the current catalog does not erase an
+  existing Process: it remains explicitly reopenable by `processId` at the
+  controller boundary, although Home does not yet discover orphan Processes.
+  Source import acquires the shared Process execution lease only after parsing,
+  in the same IndexedDB transaction that verifies the Project is still absent
+  or at the caller's exact staging revision;
+  the Workspace write, Project begin, each byte-bounded append, and finalize all
+  verify its exact attempt and fencing generation. The long Workspace write has
+  an operation-scoped foreground renewal loop; later persistence cuts renew only
+  near expiry. Browser suspension can still stop renewal, so correctness remains
+  generation-fenced rather than claiming background execution. Project
+  finalization and the completed Process terminal/checkpoint share one
+  IndexedDB transaction, so a ready Project cannot coexist with a failed or
+  uncheckpointed import attempt. An expired unfinished import is retained as
+  explicitly unrecoverable for direct review, while a later Home start creates
+  a fresh Process instead of reopening that terminal Process;
+- a V11 Translation Project authority with a human-facing title, immutable
+  source identity, compact progress counts, exact operation receipts, and
+  pageable unit/glossary rows without an arbitrary total-row ceiling. Import
+  admits File or bytes, computes the raw SHA-256, stores a canonical relative
+  source path, imports the original through the same Browser Workspace
+  Authority, and binds the resulting checkpoint before publishing the ready
+  Project head;
+- the four round-trip text formats plus a lazy born-digital PDF text-only path.
+  PDF yields a truthful `pdf_text_reflow` projection and retains the original
+  PDF bytes. Any per-page extraction diagnostic rejects the complete import
+  because this slice has no durable partial-document review state. It does not
+  claim OCR, layout-preserving translation, password UI, PDF rewriting, or PDF
+  round-trip export;
 - a batch-order correction for Project subsets: unit order remains global and
   contiguous across the complete Project, so a later batch may correctly begin
   at a non-zero `order` while still being checked against the authoritative
@@ -70,16 +104,18 @@ foundations:
 - a real fixed QuickJS 0.32 harness test for ordinary regular expressions,
   Unicode property escapes, lookbehind, and named capture groups. This proves
   the fixed SillyOS `qjs` environment can support those mechanics. It does not
-  authorize `qjs`, `bash`, or Workspace access for Translation: the intended
-  Translation Definition currently advertises no capabilities, is not published
-  by Creator bootstrap, and no Translation Process execution profile exists.
+  authorize `qjs`, `bash`, or Agent Workspace tools for Translation: the
+  published Translation Definition advertises no capabilities and no
+  Translation Agent execution profile exists.
 
-The slice does **not** deliver the ordinary route or a Translation-owned Process
-controller; durable source-artifact ownership, format-adapter and export
-bindings; Worker/repository project paging; a real Agent batching, commit,
-interruption, resume, or review loop; OpenUI production or rendering; Python;
-or CodeAct. The current UI/domain foundation is therefore an implementation
-input to P5-B and P5-C, not evidence that either stage has closed.
+The slice does **not** deliver a real Agent batching, candidate commit,
+interruption/resume, structured Review, QA, or export loop; target-row mutation;
+OpenUI production or rendering; Python; or CodeAct. The ordinary route and
+durable import substrate are therefore implementation inputs to P5-B and P5-C,
+not evidence that either stage has closed. The mounted workbench now connects
+guided source import and bounded Project row paging to those controller
+operations, but remains an import-and-browse foundation rather than a qualified
+end-user import-to-export journey.
 
 ## Clean-room reference boundary
 
@@ -642,10 +678,11 @@ timeout field is a requested setting rather than a proven wall-clock ceiling.
 The corresponding P5-A deterministic floor is the checked-in original corpus,
 format adapters, strict batch admission, export/reopen oracles, secret-safe
 research runner, and focused tests. It closed only that deterministic research
-stage. The Process-owned Workspace binding, exact Host import, and build-known
-Browser Translation dispatch delivered beside it are deliberately unconsumed
-substrate for the next product slice; they do not close P5-B or P5-C and are not
-an ordinary Translation Program journey.
+stage. The subsequent formal slice now consumes the Process-owned Workspace
+binding, exact Host import, Browser Translation dispatch, V11 Project head and
+pageable rows for a real Translation Process route and cold reopen. It still
+does not close P5-B or P5-C because no real Agent batch/commit/review/export
+journey consumes those records.
 
 ## Follow-up evidence — prompt revision 5 and confirmed plan
 
@@ -807,14 +844,18 @@ Program design:
   Worker, copies the input bytes, emits stable text units plus a separate source
   map, and truthfully labels the result `pdf_text_reflow`. It does not deliver
   OCR, password UI, layout-preserving PDF translation, or PDF round-trip output.
-  The formal SillyOS production graph contains neither the lazy PDF core nor its
-  Worker until a future product journey selects that adapter.
+  The formal Translation controller now selects this adapter only for a PDF
+  import, so PDF.js and its Worker remain outside the initial application chunk
+  and are not fetched or executed until a PDF import. Formal import currently
+  consumes the text units only; source-map persistence and Review highlighting
+  are not delivered.
 
-These experiments are sufficient to begin the formal P5-B Program slice. They
-do not themselves ship a Translation Process, settings UI, PDF upload journey,
-structured Review workbench, committed-batch resume, or final exporter. P5-B
-should first promote the package as one product-owned Translation Program and
-wire Intake, confirmed planning/meaning facts, one bounded batch, structured
-human Review, deterministic commit, and resume. A generic workflow engine,
-Program SDK, OCR pipeline, or generated-UI vocabulary remains outside that
-first product slice.
+These experiments plus the route/storage slice are sufficient to continue the
+formal P5-B Program work. They now ship a Translation Process route, durable
+source import and PDF text-only projection, but not the Agent workflow,
+settings application, structured Review workbench, target commits, interruption
+resume, or final exporter. P5-B should next connect Intake, confirmed
+planning/meaning facts, one bounded Agent batch, structured human Review,
+deterministic candidate commit, and resume. A generic workflow engine, Program
+SDK, OCR pipeline, or generated-UI vocabulary remains outside that first
+product slice.

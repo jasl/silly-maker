@@ -2156,8 +2156,9 @@ semantics, explicit Browser storage state, the automated dual-engine
 manifest and VFS files. P3c-B1 now publishes one exact reviewed head as an
 immutable accepted snapshot, keeps later mutable drafts independent, and shows
 accepted/reviewed/current identity without making React a byte owner. The
-product still has no persistent Pi session, import/restore, user-facing
-accepted-snapshot download, Python guest, or broader execution profile. S3-R1's
+product still has no persistent Pi session, general Workspace archive
+import/restore, user-facing accepted-snapshot download, Python guest, or broader
+execution profile. S3-R1's
 durable-by-default credential semantics, independent Vault Settings IA,
 Provider/model/Test separation, and first-install checked-model recommendation
 seeds are closed and carried by the current deployment. S1a-1
@@ -4783,9 +4784,10 @@ reference boundary, dual-model matrix, and staged gates live in
 recorded model-protocol evidence through both named routes. A cohesive
 research-only package now also proves one fixed QuickJS script, optional
 best-effort settings with complete defaults, a closed Creator blueprint, and a
-lazy born-digital PDF text adapter. This activation does not product-qualify
-either route or claim a complete Pi capability composition, shipped CodeAct
-workflow, formal Program SDK, OCR pipeline, or OpenUI mapping.
+lazy born-digital PDF text adapter that the formal Translation import path now
+selects on demand. This activation does not product-qualify either route or
+claim a complete Pi capability composition, shipped CodeAct workflow, formal
+Program SDK, OCR pipeline, PDF round-trip exporter, or OpenUI mapping.
 
 Generalize only after Pi, storage, and the P3 tool are real consumers. A reviewed
 Program Definition revision durably identifies immutable declarative content
@@ -4874,26 +4876,53 @@ The first formal P5-B UI/domain foundation is now implemented: a SillyOS-owned
 Program UI Container switches guided “Simple” and Conversation presentation for
 the same Process; a bounded run strip projects the latest one to three activity
 lines and truthful mechanical/indeterminate progress; the Translation workbench
-uses a virtualized unit list with a mobile edit path; and the admitted in-memory
-Translation Project carries a human-facing title, stable units, glossary,
-committed-batch bindings, O(1) progress, and row windows without an arbitrary
-project-unit ceiling. The 10,000-unit evidence bounds the rendered DOM only; it
-does not provide Worker or Repository paging. Project-subset batch admission now
-preserves global contiguous unit order, including second and later batches that
-start above zero.
+uses a virtualized unit list with desktop/mobile target-detail presentation,
+while durable target save/mutation remains disabled; and the ordinary
+Translation route owns a real `sillyos.builtin.translation` revision 1 Process
+controller. That
+controller creates or cold-reopens the exact Process and its independent
+Workspace without pre-acquiring an idle Workspace. Existing Processes remain
+explicitly reopenable by `processId` at the controller boundary if their subject
+later disappears from the current catalog; Home does not yet discover those
+orphan Processes. Source import reuses the existing Process execution lease;
+lease acquisition and the expected absent/exact-staging Project revision are
+one IndexedDB admission, so a stale tab cannot begin a successor attempt after
+another tab has already finalized the Project. After admission,
+the Workspace write, Project begin, each bounded append, and finalize all fence
+on its exact attempt/generation. The Workspace write owns an operation-scoped
+foreground renewal loop; subsequent persistence cuts renew only near expiry,
+without claiming progress through browser suspension. Ready Project publication
+and its completed Process terminal/checkpoint are one IndexedDB transaction.
+Cold open terminalizes an expired unfinished import as explicitly unrecoverable
+for direct review; ordinary Home selection skips that terminal Process and
+creates a fresh one instead of leaving the Program permanently blocked.
+
+Physical Product Repository V11 now stores a compact Translation Project head,
+exact import-operation receipts, and separately pageable unit/glossary rows.
+The UI paging source requests only bounded visible row windows; the 10,000-unit
+evidence no longer depends on moving one in-memory Project aggregate through the
+Worker. Source import computes the raw SHA-256, uses a canonical relative path,
+and imports the original bytes through the same Browser Workspace Authority
+before binding its exact checkpoint to the Project. TXT, Markdown, SRT, and the
+closed Translation JSON format retain their deterministic round-trip adapters.
+Born-digital PDF is a lazy text-only `pdf_text_reflow` projection; it retains
+the original PDF but provides no OCR, layout-preserving rewrite, password UI,
+or PDF round-trip output. Project-subset batch admission continues to preserve
+global contiguous order for second and later pages.
 
 The fixed QuickJS 0.32 harness separately passes real regular-expression
 coverage for ordinary expressions, Unicode property escapes, lookbehind, and
 named captures. Translation has not selected that capability: its intended
-Definition currently advertises no tools, is not published by Creator bootstrap,
-and no Translation Process profile authorizes Workspace, `bash`, or `qjs`.
+Definition currently advertises no tools, and no Translation Agent profile
+authorizes Workspace tools, `bash`, or `qjs`.
 
-P5-B through P5-D remain incomplete. There is no ordinary Translation route or
-Translation-owned Process controller, durable source-artifact plus format-
-adapter/export binding, Worker/Repository project paging, real Agent batch loop
-with commit/resume, OpenUI renderer, Python, or CodeAct path. Process-owned
-Workspace, Host import, and Browser Translation dispatch remain explicitly
-unconsumed substrate rather than a qualified import-to-export journey. See
+P5-B through P5-D remain incomplete. The route, original-source import, Project
+head/paging, cold reopen, and PDF text projection are storage and presentation
+foundations—not a completed workflow. There is still no real Translation Agent
+batch loop, target candidate commit, interruption/resume, structured human
+Review/QA, final format-preserving exporter, OpenUI renderer, Python, or CodeAct
+path. The guided workbench now consumes the controller import and bounded
+pageable Project source, but this only forms an import-and-browse journey. See
 [TRANSLATION-PROGRAM-RESEARCH.md](./TRANSLATION-PROGRAM-RESEARCH.md).
 
 Make translation the first complete product consumer. Its denominator is one

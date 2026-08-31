@@ -7,10 +7,9 @@ export const builtinTranslationProgramIdV1 = "sillyos.builtin.translation" as co
 export const translationProgramHarnessReferenceV1 = "sillyos.harness.translation@1" as const;
 
 /**
- * Intended build-known Translation definition. It is not published during
- * Creator bootstrap: an ordinary Translation Process must first freeze the
- * profile and compatibility behavior. Tool capabilities therefore belong to a
- * later selected definition rather than being advertised here prematurely.
+ * Build-known Translation definition published by the Translation Process
+ * controller. Capability IDs remain empty until the Agent execution lane owns
+ * and proves its concrete harness surface.
  */
 export function createBuiltinTranslationProgramDefinitionRevisionV1(): ProgramDefinitionRevisionV1 {
   return {

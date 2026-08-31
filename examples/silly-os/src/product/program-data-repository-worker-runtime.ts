@@ -160,6 +160,13 @@ async function executeRequestV1(
       value: await repository.acquireProcessExecution(request.input),
     };
   }
+  if (method === "acquire_translation_project_import_execution") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.acquireTranslationProjectImportExecution(request.input),
+    };
+  }
   if (method === "renew_process_execution_lease") {
     return {
       kind: "success",
@@ -195,11 +202,62 @@ async function executeRequestV1(
       value: await repository.commitProgramRevisionWithProcessExecutionTerminal(request.input),
     };
   }
+  if (method === "commit_translation_project_finalize_with_process_execution_terminal") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.commitTranslationProjectFinalizeWithProcessExecutionTerminal(
+        request.input,
+      ),
+    };
+  }
   if (method === "query_process_operation") {
     return {
       kind: "success",
       method,
       value: await repository.queryProcessOperation(request.input),
+    };
+  }
+  if (method === "begin_translation_project_import") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.beginTranslationProjectImport(request.input),
+    };
+  }
+  if (method === "append_translation_project_import") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.appendTranslationProjectImport(request.input),
+    };
+  }
+  if (method === "load_translation_project_head") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.loadTranslationProjectHead(request.processId),
+    };
+  }
+  if (method === "load_translation_project_unit_page") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.loadTranslationProjectUnitPage(request.input),
+    };
+  }
+  if (method === "load_translation_project_glossary_page") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.loadTranslationProjectGlossaryPage(request.input),
+    };
+  }
+  if (method === "query_translation_project_operation") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.queryTranslationProjectOperation(request.input),
     };
   }
   if (method === "load_transcript_page") {

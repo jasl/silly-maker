@@ -5,9 +5,14 @@ export type TranslationDocumentFormatV1 =
   | "markdown"
   | "subrip"
   | "sillyos_translation_json"
+  /** Born-digital text projection only; no OCR or PDF round-trip exporter. */
+  | "pdf_text_reflow"
   | "unknown";
 
-type KnownTranslationDocumentFormatV1 = Exclude<TranslationDocumentFormatV1, "unknown">;
+type KnownTranslationDocumentFormatV1 = Exclude<
+  TranslationDocumentFormatV1,
+  "unknown" | "pdf_text_reflow"
+>;
 
 export type TranslationCapabilityGradeV1 =
   /** A declared format parsed and owns a deterministic structural exporter. */
@@ -21,6 +26,7 @@ export type TranslationCapabilityGradeV1 =
 
 export type TranslationCapabilityReasonV1 =
   | "known_format"
+  | "born_digital_pdf_text"
   | "format_not_declared"
   | "format_hints_conflict"
   | "malformed_markdown"

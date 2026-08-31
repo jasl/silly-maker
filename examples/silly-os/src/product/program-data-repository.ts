@@ -28,6 +28,7 @@ import type {
   ProgramNetworkAccessV1,
 } from "./program-network-access.ts";
 import {
+  normalizeProcessExecutionAcquireInputV1,
   normalizeProcessExecutionCompletedTerminalInputV1,
   type ProcessExecutionAcquireInputV1,
   type ProcessExecutionAcquireResultV1,
@@ -40,6 +41,13 @@ import {
   type ProcessOperationReceiptQueryResultV1,
   type ProcessOperationReceiptV1,
 } from "./process-execution-repository.ts";
+import {
+  normalizeTranslationProjectFinalizeImportInputV1,
+  type TranslationProjectFinalizeImportInputV1,
+  type TranslationProjectHeadV1,
+  type TranslationProjectOperationReceiptV1,
+  type TranslationProjectRepositoryV1,
+} from "./translation/translation-project-repository.ts";
 
 /**
  * The one product-side persistence boundary. Catalog, Process, transcript,
@@ -67,6 +75,15 @@ export interface ProgramDataRepositoryV1 extends
     | "loadProcess"
     | "listProcessSummaries"
     | "loadTranscriptPage"
+  >,
+  Pick<
+    TranslationProjectRepositoryV1,
+    | "beginTranslationProjectImport"
+    | "appendTranslationProjectImport"
+    | "loadTranslationProjectHead"
+    | "loadTranslationProjectUnitPage"
+    | "loadTranslationProjectGlossaryPage"
+    | "queryTranslationProjectOperation"
   > {
   /**
    * Narrow product transaction for the first durable Program and its Creator
@@ -96,6 +113,13 @@ export interface ProgramDataRepositoryV1 extends
   acquireProcessExecution(
     input: ProcessExecutionAcquireInputV1,
   ): Promise<ProcessExecutionAcquireResultV1>;
+  /**
+   * Atomically acquires one Translation import attempt only while the Project
+   * is still absent or at the exact staging revision observed by the caller.
+   */
+  acquireTranslationProjectImportExecution(
+    input: TranslationProjectImportExecutionAcquireInputV1,
+  ): Promise<TranslationProjectImportExecutionAcquireResultV1>;
   renewProcessExecutionLease(
     input: ProcessExecutionLeaseRenewInputV1,
   ): Promise<ProcessExecutionLeaseMutationResultV1>;
@@ -109,6 +133,13 @@ export interface ProgramDataRepositoryV1 extends
   commitProgramRevisionWithProcessExecutionTerminal(
     input: ProgramProcessExecutionRevisionBundleInputV1,
   ): Promise<ProgramProcessExecutionCompositeCommitResultV1>;
+  /**
+   * Atomically publishes a ready Translation Project and the completed
+   * terminal of the exact Process attempt that imported it.
+   */
+  commitTranslationProjectFinalizeWithProcessExecutionTerminal(
+    input: TranslationProjectFinalizeExecutionBundleInputV1,
+  ): Promise<TranslationProjectFinalizeExecutionCompositeCommitResultV1>;
   queryProcessOperation(
     expectation: ProgramDataProcessOperationExpectationV1,
   ): Promise<ProcessOperationReceiptQueryResultV1>;
@@ -154,8 +185,32 @@ export interface ProgramProcessExecutionRevisionBundleInputV1
   readonly catalog: ProgramCatalogApplyRevisionInputV1;
 }
 
+export interface TranslationProjectFinalizeExecutionBundleInputV1 {
+  readonly project: TranslationProjectFinalizeImportInputV1;
+  readonly terminal: ProcessExecutionTerminalInputV1;
+}
+
+export interface TranslationProjectImportExecutionAcquireInputV1 {
+  /** `null` means that no Project head may exist yet. */
+  readonly expectedProjectRevision: number | null;
+  readonly execution: ProcessExecutionAcquireInputV1;
+}
+
+export type TranslationProjectImportExecutionAcquireResultV1 =
+  | Exclude<ProcessExecutionAcquireResultV1, { readonly kind: "conflict" }>
+  | {
+    readonly kind: "conflict";
+    readonly currentProject: TranslationProjectHeadV1 | null;
+    readonly currentProcess: ProcessHeadV1 | null;
+    readonly currentLease: ProcessExecutionLeaseV1 | null;
+  };
+
 export type ProgramDataProcessOperationExpectationV1 =
   | { readonly operation: "execution_acquire"; readonly input: ProcessExecutionAcquireInputV1 }
+  | {
+    readonly operation: "translation_project_execution_acquire";
+    readonly input: TranslationProjectImportExecutionAcquireInputV1;
+  }
   | { readonly operation: "execution_terminal"; readonly input: ProcessExecutionTerminalInputV1 }
   | {
     readonly operation: "program_revision_terminal";
@@ -278,6 +333,45 @@ export function normalizeProgramProcessExecutionRevisionBundleInputV1(
   return { ...terminal, catalog };
 }
 
+export function normalizeTranslationProjectFinalizeExecutionBundleInputV1(
+  value: TranslationProjectFinalizeExecutionBundleInputV1,
+): TranslationProjectFinalizeExecutionBundleInputV1 {
+  const project = normalizeTranslationProjectFinalizeImportInputV1(value.project);
+  const terminal = normalizeProcessExecutionCompletedTerminalInputV1(value.terminal);
+  const checkpoint = terminal.transcript.checkpoint;
+  if (
+    project.processId !== terminal.transcript.processId ||
+    project.updatedAt !== terminal.observedAt || checkpoint === null ||
+    checkpoint.workspaceId !== project.sourceBinding.workspaceId ||
+    checkpoint.workspaceCheckpointId !== project.sourceBinding.checkpointId ||
+    checkpoint.workspaceGeneration !== project.sourceBinding.generation ||
+    project.lease.processId !== terminal.lease.processId ||
+    project.lease.ownerInstanceId !== terminal.lease.ownerInstanceId ||
+    project.lease.attemptId !== terminal.lease.attemptId ||
+    project.lease.generation !== terminal.lease.generation ||
+    project.lease.expiresAt !== terminal.lease.expiresAt
+  ) throw new TypeError("invalid Translation Project/Process execution terminal bundle");
+  return { project, terminal };
+}
+
+export function normalizeTranslationProjectImportExecutionAcquireInputV1(
+  value: TranslationProjectImportExecutionAcquireInputV1,
+): TranslationProjectImportExecutionAcquireInputV1 {
+  if (
+    value === null || typeof value !== "object" || Array.isArray(value) ||
+    Reflect.ownKeys(value).length !== 2 ||
+    !Reflect.ownKeys(value).every((key) =>
+      typeof key === "string" && ["expectedProjectRevision", "execution"].includes(key)
+    ) ||
+    (value.expectedProjectRevision !== null &&
+      (!Number.isSafeInteger(value.expectedProjectRevision) || value.expectedProjectRevision < 1))
+  ) throw new TypeError("invalid Translation Project execution acquire input");
+  return {
+    expectedProjectRevision: value.expectedProjectRevision,
+    execution: normalizeProcessExecutionAcquireInputV1(value.execution),
+  };
+}
+
 export type ProgramProcessCompositeCommitResultV1 =
   | {
     readonly kind: "committed" | "unchanged";
@@ -316,6 +410,22 @@ export type ProgramProcessExecutionCompositeCommitResultV1 =
   | {
     readonly kind: "program_definition_missing";
     readonly programDefinition: ProgramDefinitionReferenceV1;
+  };
+
+export type TranslationProjectFinalizeExecutionCompositeCommitResultV1 =
+  | {
+    readonly kind: "committed" | "unchanged";
+    readonly head: TranslationProjectHeadV1;
+    readonly projectOperationReceipt: TranslationProjectOperationReceiptV1;
+    readonly process: ProcessHeadV1;
+    readonly entries: readonly TranscriptEntryV1[];
+    readonly processOperationReceipt: ProcessOperationReceiptV1;
+  }
+  | {
+    readonly kind: "conflict";
+    readonly currentProject: TranslationProjectHeadV1 | null;
+    readonly currentProcess: ProcessHeadV1 | null;
+    readonly currentLease: ProcessExecutionLeaseV1 | null;
   };
 
 export type ProcessWorkspaceCreateCompositeCommitResultV1 =
@@ -368,12 +478,20 @@ export type ProgramDataRepositoryOperationV1 =
   | "begin_process_attempt"
   | "append_process_transcript"
   | "acquire_process_execution"
+  | "acquire_translation_project_import_execution"
   | "renew_process_execution_lease"
   | "release_process_execution_lease"
   | "load_process_execution_lease"
   | "commit_process_execution_terminal"
   | "commit_program_revision_with_process_execution_terminal"
+  | "commit_translation_project_finalize_with_process_execution_terminal"
   | "query_process_operation"
+  | "begin_translation_project_import"
+  | "append_translation_project_import"
+  | "load_translation_project_head"
+  | "load_translation_project_unit_page"
+  | "load_translation_project_glossary_page"
+  | "query_translation_project_operation"
   | "load_transcript_page"
   | "load_program_network_access"
   | "set_program_network_access"

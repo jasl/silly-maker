@@ -39,7 +39,8 @@ export interface SillyOsCopyV1 {
   readonly programsUnavailable: string;
   readonly loadMorePrograms: string;
   readonly loadingMorePrograms: string;
-  readonly openProgram: string;
+  readonly runProgram: string;
+  readonly editProgram: string;
   readonly openingProgram: string;
   readonly savingProgram: string;
   readonly retry: string;
@@ -323,7 +324,8 @@ const englishV1: SillyOsCopyV1 = {
   programsUnavailable: "The local Program catalog is unavailable.",
   loadMorePrograms: "Load more programs",
   loadingMorePrograms: "Loading more programs…",
-  openProgram: "Open program",
+  runProgram: "Start or continue",
+  editProgram: "Edit program",
   openingProgram: "Opening program…",
   savingProgram: "Saving Program…",
   retry: "Retry",
@@ -659,7 +661,8 @@ const chineseV1: SillyOsCopyV1 = {
   programsUnavailable: "本地 Program 目录当前不可用。",
   loadMorePrograms: "载入更多程序",
   loadingMorePrograms: "正在载入更多程序……",
-  openProgram: "打开程序",
+  runProgram: "开始或继续",
+  editProgram: "编辑程序",
   openingProgram: "正在打开程序……",
   savingProgram: "正在保存 Program……",
   retry: "重试",

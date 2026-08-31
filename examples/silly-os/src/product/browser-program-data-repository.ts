@@ -19,6 +19,8 @@ import {
   type ProgramProcessDecisionBundleInputV1,
   type ProgramProcessRevisionBundleInputV1,
   type ProcessWorkspaceCreateBundleInputV1,
+  type TranslationProjectFinalizeExecutionBundleInputV1,
+  type TranslationProjectImportExecutionAcquireInputV1,
 } from "./program-data-repository.ts";
 import type {
   ProcessExecutionAcquireInputV1,
@@ -74,10 +76,14 @@ function isMutationMethodV1(method: ProgramDataRepositoryWorkerRequestV1["method
     method === "decide_program_with_process_transcript" ||
     method === "publish_program_definition_revision" ||
     method === "acquire_process_execution" ||
+    method === "acquire_translation_project_import_execution" ||
     method === "renew_process_execution_lease" ||
     method === "release_process_execution_lease" ||
     method === "commit_process_execution_terminal" ||
     method === "commit_program_revision_with_process_execution_terminal" ||
+    method === "commit_translation_project_finalize_with_process_execution_terminal" ||
+    method === "begin_translation_project_import" ||
+    method === "append_translation_project_import" ||
     method === "set_program_network_access" || method === "reset";
 }
 
@@ -397,6 +403,18 @@ export function createBrowserProgramDataRepositoryV1(
       }
       return response.value;
     },
+    async acquireTranslationProjectImportExecution(
+      input: TranslationProjectImportExecutionAcquireInputV1,
+    ) {
+      const response = await callV1({
+        method: "acquire_translation_project_import_execution",
+        input,
+      });
+      if (response.method !== "acquire_translation_project_import_execution") {
+        throw new TypeError("invalid Translation Project execution acquire response");
+      }
+      return response.value;
+    },
     async renewProcessExecutionLease(input: ProcessExecutionLeaseRenewInputV1) {
       const response = await callV1({ method: "renew_process_execution_lease", input });
       if (response.method !== "renew_process_execution_lease") {
@@ -435,10 +453,77 @@ export function createBrowserProgramDataRepositoryV1(
       }
       return response.value;
     },
+    async commitTranslationProjectFinalizeWithProcessExecutionTerminal(
+      input: TranslationProjectFinalizeExecutionBundleInputV1,
+    ) {
+      const response = await callV1({
+        method: "commit_translation_project_finalize_with_process_execution_terminal",
+        input,
+      });
+      if (
+        response.method !==
+          "commit_translation_project_finalize_with_process_execution_terminal"
+      ) throw new TypeError("invalid Translation Project/Process terminal response");
+      return response.value;
+    },
     async queryProcessOperation(input: ProgramDataProcessOperationExpectationV1) {
       const response = await callV1({ method: "query_process_operation", input }, false, true);
       if (response.method !== "query_process_operation") {
         throw new TypeError("invalid Process operation query response");
+      }
+      return response.value;
+    },
+    async beginTranslationProjectImport(input) {
+      const response = await callV1(
+        { method: "begin_translation_project_import", input },
+        false,
+        true,
+      );
+      if (response.method !== "begin_translation_project_import") {
+        throw new TypeError("invalid Translation begin response");
+      }
+      return response.value;
+    },
+    async appendTranslationProjectImport(input) {
+      const response = await callV1(
+        { method: "append_translation_project_import", input },
+        false,
+        true,
+      );
+      if (response.method !== "append_translation_project_import") {
+        throw new TypeError("invalid Translation append response");
+      }
+      return response.value;
+    },
+    async loadTranslationProjectHead(processId) {
+      const response = await callV1({ method: "load_translation_project_head", processId });
+      if (response.method !== "load_translation_project_head") {
+        throw new TypeError("invalid Translation head response");
+      }
+      return response.value;
+    },
+    async loadTranslationProjectUnitPage(input) {
+      const response = await callV1({ method: "load_translation_project_unit_page", input });
+      if (response.method !== "load_translation_project_unit_page") {
+        throw new TypeError("invalid Translation unit page response");
+      }
+      return response.value;
+    },
+    async loadTranslationProjectGlossaryPage(input) {
+      const response = await callV1({ method: "load_translation_project_glossary_page", input });
+      if (response.method !== "load_translation_project_glossary_page") {
+        throw new TypeError("invalid Translation glossary page response");
+      }
+      return response.value;
+    },
+    async queryTranslationProjectOperation(input) {
+      const response = await callV1(
+        { method: "query_translation_project_operation", input },
+        false,
+        true,
+      );
+      if (response.method !== "query_translation_project_operation") {
+        throw new TypeError("invalid Translation operation response");
       }
       return response.value;
     },

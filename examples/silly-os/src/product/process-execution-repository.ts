@@ -12,6 +12,16 @@ import {
 
 const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 
+/**
+ * A foreground owner normally renews after one third of this window, leaving
+ * two missed opportunities before another page may recover the Process.
+ * Browser suspension can exceed the window; correctness comes from generation
+ * fencing rather than from timer delivery.
+ */
+export const defaultProcessExecutionLeaseDurationMillisecondsV1 = 30_000;
+export const defaultProcessExecutionLeaseRenewalIntervalMillisecondsV1 =
+  defaultProcessExecutionLeaseDurationMillisecondsV1 / 3;
+
 export interface ProcessExecutionLeaseV1 {
   readonly processId: string;
   readonly ownerInstanceId: string;
@@ -46,6 +56,7 @@ export interface ProcessExecutionTerminalInputV1 {
 
 export type ProcessOperationKindV1 =
   | "execution_acquire"
+  | "translation_project_execution_acquire"
   | "execution_terminal"
   | "program_revision_terminal";
 
@@ -282,8 +293,9 @@ export function normalizeProcessOperationReceiptV1(
   const operation = row.operation;
   if (
     !identifierV1(row.processId) || !identifierV1(row.operationId) ||
-    (operation !== "execution_acquire" && operation !== "execution_terminal" &&
-      operation !== "program_revision_terminal") ||
+    (operation !== "execution_acquire" &&
+      operation !== "translation_project_execution_acquire" &&
+      operation !== "execution_terminal" && operation !== "program_revision_terminal") ||
     typeof row.operationDigest !== "string" || !/^[0-9a-f]{64}$/u.test(row.operationDigest) ||
     !identifierV1(row.attemptId) || !positiveIntegerV1(row.generation) ||
     !positiveIntegerV1(row.processRevision) ||
@@ -302,7 +314,8 @@ export function normalizeProcessOperationReceiptV1(
     (lease !== null &&
       (lease.processId !== row.processId || lease.attemptId !== row.attemptId ||
         lease.generation !== row.generation)) ||
-    ((operation === "execution_acquire") !== (lease !== null)) ||
+    ((operation === "execution_acquire" ||
+      operation === "translation_project_execution_acquire") !== (lease !== null)) ||
     ((operation === "execution_terminal" || operation === "program_revision_terminal") !==
       (row.terminalOutcome !== null)) ||
     ((operation === "program_revision_terminal") !== (row.programId !== null))

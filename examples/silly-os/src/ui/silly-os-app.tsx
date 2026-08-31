@@ -51,6 +51,7 @@ import {
 } from "../product/browser-data-reset-coordinator.ts";
 import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
 import type { ProgramNetworkAccessV1 } from "../product/program-network-access.ts";
+import type { TranslationProcessControllerV1 } from "../product/translation/translation-process-controller.ts";
 import {
   createBrowserProductPreferencesRepositoryV1,
   defaultBrowserProductPreferencesSnapshotV1,
@@ -113,6 +114,7 @@ import {
   type ProgramWorkspaceSessionViewStateV1,
   ProgramWorkspaceV1,
 } from "./program-workspace.tsx";
+import { TranslationProcessWorkspaceV1 } from "./translation-process-workspace.tsx";
 import {
   type ProviderSettingsCatalogV1,
   type ProviderSettingsClearAllV1,
@@ -145,6 +147,7 @@ import "./design-system/tailwind.css";
 
 export interface SillyOsAppPropsV1 {
   readonly controller: CreatorControllerV1;
+  readonly translationController: TranslationProcessControllerV1;
   readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
   readonly agentDrainRegistry: SillyOsAgentDrainRegistryV1;
   readonly reportFailure: (code: string, error: unknown) => void;
@@ -626,10 +629,14 @@ async function commitWorkspaceDownloadV1(
 
 export function SillyOsAppV1({
   controller,
+  translationController,
   workspaceAuthority,
   agentDrainRegistry,
   reportFailure,
 }: SillyOsAppPropsV1): ReactNode {
+  const [activeProductRoute, setActiveProductRoute] = useState<"creator" | "translation">(
+    "creator",
+  );
   const [processViewStates] = useState(createProgramWorkspaceSessionViewStateStoreV1);
   const [processConversationRestorePending, setProcessConversationRestorePending] = useState(false);
   const processConversationRestoreEpochRef = useRef(0);
@@ -771,6 +778,11 @@ export function SillyOsAppV1({
     controller.subscribe,
     controller.getSnapshot,
     controller.getSnapshot,
+  );
+  const translationSnapshot = useSyncExternalStore(
+    translationController.subscribe,
+    translationController.getSnapshot,
+    translationController.getSnapshot,
   );
   const snapshot = controllerSnapshot;
   const durability = controllerSnapshot.durability;
@@ -933,7 +945,8 @@ export function SillyOsAppV1({
 
   useEffect(() => {
     void controller.initialize();
-  }, [controller]);
+    void translationController.initialize();
+  }, [controller, translationController]);
 
   useEffect(() => () => processViewStates.clear(), [processViewStates]);
 
@@ -1518,7 +1531,10 @@ export function SillyOsAppV1({
   ]);
 
   const openSettingsV1 = (): void => {
-    settingsReturnTargetRef.current = snapshot.route === "home" ? "home" : "workspace";
+    settingsReturnTargetRef.current = activeProductRoute === "translation" ||
+        snapshot.route !== "home"
+      ? "workspace"
+      : "home";
     setSettingsInitialSection("general");
     setSettingsOpen(true);
     if (providerCatalog.phase === "loading") loadProviderCatalogV1();
@@ -2555,10 +2571,14 @@ export function SillyOsAppV1({
     }
     if (!await controller.openHome()) {
       reportFailure("silly_os.home_close_failed", "workspace_authority_close_failed");
+      return;
     }
+    translationController.openHome();
+    setActiveProductRoute("creator");
   };
 
   const openProgramV1 = async (programId: string): Promise<void> => {
+    setActiveProductRoute("creator");
     const epoch = processConversationRestoreEpochRef.current + 1;
     processConversationRestoreEpochRef.current = epoch;
     setProcessConversationRestorePending(true);
@@ -2587,6 +2607,14 @@ export function SillyOsAppV1({
       if (processConversationRestoreEpochRef.current === epoch) {
         setProcessConversationRestorePending(false);
       }
+    }
+  };
+
+  const openTranslationProgramV1 = async (programId: string): Promise<void> => {
+    setActiveProductRoute("translation");
+    const result = await translationController.startOrOpen(programId);
+    if (result.kind === "failed") {
+      reportFailure("silly_os.translation_process_open_failed", result);
     }
   };
 
@@ -3117,6 +3145,90 @@ export function SillyOsAppV1({
               onRemoveCustomProfile={removeCustomProviderProfileV1}
             />
           )
+          : activeProductRoute === "translation"
+          ? translationSnapshot.route === "process" &&
+              translationSnapshot.activeProcess !== null
+            ? (
+              <ActiveProcessMountBoundaryV1
+                processId={translationSnapshot.activeProcess.process.processId}
+              >
+                <TranslationProcessWorkspaceV1
+                  copy={copy}
+                  activeProcess={translationSnapshot.activeProcess}
+                  onHome={() => void openHomeV1()}
+                  onLocaleChange={changeLocaleV1}
+                  theme={productPreferences.theme}
+                  onThemeChange={changeThemeV1}
+                  {...(internalPiTest ? {} : { onOpenSettings: openSettingsV1 })}
+                  sourceImport={translationSnapshot.sourceImport}
+                  onLoadProjectRowWindow={translationController.loadProjectRowWindow}
+                  onImportFile={async ({ file, sourceLocale, targetLocale }) => {
+                    const result = await translationController.importSource({
+                      source: { kind: "file", file },
+                      sourceLocale,
+                      targetLocale,
+                    });
+                    if (result.kind === "completed") return;
+                    const code = result.kind === "busy" ? "translation_import_busy" : result.code;
+                    const error = new Error(`sillyos.translation.${code}`);
+                    Object.defineProperty(error, "code", { value: code, enumerable: true });
+                    throw error;
+                  }}
+                  onOperationError={(error) => {
+                    reportFailure("silly_os.translation_import_failed", error);
+                  }}
+                />
+              </ActiveProcessMountBoundaryV1>
+            )
+            : translationSnapshot.durability.phase === "failed"
+            ? (
+              <main className="creator-home" data-silly-os-view="translation-failed">
+                <div className="creator-home__route-state">
+                  <CollectionStateV1
+                    icon={TriangleAlert}
+                    tone="danger"
+                    title={copy.persistenceFailure}
+                    description={translationSnapshot.durability.code}
+                    role="alert"
+                    action={translationSnapshot.durability.recovery === "retry"
+                      ? (
+                        <ButtonV1
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          icon={RotateCcw}
+                          onClick={() => void translationController.retry()}
+                        >
+                          {copy.retry}
+                        </ButtonV1>
+                      )
+                      : (
+                        <ButtonV1
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => void openHomeV1()}
+                        >
+                          {copy.home}
+                        </ButtonV1>
+                      )}
+                  />
+                </div>
+              </main>
+            )
+            : (
+              <main className="creator-home" data-silly-os-view="translation-loading">
+                <div className="creator-home__route-state">
+                  <CollectionStateV1
+                    icon={LoaderCircle}
+                    iconMotion="spin"
+                    title={copy.openingProgram}
+                    role="status"
+                    aria-live="polite"
+                  />
+                </div>
+              </main>
+            )
           : snapshot.route === "home"
           ? (
             <CreatorHomeV1
@@ -3132,8 +3244,11 @@ export function SillyOsAppV1({
                   : snapshot.catalog.phase,
                 programs: snapshot.catalog.summaries,
                 openDisabled: durability.phase !== "ready",
-                onOpen: (programId) => {
+                onEdit: (programId) => {
                   void openProgramV1(programId);
+                },
+                onRun: (programId) => {
+                  void openTranslationProgramV1(programId);
                 },
                 hasMore: snapshot.catalog.nextCursor !== null,
                 onLoadMore: () => {

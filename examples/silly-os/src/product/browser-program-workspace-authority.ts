@@ -31,6 +31,9 @@ import {
   type ProgramCatalogReviewBindingV1,
 } from "./program-catalog-repository.ts";
 import type {
+  ProcessWorkspaceBindingV1,
+  ProcessWorkspaceCreateBundleInputV1,
+  ProcessWorkspaceCreateCompositeCommitResultV1,
   ProgramDataRepositoryV1,
   ProgramProcessCompositeCommitResultV1,
   ProgramProcessCreateCompositeCommitResultV1,
@@ -40,6 +43,7 @@ import type {
   ProgramProcessRevisionBundleInputV1,
 } from "./program-data-repository.ts";
 import type { ProcessExecutionLeaseV1 } from "./process-execution-repository.ts";
+import type { ProcessCheckpointV1, ProcessHeadV1 } from "./program-process-repository.ts";
 import type {
   ProgramNetworkAccessMutationResultV1,
   ProgramNetworkAccessMutationV1,
@@ -51,8 +55,21 @@ interface DurableProgramPairV1 {
   readonly continuation: ProgramCatalogContinuationV1;
 }
 
+interface DurableProcessWorkspacePairV1 {
+  readonly process: ProcessHeadV1;
+  readonly workspace: ProcessWorkspaceBindingV1;
+}
+
+type ActiveWorkspaceOwnerV1 =
+  | { readonly kind: "program"; readonly programId: string }
+  | {
+    readonly kind: "process";
+    readonly processId: string;
+    readonly subjectProgramId: string;
+  };
+
 interface ActiveWorkspaceV1 {
-  readonly programId: string;
+  readonly owner: ActiveWorkspaceOwnerV1;
   readonly workspaceId: string;
   readonly workspaceSessionId: string;
   readonly environmentAttached: boolean;
@@ -83,6 +100,48 @@ export interface BrowserProgramWorkspaceCreateInputV1 {
   readonly catalog: Omit<ProgramCatalogCreateInputV1, "continuation" | "reviewedHead">;
   readonly process: ProgramProcessCreateBundleInputV1["process"];
   readonly transcript: ProgramProcessCreateBundleInputV1["transcript"];
+}
+
+type BrowserProcessWorkspaceCreateTranscriptV1 =
+  & Omit<ProcessWorkspaceCreateBundleInputV1["transcript"], "checkpoint">
+  & {
+    /**
+     * Process-semantic identity. The Authority binds the Workspace fields to
+     * the candidate volume's exact mutable head before the atomic commit.
+     */
+    readonly checkpoint: Pick<ProcessCheckpointV1, "checkpointId" | "throughSequence">;
+  };
+
+export interface BrowserProcessWorkspaceCreateInputV1 {
+  readonly workspaceId: string;
+  readonly process: ProcessWorkspaceCreateBundleInputV1["process"];
+  readonly transcript: BrowserProcessWorkspaceCreateTranscriptV1;
+}
+
+export interface BrowserProcessWorkspaceInspectionV1 {
+  readonly process: ProcessHeadV1;
+  readonly workspace: ProcessWorkspaceBindingV1;
+  /** Null when this Process Workspace is not already active in this page. */
+  readonly mutableHead: {
+    readonly checkpointId: string;
+    readonly generation: number;
+  } | null;
+}
+
+export interface BrowserProcessWorkspaceFileSourceBindingV1 {
+  readonly revision: 1;
+  readonly processId: string;
+  readonly workspaceId: string;
+  readonly volumeId: string;
+  readonly workspaceFormat: 1;
+  readonly path: string;
+  readonly checkpointId: string;
+  readonly generation: number;
+}
+
+export interface BrowserProcessWorkspaceImportFileResultV1 {
+  readonly changed: boolean;
+  readonly source: BrowserProcessWorkspaceFileSourceBindingV1;
 }
 
 type ProgramProcessRevisionTranscriptV1 = ProgramProcessRevisionBundleInputV1["transcript"];
@@ -195,6 +254,35 @@ export interface BrowserProgramWorkspaceAuthorityV1 {
   dispose(): Promise<void>;
 }
 
+/**
+ * Process-scoped facet of the same single Browser Workspace Authority. Keeping
+ * it separate prevents Creator-only clients and fakes from pretending to own
+ * a Process Workspace lifecycle they never use.
+ */
+export interface BrowserProcessWorkspaceAuthorityV1 {
+  createProcessWorkspace(
+    input: BrowserProcessWorkspaceCreateInputV1,
+  ): Promise<ProcessWorkspaceCreateCompositeCommitResultV1>;
+  /** Pure inspection: never opens or otherwise pre-acquires an idle Workspace. */
+  inspectProcessWorkspace(processId: string): Promise<BrowserProcessWorkspaceInspectionV1 | null>;
+  importProcessWorkspaceFile(input: {
+    readonly processId: string;
+    readonly workspaceId: string;
+    readonly lease: ProcessExecutionLeaseV1;
+    readonly observedAt: number;
+    readonly path: string;
+    readonly bytes: Uint8Array;
+  }): Promise<BrowserProcessWorkspaceImportFileResultV1>;
+  openProcessWorkspace(input: {
+    readonly processId: string;
+    readonly workspaceId: string;
+  }): Promise<BrowserProgramWorkspaceOpenResultV1>;
+}
+
+export type BrowserProgramAndProcessWorkspaceAuthorityV1 =
+  & BrowserProgramWorkspaceAuthorityV1
+  & BrowserProcessWorkspaceAuthorityV1;
+
 export interface BrowserProgramWorkspaceAuthorityOptionsV1 {
   readonly repository?: ProgramDataRepositoryV1;
   readonly host?: BrowserWorkspaceHostPagePortV1;
@@ -252,6 +340,15 @@ function failureCodeV1(error: unknown): string | null {
   return typeof code === "string" ? code : null;
 }
 
+function processExecutionLeaseIdentityMatchesV1(
+  left: ProcessExecutionLeaseV1,
+  right: ProcessExecutionLeaseV1,
+): boolean {
+  return left.processId === right.processId &&
+    left.ownerInstanceId === right.ownerInstanceId &&
+    left.attemptId === right.attemptId && left.generation === right.generation;
+}
+
 function cancelledExportV1(): BrowserProgramWorkspaceExportResultV1 {
   return {
     kind: "cancelled",
@@ -290,6 +387,59 @@ function anchorFromContinuationV1(
     workspaceId: continuation.workspaceId,
     volumeId: continuation.volumeId,
     workspaceFormat: continuation.workspaceFormat,
+  };
+}
+
+function anchorFromProcessWorkspaceV1(
+  pair: DurableProcessWorkspacePairV1,
+): BrowserWorkspaceVolumeAnchorWireV1 {
+  const subjectProgramId = pair.process.subjectProgramId;
+  if (subjectProgramId === null) throw authorityErrorV1("process_subject_missing");
+  return {
+    revision: 1,
+    programId: subjectProgramId,
+    workspaceId: pair.workspace.workspaceId,
+    volumeId: pair.workspace.volumeId,
+    workspaceFormat: pair.workspace.workspaceFormat,
+  };
+}
+
+function processWorkspaceFromCandidateV1(
+  input: BrowserProcessWorkspaceCreateInputV1,
+  candidate: BrowserWorkspaceVolumeCandidateWireV1,
+): ProcessWorkspaceBindingV1 {
+  const subjectProgramId = input.process.subjectProgramId;
+  if (subjectProgramId === null) throw authorityErrorV1("process_subject_missing");
+  if (
+    candidate.anchor.programId !== subjectProgramId ||
+    candidate.anchor.workspaceId !== input.workspaceId
+  ) throw authorityErrorV1("candidate_identity_mismatch");
+  return {
+    revision: 1,
+    processId: input.process.processId,
+    workspaceId: input.workspaceId,
+    volumeId: candidate.anchor.volumeId,
+    workspaceFormat: candidate.anchor.workspaceFormat,
+  };
+}
+
+function processWorkspaceBundleV1(
+  input: BrowserProcessWorkspaceCreateInputV1,
+  workspace: ProcessWorkspaceBindingV1,
+  mutableHead: { readonly checkpointId: string; readonly generation: number },
+): ProcessWorkspaceCreateBundleInputV1 {
+  return {
+    process: input.process,
+    workspace,
+    transcript: {
+      ...input.transcript,
+      checkpoint: {
+        ...input.transcript.checkpoint,
+        workspaceId: workspace.workspaceId,
+        workspaceCheckpointId: mutableHead.checkpointId,
+        workspaceGeneration: mutableHead.generation,
+      },
+    },
   };
 }
 
@@ -350,6 +500,60 @@ function pairWorkspaceV1(
     (workspaceId !== undefined && pair.record.head.workspaceId !== workspaceId)
   ) throw authorityErrorV1("program_workspace_mismatch");
   return pair;
+}
+
+function pairProcessWorkspaceV1(
+  pair: DurableProcessWorkspacePairV1,
+  processId: string,
+  workspaceId?: string,
+): DurableProcessWorkspacePairV1 {
+  const checkpoint = pair.process.checkpoint;
+  if (
+    pair.process.processId !== processId || pair.workspace.processId !== processId ||
+    pair.process.subjectProgramId === null || checkpoint === null ||
+    checkpoint.workspaceId !== pair.workspace.workspaceId ||
+    (workspaceId !== undefined && pair.workspace.workspaceId !== workspaceId)
+  ) throw authorityErrorV1("process_workspace_mismatch");
+  return pair;
+}
+
+function processWorkspacePairsEqualV1(
+  left: DurableProcessWorkspacePairV1,
+  right: DurableProcessWorkspacePairV1,
+): boolean {
+  return left.process.processId === right.process.processId &&
+    left.process.revision === right.process.revision &&
+    left.process.transcriptFrontier === right.process.transcriptFrontier &&
+    left.workspace.processId === right.workspace.processId &&
+    left.workspace.workspaceId === right.workspace.workspaceId &&
+    left.workspace.volumeId === right.workspace.volumeId &&
+    left.workspace.workspaceFormat === right.workspace.workspaceFormat;
+}
+
+function processWorkspacePairOwnsCandidateV1(
+  pair: DurableProcessWorkspacePairV1,
+  input: BrowserProcessWorkspaceCreateInputV1,
+  candidate: BrowserWorkspaceVolumeCandidateWireV1,
+): boolean {
+  const checkpoint = pair.process.checkpoint;
+  return pair.process.processId === input.process.processId &&
+    pair.process.programDefinition.programId === input.process.programDefinition.programId &&
+    pair.process.programDefinition.revision === input.process.programDefinition.revision &&
+    pair.process.subjectProgramId === input.process.subjectProgramId &&
+    pair.process.status === "active" && pair.process.activeAttempt === null &&
+    pair.process.lastTerminalAttempt === null &&
+    pair.process.transcriptFrontier === input.transcript.checkpoint.throughSequence &&
+    pair.process.createdAt === input.process.createdAt &&
+    pair.process.updatedAt === input.transcript.updatedAt &&
+    pair.workspace.processId === input.process.processId &&
+    pair.workspace.workspaceId === input.workspaceId &&
+    pair.workspace.volumeId === candidate.anchor.volumeId &&
+    pair.workspace.workspaceFormat === candidate.anchor.workspaceFormat &&
+    checkpoint !== null && checkpoint.checkpointId === input.transcript.checkpoint.checkpointId &&
+    checkpoint.throughSequence === input.transcript.checkpoint.throughSequence &&
+    checkpoint.workspaceId === input.workspaceId &&
+    checkpoint.workspaceCheckpointId === candidate.checkpointId &&
+    checkpoint.workspaceGeneration === candidate.generation;
 }
 
 function pairsEqualV1(left: DurableProgramPairV1, right: DurableProgramPairV1): boolean {
@@ -432,7 +636,7 @@ function reviewProjectionV1(
  */
 export function createBrowserProgramWorkspaceAuthorityV1(
   options: BrowserProgramWorkspaceAuthorityOptionsV1 = {},
-): BrowserProgramWorkspaceAuthorityV1 {
+): BrowserProgramAndProcessWorkspaceAuthorityV1 {
   const repository = options.repository ?? createBrowserProgramDataRepositoryV1();
   const createSnapshotId = options.createSnapshotId ?? defaultSnapshotIdV1;
   const host = options.host ?? createBrowserWorkspaceHostPagePortV1({
@@ -501,12 +705,57 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     return pairWorkspaceV1(pair, programId, workspaceId);
   };
 
+  const loadProcessWorkspacePairV1 = async (
+    processId: string,
+  ): Promise<DurableProcessWorkspacePairV1 | null> => {
+    await initializeRepositoryV1();
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const [process, workspace] = await Promise.all([
+        repository.loadProcess(processId),
+        repository.loadProcessWorkspaceBinding(processId),
+      ]);
+      if (process === null && workspace === null) return null;
+      if (process !== null && workspace !== null) {
+        try {
+          return pairProcessWorkspaceV1({ process, workspace }, processId);
+        } catch {
+          // A concurrent Process successor may have split the two read calls.
+        }
+      }
+    }
+    throw authorityErrorV1("repository_pair_changed");
+  };
+
+  const requireProcessWorkspacePairV1 = async (
+    processId: string,
+    workspaceId?: string,
+  ): Promise<DurableProcessWorkspacePairV1> => {
+    const pair = await loadProcessWorkspacePairV1(processId);
+    if (pair === null) throw authorityErrorV1("process_workspace_unavailable");
+    return pairProcessWorkspaceV1(pair, processId, workspaceId);
+  };
+
   const matchingActiveSessionForPairV1 = (pair: DurableProgramPairV1): string | null => {
     const active = activeWorkspace;
     if (active === null) return null;
     if (
-      active.programId !== pair.record.head.programId ||
+      active.owner.kind !== "program" ||
+      active.owner.programId !== pair.record.head.programId ||
       active.workspaceId !== pair.record.head.workspaceId
+    ) throw authorityErrorV1("workspace_busy");
+    return active.workspaceSessionId;
+  };
+
+  const matchingActiveSessionForProcessWorkspaceV1 = (
+    pair: DurableProcessWorkspacePairV1,
+  ): string | null => {
+    const active = activeWorkspace;
+    if (active === null) return null;
+    if (
+      active.owner.kind !== "process" ||
+      active.owner.processId !== pair.process.processId ||
+      active.owner.subjectProgramId !== pair.process.subjectProgramId ||
+      active.workspaceId !== pair.workspace.workspaceId
     ) throw authorityErrorV1("workspace_busy");
     return active.workspaceSessionId;
   };
@@ -541,8 +790,65 @@ export function createBrowserProgramWorkspaceAuthorityV1(
         try {
           validateHostSnapshotV1(opened, pair, opened.descriptor.workspaceSessionId);
           activeWorkspace = {
-            programId: pair.record.head.programId,
+            owner: { kind: "program", programId: pair.record.head.programId },
             workspaceId: pair.record.head.workspaceId,
+            workspaceSessionId: opened.descriptor.workspaceSessionId,
+            environmentAttached: false,
+          };
+          return opened.descriptor.workspaceSessionId;
+        } catch (error) {
+          await host.closeWorkspace(opened.descriptor.workspaceSessionId).catch(() => undefined);
+          throw error;
+        }
+      },
+    });
+  };
+
+  const validateProcessWorkspaceHostSnapshotV1 = (
+    snapshot: BrowserWorkspaceHostSnapshotWireV1,
+    pair: DurableProcessWorkspacePairV1,
+    workspaceSessionId: string,
+  ): BrowserWorkspaceHostSnapshotWireV1 => {
+    const subjectProgramId = pair.process.subjectProgramId;
+    if (
+      subjectProgramId === null || snapshot.phase !== "open" ||
+      snapshot.descriptor.programId !== subjectProgramId ||
+      snapshot.descriptor.workspaceId !== pair.workspace.workspaceId ||
+      snapshot.descriptor.workspaceSessionId !== workspaceSessionId ||
+      snapshot.volumeId !== pair.workspace.volumeId ||
+      snapshot.anchor.programId !== subjectProgramId ||
+      snapshot.anchor.workspaceId !== pair.workspace.workspaceId ||
+      snapshot.anchor.volumeId !== pair.workspace.volumeId ||
+      snapshot.anchor.workspaceFormat !== pair.workspace.workspaceFormat
+    ) throw authorityErrorV1("workspace_snapshot_mismatch");
+    return snapshot;
+  };
+
+  const ensureHostSessionForProcessWorkspaceV1 = async (
+    pair: DurableProcessWorkspacePairV1,
+  ): Promise<string> => {
+    const matching = matchingActiveSessionForProcessWorkspaceV1(pair);
+    if (matching !== null) return matching;
+    const subjectProgramId = pair.process.subjectProgramId;
+    if (subjectProgramId === null) throw authorityErrorV1("process_subject_missing");
+    return await host.withBootstrapLease({
+      programId: subjectProgramId,
+      workspaceId: pair.workspace.workspaceId,
+      operation: async () => {
+        const opened = await host.openWorkspace(anchorFromProcessWorkspaceV1(pair));
+        try {
+          validateProcessWorkspaceHostSnapshotV1(
+            opened,
+            pair,
+            opened.descriptor.workspaceSessionId,
+          );
+          activeWorkspace = {
+            owner: {
+              kind: "process",
+              processId: pair.process.processId,
+              subjectProgramId,
+            },
+            workspaceId: pair.workspace.workspaceId,
             workspaceSessionId: opened.descriptor.workspaceSessionId,
             environmentAttached: false,
           };
@@ -658,7 +964,8 @@ export function createBrowserProgramWorkspaceAuthorityV1(
 
       let workspaceSessionId: string | null = null;
       if (
-        activeWorkspace?.programId === programId &&
+        activeWorkspace?.owner.kind === "program" &&
+        activeWorkspace.owner.programId === programId &&
         activeWorkspace.workspaceId === initial.record.head.workspaceId
       ) {
         workspaceSessionId = activeWorkspace.workspaceSessionId;
@@ -687,6 +994,37 @@ export function createBrowserProgramWorkspaceAuthorityV1(
           (accepted !== null && currentAccepted !== null &&
             programWorkspaceSnapshotReceiptsEqualV1(accepted, currentAccepted))
         ) return reviewProjectionV1(current.record, currentAccepted, mutableHead);
+      }
+    }
+    throw authorityErrorV1("repository_pair_changed");
+  };
+
+  const inspectProcessWorkspaceV1 = async (
+    processId: string,
+  ): Promise<BrowserProcessWorkspaceInspectionV1 | null> => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const initial = await loadProcessWorkspacePairV1(processId);
+      if (initial === null) return null;
+      let mutableHead: BrowserProcessWorkspaceInspectionV1["mutableHead"] = null;
+      const active = activeWorkspace;
+      if (
+        active?.owner.kind === "process" && active.owner.processId === processId &&
+        active.owner.subjectProgramId === initial.process.subjectProgramId &&
+        active.workspaceId === initial.workspace.workspaceId
+      ) {
+        const snapshot = validateProcessWorkspaceHostSnapshotV1(
+          await host.queryWorkspace(active.workspaceSessionId),
+          initial,
+          active.workspaceSessionId,
+        );
+        mutableHead = {
+          checkpointId: snapshot.checkpointId,
+          generation: snapshot.descriptor.generation,
+        };
+      }
+      const current = await loadProcessWorkspacePairV1(processId);
+      if (current !== null && processWorkspacePairsEqualV1(initial, current)) {
+        return { process: current.process, workspace: current.workspace, mutableHead };
       }
     }
     throw authorityErrorV1("repository_pair_changed");
@@ -778,6 +1116,24 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     currentLease: await repository.loadProcessExecutionLease(processId),
   });
 
+  const requireCurrentProcessExecutionLeaseV1 = async (
+    lease: ProcessExecutionLeaseV1,
+    observedAt: number,
+  ): Promise<void> => {
+    const [process, currentLease] = await Promise.all([
+      repository.loadProcess(lease.processId),
+      repository.loadProcessExecutionLease(lease.processId),
+    ]);
+    if (
+      !Number.isSafeInteger(observedAt) || observedAt < 0 || observedAt >= lease.expiresAt ||
+      process === null || currentLease === null ||
+      !processExecutionLeaseIdentityMatchesV1(currentLease, lease) ||
+      currentLease.expiresAt < lease.expiresAt ||
+      process.activeAttempt?.attemptId !== lease.attemptId ||
+      process.activeAttempt.generation !== lease.generation
+    ) throw authorityErrorV1("process_execution_stale");
+  };
+
   return {
     initialize() {
       return serializeV1(async () => await initializeRepositoryV1());
@@ -792,12 +1148,18 @@ export function createBrowserProgramWorkspaceAuthorityV1(
       );
     },
 
+    inspectProcessWorkspace(processId) {
+      return serializeV1(async () => await inspectProcessWorkspaceV1(processId));
+    },
+
     create(input) {
       return serializeV1(async () => {
         await initializeRepositoryV1();
         const catalog = input.catalog;
         if (
-          activeWorkspace !== null && activeWorkspace.programId !== catalog.program.programId
+          activeWorkspace !== null &&
+          (activeWorkspace.owner.kind !== "program" ||
+            activeWorkspace.owner.programId !== catalog.program.programId)
         ) {
           throw authorityErrorV1("workspace_busy");
         }
@@ -871,6 +1233,126 @@ export function createBrowserProgramWorkspaceAuthorityV1(
                 throw error;
               }
               await host.discardCandidate(candidate.anchor.volumeId);
+              throw error;
+            }
+          },
+        });
+      });
+    },
+
+    createProcessWorkspace(input) {
+      return serializeV1(async () => {
+        await initializeRepositoryV1();
+        const subjectProgramId = input.process.subjectProgramId;
+        if (subjectProgramId === null) throw authorityErrorV1("process_subject_missing");
+        const active = activeWorkspace;
+        if (
+          active !== null &&
+          (active.owner.kind !== "process" ||
+            active.owner.processId !== input.process.processId ||
+            active.owner.subjectProgramId !== subjectProgramId ||
+            active.workspaceId !== input.workspaceId)
+        ) throw authorityErrorV1("workspace_busy");
+
+        return await host.withBootstrapLease({
+          programId: subjectProgramId,
+          workspaceId: input.workspaceId,
+          operation: async () => {
+            const existing = await loadProcessWorkspacePairV1(input.process.processId);
+            if (existing !== null) {
+              const checkpoint = existing.process.checkpoint;
+              if (checkpoint === null) throw authorityErrorV1("process_workspace_mismatch");
+              return await repository.createProcessWithWorkspace(
+                processWorkspaceBundleV1(input, existing.workspace, {
+                  checkpointId: checkpoint.workspaceCheckpointId,
+                  generation: checkpoint.workspaceGeneration,
+                }),
+              );
+            }
+
+            const candidate = await host.createCandidate({
+              programId: subjectProgramId,
+              workspaceId: input.workspaceId,
+            });
+            let workspace: ProcessWorkspaceBindingV1;
+            try {
+              workspace = processWorkspaceFromCandidateV1(input, candidate);
+            } catch (error) {
+              await host.discardCandidate(candidate.anchor.volumeId);
+              throw error;
+            }
+            const bundle = processWorkspaceBundleV1(input, workspace, {
+              checkpointId: candidate.checkpointId,
+              generation: candidate.generation,
+            });
+            let candidateDiscarded = false;
+            let candidatePreserved = false;
+            const discardCandidateV1 = async (): Promise<void> => {
+              if (candidateDiscarded) return;
+              await host.discardCandidate(candidate.anchor.volumeId);
+              candidateDiscarded = true;
+            };
+            try {
+              let settled: ProcessWorkspaceCreateCompositeCommitResultV1;
+              try {
+                settled = await repository.createProcessWithWorkspace(bundle);
+              } catch (error) {
+                if (failureCodeV1(error) !== "outcome_unknown") {
+                  await discardCandidateV1();
+                  throw error;
+                }
+                try {
+                  // The composite commit is idempotent by Process commit ID.
+                  // Replaying the exact bundle settles both pre-commit and
+                  // post-commit response-loss windows without a second receipt.
+                  settled = await repository.createProcessWithWorkspace(bundle);
+                } catch (reconcileError) {
+                  if (failureCodeV1(reconcileError) !== "outcome_unknown") {
+                    let ownsCandidate = false;
+                    try {
+                      const durable = await loadProcessWorkspacePairV1(input.process.processId);
+                      ownsCandidate = durable !== null &&
+                        processWorkspacePairOwnsCandidateV1(durable, input, candidate);
+                    } catch {
+                      // An unreadable Repository cannot prove the candidate disposable.
+                      ownsCandidate = true;
+                    }
+                    if (ownsCandidate) candidatePreserved = true;
+                    else await discardCandidateV1();
+                  } else {
+                    candidatePreserved = true;
+                  }
+                  throw reconcileError;
+                }
+              }
+
+              if (settled.kind === "committed" || settled.kind === "unchanged") {
+                let pair: DurableProcessWorkspacePairV1;
+                try {
+                  pair = pairProcessWorkspaceV1(
+                    { process: settled.process, workspace: settled.workspace },
+                    input.process.processId,
+                    input.workspaceId,
+                  );
+                } catch {
+                  throw authorityErrorV1("repository_response_mismatch");
+                }
+                if (!processWorkspacePairOwnsCandidateV1(pair, input, candidate)) {
+                  throw authorityErrorV1("repository_response_mismatch");
+                }
+                return settled;
+              }
+
+              const durablyOwnsCandidate = settled.kind === "conflict" &&
+                settled.currentWorkspace?.volumeId === candidate.anchor.volumeId;
+              if (!durablyOwnsCandidate) await discardCandidateV1();
+              return settled;
+            } catch (error) {
+              const code = failureCodeV1(error);
+              if (
+                !candidateDiscarded && !candidatePreserved && code !== "outcome_unknown" &&
+                code !== "repository_response_mismatch"
+              ) await discardCandidateV1();
               throw error;
             }
           },
@@ -1077,7 +1559,8 @@ export function createBrowserProgramWorkspaceAuthorityV1(
           pair.record.head.repositoryRevision !== input.expectedRepositoryRevision
         ) throw authorityErrorV1("agent_submit_stale");
         if (
-          active === null || active.programId !== input.programId ||
+          active === null || active.owner.kind !== "program" ||
+          active.owner.programId !== input.programId ||
           active.workspaceSessionId !== input.workspaceSessionId ||
           !active.environmentAttached
         ) throw authorityErrorV1("workspace_mismatch");
@@ -1108,12 +1591,99 @@ export function createBrowserProgramWorkspaceAuthorityV1(
         const attached = await host.attachEnvironment({ workspaceSessionId });
         validateHostSnapshotV1(attached.snapshot, pair, workspaceSessionId);
         activeWorkspace = {
-          programId: input.programId,
+          owner: { kind: "program", programId: input.programId },
           workspaceId: input.workspaceId,
           workspaceSessionId,
           environmentAttached: true,
         };
         return { snapshot: attached.snapshot, environmentPort: attached.environmentPort };
+      });
+    },
+
+    openProcessWorkspace(input) {
+      return serializeV1(async () => {
+        const pair = await requireProcessWorkspacePairV1(input.processId, input.workspaceId);
+        const workspaceSessionId = await ensureHostSessionForProcessWorkspaceV1(pair);
+        if (activeWorkspace?.environmentAttached === true) throw authorityErrorV1("workspace_busy");
+        const attached = await host.attachEnvironment({ workspaceSessionId });
+        validateProcessWorkspaceHostSnapshotV1(attached.snapshot, pair, workspaceSessionId);
+        const subjectProgramId = pair.process.subjectProgramId;
+        if (subjectProgramId === null) throw authorityErrorV1("process_subject_missing");
+        activeWorkspace = {
+          owner: {
+            kind: "process",
+            processId: input.processId,
+            subjectProgramId,
+          },
+          workspaceId: input.workspaceId,
+          workspaceSessionId,
+          environmentAttached: true,
+        };
+        return { snapshot: attached.snapshot, environmentPort: attached.environmentPort };
+      });
+    },
+
+    importProcessWorkspaceFile(input) {
+      return serializeV1(async () => {
+        await requireCurrentProcessExecutionLeaseV1(input.lease, input.observedAt);
+        const pair = await requireProcessWorkspacePairV1(input.processId, input.workspaceId);
+        if (activeWorkspace?.environmentAttached === true) {
+          throw authorityErrorV1("workspace_busy");
+        }
+        const workspaceSessionId = await ensureHostSessionForProcessWorkspaceV1(pair);
+        const closeImportSessionV1 = async (): Promise<void> => {
+          await host.closeWorkspace(workspaceSessionId);
+          if (activeWorkspace?.workspaceSessionId === workspaceSessionId) {
+            activeWorkspace = null;
+          }
+        };
+        let imported: Awaited<ReturnType<BrowserWorkspaceHostPagePortV1["importFile"]>>;
+        let snapshot: BrowserWorkspaceHostSnapshotWireV1;
+        try {
+          const initial = validateProcessWorkspaceHostSnapshotV1(
+            await host.queryWorkspace(workspaceSessionId),
+            pair,
+            workspaceSessionId,
+          );
+          imported = await host.importFile({
+            workspaceSessionId,
+            expectedCheckpointId: initial.checkpointId,
+            expectedGeneration: initial.descriptor.generation,
+            path: input.path,
+            bytes: input.bytes,
+          });
+          snapshot = validateProcessWorkspaceHostSnapshotV1(
+            imported.snapshot,
+            pair,
+            workspaceSessionId,
+          );
+        } catch (error) {
+          if (failureCodeV1(error) !== "outcome_unknown") {
+            // A known non-commit result can release the UI-only session. Keep
+            // the original import failure if release itself also fails.
+            await closeImportSessionV1().catch(() => undefined);
+          }
+          throw error;
+        }
+        const result: BrowserProcessWorkspaceImportFileResultV1 = {
+          changed: imported.changed,
+          source: {
+            revision: 1,
+            processId: pair.process.processId,
+            workspaceId: pair.workspace.workspaceId,
+            volumeId: pair.workspace.volumeId,
+            workspaceFormat: pair.workspace.workspaceFormat,
+            path: input.path,
+            checkpointId: snapshot.checkpointId,
+            generation: snapshot.descriptor.generation,
+          },
+        };
+        // Success is reported only after the transient UI session releases its
+        // volume lease. If close is lost/failed, retrying the same bytes/path
+        // observes the durable head and Host replaceFile remains idempotent.
+        await closeImportSessionV1();
+        await requireCurrentProcessExecutionLeaseV1(input.lease, input.observedAt);
+        return result;
       });
     },
 

@@ -17,6 +17,7 @@ import {
   type ProcessTranscriptAppendInputV1,
   type TranscriptEntryV1,
 } from "../product/program-process-repository.ts";
+import { createBuiltinTranslationProgramDefinitionRevisionV1 } from "../product/translation/translation-program-definition.ts";
 import type { PreviewProgramV1 } from "../product/contracts.ts";
 import type { BrowserWorkspaceHostPagePortV1 } from "../workspace/browser-workspace-host-port.ts";
 import type {
@@ -44,6 +45,7 @@ interface FakeVolumeV1 {
   generation: number;
   candidate: ProgramWorkspaceSnapshotReceiptV1 | null;
   readonly retained: Map<string, ProgramWorkspaceSnapshotReceiptV1>;
+  readonly files: Map<string, Uint8Array>;
 }
 
 interface FakeHostV1 {
@@ -53,8 +55,17 @@ interface FakeHostV1 {
   readonly discardedCandidates: string[];
   readonly prepared: ProgramWorkspaceSnapshotReceiptV1[];
   readonly adopted: ProgramWorkspaceSnapshotReceiptV1[];
+  readonly imports: {
+    readonly workspaceSessionId: string;
+    readonly expectedCheckpointId: string;
+    readonly expectedGeneration: number;
+    readonly path: string;
+    readonly bytes: Uint8Array;
+  }[];
   activeSessionId(): string | null;
   advanceHead(): void;
+  failNextClose(): void;
+  hideNextImportResult(): void;
 }
 
 function fakeHostV1(): FakeHostV1 {
@@ -65,9 +76,12 @@ function fakeHostV1(): FakeHostV1 {
   const discardedCandidates: string[] = [];
   const prepared: ProgramWorkspaceSnapshotReceiptV1[] = [];
   const adopted: ProgramWorkspaceSnapshotReceiptV1[] = [];
+  const imports: FakeHostV1["imports"] = [];
   const fatalListeners = new Set<(fatal: { readonly code: "unavailable" }) => void>();
   let nextVolume = 1;
   let nextSession = 1;
+  let closeFailurePending = false;
+  let hiddenImportResultPending = false;
 
   const volumeForSessionV1 = (workspaceSessionId: string): FakeVolumeV1 => {
     const snapshot = sessions.get(workspaceSessionId);
@@ -129,6 +143,7 @@ function fakeHostV1(): FakeHostV1 {
         generation: 1,
         candidate: null,
         retained: new Map(),
+        files: new Map(),
       };
       volumes.set(volumeId, volume);
       return {
@@ -154,18 +169,29 @@ function fakeHostV1(): FakeHostV1 {
     },
     async importFile(input) {
       events.push("host:import");
+      imports.push({ ...input, bytes: input.bytes.slice() });
       const volume = volumeForSessionV1(input.workspaceSessionId);
       if (
         volume.checkpointId !== input.expectedCheckpointId ||
         volume.generation !== input.expectedGeneration
       ) throw new Error("fake.workspace_stale");
-      void input.path;
-      void input.bytes;
-      volume.generation += 1;
-      volume.checkpointId = `checkpoint.${volume.anchor.volumeId}.${String(volume.generation)}`;
+      const previous = volume.files.get(input.path);
+      const changed = previous === undefined || previous.byteLength !== input.bytes.byteLength ||
+        previous.some((byte, index) => byte !== input.bytes[index]);
+      if (changed) {
+        volume.files.set(input.path, input.bytes.slice());
+        volume.generation += 1;
+        volume.checkpointId = `checkpoint.${volume.anchor.volumeId}.${String(volume.generation)}`;
+      }
       const snapshot = openSnapshotV1(volume, input.workspaceSessionId);
       sessions.set(input.workspaceSessionId, snapshot);
-      return { changed: true, snapshot };
+      if (hiddenImportResultPending) {
+        hiddenImportResultPending = false;
+        throw Object.assign(new Error("fake.import_outcome_unknown"), {
+          code: "outcome_unknown",
+        });
+      }
+      return { changed, snapshot };
     },
     async queryWorkspace(workspaceSessionId) {
       events.push("host:query");
@@ -185,6 +211,12 @@ function fakeHostV1(): FakeHostV1 {
       events.push("host:close");
       const snapshot = sessions.get(workspaceSessionId);
       if (snapshot === undefined) throw new Error("fake.workspace_missing");
+      if (closeFailurePending) {
+        closeFailurePending = false;
+        throw Object.assign(new Error("fake.workspace_close_failed"), {
+          code: "workspace_close_failed",
+        });
+      }
       sessions.delete(workspaceSessionId);
       const channel = channels.get(workspaceSessionId);
       channel?.port1.close();
@@ -295,6 +327,7 @@ function fakeHostV1(): FakeHostV1 {
     discardedCandidates,
     prepared,
     adopted,
+    imports,
     activeSessionId: () => [...sessions.keys()][0] ?? null,
     advanceHead() {
       const session = [...sessions.entries()][0];
@@ -305,6 +338,12 @@ function fakeHostV1(): FakeHostV1 {
       volume.generation += 1;
       volume.checkpointId = `checkpoint.${volume.anchor.volumeId}.${String(volume.generation)}`;
       sessions.set(sessionId, openSnapshotV1(volume, sessionId));
+    },
+    failNextClose() {
+      closeFailurePending = true;
+    },
+    hideNextImportResult() {
+      hiddenImportResultPending = true;
     },
   };
 }
@@ -418,6 +457,106 @@ async function createProgramV1(input: {
     throw new Error(`unexpected create result ${result.kind}`);
   }
   return { programId, workspaceId, processId };
+}
+
+function createProcessWorkspaceInputV1(input: {
+  readonly programId: string;
+  readonly processId: string;
+  readonly workspaceId: string;
+}) {
+  const transcript = appendV1({
+    processId: input.processId,
+    processRevision: 1,
+    frontier: 0,
+    sequence: 1,
+    text: "Translate the imported workpiece.",
+    commitId: `commit.${input.processId}.initial`,
+    updatedAt: 2,
+  });
+  return {
+    workspaceId: input.workspaceId,
+    process: {
+      processId: input.processId,
+      programDefinition: { programId: "sillyos.builtin.translation", revision: 1 },
+      subjectProgramId: input.programId,
+      createdAt: 2,
+    },
+    transcript: {
+      ...transcript,
+      checkpoint: {
+        checkpointId: `checkpoint.${input.processId}.initial`,
+        throughSequence: 1,
+      },
+    },
+  } as const;
+}
+
+async function createTranslationProcessWorkspaceV1(input: {
+  readonly harness: AuthorityHarnessV1;
+  readonly suffix: string;
+}) {
+  const subject = await createProgramV1({ harness: input.harness });
+  await input.harness.repository.publishProgramDefinitionRevision(
+    createBuiltinTranslationProgramDefinitionRevisionV1(),
+  );
+  const processInput = createProcessWorkspaceInputV1({
+    programId: subject.programId,
+    processId: `process.test.${input.suffix}`,
+    workspaceId: `workspace.test.${input.suffix}`,
+  });
+  const created = await input.harness.authority.createProcessWorkspace(processInput);
+  if (created.kind !== "committed" && created.kind !== "unchanged") {
+    throw new Error(`unexpected Process Workspace create result ${created.kind}`);
+  }
+  return { subject, processInput };
+}
+
+async function acquireTranslationImportLeaseV1(input: {
+  readonly harness: AuthorityHarnessV1;
+  readonly processId: string;
+  readonly observedAt?: number;
+}) {
+  const process = await input.harness.repository.loadProcess(input.processId);
+  const project = await input.harness.repository.loadTranslationProjectHead(input.processId);
+  const checkpoint = process?.checkpoint ?? null;
+  if (process === null || checkpoint === null) {
+    throw new Error("missing Translation Process predecessor");
+  }
+  const observedAt = input.observedAt ?? Math.max(3, process.updatedAt);
+  const attemptId = `attempt.${input.processId}.import`;
+  const triggerSequence = process.transcriptFrontier + 1;
+  const acquired = await input.harness.repository.acquireTranslationProjectImportExecution({
+    expectedProjectRevision: project?.revision ?? null,
+    execution: {
+      ownerInstanceId: `owner.${input.processId}.import`,
+      observedAt,
+      expiresAt: observedAt + 30_000,
+      attempt: {
+        processId: input.processId,
+        expectedProcessRevision: process.revision,
+        expectedTranscriptFrontier: process.transcriptFrontier,
+        commitId: `${attemptId}.acquire`,
+        attemptId,
+        generation: (process.lastTerminalAttempt?.generation ?? 0) + 1,
+        trigger: {
+          kind: "new_entry",
+          entry: {
+            ...entryV1(input.processId, triggerSequence, "Import a Translation source."),
+            entryId: `${attemptId}.user`,
+            role: "user",
+          },
+        },
+        startingCheckpoint: {
+          ...checkpoint,
+          checkpointId: `${attemptId}.start`,
+          throughSequence: triggerSequence,
+        },
+        updatedAt: observedAt,
+      },
+    },
+  });
+  if (acquired.kind === "conflict") throw new Error("Translation import acquire conflict");
+  return { lease: acquired.lease, observedAt };
 }
 
 async function acquireExecutionV1(input: {
@@ -597,6 +736,332 @@ describe("Browser Program Workspace authority V1", () => {
       process: expect.objectContaining({ processId: identity.processId }),
       transcript: expect.objectContaining({ processId: identity.processId }),
     });
+    await harness.authority.dispose();
+  });
+
+  it("creates and inspects a Process Workspace without pre-acquiring its idle volume", async () => {
+    const harness = await authorityHarnessV1();
+    const subject = await createProgramV1({ harness });
+    await harness.repository.publishProgramDefinitionRevision(
+      createBuiltinTranslationProgramDefinitionRevisionV1(),
+    );
+    const input = createProcessWorkspaceInputV1({
+      programId: subject.programId,
+      processId: "process.test.translation",
+      workspaceId: "workspace.test.translation",
+    });
+
+    const created = await harness.authority.createProcessWorkspace(input);
+    expect(created).toMatchObject({
+      kind: "committed",
+      process: {
+        processId: input.process.processId,
+        subjectProgramId: subject.programId,
+        transcriptFrontier: 1,
+        checkpoint: {
+          checkpointId: `checkpoint.${input.process.processId}.initial`,
+          throughSequence: 1,
+          workspaceId: input.workspaceId,
+          workspaceCheckpointId: "checkpoint.volume.test.2.1",
+          workspaceGeneration: 1,
+        },
+      },
+      workspace: {
+        processId: input.process.processId,
+        workspaceId: input.workspaceId,
+        volumeId: "volume.test.2",
+      },
+    });
+    expect(harness.host.activeSessionId()).toBeNull();
+    expect(harness.host.events).not.toContain("host:open");
+    expect(harness.host.events).not.toContain("host:attach");
+
+    const idleInspection = await harness.authority.inspectProcessWorkspace(
+      input.process.processId,
+    );
+    expect(idleInspection).toMatchObject({
+      process: { processId: input.process.processId },
+      workspace: { workspaceId: input.workspaceId, volumeId: "volume.test.2" },
+      mutableHead: null,
+    });
+    expect(harness.host.events).not.toContain("host:open");
+
+    const candidatesBeforeReplay =
+      harness.host.events.filter((event) => event === "host:create_candidate").length;
+    await expect(harness.authority.createProcessWorkspace(input)).resolves.toMatchObject({
+      kind: "unchanged",
+      workspace: { volumeId: "volume.test.2" },
+    });
+    expect(
+      harness.host.events.filter((event) => event === "host:create_candidate"),
+    ).toHaveLength(candidatesBeforeReplay);
+
+    const programOpened = await harness.authority.openWorkspace(subject);
+    expect(await harness.authority.inspectProcessWorkspace(input.process.processId)).toMatchObject({
+      mutableHead: null,
+    });
+    await expect(harness.authority.openProcessWorkspace({
+      processId: input.process.processId,
+      workspaceId: input.workspaceId,
+    })).rejects.toMatchObject({ code: "workspace_busy" });
+    programOpened.environmentPort.close();
+    await harness.authority.detachWorkspaceEnvironment(
+      programOpened.snapshot.descriptor.workspaceSessionId,
+    );
+    await harness.authority.closeWorkspace(programOpened.snapshot.descriptor.workspaceSessionId);
+
+    const opened = await harness.authority.openProcessWorkspace({
+      processId: input.process.processId,
+      workspaceId: input.workspaceId,
+    });
+    expect(opened.snapshot).toMatchObject({
+      volumeId: "volume.test.2",
+      descriptor: {
+        programId: subject.programId,
+        workspaceId: input.workspaceId,
+      },
+    });
+    expect(await harness.authority.inspectProcessWorkspace(input.process.processId)).toMatchObject({
+      mutableHead: {
+        checkpointId: "checkpoint.volume.test.2.1",
+        generation: 1,
+      },
+    });
+    opened.environmentPort.close();
+    await harness.authority.detachWorkspaceEnvironment(
+      opened.snapshot.descriptor.workspaceSessionId,
+    );
+    await harness.authority.closeWorkspace(opened.snapshot.descriptor.workspaceSessionId);
+    await harness.authority.dispose();
+  });
+
+  it("discards a blank Process Workspace candidate when durable creation is rejected", async () => {
+    const harness = await authorityHarnessV1();
+    const subject = await createProgramV1({ harness });
+    const input = createProcessWorkspaceInputV1({
+      programId: subject.programId,
+      processId: "process.test.missing-definition",
+      workspaceId: "workspace.test.missing-definition",
+    });
+
+    await expect(harness.authority.createProcessWorkspace(input)).resolves.toMatchObject({
+      kind: "program_definition_missing",
+    });
+    expect(harness.host.discardedCandidates).toEqual(["volume.test.2"]);
+    expect(await harness.repository.loadProcess(input.process.processId)).toBeNull();
+    expect(await harness.repository.loadProcessWorkspaceBinding(input.process.processId))
+      .toBeNull();
+    await harness.authority.dispose();
+  });
+
+  it("replays one exact Process Workspace composite when its response is lost", async () => {
+    const memory = createMemoryProgramDataV1();
+    let hideCommittedResponse = true;
+    let createCalls = 0;
+    const repository: ProgramDataRepositoryV1 = {
+      ...memory.repository,
+      async createProcessWithWorkspace(input) {
+        createCalls += 1;
+        const result = await memory.repository.createProcessWithWorkspace(input);
+        if (hideCommittedResponse) {
+          hideCommittedResponse = false;
+          throw createProgramDataRepositoryFailureV1(
+            "outcome_unknown",
+            "create_process_with_workspace",
+          );
+        }
+        return result;
+      },
+    };
+    const harness = await authorityHarnessV1(repository);
+    const subject = await createProgramV1({ harness });
+    await harness.repository.publishProgramDefinitionRevision(
+      createBuiltinTranslationProgramDefinitionRevisionV1(),
+    );
+    const input = createProcessWorkspaceInputV1({
+      programId: subject.programId,
+      processId: "process.test.response-lost",
+      workspaceId: "workspace.test.response-lost",
+    });
+
+    await expect(harness.authority.createProcessWorkspace(input)).resolves.toMatchObject({
+      kind: "unchanged",
+      process: {
+        processId: input.process.processId,
+        checkpoint: {
+          workspaceCheckpointId: "checkpoint.volume.test.2.1",
+          workspaceGeneration: 1,
+        },
+      },
+      workspace: { volumeId: "volume.test.2" },
+    });
+    expect(createCalls).toBe(2);
+    expect(harness.host.discardedCandidates).toEqual([]);
+    expect(harness.host.activeSessionId()).toBeNull();
+    expect(harness.host.events).not.toContain("host:open");
+    await harness.authority.dispose();
+  });
+
+  it("imports one UI source file at the exact Process head and releases the idle session", async () => {
+    const harness = await authorityHarnessV1();
+    const { subject, processInput } = await createTranslationProcessWorkspaceV1({
+      harness,
+      suffix: "import",
+    });
+    const execution = await acquireTranslationImportLeaseV1({
+      harness,
+      processId: processInput.process.processId,
+    });
+    const bytes = new Uint8Array([0, 1, 2, 255]);
+    const request = {
+      processId: processInput.process.processId,
+      workspaceId: processInput.workspaceId,
+      ...execution,
+      path: "imports/source.bin",
+      bytes,
+    } as const;
+
+    const programOpened = await harness.authority.openWorkspace(subject);
+    const importsBeforeBusyCheck = harness.host.events.filter((event) => event === "host:import")
+      .length;
+    await expect(harness.authority.importProcessWorkspaceFile(request)).rejects.toMatchObject({
+      code: "workspace_busy",
+    });
+    expect(harness.host.events.filter((event) => event === "host:import"))
+      .toHaveLength(importsBeforeBusyCheck);
+    programOpened.environmentPort.close();
+    await harness.authority.detachWorkspaceEnvironment(
+      programOpened.snapshot.descriptor.workspaceSessionId,
+    );
+    await harness.authority.closeWorkspace(programOpened.snapshot.descriptor.workspaceSessionId);
+    const environmentAttachmentsBeforeImport =
+      harness.host.events.filter((event) => event === "host:attach").length;
+
+    await expect(harness.authority.importProcessWorkspaceFile(request)).resolves.toEqual({
+      changed: true,
+      source: {
+        revision: 1,
+        processId: processInput.process.processId,
+        workspaceId: processInput.workspaceId,
+        volumeId: "volume.test.2",
+        workspaceFormat: 1,
+        path: request.path,
+        checkpointId: "checkpoint.volume.test.2.2",
+        generation: 2,
+      },
+    });
+    expect([...bytes]).toEqual([0, 1, 2, 255]);
+    expect(harness.host.imports[0]).toMatchObject({
+      expectedCheckpointId: "checkpoint.volume.test.2.1",
+      expectedGeneration: 1,
+      path: request.path,
+    });
+    expect(harness.host.activeSessionId()).toBeNull();
+    expect(harness.host.events).toContain("host:import");
+    expect(harness.host.events.filter((event) => event === "host:attach"))
+      .toHaveLength(environmentAttachmentsBeforeImport);
+
+    await expect(harness.authority.importProcessWorkspaceFile(request)).resolves.toMatchObject({
+      changed: false,
+      source: {
+        checkpointId: "checkpoint.volume.test.2.2",
+        generation: 2,
+      },
+    });
+    expect(harness.host.imports[1]).toMatchObject({
+      expectedCheckpointId: "checkpoint.volume.test.2.2",
+      expectedGeneration: 2,
+    });
+    expect(harness.host.activeSessionId()).toBeNull();
+    await harness.authority.dispose();
+  });
+
+  it("rejects a stale Process generation before touching its Workspace", async () => {
+    const harness = await authorityHarnessV1();
+    const { processInput } = await createTranslationProcessWorkspaceV1({
+      harness,
+      suffix: "stale-import",
+    });
+    const execution = await acquireTranslationImportLeaseV1({
+      harness,
+      processId: processInput.process.processId,
+    });
+    const importsBefore = harness.host.events.filter((event) => event === "host:import").length;
+
+    await expect(harness.authority.importProcessWorkspaceFile({
+      processId: processInput.process.processId,
+      workspaceId: processInput.workspaceId,
+      lease: { ...execution.lease, generation: execution.lease.generation + 1 },
+      observedAt: execution.observedAt,
+      path: "imports/stale.txt",
+      bytes: new TextEncoder().encode("stale"),
+    })).rejects.toMatchObject({ code: "process_execution_stale" });
+    expect(harness.host.events.filter((event) => event === "host:import"))
+      .toHaveLength(importsBefore);
+    await harness.authority.dispose();
+  });
+
+  it("recovers a successful Process file import after the temporary close fails", async () => {
+    const harness = await authorityHarnessV1();
+    const { processInput } = await createTranslationProcessWorkspaceV1({
+      harness,
+      suffix: "close-retry",
+    });
+    const execution = await acquireTranslationImportLeaseV1({
+      harness,
+      processId: processInput.process.processId,
+    });
+    const request = {
+      processId: processInput.process.processId,
+      workspaceId: processInput.workspaceId,
+      ...execution,
+      path: "imports/source.md",
+      bytes: new TextEncoder().encode("hello"),
+    } as const;
+    harness.host.failNextClose();
+
+    await expect(harness.authority.importProcessWorkspaceFile(request)).rejects.toMatchObject({
+      code: "workspace_close_failed",
+    });
+    expect(harness.host.activeSessionId()).not.toBeNull();
+    await expect(harness.authority.importProcessWorkspaceFile(request)).resolves.toMatchObject({
+      changed: false,
+      source: { generation: 2 },
+    });
+    expect(harness.host.events.filter((event) => event === "host:open")).toHaveLength(1);
+    expect(harness.host.events.filter((event) => event === "host:import")).toHaveLength(2);
+    expect(harness.host.activeSessionId()).toBeNull();
+    await harness.authority.dispose();
+  });
+
+  it("does not guess a lost Process import outcome and lets the same source recover idempotently", async () => {
+    const harness = await authorityHarnessV1();
+    const { processInput } = await createTranslationProcessWorkspaceV1({
+      harness,
+      suffix: "import-unknown",
+    });
+    const execution = await acquireTranslationImportLeaseV1({
+      harness,
+      processId: processInput.process.processId,
+    });
+    const request = {
+      processId: processInput.process.processId,
+      workspaceId: processInput.workspaceId,
+      ...execution,
+      path: "imports/source.srt",
+      bytes: new TextEncoder().encode("1\n00:00:00,000 --> 00:00:01,000\nHello"),
+    } as const;
+    harness.host.hideNextImportResult();
+
+    await expect(harness.authority.importProcessWorkspaceFile(request)).rejects.toMatchObject({
+      code: "outcome_unknown",
+    });
+    expect(harness.host.events.filter((event) => event === "host:close")).toHaveLength(0);
+    await expect(harness.authority.importProcessWorkspaceFile(request)).resolves.toMatchObject({
+      changed: false,
+      source: { generation: 2 },
+    });
+    expect(harness.host.activeSessionId()).toBeNull();
     await harness.authority.dispose();
   });
 
