@@ -256,6 +256,15 @@ async function flushPagePortV1(): Promise<void> {
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
 }
 
+async function expectExportInboundV1(
+  worker: FakeWorkerV1,
+  expected: Readonly<Record<string, unknown>>,
+): Promise<void> {
+  await vi.waitFor(() => {
+    expect(worker.exportInbound).toContainEqual(expected);
+  });
+}
+
 function exportInputV1(
   signal: AbortSignal,
   onReady: (
@@ -829,7 +838,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
     controller.abort(new DOMException("cancelled by test", "AbortError"));
     resolveReady("release");
     await flushPagePortV1();
-    expect(worker.exportInbound).toContainEqual({
+    await expectExportInboundV1(worker, {
       revision: 1,
       kind: "workspace_export_cancel",
       exportId: "export.aborted-ready",
@@ -883,7 +892,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
       bytesTotal: 64,
     });
     await flushPagePortV1();
-    expect(worker.exportInbound).toContainEqual({
+    await expectExportInboundV1(worker, {
       revision: 1,
       kind: "workspace_export_cancel",
       exportId: "export.unstarted-release",
@@ -934,7 +943,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
       bytesTotal: 64,
     });
     await flushPagePortV1();
-    expect(worker.exportInbound).toContainEqual({
+    await expectExportInboundV1(worker, {
       revision: 1,
       kind: "workspace_export_cancel",
       exportId: "export.consumer-throw",
@@ -997,7 +1006,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
       bytesTotal: 256,
     });
     await flushPagePortV1();
-    expect(worker.exportInbound).toContainEqual({
+    await expectExportInboundV1(worker, {
       revision: 1,
       kind: "workspace_export_start_download",
       exportId: "export.committed-ready",
@@ -1024,7 +1033,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
     });
     finishHandoff();
     await flushPagePortV1();
-    expect(worker.exportInbound).toContainEqual({
+    await expectExportInboundV1(worker, {
       revision: 1,
       kind: "workspace_export_release",
       exportId: "export.committed-ready",
@@ -1072,7 +1081,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
       bytesTotal: 512,
     });
     await flushPagePortV1();
-    expect(worker.exportInbound).toContainEqual({
+    await expectExportInboundV1(worker, {
       revision: 1,
       kind: "workspace_export_start_download",
       exportId: "export.released",
@@ -1095,7 +1104,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
       bytesTotal: 512,
     });
     await flushPagePortV1();
-    expect(worker.exportInbound).toContainEqual({
+    await expectExportInboundV1(worker, {
       revision: 1,
       kind: "workspace_export_release",
       exportId: "export.released",
