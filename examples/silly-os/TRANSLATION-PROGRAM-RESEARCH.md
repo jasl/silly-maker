@@ -1,8 +1,10 @@
 # Translation Program research plan
 
 Status: **P5-A completed on 2026-08-31; prompt revisions 4 and 5 have recorded
-model-protocol evidence, including a revision-5 confirmed-plan ablation, while
-P5-B through P5-D and the complete product journey remain unqualified**.
+model-protocol evidence, including a revision-5 confirmed-plan ablation. The
+first formal P5-B UI/domain foundation is implemented, while the ordinary
+Translation Process route, durable import-to-export workflow, real Agent batch
+loop, and P5-B through P5-D qualification remain incomplete**.
 
 This plan activates the first real Program study described by
 [PLAN.md](./PLAN.md#p5--translation-program). It asks whether SillyOS can carry
@@ -31,6 +33,53 @@ The Program may complete a small document in one Agent turn, but its Process
 must remain usable as a multi-turn workbench. Conversation is the durable
 explanation and decision record; translation units and exported artifacts are
 product-owned records rather than text reconstructed from the transcript.
+
+### Formal product foundation implemented after P5-A
+
+The first formal slice deliberately stops before claiming an ordinary
+Translation product journey. It establishes the following product-owned
+foundations:
+
+- a SillyOS-owned Program UI Container with `guided` (labelled “Simple” in the
+  Translation UI) and `conversation` views over the same `processId`; switching
+  presentation does not create another Process, Conversation, Workspace, or
+  Agent authority;
+- a closed Program UI boundary. Host-owned React surfaces are implementation
+  inputs only. A later Program-produced OpenUI document must first be admitted
+  as data and rendered by a closed SillyOS renderer inside the guided slot; it
+  cannot supply a React node, portal, renderer, outer chrome, overlay, or
+  activity strip;
+- a bottom Agent-run projection that shows the latest activity line when
+  collapsed and at most the latest three when expanded. Exact mechanical work
+  may expose determinate completed/total progress; model work remains
+  indeterminate. Elapsed time, cancellation, and expansion are supported, but
+  the UI invents no completion percentage or ETA;
+- a Translation workbench with import and language inputs, workflow stages,
+  exact committed-unit progress, a virtualized unit list, and an editable target
+  detail path on desktop and mobile. The 10,000-unit contract proves that only
+  the visible row window enters the DOM; it does not claim repository paging or
+  that a complete 10,000-unit aggregate is cheap to move through a Worker;
+- an admitted in-memory `TranslationProjectV1` domain shape with a human-facing
+  title, immutable source/unit structure, glossary, target and committed-batch
+  bindings, materialized O(1) progress, and bounded row-window projection. It
+  intentionally has no arbitrary project-size or unit-count ceiling;
+- a batch-order correction for Project subsets: unit order remains global and
+  contiguous across the complete Project, so a later batch may correctly begin
+  at a non-zero `order` while still being checked against the authoritative
+  Project selection; and
+- a real fixed QuickJS 0.32 harness test for ordinary regular expressions,
+  Unicode property escapes, lookbehind, and named capture groups. This proves
+  the fixed SillyOS `qjs` environment can support those mechanics. It does not
+  authorize `qjs`, `bash`, or Workspace access for Translation: the intended
+  Translation Definition currently advertises no capabilities, is not published
+  by Creator bootstrap, and no Translation Process execution profile exists.
+
+The slice does **not** deliver the ordinary route or a Translation-owned Process
+controller; durable source-artifact ownership, format-adapter and export
+bindings; Worker/repository project paging; a real Agent batching, commit,
+interruption, resume, or review loop; OpenUI production or rendering; Python;
+or CodeAct. The current UI/domain foundation is therefore an implementation
+input to P5-B and P5-C, not evidence that either stage has closed.
 
 ## Clean-room reference boundary
 

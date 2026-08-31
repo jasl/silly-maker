@@ -6,6 +6,8 @@ import { cnV1 } from "./utils.ts";
 export interface TabsItemV1 {
   readonly value: string;
   readonly label: ReactNode;
+  readonly id?: string;
+  readonly controls?: string;
 }
 
 export interface TabsPropsV1 {
@@ -39,6 +41,8 @@ export function TabsV1({
             type="button"
             role="tab"
             key={tab.value}
+            id={tab.id}
+            aria-controls={tab.controls}
             aria-selected={tab.value === value}
             tabIndex={tab.value === value ? 0 : -1}
             data-state={tab.value === value ? "active" : "inactive"}

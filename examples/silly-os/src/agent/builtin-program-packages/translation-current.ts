@@ -4,9 +4,9 @@ import { Type } from "@earendil-works/pi-ai";
 
 import {
   admitTranslationBatchCandidateV1,
-  translationProgramHarnessReferenceV1,
   type TranslationBatchRequestV1,
 } from "../../product/translation/translation-batch-protocol.ts";
+import { translationProgramHarnessReferenceV1 } from "../../product/translation/translation-program-definition.ts";
 import type { BrowserBuiltinProgramPackageV1 } from "../browser-builtin-program-package.ts";
 
 export const translationBatchToolNameV1 = "sillyos_submit_translation_batch" as const;

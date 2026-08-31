@@ -109,7 +109,15 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
       ...valid,
       request: {
         ...translationRequestV1,
-        units: [{ ...translationRequestV1.units[0], order: 1 }],
+        units: [
+          { ...translationRequestV1.units[0], order: 1 },
+          {
+            ...translationRequestV1.units[0],
+            unitId: "translation.unit.000002",
+            order: 3,
+            locator: "line/2",
+          },
+        ],
       },
     }))).toEqual({ kind: "rejected" });
   });

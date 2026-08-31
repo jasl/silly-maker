@@ -5,9 +5,9 @@ import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
 import { builtinCreatorProgramCompatibilityReferenceV1 } from "../product/program-process-repository.ts";
 import {
   admitTranslationBatchRequestV1,
-  translationProgramHarnessReferenceV1,
   type TranslationBatchRequestV1,
 } from "../product/translation/translation-batch-protocol.ts";
+import { translationProgramHarnessReferenceV1 } from "../product/translation/translation-program-definition.ts";
 
 export const creatorProgramHarnessReferenceV1 = builtinCreatorProgramCompatibilityReferenceV1;
 

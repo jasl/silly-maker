@@ -147,6 +147,29 @@ describe("SillyOS translation batch protocol", () => {
     );
   });
 
+  it("admits a later contiguous Project batch without renumbering global unit order", () => {
+    const laterBatch: TranslationBatchRequestV1 = {
+      ...requestV1,
+      units: requestV1.units.map((unit, index) => ({
+        ...unit,
+        unitId: `unit.${String(index + 41)}`,
+        order: index + 40,
+      })),
+    };
+
+    const admitted = admitTranslationBatchRequestV1(laterBatch);
+    expect(admitted).toEqual({ kind: "admitted", request: laterBatch });
+    if (admitted.kind !== "admitted") throw new Error("later batch rejected");
+    expect(admitted.request.units.map((unit) => unit.order)).toEqual([40, 41]);
+    expect(admitTranslationBatchCandidateV1({
+      targets: [
+        { unitId: "unit.41", target: "Welcome back, ⟦SM:1⟧." },
+        { unitId: "unit.42", target: "Echo is closer." },
+      ],
+      ambiguities: [],
+    }, admitted.request)).toMatchObject({ kind: "admitted" });
+  });
+
   it.each([
     ["duplicate_unit", [
       { unitId: "unit.1", target: "Welcome back, ⟦SM:1⟧." },

@@ -4870,10 +4870,30 @@ experiment. The evidence supports beginning the formal P5-B product slice
 without replacing the production prompt wholesale. The build-known Creator /
 Translation Program-package colocation cleanup is also complete; Translation's
 compatibility reference remains `@1` and its current prompt revision is 5.
-P5-B through P5-D remain incomplete:
-neither route nor an ordinary Translation product journey is qualified.
-Process-owned Workspace, Host import, and Browser Translation dispatch exist
-only as explicitly unconsumed next-slice substrate. See
+The first formal P5-B UI/domain foundation is now implemented: a SillyOS-owned
+Program UI Container switches guided “Simple” and Conversation presentation for
+the same Process; a bounded run strip projects the latest one to three activity
+lines and truthful mechanical/indeterminate progress; the Translation workbench
+uses a virtualized unit list with a mobile edit path; and the admitted in-memory
+Translation Project carries a human-facing title, stable units, glossary,
+committed-batch bindings, O(1) progress, and row windows without an arbitrary
+project-unit ceiling. The 10,000-unit evidence bounds the rendered DOM only; it
+does not provide Worker or Repository paging. Project-subset batch admission now
+preserves global contiguous unit order, including second and later batches that
+start above zero.
+
+The fixed QuickJS 0.32 harness separately passes real regular-expression
+coverage for ordinary expressions, Unicode property escapes, lookbehind, and
+named captures. Translation has not selected that capability: its intended
+Definition currently advertises no tools, is not published by Creator bootstrap,
+and no Translation Process profile authorizes Workspace, `bash`, or `qjs`.
+
+P5-B through P5-D remain incomplete. There is no ordinary Translation route or
+Translation-owned Process controller, durable source-artifact plus format-
+adapter/export binding, Worker/Repository project paging, real Agent batch loop
+with commit/resume, OpenUI renderer, Python, or CodeAct path. Process-owned
+Workspace, Host import, and Browser Translation dispatch remain explicitly
+unconsumed substrate rather than a qualified import-to-export journey. See
 [TRANSLATION-PROGRAM-RESEARCH.md](./TRANSLATION-PROGRAM-RESEARCH.md).
 
 Make translation the first complete product consumer. Its denominator is one

@@ -7,8 +7,7 @@ import {
   type TranslationSourceUnitV1,
   type TranslationTargetUnitV1,
 } from "./translation-document-codec.ts";
-
-export const translationProgramHarnessReferenceV1 = "sillyos.harness.translation@1" as const;
+export { translationProgramHarnessReferenceV1 } from "./translation-program-definition.ts";
 
 export interface TranslationGlossaryEntryV1 {
   readonly source: string;
@@ -128,6 +127,7 @@ function admitSourceUnitsV1(value: unknown): readonly TranslationSourceUnitV1[] 
   if (!Array.isArray(value) || value.length === 0) return null;
   const units: TranslationSourceUnitV1[] = [];
   const seen = new Set<string>();
+  let firstOrder: number | null = null;
   for (const [index, rawUnit] of value.entries()) {
     const unit = exactRecordV1(rawUnit, [
       "unitId",
@@ -141,19 +141,22 @@ function admitSourceUnitsV1(value: unknown): readonly TranslationSourceUnitV1[] 
     if (
       unit === null || typeof unit.unitId !== "string" ||
       !translationUnitIdentifierPatternV1.test(unit.unitId) || seen.has(unit.unitId) ||
-      unit.order !== index || !nonEmptyStringV1(unit.locator) ||
+      typeof unit.order !== "number" || !Number.isSafeInteger(unit.order) || unit.order < 0 ||
+      !nonEmptyStringV1(unit.locator) ||
       (unit.context !== null && typeof unit.context !== "string") ||
       (unit.durationMilliseconds !== null &&
         (typeof unit.durationMilliseconds !== "number" ||
           !Number.isSafeInteger(unit.durationMilliseconds) || unit.durationMilliseconds <= 0)) ||
       !nonEmptyStringV1(unit.source)
     ) return null;
+    if (firstOrder === null) firstOrder = unit.order;
+    if (unit.order !== firstOrder + index) return null;
     const protectedSegments = admitProtectedSegmentsV1(unit.protectedSegments, unit.source);
     if (protectedSegments === null) return null;
     seen.add(unit.unitId);
     units.push({
       unitId: unit.unitId,
-      order: index,
+      order: unit.order,
       locator: unit.locator,
       context: unit.context as string | null,
       durationMilliseconds: unit.durationMilliseconds as number | null,

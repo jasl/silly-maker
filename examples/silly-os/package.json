@@ -45,6 +45,7 @@
     "@sillymaker/agent": "workspace:*",
     "@sillymaker/ui": "workspace:*",
     "@sillymaker/web": "workspace:*",
+    "@tanstack/react-virtual": "3.14.10",
     "client-zip": "2.5.0",
     "clsx": "2.1.1",
     "just-bash": "3.4.2",

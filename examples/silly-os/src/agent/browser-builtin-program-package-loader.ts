@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 import { creatorProgramHarnessReferenceV1 } from "./browser-pi-agent-dispatch.ts";
-import { translationProgramHarnessReferenceV1 } from "../product/translation/translation-batch-protocol.ts";
+import { translationProgramHarnessReferenceV1 } from "../product/translation/translation-program-definition.ts";
 import type { BrowserBuiltinProgramPackageV1 } from "./browser-builtin-program-package.ts";
 
 const selectedPackageLoadersV1 = new Map<
