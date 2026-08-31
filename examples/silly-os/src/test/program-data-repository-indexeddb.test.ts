@@ -13,7 +13,7 @@ import type {
   ProgramProcessExecutionRevisionBundleInputV1,
   ProgramProcessRevisionBundleInputV1,
   ProcessWorkspaceCreateBundleInputV1,
-  TranslationProjectFinalizeExecutionBundleInputV1,
+  TranslationWorksetFinalizeExecutionBundleInputV1,
 } from "../product/program-data-repository.ts";
 import type {
   ProcessExecutionAcquireInputV1,
@@ -22,7 +22,7 @@ import type {
 } from "../product/process-execution-repository.ts";
 import { admitProgramDataRepositoryWorkerRequestEnvelopeV1 } from "../product/program-data-repository-worker-protocol.ts";
 import {
-  createBuiltinCreatorProgramDefinitionRevisionV1,
+  createBundledCreatorProgramDefinitionRevisionV1,
   type ProcessAttemptBeginInputV1,
   type ProcessTranscriptAppendInputV1,
   type ProgramDefinitionRevisionV1,
@@ -71,36 +71,6 @@ function transactionDoneV1(transaction: IDBTransaction): Promise<void> {
     transaction.addEventListener("abort", () => reject(transaction.error), { once: true });
     transaction.addEventListener("error", () => reject(transaction.error), { once: true });
   });
-}
-
-function createV9SchemaV1(database: IDBDatabase): void {
-  database.createObjectStore("program_definitions", { keyPath: ["programId", "revision"] });
-  const heads = database.createObjectStore("program_heads", { keyPath: "programId" });
-  heads.createIndex("by_updated_at", ["updatedAt", "programId"]);
-  database.createObjectStore("program_revisions", { keyPath: ["programId", "revision"] });
-  const decisions = database.createObjectStore("program_decisions", {
-    keyPath: ["programId", "proposalId", "programRevision"],
-  });
-  decisions.createIndex("by_program_revision", ["programId", "programRevision"], { unique: true });
-  database.createObjectStore("catalog_commits", { keyPath: ["programId", "commitId"] });
-  const processes = database.createObjectStore("processes", { keyPath: "processId" });
-  processes.createIndex("by_subject_updated_at", ["subjectKey", "updatedAt", "processId"]);
-  const transcripts = database.createObjectStore("transcript_entries", {
-    keyPath: ["processId", "sequence"],
-  });
-  transcripts.createIndex("by_process_entry_id", ["processId", "entryId"], { unique: true });
-  database.createObjectStore("process_commits", { keyPath: ["processId", "commitId"] });
-  database.createObjectStore("process_execution_leases", { keyPath: "processId" });
-  database.createObjectStore("workspace_continuations", { keyPath: "programId" });
-  database.createObjectStore("program_network_access", { keyPath: "programId" });
-}
-
-function createV10SchemaV1(database: IDBDatabase): void {
-  createV9SchemaV1(database);
-  const bindings = database.createObjectStore("process_workspace_bindings", {
-    keyPath: "processId",
-  });
-  bindings.createIndex("by_volume_id", "volumeId", { unique: true });
 }
 
 function programV1(programId: string, revision: number): PreviewProgramV1 {
@@ -233,7 +203,7 @@ function createBundleV1(
   programId: string,
   processId: string,
 ): ProgramProcessCreateBundleInputV1 {
-  const definition = createBuiltinCreatorProgramDefinitionRevisionV1();
+  const definition = createBundledCreatorProgramDefinitionRevisionV1();
   return {
     catalog: {
       commitId: `commit.${programId}.create`,
@@ -464,8 +434,8 @@ async function acquireTranslationLeaseV1(
   processId: string,
   ownerInstanceId = `owner.${processId}`,
 ): Promise<ProcessExecutionLeaseV1> {
-  const acquired = await repository.acquireTranslationProjectImportExecution({
-    expectedProjectRevision: null,
+  const acquired = await repository.acquireTranslationWorksetImportExecution({
+    expectedWorksetRevision: null,
     execution: translationExecutionAcquireV1(programId, processId, ownerInstanceId),
   });
   if (acquired.kind === "conflict") throw new Error("expected Translation import lease");
@@ -521,7 +491,7 @@ function executionTerminalV1(input: {
   };
 }
 
-describe("IndexedDB Program data repository V11", () => {
+describe("IndexedDB Program data repository V13", () => {
   it("creates the exact normalized schema and indexes null subjects without scanning", async () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
@@ -549,25 +519,14 @@ describe("IndexedDB Program data repository V11", () => {
     database.close();
   });
 
-  for (
-    const legacy of [
-      { version: 4, stores: ["programs", "workspace_continuations"] },
-      { version: 5, stores: ["programs", "workspace_continuations"] },
-      { version: 6, stores: ["programs", "program_network_grants", "workspace_continuations"] },
-      { version: 7, stores: ["program_network_access", "programs", "workspace_continuations"] },
-    ]
-  ) {
-    it(`row-blind resets exact V${String(legacy.version)} storage`, async () => {
+  for (const previousVersion of [3, 7, 9, 10, 11, 12]) {
+    it(`row-blind resets arbitrary V${String(previousVersion)} preview storage`, async () => {
       const indexedDB = new IDBFactory();
-      const old = await openRawV1(indexedDB, legacy.version, (database) => {
-        for (const name of legacy.stores) {
-          database.createObjectStore(name, { keyPath: "programId" });
-        }
+      const old = await openRawV1(indexedDB, previousVersion, (database) => {
+        database.createObjectStore("legacy_preview_rows", { keyPath: "id" });
       });
-      const write = old.transaction(legacy.stores, "readwrite");
-      for (const name of legacy.stores) {
-        write.objectStore(name).put({ programId: `poison.${name}`, impossible: true });
-      }
+      const write = old.transaction("legacy_preview_rows", "readwrite");
+      write.objectStore("legacy_preview_rows").put({ id: "old", impossible: true });
       await transactionDoneV1(write);
       old.close();
 
@@ -584,88 +543,17 @@ describe("IndexedDB Program data repository V11", () => {
     });
   }
 
-  it("additively upgrades exact V9 storage without discarding durable definitions", async () => {
-    const indexedDB = new IDBFactory();
-    const old = await openRawV1(indexedDB, 9, createV9SchemaV1);
-    const write = old.transaction("program_definitions", "readwrite");
-    write.objectStore("program_definitions").add(translationDefinitionV1());
-    await transactionDoneV1(write);
-    old.close();
-
-    const repository = repositoryV1(indexedDB);
-    await repository.initialize();
-    expect(await repository.loadProgramDefinitionRevision("sillyos.builtin.translation", 1))
-      .toEqual(translationDefinitionV1());
-    expect(await repository.loadProcessWorkspaceBinding("process.absent")).toBeNull();
-    await repository.dispose();
-
-    const upgraded = await openRawV1(indexedDB, programDataDatabaseVersionV1);
-    expect(
-      upgraded.transaction("process_workspace_bindings", "readonly")
-        .objectStore("process_workspace_bindings").index("by_volume_id").unique,
-    ).toBe(true);
-    upgraded.close();
-  });
-
-  it("additively upgrades exact V10 storage without discarding durable rows", async () => {
-    const indexedDB = new IDBFactory();
-    const old = await openRawV1(indexedDB, 10, createV10SchemaV1);
-    const write = old.transaction(
-      ["program_definitions", "process_workspace_bindings"],
-      "readwrite",
-    );
-    write.objectStore("program_definitions").add(translationDefinitionV1());
-    write.objectStore("process_workspace_bindings").add({
-      revision: 1,
-      processId: "process.v10",
-      workspaceId: "workspace.v10",
-      volumeId: "volume.v10",
-      workspaceFormat: 1,
-    });
-    await transactionDoneV1(write);
-    old.close();
-
-    const repository = repositoryV1(indexedDB);
-    await repository.initialize();
-    expect(await repository.loadProgramDefinitionRevision("sillyos.builtin.translation", 1))
-      .toEqual(translationDefinitionV1());
-    expect(await repository.loadProcessWorkspaceBinding("process.v10")).toMatchObject({
-      volumeId: "volume.v10",
-    });
-    expect(await repository.loadTranslationProjectHead("process.v10")).toBeNull();
-    await repository.dispose();
-  });
-
-  it("fails closed for unknown, malformed, future, and blocked databases", async () => {
-    const unknownFactory = new IDBFactory();
-    (await openRawV1(unknownFactory, 3, (database) => database.createObjectStore("unknown")))
-      .close();
-    await expect(
-      repositoryV1(unknownFactory).initialize(),
-    ).rejects.toMatchObject({ code: "schema_invalid" });
-
-    const malformedFactory = new IDBFactory();
-    (await openRawV1(malformedFactory, 7, (database) => {
-      database.createObjectStore("programs");
-      database.createObjectStore("workspace_continuations", { keyPath: "programId" });
-      database.createObjectStore("program_network_access", { keyPath: "programId" });
-    })).close();
-    await expect(
-      repositoryV1(malformedFactory).initialize(),
-    ).rejects.toMatchObject({ code: "schema_invalid" });
-
+  it("fails closed for future and blocked databases", async () => {
     const futureFactory = new IDBFactory();
-    (await openRawV1(futureFactory, 12, (database) => database.createObjectStore("future")))
+    (await openRawV1(futureFactory, 14, (database) => database.createObjectStore("future")))
       .close();
     await expect(
       repositoryV1(futureFactory).initialize(),
     ).rejects.toMatchObject({ code: "database_newer" });
 
     const blockedFactory = new IDBFactory();
-    const blocker = await openRawV1(blockedFactory, 7, (database) => {
-      database.createObjectStore("programs", { keyPath: "programId" });
-      database.createObjectStore("workspace_continuations", { keyPath: "programId" });
-      database.createObjectStore("program_network_access", { keyPath: "programId" });
+    const blocker = await openRawV1(blockedFactory, 12, (database) => {
+      database.createObjectStore("legacy_preview_rows", { keyPath: "id" });
     });
     await expect(
       repositoryV1(blockedFactory).initialize(),
@@ -829,7 +717,7 @@ describe("IndexedDB Program data repository V11", () => {
   it("atomically commits and exact-replays the three Program/Process composites", async () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
-    const definition = createBuiltinCreatorProgramDefinitionRevisionV1();
+    const definition = createBundledCreatorProgramDefinitionRevisionV1();
     await repository.publishProgramDefinitionRevision(definition);
     const create = createBundleV1("program.composite", "process.composite");
     expect(await repository.createProgramWithProcess(create)).toMatchObject({
@@ -1030,7 +918,7 @@ describe("IndexedDB Program data repository V11", () => {
   it("keeps Creator Process creation on the Program-successor composite path", async () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
-    const creatorDefinition = createBuiltinCreatorProgramDefinitionRevisionV1();
+    const creatorDefinition = createBundledCreatorProgramDefinitionRevisionV1();
     await repository.publishProgramDefinitionRevision(creatorDefinition);
     await createProgramV1(repository, "program.creator-workspace");
     const bundle = processWorkspaceBundleV1(
@@ -1135,7 +1023,7 @@ describe("IndexedDB Program data repository V11", () => {
     });
 
     await repository.publishProgramDefinitionRevision(
-      createBuiltinCreatorProgramDefinitionRevisionV1(),
+      createBundledCreatorProgramDefinitionRevisionV1(),
     );
     await repository.createProgramWithProcess(
       createBundleV1("program.creator-terminal", "process.creator-terminal"),
@@ -1166,7 +1054,7 @@ describe("IndexedDB Program data repository V11", () => {
     const indexedDB = new IDBFactory();
     const first = repositoryV1(indexedDB);
     const second = repositoryV1(indexedDB);
-    await first.publishProgramDefinitionRevision(createBuiltinCreatorProgramDefinitionRevisionV1());
+    await first.publishProgramDefinitionRevision(createBundledCreatorProgramDefinitionRevisionV1());
     await first.createProgramWithProcess(createBundleV1("program.execution", "process.execution"));
 
     const acquire = executionAcquireV1("program.execution", "process.execution");
@@ -1340,7 +1228,7 @@ describe("IndexedDB Program data repository V11", () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
     await repository.publishProgramDefinitionRevision(
-      createBuiltinCreatorProgramDefinitionRevisionV1(),
+      createBundledCreatorProgramDefinitionRevisionV1(),
     );
     await repository.createProgramWithProcess(createBundleV1("program.bundle", "process.bundle"));
     const acquired = await repository.acquireProcessExecution(
@@ -1538,7 +1426,7 @@ describe("IndexedDB Program data repository V11", () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
     await repository.publishProgramDefinitionRevision(
-      createBuiltinCreatorProgramDefinitionRevisionV1(),
+      createBundledCreatorProgramDefinitionRevisionV1(),
     );
     const create = createBundleV1("program.composite-rollback", "process.composite-rollback");
     const originalAdd = FakeIDBObjectStore.prototype.add;
@@ -1653,7 +1541,7 @@ describe("IndexedDB Program data repository V11", () => {
   it("reconciles Process commits exactly, preserves predecessor on conflict, and pages losslessly", async () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
-    const definition = createBuiltinCreatorProgramDefinitionRevisionV1();
+    const definition = createBundledCreatorProgramDefinitionRevisionV1();
     expect((await repository.publishProgramDefinitionRevision(definition)).kind).toBe("committed");
     for (
       const [processId, subjectProgramId] of [
@@ -1730,7 +1618,7 @@ describe("IndexedDB Program data repository V11", () => {
   it("atomically rolls back a terminal Process append when its commit-row write fails", async () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
-    const definition = createBuiltinCreatorProgramDefinitionRevisionV1();
+    const definition = createBundledCreatorProgramDefinitionRevisionV1();
     await repository.publishProgramDefinitionRevision(definition);
     await repository.createProcess({
       processId: "process.atomic-append",
@@ -1780,7 +1668,7 @@ describe("IndexedDB Program data repository V11", () => {
   it("fails closed for impossible stored Process commit and receipt relationships", async () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
-    const definition = createBuiltinCreatorProgramDefinitionRevisionV1();
+    const definition = createBundledCreatorProgramDefinitionRevisionV1();
     await repository.publishProgramDefinitionRevision(definition);
     await repository.createProcess({
       processId: "process.malformed-commit",
@@ -1852,7 +1740,7 @@ describe("IndexedDB Program data repository V11", () => {
     await repository.dispose();
   });
 
-  it("rejects a Translation Project beneath a non-Translation Process", async () => {
+  it("rejects a Translation workset beneath a non-Translation Process", async () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
     const writingDefinition = nonCreatorDefinitionV1("writing");
@@ -1874,11 +1762,10 @@ describe("IndexedDB Program data repository V11", () => {
     if (acquired.kind === "conflict") throw new Error("expected writing Process lease");
     const lease = acquired.lease;
 
-    await expect(repository.beginTranslationProjectImport({
+    await expect(repository.beginTranslationWorksetImport({
       processId: "process.translation-wrong-process",
       operationId: "translation.begin.wrong-process",
       lease,
-      projectId: "translation.project.wrong-process",
       title: "Wrong process",
       document: {
         format: "plain_text",
@@ -1921,7 +1808,6 @@ describe("IndexedDB Program data repository V11", () => {
       processId,
       operationId: "translation.begin.fenced",
       lease: predecessorLease,
-      projectId: "translation.project.fenced",
       title: "Fenced translation",
       document: {
         format: "plain_text" as const,
@@ -1944,7 +1830,7 @@ describe("IndexedDB Program data repository V11", () => {
       expectedGlossaryCount: 0,
       updatedAt: 4,
     };
-    expect(await repository.beginTranslationProjectImport(begin)).toMatchObject({
+    expect(await repository.beginTranslationWorksetImport(begin)).toMatchObject({
       kind: "committed",
       head: { revision: 1, phase: "staging" },
     });
@@ -1970,8 +1856,8 @@ describe("IndexedDB Program data repository V11", () => {
     if (settled.kind === "conflict" || settled.process.checkpoint === null) {
       throw new Error("expected interrupted predecessor terminal");
     }
-    const successor = await repository.acquireTranslationProjectImportExecution({
-      expectedProjectRevision: 1,
+    const successor = await repository.acquireTranslationWorksetImportExecution({
+      expectedWorksetRevision: 1,
       execution: {
         ownerInstanceId: "owner.translation.successor",
         observedAt: 7,
@@ -1997,14 +1883,14 @@ describe("IndexedDB Program data repository V11", () => {
 
     // Receipt replay remains historical evidence and does not grant the old
     // owner authority for a new publication.
-    expect(await repository.beginTranslationProjectImport(begin)).toMatchObject({
+    expect(await repository.beginTranslationWorksetImport(begin)).toMatchObject({
       kind: "unchanged",
       head: { revision: 1 },
     });
     const append = {
       processId,
       operationId: "translation.append.fenced",
-      expectedProjectRevision: 1,
+      expectedWorksetRevision: 1,
       units: [{
         unitId: "unit.fenced.0",
         order: 0,
@@ -2018,7 +1904,7 @@ describe("IndexedDB Program data repository V11", () => {
       updatedAt: 8,
     };
     expect(
-      await repository.appendTranslationProjectImport({
+      await repository.appendTranslationWorksetImport({
         ...append,
         operationId: "translation.append.predecessor",
         lease: predecessorLease,
@@ -2026,7 +1912,7 @@ describe("IndexedDB Program data repository V11", () => {
       }),
     ).toMatchObject({ kind: "conflict", current: { revision: 1 } });
     expect(
-      await repository.appendTranslationProjectImport({ ...append, lease: successor.lease }),
+      await repository.appendTranslationWorksetImport({ ...append, lease: successor.lease }),
     ).toMatchObject({ kind: "committed", head: { revision: 2, stagedUnitCount: 1 } });
     const predecessorTerminal = executionTerminalV1({
       processId,
@@ -2042,12 +1928,12 @@ describe("IndexedDB Program data repository V11", () => {
       commitId: "commit.translation.finalize.predecessor.terminal",
     });
     expect(
-      await repository.commitTranslationProjectFinalizeWithProcessExecutionTerminal({
-        project: {
+      await repository.commitTranslationWorksetFinalizeWithProcessExecutionTerminal({
+        workset: {
           processId,
           operationId: "translation.finalize.predecessor",
           lease: predecessorLease,
-          expectedProjectRevision: 2,
+          expectedWorksetRevision: 2,
           sourceBinding: begin.sourceBinding,
           updatedAt: 4,
         },
@@ -2055,7 +1941,7 @@ describe("IndexedDB Program data repository V11", () => {
       }),
     ).toMatchObject({
       kind: "conflict",
-      currentProject: { revision: 2, phase: "staging" },
+      currentWorkset: { revision: 2, phase: "staging" },
     });
     const successorTerminal = executionTerminalV1({
       processId,
@@ -2071,12 +1957,12 @@ describe("IndexedDB Program data repository V11", () => {
       commitId: "commit.translation.finalize.successor.terminal",
     });
     expect(
-      await repository.commitTranslationProjectFinalizeWithProcessExecutionTerminal({
-        project: {
+      await repository.commitTranslationWorksetFinalizeWithProcessExecutionTerminal({
+        workset: {
           processId,
           operationId: "translation.finalize.successor",
           lease: successor.lease,
-          expectedProjectRevision: 2,
+          expectedWorksetRevision: 2,
           sourceBinding: begin.sourceBinding,
           updatedAt: 9,
         },
@@ -2090,7 +1976,7 @@ describe("IndexedDB Program data repository V11", () => {
     await repository.dispose();
   });
 
-  it("binds the exact Translation Project expectation into the acquire receipt", async () => {
+  it("binds the exact Translation workset expectation into the acquire receipt", async () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
     const programId = "program.translation.acquire-receipt";
@@ -2099,31 +1985,31 @@ describe("IndexedDB Program data repository V11", () => {
     await createProgramV1(repository, programId);
     await repository.createProcessWithWorkspace(processWorkspaceBundleV1(programId, processId));
     const input = {
-      expectedProjectRevision: null,
+      expectedWorksetRevision: null,
       execution: translationExecutionAcquireV1(programId, processId),
     };
-    const committed = await repository.acquireTranslationProjectImportExecution(input);
+    const committed = await repository.acquireTranslationWorksetImportExecution(input);
     expect(committed).toMatchObject({
       kind: "committed",
-      operationReceipt: { operation: "translation_project_execution_acquire" },
+      operationReceipt: { operation: "translation_workset_import_execution_acquire" },
     });
-    expect(await repository.acquireTranslationProjectImportExecution(input)).toMatchObject({
+    expect(await repository.acquireTranslationWorksetImportExecution(input)).toMatchObject({
       kind: "unchanged",
       operationReceipt: committed.kind === "conflict" ? null : committed.operationReceipt,
     });
     expect(
       await repository.queryProcessOperation({
-        operation: "translation_project_execution_acquire",
+        operation: "translation_workset_import_execution_acquire",
         input,
       }),
     ).toMatchObject({
       kind: "committed",
-      receipt: { operation: "translation_project_execution_acquire" },
+      receipt: { operation: "translation_workset_import_execution_acquire" },
     });
     expect(
       await repository.queryProcessOperation({
-        operation: "translation_project_execution_acquire",
-        input: { ...input, expectedProjectRevision: 1 },
+        operation: "translation_workset_import_execution_acquire",
+        input: { ...input, expectedWorksetRevision: 1 },
       }),
     ).toMatchObject({ kind: "mismatch" });
     await repository.dispose();
@@ -2144,7 +2030,6 @@ describe("IndexedDB Program data repository V11", () => {
       processId,
       operationId: "translation.begin.ready-race",
       lease,
-      projectId: "translation.project.ready-race",
       title: "Ready race",
       document: {
         format: "plain_text" as const,
@@ -2167,7 +2052,7 @@ describe("IndexedDB Program data repository V11", () => {
       expectedGlossaryCount: 0,
       updatedAt: 4,
     };
-    expect(await first.beginTranslationProjectImport(begin)).toMatchObject({
+    expect(await first.beginTranslationWorksetImport(begin)).toMatchObject({
       kind: "committed",
       head: { revision: 1, phase: "staging" },
     });
@@ -2185,19 +2070,19 @@ describe("IndexedDB Program data repository V11", () => {
       commitId: "translation.terminal.ready-race",
     });
     const finalized = await first
-      .commitTranslationProjectFinalizeWithProcessExecutionTerminal({
-        project: {
+      .commitTranslationWorksetFinalizeWithProcessExecutionTerminal({
+        workset: {
           processId,
           operationId: "translation.finalize.ready-race",
           lease,
-          expectedProjectRevision: 1,
+          expectedWorksetRevision: 1,
           sourceBinding,
           updatedAt: 5,
         },
         terminal,
       });
     if (finalized.kind === "conflict" || finalized.process.checkpoint === null) {
-      throw new Error("expected ready Translation project");
+      throw new Error("expected ready Translation workset");
     }
     const beforeProcess = await first.loadProcess(processId);
     const beforeTranscript = await first.loadTranscriptPage({
@@ -2206,7 +2091,7 @@ describe("IndexedDB Program data repository V11", () => {
       maximumBytes: 8_192,
     });
     const staleAcquire = {
-      expectedProjectRevision: 1,
+      expectedWorksetRevision: 1,
       execution: {
         ownerInstanceId: "owner.translation.ready-race.stale",
         observedAt: 6,
@@ -2231,20 +2116,20 @@ describe("IndexedDB Program data repository V11", () => {
         },
       },
     };
-    expect(await second.acquireTranslationProjectImportExecution(staleAcquire)).toMatchObject({
+    expect(await second.acquireTranslationWorksetImportExecution(staleAcquire)).toMatchObject({
       kind: "conflict",
-      currentProject: { revision: 2, phase: "ready" },
+      currentWorkset: { revision: 2, phase: "ready" },
       currentProcess: { lastTerminalAttempt: { outcome: "completed", generation: 1 } },
       currentLease: null,
     });
     expect(
       await second.queryProcessOperation({
-        operation: "translation_project_execution_acquire",
+        operation: "translation_workset_import_execution_acquire",
         input: staleAcquire,
       }),
     ).toEqual({ kind: "absent" });
     await expect(second.acquireProcessExecution(staleAcquire.execution)).rejects.toThrow(
-      "A Translation Process must acquire execution with its Project expectation",
+      "A Translation Process must acquire execution with its workset expectation",
     );
     expect(await second.loadProcess(processId)).toEqual(beforeProcess);
     expect(
@@ -2276,7 +2161,6 @@ describe("IndexedDB Program data repository V11", () => {
       processId: "process.translation.large",
       operationId: "translation.begin.large",
       lease,
-      projectId: "translation.project.large",
       title: "Large translation",
       document: {
         format: "plain_text" as const,
@@ -2303,17 +2187,17 @@ describe("IndexedDB Program data repository V11", () => {
       expectedGlossaryCount: 0,
       updatedAt: 3,
     };
-    expect(await writer.beginTranslationProjectImport(begin)).toMatchObject({
+    expect(await writer.beginTranslationWorksetImport(begin)).toMatchObject({
       kind: "committed",
       head: { phase: "staging", sourceBinding: begin.sourceBinding },
     });
     let revision = 1;
     for (let offset = 0; offset < 10_000; offset += 500) {
-      const result = await writer.appendTranslationProjectImport({
+      const result = await writer.appendTranslationWorksetImport({
         processId: begin.processId,
         operationId: `translation.append.${String(offset)}`,
         lease,
-        expectedProjectRevision: revision,
+        expectedWorksetRevision: revision,
         units: Array.from({ length: 500 }, (_, index) => {
           const order = offset + index;
           return {
@@ -2352,12 +2236,12 @@ describe("IndexedDB Program data repository V11", () => {
       });
     const mismatchedBinding = { ...begin.sourceBinding, generation: 2 };
     expect(
-      await writer.commitTranslationProjectFinalizeWithProcessExecutionTerminal({
-        project: {
+      await writer.commitTranslationWorksetFinalizeWithProcessExecutionTerminal({
+        workset: {
           processId: begin.processId,
           operationId: "translation.finalize.mismatched-binding",
           lease,
-          expectedProjectRevision: revision,
+          expectedWorksetRevision: revision,
           sourceBinding: mismatchedBinding,
           updatedAt: 20_004,
         },
@@ -2369,14 +2253,14 @@ describe("IndexedDB Program data repository V11", () => {
       }),
     ).toMatchObject({
       kind: "conflict",
-      currentProject: { phase: "staging", sourceBinding: begin.sourceBinding },
+      currentWorkset: { phase: "staging", sourceBinding: begin.sourceBinding },
     });
-    const finalizeBundle: TranslationProjectFinalizeExecutionBundleInputV1 = {
-      project: {
+    const finalizeBundle: TranslationWorksetFinalizeExecutionBundleInputV1 = {
+      workset: {
         processId: begin.processId,
         operationId: "translation.finalize.large",
         lease,
-        expectedProjectRevision: revision,
+        expectedWorksetRevision: revision,
         sourceBinding: begin.sourceBinding,
         updatedAt: 20_005,
       },
@@ -2387,7 +2271,7 @@ describe("IndexedDB Program data repository V11", () => {
       }),
     };
     await expect(writer.commitProcessExecutionTerminal(finalizeBundle.terminal)).rejects.toThrow(
-      "A Translation Process must publish a completed terminal with its Project finalize",
+      "A Translation Process must publish a completed terminal with its workset finalize",
     );
     const originalAdd = FakeIDBObjectStore.prototype.add;
     vi.spyOn(FakeIDBObjectStore.prototype, "add").mockImplementation(function (
@@ -2401,15 +2285,15 @@ describe("IndexedDB Program data repository V11", () => {
     });
     try {
       await expect(
-        writer.commitTranslationProjectFinalizeWithProcessExecutionTerminal(finalizeBundle),
+        writer.commitTranslationWorksetFinalizeWithProcessExecutionTerminal(finalizeBundle),
       ).rejects.toMatchObject({
         code: "quota_exceeded",
-        operation: "commit_translation_project_finalize_with_process_execution_terminal",
+        operation: "commit_translation_workset_finalize_with_process_execution_terminal",
       });
     } finally {
       vi.restoreAllMocks();
     }
-    expect(await writer.loadTranslationProjectHead(begin.processId)).toMatchObject({
+    expect(await writer.loadTranslationWorksetHead(begin.processId)).toMatchObject({
       revision,
       phase: "staging",
     });
@@ -2419,9 +2303,9 @@ describe("IndexedDB Program data repository V11", () => {
     });
     expect(await writer.loadProcessExecutionLease(begin.processId)).toEqual(lease);
     expect(
-      await writer.queryTranslationProjectOperation({
+      await writer.queryTranslationWorksetOperation({
         operation: "finalize",
-        input: finalizeBundle.project,
+        input: finalizeBundle.workset,
       }),
     ).toEqual({ kind: "absent" });
     expect(
@@ -2431,20 +2315,20 @@ describe("IndexedDB Program data repository V11", () => {
       }),
     ).toEqual({ kind: "absent" });
     const finalized = await writer
-      .commitTranslationProjectFinalizeWithProcessExecutionTerminal(finalizeBundle);
+      .commitTranslationWorksetFinalizeWithProcessExecutionTerminal(finalizeBundle);
     expect(finalized).toMatchObject({
       kind: "committed",
       head: { phase: "ready", stagedUnitCount: 10_000 },
       process: { activeAttempt: null, lastTerminalAttempt: { outcome: "completed" } },
-      projectOperationReceipt: { operation: "finalize" },
+      worksetOperationReceipt: { operation: "finalize" },
       processOperationReceipt: { operation: "execution_terminal" },
     });
-    if (finalized.kind !== "committed") throw new Error("expected finalized Translation project");
+    if (finalized.kind !== "committed") throw new Error("expected finalized Translation workset");
     expect(
-      await writer.commitTranslationProjectFinalizeWithProcessExecutionTerminal(finalizeBundle),
+      await writer.commitTranslationWorksetFinalizeWithProcessExecutionTerminal(finalizeBundle),
     ).toMatchObject({
       kind: "unchanged",
-      projectOperationReceipt: finalized.projectOperationReceipt,
+      worksetOperationReceipt: finalized.worksetOperationReceipt,
       processOperationReceipt: finalized.processOperationReceipt,
     });
     await writer.dispose();
@@ -2452,9 +2336,9 @@ describe("IndexedDB Program data repository V11", () => {
     const readers = [repositoryV1(indexedDB), repositoryV1(indexedDB), repositoryV1(indexedDB)];
     const windows = await Promise.all(
       [0, 4_000, 9_990].map((fromOrder, index) =>
-        readers[index]!.loadTranslationProjectUnitPage({
+        readers[index]!.loadTranslationWorksetUnitPage({
           processId: begin.processId,
-          expectedProjectRevision: finalized.head.revision,
+          expectedWorksetRevision: finalized.head.revision,
           fromOrder,
           maximumRows: 20,
           maximumBytes: 16_384,
@@ -2475,20 +2359,20 @@ describe("IndexedDB Program data repository V11", () => {
       { firstOrder: 4_000, lastOrder: 4_019, rowCount: 20, nextOrder: 4_020 },
       { firstOrder: 9_990, lastOrder: 9_999, rowCount: 10, nextOrder: null },
     ]);
-    await expect(readers[0]!.loadTranslationProjectUnitPage({
+    await expect(readers[0]!.loadTranslationWorksetUnitPage({
       processId: begin.processId,
-      expectedProjectRevision: finalized.head.revision,
+      expectedWorksetRevision: finalized.head.revision,
       fromOrder: 0,
       maximumRows: 20,
       maximumBytes: 1,
     })).rejects.toMatchObject({
       code: "page_budget_too_small",
-      operation: "load_translation_project_unit_page",
+      operation: "load_translation_workset_unit_page",
     });
-    expect(await readers[0]!.queryTranslationProjectOperation({ operation: "begin", input: begin }))
-      .toMatchObject({ kind: "committed", receipt: { projectRevision: 1 } });
+    expect(await readers[0]!.queryTranslationWorksetOperation({ operation: "begin", input: begin }))
+      .toMatchObject({ kind: "committed", receipt: { worksetRevision: 1 } });
     expect(
-      await readers[0]!.queryTranslationProjectOperation({
+      await readers[0]!.queryTranslationWorksetOperation({
         operation: "begin",
         input: { ...begin, title: "Different" },
       }),
@@ -2496,7 +2380,476 @@ describe("IndexedDB Program data repository V11", () => {
     await Promise.all(readers.map((reader) => reader.dispose()));
   });
 
-  it("keeps Translation projects isolated and rolls back a failed append transaction", async () => {
+  it("atomically accepts one edited Translation candidate with exact CAS and protected tokens", async () => {
+    const indexedDB = new IDBFactory();
+    const repository = repositoryV1(indexedDB);
+    const programId = "program.translation.review";
+    const processId = "process.translation.review";
+    await repository.publishProgramDefinitionRevision(translationDefinitionV1());
+    await createProgramV1(repository, programId);
+    await repository.createProcessWithWorkspace(processWorkspaceBundleV1(programId, processId));
+    const importLease = await acquireTranslationLeaseV1(repository, programId, processId);
+    const sourceBinding = translationSourceBindingV1(programId, processId, "input/review.txt");
+    const begin = await repository.beginTranslationWorksetImport({
+      processId,
+      operationId: "translation.review.begin",
+      lease: importLease,
+      title: "Review candidate",
+      document: {
+        format: "plain_text",
+        capabilityGrade: "round_trip_supported",
+        capabilityReason: "known_format",
+      },
+      source: {
+        fileName: "review.txt",
+        mediaType: "text/plain",
+        workspacePath: sourceBinding.path,
+        byteLength: 32,
+        sha256: "c".repeat(64),
+      },
+      sourceBinding,
+      sourceLocale: "en",
+      targetLocale: "zh-Hans",
+      documentPurpose: "test",
+      style: "faithful",
+      expectedUnitCount: 3,
+      expectedGlossaryCount: 1_000,
+      updatedAt: 4,
+    });
+    if (begin.kind === "conflict") throw new Error("expected Translation begin");
+    const sourceUnits = [{
+      unitId: "unit.review.0",
+      order: 0,
+      locator: "line:1",
+      context: null,
+      durationMilliseconds: null,
+      source: "Hello ⟦SM:0⟧",
+      protectedSegments: [{ token: "⟦SM:0⟧", kind: "placeholder" as const, source: "{name}" }],
+    }, {
+      unitId: "unit.review.1",
+      order: 1,
+      locator: "line:2",
+      context: null,
+      durationMilliseconds: null,
+      source: "Good night",
+      protectedSegments: [],
+    }, {
+      unitId: "unit.review.2",
+      order: 2,
+      locator: "line:3",
+      context: null,
+      durationMilliseconds: null,
+      source: "See you",
+      protectedSegments: [],
+    }];
+    const appended = await repository.appendTranslationWorksetImport({
+      processId,
+      operationId: "translation.review.append",
+      lease: importLease,
+      expectedWorksetRevision: begin.head.revision,
+      units: sourceUnits,
+      glossaryEntries: Array.from({ length: 1_000 }, (_, order) => ({
+        entryId: `glossary.review.${String(order)}`,
+        order,
+        source: order === 0 ? "Hello" : `Absent term ${String(order)}`,
+        target: order === 0 ? "你好" : `Unused target ${String(order)}`,
+        note: null,
+        locked: true,
+      })),
+      updatedAt: 5,
+    });
+    if (appended.kind === "conflict") throw new Error("expected Translation append");
+    const imported = await repository.commitTranslationWorksetFinalizeWithProcessExecutionTerminal({
+      workset: {
+        processId,
+        operationId: "translation.review.finalize",
+        lease: importLease,
+        expectedWorksetRevision: appended.head.revision,
+        sourceBinding,
+        updatedAt: 6,
+      },
+      terminal: executionTerminalV1({
+        processId,
+        lease: importLease,
+        observedAt: 6,
+        expectedProcessRevision: 3,
+        expectedTranscriptFrontier: 2,
+        sequence: 3,
+        outcome: "completed",
+        interruptionDisposition: null,
+        workspaceCheckpointId: sourceBinding.checkpointId,
+        workspaceGeneration: sourceBinding.generation,
+        commitId: "translation.review.import-terminal",
+      }),
+    });
+    if (imported.kind === "conflict" || imported.process.checkpoint === null) {
+      throw new Error("expected ready Translation workset");
+    }
+    const batchAcquireInput = {
+      expectedWorksetRevision: imported.head.revision,
+      expectedFirstPendingOrder: 0,
+      expectedPendingCandidateId: null,
+      execution: {
+        ownerInstanceId: "owner.translation.review",
+        observedAt: 7,
+        expiresAt: 1_000_007,
+        attempt: {
+          processId,
+          expectedProcessRevision: imported.process.revision,
+          expectedTranscriptFrontier: imported.process.transcriptFrontier,
+          commitId: "translation.review.batch-acquire",
+          attemptId: "attempt.translation.review.batch",
+          generation: 2,
+          trigger: {
+            kind: "new_entry" as const,
+            entry: entryV1(processId, 4, "user", "Translate the next batch"),
+          },
+          startingCheckpoint: {
+            ...imported.process.checkpoint,
+            checkpointId: "process-checkpoint.translation.review.4",
+            throughSequence: 4,
+          },
+          updatedAt: 7,
+        },
+      },
+    };
+    const batchAcquired = await repository.acquireTranslationBatchExecution(batchAcquireInput);
+    if (batchAcquired.kind === "conflict") throw new Error("expected Translation batch lease");
+    const request = {
+      sourceLocale: "en",
+      targetLocale: "zh-Hans",
+      documentPurpose: "test",
+      style: "faithful",
+      glossary: [{
+        entryId: "glossary.review.0",
+        source: "Hello",
+        target: "你好",
+        note: null,
+        locked: true,
+        appliesToUnitIds: ["unit.review.0"],
+      }],
+      confirmedMeaningFacts: [],
+      neighboringUnits: { preceding: null, following: sourceUnits[2]! },
+      units: sourceUnits.slice(0, 2),
+    };
+    const candidateTargets = [{ unitId: "unit.review.0", target: "你好 ⟦SM:0⟧" }, {
+      unitId: "unit.review.1",
+      target: "晚安",
+    }];
+    const mismatchedReference = await repository
+      .commitTranslationBatchCandidateWithProcessExecutionTerminal({
+        workset: {
+          processId,
+          operationId: "translation.review.candidate.mismatched-glossary",
+          lease: batchAcquired.lease,
+          expectedWorksetRevision: imported.head.revision,
+          expectedFirstPendingOrder: 0,
+          request: {
+            ...request,
+            glossary: [{
+              ...request.glossary[0]!,
+              target: "不匹配的术语",
+            }],
+          },
+          candidate: {
+            targets: [{ ...candidateTargets[0]!, target: "不匹配的术语 ⟦SM:0⟧" }, {
+              ...candidateTargets[1]!,
+            }],
+            ambiguities: [],
+          },
+          updatedAt: 8,
+        },
+        terminal: executionTerminalV1({
+          processId,
+          lease: batchAcquired.lease,
+          observedAt: 8,
+          expectedProcessRevision: batchAcquired.process.revision,
+          expectedTranscriptFrontier: batchAcquired.process.transcriptFrontier,
+          sequence: 5,
+          outcome: "completed",
+          interruptionDisposition: null,
+          workspaceCheckpointId: sourceBinding.checkpointId,
+          workspaceGeneration: sourceBinding.generation,
+          commitId: "translation.review.batch-terminal.mismatched-glossary",
+        }),
+      });
+    expect(mismatchedReference).toMatchObject({
+      kind: "conflict",
+      currentWorkset: { revision: imported.head.revision, pendingCandidateId: null },
+    });
+
+    const originalOpenCursor = FakeIDBObjectStore.prototype.openCursor;
+    let glossaryCursorScanCount = 0;
+    const openCursor = vi.spyOn(FakeIDBObjectStore.prototype, "openCursor").mockImplementation(
+      function (
+        this: IDBObjectStore,
+        query?: IDBValidKey | IDBKeyRange | null,
+        direction?: IDBCursorDirection,
+      ) {
+        if (this.name === "translation_glossary_entries") glossaryCursorScanCount += 1;
+        return originalOpenCursor.call(this, query, direction);
+      },
+    );
+    const candidate = await repository.commitTranslationBatchCandidateWithProcessExecutionTerminal({
+      workset: {
+        processId,
+        operationId: "translation.review.candidate",
+        lease: batchAcquired.lease,
+        expectedWorksetRevision: imported.head.revision,
+        expectedFirstPendingOrder: 0,
+        request,
+        candidate: { targets: candidateTargets, ambiguities: [] },
+        updatedAt: 8,
+      },
+      terminal: executionTerminalV1({
+        processId,
+        lease: batchAcquired.lease,
+        observedAt: 8,
+        expectedProcessRevision: batchAcquired.process.revision,
+        expectedTranscriptFrontier: batchAcquired.process.transcriptFrontier,
+        sequence: 5,
+        outcome: "completed",
+        interruptionDisposition: null,
+        workspaceCheckpointId: sourceBinding.checkpointId,
+        workspaceGeneration: sourceBinding.generation,
+        commitId: "translation.review.batch-terminal",
+      }),
+    }).finally(() => openCursor.mockRestore());
+    expect(glossaryCursorScanCount).toBe(0);
+    if (candidate.kind === "conflict") throw new Error("expected pending Translation candidate");
+
+    const invalidAccept = {
+      processId,
+      operationId: "translation.review.accept.invalid",
+      expectedWorksetRevision: candidate.head.revision,
+      candidateId: candidate.candidate.candidateId,
+      targets: [{ unitId: "unit.review.0", target: "你好" }, candidateTargets[1]!],
+      updatedAt: 9,
+    };
+    expect(await repository.acceptTranslationBatchCandidate(invalidAccept)).toMatchObject({
+      kind: "conflict",
+      current: {
+        revision: candidate.head.revision,
+        acceptedUnitCount: 0,
+        pendingCandidateId: candidate.candidate.candidateId,
+      },
+    });
+    expect(
+      await repository.queryTranslationWorksetOperation({
+        operation: "accept_candidate",
+        input: invalidAccept,
+      }),
+    ).toEqual({ kind: "absent" });
+
+    const reorderedAccept = {
+      ...invalidAccept,
+      operationId: "translation.review.accept.reordered",
+      targets: [candidateTargets[1]!, candidateTargets[0]!],
+    };
+    expect(await repository.acceptTranslationBatchCandidate(reorderedAccept)).toMatchObject({
+      kind: "conflict",
+      current: {
+        revision: candidate.head.revision,
+        acceptedUnitCount: 0,
+        pendingCandidateId: candidate.candidate.candidateId,
+      },
+    });
+    expect(
+      await repository.queryTranslationWorksetOperation({
+        operation: "accept_candidate",
+        input: reorderedAccept,
+      }),
+    ).toEqual({ kind: "absent" });
+
+    const accept = {
+      ...invalidAccept,
+      operationId: "translation.review.accept",
+      targets: [{ unitId: "unit.review.0", target: "您好，⟦SM:0⟧" }, candidateTargets[1]!],
+    };
+    const accepted = await repository.acceptTranslationBatchCandidate(accept);
+    expect(accepted).toMatchObject({
+      kind: "committed",
+      head: {
+        acceptedUnitCount: 2,
+        acceptedBatchCount: 1,
+        pendingCandidateId: null,
+      },
+      operationReceipt: {
+        operation: "accept_candidate",
+        candidateId: candidate.candidate.candidateId,
+      },
+    });
+    if (accepted.kind === "conflict") throw new Error("expected accepted Translation candidate");
+    expect(await repository.acceptTranslationBatchCandidate(accept)).toMatchObject({
+      kind: "unchanged",
+      head: accepted.head,
+      operationReceipt: accepted.operationReceipt,
+    });
+    expect(
+      await repository.queryTranslationWorksetOperation({
+        operation: "accept_candidate",
+        input: accept,
+      }),
+    ).toMatchObject({ kind: "committed", receipt: accepted.operationReceipt });
+    expect(
+      await repository.queryTranslationWorksetOperation({
+        operation: "accept_candidate",
+        input: { ...accept, targets: candidateTargets },
+      }),
+    ).toMatchObject({ kind: "mismatch" });
+    expect(
+      await repository.loadTranslationWorksetUnitPage({
+        processId,
+        expectedWorksetRevision: accepted.head.revision,
+        fromOrder: 0,
+        maximumRows: 3,
+        maximumBytes: 8_192,
+      }),
+    ).toMatchObject({
+      kind: "page",
+      page: {
+        rows: [{ unitId: "unit.review.0", target: "您好，⟦SM:0⟧" }, {
+          unitId: "unit.review.1",
+          target: "晚安",
+        }, {
+          unitId: "unit.review.2",
+          target: null,
+        }],
+      },
+    });
+    expect(
+      await repository.loadTranslationBatchCandidate(processId, candidate.candidate.candidateId),
+    ).toBeNull();
+
+    const processAfterAcceptance = await repository.loadProcess(processId);
+    if (processAfterAcceptance?.checkpoint === null || processAfterAcceptance === null) {
+      throw new Error("expected durable Translation Process checkpoint");
+    }
+    const secondTriggerSequence = processAfterAcceptance.transcriptFrontier + 1;
+    const secondAcquire = await repository.acquireTranslationBatchExecution({
+      expectedWorksetRevision: accepted.head.revision,
+      expectedFirstPendingOrder: 2,
+      expectedPendingCandidateId: null,
+      execution: {
+        ownerInstanceId: "owner.translation.review.second",
+        observedAt: 10,
+        expiresAt: 1_000_010,
+        attempt: {
+          processId,
+          expectedProcessRevision: processAfterAcceptance.revision,
+          expectedTranscriptFrontier: processAfterAcceptance.transcriptFrontier,
+          commitId: "translation.review.second.acquire",
+          attemptId: "attempt.translation.review.second",
+          generation: 3,
+          trigger: {
+            kind: "new_entry",
+            entry: entryV1(processId, secondTriggerSequence, "user", "Translate one more batch"),
+          },
+          startingCheckpoint: {
+            ...processAfterAcceptance.checkpoint,
+            checkpointId: "process-checkpoint.translation.review.second",
+            throughSequence: secondTriggerSequence,
+          },
+          updatedAt: 10,
+        },
+      },
+    });
+    if (secondAcquire.kind === "conflict") throw new Error("expected second Translation batch");
+    const secondRequest = {
+      ...request,
+      glossary: [],
+      neighboringUnits: { preceding: sourceUnits[1]!, following: null },
+      units: [sourceUnits[2]!],
+    };
+    const secondCandidate = await repository
+      .commitTranslationBatchCandidateWithProcessExecutionTerminal({
+        workset: {
+          processId,
+          operationId: "translation.review.second.candidate",
+          lease: secondAcquire.lease,
+          expectedWorksetRevision: accepted.head.revision,
+          expectedFirstPendingOrder: 2,
+          request: secondRequest,
+          candidate: {
+            targets: [{ unitId: "unit.review.2", target: "再见" }],
+            ambiguities: [],
+          },
+          updatedAt: 11,
+        },
+        terminal: executionTerminalV1({
+          processId,
+          lease: secondAcquire.lease,
+          observedAt: 11,
+          expectedProcessRevision: secondAcquire.process.revision,
+          expectedTranscriptFrontier: secondAcquire.process.transcriptFrontier,
+          sequence: secondAcquire.process.transcriptFrontier + 1,
+          outcome: "completed",
+          interruptionDisposition: null,
+          workspaceCheckpointId: sourceBinding.checkpointId,
+          workspaceGeneration: sourceBinding.generation,
+          commitId: "translation.review.second.terminal",
+        }),
+      });
+    if (secondCandidate.kind === "conflict") {
+      throw new Error("expected second pending Translation candidate");
+    }
+    const reject = {
+      processId,
+      operationId: "translation.review.reject",
+      expectedWorksetRevision: secondCandidate.head.revision,
+      candidateId: secondCandidate.candidate.candidateId,
+      updatedAt: 12,
+    };
+    const rejected = await repository.rejectTranslationBatchCandidate(reject);
+    expect(rejected).toMatchObject({
+      kind: "committed",
+      head: {
+        acceptedUnitCount: 2,
+        acceptedBatchCount: 1,
+        pendingCandidateId: null,
+      },
+      operationReceipt: {
+        operation: "reject_candidate",
+        candidateId: secondCandidate.candidate.candidateId,
+      },
+    });
+    if (rejected.kind === "conflict") throw new Error("expected rejected candidate");
+    expect(await repository.rejectTranslationBatchCandidate(reject)).toMatchObject({
+      kind: "unchanged",
+      head: rejected.head,
+      operationReceipt: rejected.operationReceipt,
+    });
+    expect(
+      await repository.queryTranslationWorksetOperation({
+        operation: "reject_candidate",
+        input: reject,
+      }),
+    ).toMatchObject({ kind: "committed", receipt: rejected.operationReceipt });
+    expect(
+      await repository.queryTranslationWorksetOperation({
+        operation: "reject_candidate",
+        input: { ...reject, updatedAt: 13 },
+      }),
+    ).toMatchObject({ kind: "mismatch" });
+    expect(
+      await repository.loadTranslationWorksetUnitPage({
+        processId,
+        expectedWorksetRevision: rejected.head.revision,
+        fromOrder: 2,
+        maximumRows: 1,
+        maximumBytes: 8_192,
+      }),
+    ).toMatchObject({ kind: "page", page: { rows: [{ target: null }] } });
+    expect(
+      await repository.loadTranslationBatchCandidate(
+        processId,
+        secondCandidate.candidate.candidateId,
+      ),
+    ).toBeNull();
+    await repository.dispose();
+  });
+
+  it("keeps Translation Process worksets isolated and rolls back a failed append transaction", async () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
     await repository.publishProgramDefinitionRevision(translationDefinitionV1());
@@ -2512,11 +2865,10 @@ describe("IndexedDB Program data repository V11", () => {
         `process.translation.${suffix}`,
       );
       leases.set(suffix, lease);
-      await repository.beginTranslationProjectImport({
+      await repository.beginTranslationWorksetImport({
         processId: `process.translation.${suffix}`,
         operationId: `translation.begin.${suffix}`,
         lease,
-        projectId: `translation.project.${suffix}`,
         title: suffix,
         document: {
           format: "plain_text",
@@ -2548,7 +2900,7 @@ describe("IndexedDB Program data repository V11", () => {
       processId: "process.translation.one",
       operationId: "translation.append.failed",
       lease: leases.get("one")!,
-      expectedProjectRevision: 1,
+      expectedWorksetRevision: 1,
       units: [0, 1].map((order) => ({
         unitId: "duplicate.unit",
         order,
@@ -2561,19 +2913,18 @@ describe("IndexedDB Program data repository V11", () => {
       glossaryEntries: [],
       updatedAt: 4,
     };
-    await expect(repository.appendTranslationProjectImport(failed)).rejects.toMatchObject({
-      operation: "append_translation_project_import",
+    await expect(repository.appendTranslationWorksetImport(failed)).rejects.toMatchObject({
+      operation: "append_translation_workset_import",
     });
-    expect(await repository.loadTranslationProjectHead("process.translation.one")).toMatchObject({
+    expect(await repository.loadTranslationWorksetHead("process.translation.one")).toMatchObject({
       revision: 1,
       stagedUnitCount: 0,
     });
-    expect(await repository.loadTranslationProjectHead("process.translation.two")).toMatchObject({
-      projectId: "translation.project.two",
+    expect(await repository.loadTranslationWorksetHead("process.translation.two")).toMatchObject({
       revision: 1,
     });
     expect(
-      await repository.queryTranslationProjectOperation({ operation: "append", input: failed }),
+      await repository.queryTranslationWorksetOperation({ operation: "append", input: failed }),
     ).toEqual({ kind: "absent" });
     await repository.dispose();
   });

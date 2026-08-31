@@ -11,7 +11,7 @@ import {
   type ProgramCatalogRepositoryV1,
 } from "./program-catalog-repository.ts";
 import {
-  builtinCreatorProgramIdV1,
+  bundledCreatorProgramIdV1,
   normalizeProcessCreateInputV1,
   normalizeProcessTranscriptAppendInputV1,
   type ProcessCreateInputV1,
@@ -42,12 +42,15 @@ import {
   type ProcessOperationReceiptV1,
 } from "./process-execution-repository.ts";
 import {
-  normalizeTranslationProjectFinalizeImportInputV1,
-  type TranslationProjectFinalizeImportInputV1,
-  type TranslationProjectHeadV1,
-  type TranslationProjectOperationReceiptV1,
-  type TranslationProjectRepositoryV1,
-} from "./translation/translation-project-repository.ts";
+  normalizeTranslationBatchCandidatePublishInputV1,
+  normalizeTranslationWorksetFinalizeImportInputV1,
+  type TranslationBatchCandidatePublishInputV1,
+  type TranslationBatchCandidateRecordV1,
+  type TranslationWorksetFinalizeImportInputV1,
+  type TranslationWorksetHeadV1,
+  type TranslationWorksetOperationReceiptV1,
+  type TranslationWorksetRepositoryV1,
+} from "./translation/translation-workset-repository.ts";
 
 /**
  * The one product-side persistence boundary. Catalog, Process, transcript,
@@ -77,13 +80,16 @@ export interface ProgramDataRepositoryV1 extends
     | "loadTranscriptPage"
   >,
   Pick<
-    TranslationProjectRepositoryV1,
-    | "beginTranslationProjectImport"
-    | "appendTranslationProjectImport"
-    | "loadTranslationProjectHead"
-    | "loadTranslationProjectUnitPage"
-    | "loadTranslationProjectGlossaryPage"
-    | "queryTranslationProjectOperation"
+    TranslationWorksetRepositoryV1,
+    | "beginTranslationWorksetImport"
+    | "appendTranslationWorksetImport"
+    | "loadTranslationWorksetHead"
+    | "loadTranslationWorksetUnitPage"
+    | "loadTranslationWorksetGlossaryPage"
+    | "loadTranslationBatchCandidate"
+    | "acceptTranslationBatchCandidate"
+    | "rejectTranslationBatchCandidate"
+    | "queryTranslationWorksetOperation"
   > {
   /**
    * Narrow product transaction for the first durable Program and its Creator
@@ -114,12 +120,17 @@ export interface ProgramDataRepositoryV1 extends
     input: ProcessExecutionAcquireInputV1,
   ): Promise<ProcessExecutionAcquireResultV1>;
   /**
-   * Atomically acquires one Translation import attempt only while the Project
-   * is still absent or at the exact staging revision observed by the caller.
+   * Atomically acquires one Translation import attempt only while the
+   * Process-owned workset is absent or at the exact staging revision observed
+   * by the caller.
    */
-  acquireTranslationProjectImportExecution(
-    input: TranslationProjectImportExecutionAcquireInputV1,
-  ): Promise<TranslationProjectImportExecutionAcquireResultV1>;
+  acquireTranslationWorksetImportExecution(
+    input: TranslationWorksetImportExecutionAcquireInputV1,
+  ): Promise<TranslationWorksetImportExecutionAcquireResultV1>;
+  /** Acquires an Agent batch only at the exact ready, candidate-free workset frontier. */
+  acquireTranslationBatchExecution(
+    input: TranslationBatchExecutionAcquireInputV1,
+  ): Promise<TranslationBatchExecutionAcquireResultV1>;
   renewProcessExecutionLease(
     input: ProcessExecutionLeaseRenewInputV1,
   ): Promise<ProcessExecutionLeaseMutationResultV1>;
@@ -134,12 +145,16 @@ export interface ProgramDataRepositoryV1 extends
     input: ProgramProcessExecutionRevisionBundleInputV1,
   ): Promise<ProgramProcessExecutionCompositeCommitResultV1>;
   /**
-   * Atomically publishes a ready Translation Project and the completed
+   * Atomically publishes a ready Translation workset and the completed
    * terminal of the exact Process attempt that imported it.
    */
-  commitTranslationProjectFinalizeWithProcessExecutionTerminal(
-    input: TranslationProjectFinalizeExecutionBundleInputV1,
-  ): Promise<TranslationProjectFinalizeExecutionCompositeCommitResultV1>;
+  commitTranslationWorksetFinalizeWithProcessExecutionTerminal(
+    input: TranslationWorksetFinalizeExecutionBundleInputV1,
+  ): Promise<TranslationWorksetFinalizeExecutionCompositeCommitResultV1>;
+  /** Atomically publishes one pending-review candidate and its completed Process terminal. */
+  commitTranslationBatchCandidateWithProcessExecutionTerminal(
+    input: TranslationBatchCandidateExecutionBundleInputV1,
+  ): Promise<TranslationBatchCandidateExecutionCompositeCommitResultV1>;
   queryProcessOperation(
     expectation: ProgramDataProcessOperationExpectationV1,
   ): Promise<ProcessOperationReceiptQueryResultV1>;
@@ -185,31 +200,50 @@ export interface ProgramProcessExecutionRevisionBundleInputV1
   readonly catalog: ProgramCatalogApplyRevisionInputV1;
 }
 
-export interface TranslationProjectFinalizeExecutionBundleInputV1 {
-  readonly project: TranslationProjectFinalizeImportInputV1;
+export interface TranslationWorksetFinalizeExecutionBundleInputV1 {
+  readonly workset: TranslationWorksetFinalizeImportInputV1;
   readonly terminal: ProcessExecutionTerminalInputV1;
 }
 
-export interface TranslationProjectImportExecutionAcquireInputV1 {
-  /** `null` means that no Project head may exist yet. */
-  readonly expectedProjectRevision: number | null;
+export interface TranslationBatchCandidateExecutionBundleInputV1 {
+  readonly workset: TranslationBatchCandidatePublishInputV1;
+  readonly terminal: ProcessExecutionTerminalInputV1;
+}
+
+export interface TranslationWorksetImportExecutionAcquireInputV1 {
+  /** `null` means that this Process must not have a workset head yet. */
+  readonly expectedWorksetRevision: number | null;
   readonly execution: ProcessExecutionAcquireInputV1;
 }
 
-export type TranslationProjectImportExecutionAcquireResultV1 =
+export interface TranslationBatchExecutionAcquireInputV1 {
+  readonly expectedWorksetRevision: number;
+  readonly expectedFirstPendingOrder: number;
+  readonly expectedPendingCandidateId: null;
+  readonly execution: ProcessExecutionAcquireInputV1;
+}
+
+export type TranslationWorksetImportExecutionAcquireResultV1 =
   | Exclude<ProcessExecutionAcquireResultV1, { readonly kind: "conflict" }>
   | {
     readonly kind: "conflict";
-    readonly currentProject: TranslationProjectHeadV1 | null;
+    readonly currentWorkset: TranslationWorksetHeadV1 | null;
     readonly currentProcess: ProcessHeadV1 | null;
     readonly currentLease: ProcessExecutionLeaseV1 | null;
   };
 
+export type TranslationBatchExecutionAcquireResultV1 =
+  TranslationWorksetImportExecutionAcquireResultV1;
+
 export type ProgramDataProcessOperationExpectationV1 =
   | { readonly operation: "execution_acquire"; readonly input: ProcessExecutionAcquireInputV1 }
   | {
-    readonly operation: "translation_project_execution_acquire";
-    readonly input: TranslationProjectImportExecutionAcquireInputV1;
+    readonly operation: "translation_workset_import_execution_acquire";
+    readonly input: TranslationWorksetImportExecutionAcquireInputV1;
+  }
+  | {
+    readonly operation: "translation_batch_execution_acquire";
+    readonly input: TranslationBatchExecutionAcquireInputV1;
   }
   | { readonly operation: "execution_terminal"; readonly input: ProcessExecutionTerminalInputV1 }
   | {
@@ -224,7 +258,7 @@ export function normalizeProgramProcessCreateBundleInputV1(
   const process = normalizeProcessCreateInputV1(value.process);
   const transcript = normalizeProcessTranscriptAppendInputV1(value.transcript);
   if (
-    process.programDefinition.programId !== builtinCreatorProgramIdV1 ||
+    process.programDefinition.programId !== bundledCreatorProgramIdV1 ||
     process.programDefinition.revision !== 1 ||
     process.subjectProgramId !== catalog.program.programId ||
     transcript.processId !== process.processId ||
@@ -333,43 +367,86 @@ export function normalizeProgramProcessExecutionRevisionBundleInputV1(
   return { ...terminal, catalog };
 }
 
-export function normalizeTranslationProjectFinalizeExecutionBundleInputV1(
-  value: TranslationProjectFinalizeExecutionBundleInputV1,
-): TranslationProjectFinalizeExecutionBundleInputV1 {
-  const project = normalizeTranslationProjectFinalizeImportInputV1(value.project);
+export function normalizeTranslationWorksetFinalizeExecutionBundleInputV1(
+  value: TranslationWorksetFinalizeExecutionBundleInputV1,
+): TranslationWorksetFinalizeExecutionBundleInputV1 {
+  const workset = normalizeTranslationWorksetFinalizeImportInputV1(value.workset);
   const terminal = normalizeProcessExecutionCompletedTerminalInputV1(value.terminal);
   const checkpoint = terminal.transcript.checkpoint;
   if (
-    project.processId !== terminal.transcript.processId ||
-    project.updatedAt !== terminal.observedAt || checkpoint === null ||
-    checkpoint.workspaceId !== project.sourceBinding.workspaceId ||
-    checkpoint.workspaceCheckpointId !== project.sourceBinding.checkpointId ||
-    checkpoint.workspaceGeneration !== project.sourceBinding.generation ||
-    project.lease.processId !== terminal.lease.processId ||
-    project.lease.ownerInstanceId !== terminal.lease.ownerInstanceId ||
-    project.lease.attemptId !== terminal.lease.attemptId ||
-    project.lease.generation !== terminal.lease.generation ||
-    project.lease.expiresAt !== terminal.lease.expiresAt
-  ) throw new TypeError("invalid Translation Project/Process execution terminal bundle");
-  return { project, terminal };
+    workset.processId !== terminal.transcript.processId ||
+    workset.updatedAt !== terminal.observedAt || checkpoint === null ||
+    checkpoint.workspaceId !== workset.sourceBinding.workspaceId ||
+    checkpoint.workspaceCheckpointId !== workset.sourceBinding.checkpointId ||
+    checkpoint.workspaceGeneration !== workset.sourceBinding.generation ||
+    workset.lease.processId !== terminal.lease.processId ||
+    workset.lease.ownerInstanceId !== terminal.lease.ownerInstanceId ||
+    workset.lease.attemptId !== terminal.lease.attemptId ||
+    workset.lease.generation !== terminal.lease.generation ||
+    workset.lease.expiresAt !== terminal.lease.expiresAt
+  ) throw new TypeError("invalid Translation workset/Process execution terminal bundle");
+  return { workset, terminal };
 }
 
-export function normalizeTranslationProjectImportExecutionAcquireInputV1(
-  value: TranslationProjectImportExecutionAcquireInputV1,
-): TranslationProjectImportExecutionAcquireInputV1 {
+export function normalizeTranslationWorksetImportExecutionAcquireInputV1(
+  value: TranslationWorksetImportExecutionAcquireInputV1,
+): TranslationWorksetImportExecutionAcquireInputV1 {
   if (
     value === null || typeof value !== "object" || Array.isArray(value) ||
     Reflect.ownKeys(value).length !== 2 ||
     !Reflect.ownKeys(value).every((key) =>
-      typeof key === "string" && ["expectedProjectRevision", "execution"].includes(key)
+      typeof key === "string" && ["expectedWorksetRevision", "execution"].includes(key)
     ) ||
-    (value.expectedProjectRevision !== null &&
-      (!Number.isSafeInteger(value.expectedProjectRevision) || value.expectedProjectRevision < 1))
-  ) throw new TypeError("invalid Translation Project execution acquire input");
+    (value.expectedWorksetRevision !== null &&
+      (!Number.isSafeInteger(value.expectedWorksetRevision) || value.expectedWorksetRevision < 1))
+  ) throw new TypeError("invalid Translation workset execution acquire input");
   return {
-    expectedProjectRevision: value.expectedProjectRevision,
+    expectedWorksetRevision: value.expectedWorksetRevision,
     execution: normalizeProcessExecutionAcquireInputV1(value.execution),
   };
+}
+
+export function normalizeTranslationBatchExecutionAcquireInputV1(
+  value: TranslationBatchExecutionAcquireInputV1,
+): TranslationBatchExecutionAcquireInputV1 {
+  if (
+    value === null || typeof value !== "object" || Array.isArray(value) ||
+    Reflect.ownKeys(value).length !== 4 ||
+    !Reflect.ownKeys(value).every((key) =>
+      typeof key === "string" && [
+        "expectedWorksetRevision",
+        "expectedFirstPendingOrder",
+        "expectedPendingCandidateId",
+        "execution",
+      ].includes(key)
+    ) || !Number.isSafeInteger(value.expectedWorksetRevision) ||
+    value.expectedWorksetRevision < 1 ||
+    !Number.isSafeInteger(value.expectedFirstPendingOrder) ||
+    value.expectedFirstPendingOrder < 0 || value.expectedPendingCandidateId !== null
+  ) throw new TypeError("invalid Translation batch execution acquire input");
+  return {
+    expectedWorksetRevision: value.expectedWorksetRevision,
+    expectedFirstPendingOrder: value.expectedFirstPendingOrder,
+    expectedPendingCandidateId: null,
+    execution: normalizeProcessExecutionAcquireInputV1(value.execution),
+  };
+}
+
+export function normalizeTranslationBatchCandidateExecutionBundleInputV1(
+  value: TranslationBatchCandidateExecutionBundleInputV1,
+): TranslationBatchCandidateExecutionBundleInputV1 {
+  const workset = normalizeTranslationBatchCandidatePublishInputV1(value.workset);
+  const terminal = normalizeProcessExecutionCompletedTerminalInputV1(value.terminal);
+  if (
+    workset.processId !== terminal.transcript.processId ||
+    workset.updatedAt !== terminal.observedAt ||
+    workset.lease.processId !== terminal.lease.processId ||
+    workset.lease.ownerInstanceId !== terminal.lease.ownerInstanceId ||
+    workset.lease.attemptId !== terminal.lease.attemptId ||
+    workset.lease.generation !== terminal.lease.generation ||
+    workset.lease.expiresAt !== terminal.lease.expiresAt
+  ) throw new TypeError("invalid Translation candidate/Process terminal bundle");
+  return { workset, terminal };
 }
 
 export type ProgramProcessCompositeCommitResultV1 =
@@ -412,18 +489,35 @@ export type ProgramProcessExecutionCompositeCommitResultV1 =
     readonly programDefinition: ProgramDefinitionReferenceV1;
   };
 
-export type TranslationProjectFinalizeExecutionCompositeCommitResultV1 =
+export type TranslationWorksetFinalizeExecutionCompositeCommitResultV1 =
   | {
     readonly kind: "committed" | "unchanged";
-    readonly head: TranslationProjectHeadV1;
-    readonly projectOperationReceipt: TranslationProjectOperationReceiptV1;
+    readonly head: TranslationWorksetHeadV1;
+    readonly worksetOperationReceipt: TranslationWorksetOperationReceiptV1;
     readonly process: ProcessHeadV1;
     readonly entries: readonly TranscriptEntryV1[];
     readonly processOperationReceipt: ProcessOperationReceiptV1;
   }
   | {
     readonly kind: "conflict";
-    readonly currentProject: TranslationProjectHeadV1 | null;
+    readonly currentWorkset: TranslationWorksetHeadV1 | null;
+    readonly currentProcess: ProcessHeadV1 | null;
+    readonly currentLease: ProcessExecutionLeaseV1 | null;
+  };
+
+export type TranslationBatchCandidateExecutionCompositeCommitResultV1 =
+  | {
+    readonly kind: "committed" | "unchanged";
+    readonly head: TranslationWorksetHeadV1;
+    readonly candidate: TranslationBatchCandidateRecordV1;
+    readonly worksetOperationReceipt: TranslationWorksetOperationReceiptV1;
+    readonly process: ProcessHeadV1;
+    readonly entries: readonly TranscriptEntryV1[];
+    readonly processOperationReceipt: ProcessOperationReceiptV1;
+  }
+  | {
+    readonly kind: "conflict";
+    readonly currentWorkset: TranslationWorksetHeadV1 | null;
     readonly currentProcess: ProcessHeadV1 | null;
     readonly currentLease: ProcessExecutionLeaseV1 | null;
   };
@@ -478,20 +572,25 @@ export type ProgramDataRepositoryOperationV1 =
   | "begin_process_attempt"
   | "append_process_transcript"
   | "acquire_process_execution"
-  | "acquire_translation_project_import_execution"
+  | "acquire_translation_workset_import_execution"
+  | "acquire_translation_batch_execution"
   | "renew_process_execution_lease"
   | "release_process_execution_lease"
   | "load_process_execution_lease"
   | "commit_process_execution_terminal"
   | "commit_program_revision_with_process_execution_terminal"
-  | "commit_translation_project_finalize_with_process_execution_terminal"
+  | "commit_translation_workset_finalize_with_process_execution_terminal"
+  | "commit_translation_batch_candidate_with_process_execution_terminal"
+  | "accept_translation_batch_candidate"
+  | "reject_translation_batch_candidate"
   | "query_process_operation"
-  | "begin_translation_project_import"
-  | "append_translation_project_import"
-  | "load_translation_project_head"
-  | "load_translation_project_unit_page"
-  | "load_translation_project_glossary_page"
-  | "query_translation_project_operation"
+  | "begin_translation_workset_import"
+  | "append_translation_workset_import"
+  | "load_translation_workset_head"
+  | "load_translation_workset_unit_page"
+  | "load_translation_workset_glossary_page"
+  | "load_translation_batch_candidate"
+  | "query_translation_workset_operation"
   | "load_transcript_page"
   | "load_program_network_access"
   | "set_program_network_access"

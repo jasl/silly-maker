@@ -101,7 +101,7 @@ describe("SillyOS Program UI Container", () => {
         label: "1,284 / 12,460 个条目",
       },
       recentLines: [
-        { lineId: "line.1", kind: "tool", text: "translation-project prepare" },
+        { lineId: "line.1", kind: "tool", text: "translation workset prepare" },
       ],
       onCancel: vi.fn(),
     };
@@ -124,7 +124,7 @@ describe("SillyOS Program UI Container", () => {
     expect(overlay.parentElement).toBe(overlayHost);
     expect(document.body.children).not.toContain(overlay);
 
-    expect(strip).toHaveTextContent("translation-project prepare");
+    expect(strip).toHaveTextContent("translation workset prepare");
     expect(within(strip).queryByRole("progressbar")).toBeNull();
     fireEvent.click(within(strip).getByRole("button", { name: "展开活动" }));
 

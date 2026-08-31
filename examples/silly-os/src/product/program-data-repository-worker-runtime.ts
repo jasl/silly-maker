@@ -160,11 +160,18 @@ async function executeRequestV1(
       value: await repository.acquireProcessExecution(request.input),
     };
   }
-  if (method === "acquire_translation_project_import_execution") {
+  if (method === "acquire_translation_workset_import_execution") {
     return {
       kind: "success",
       method,
-      value: await repository.acquireTranslationProjectImportExecution(request.input),
+      value: await repository.acquireTranslationWorksetImportExecution(request.input),
+    };
+  }
+  if (method === "acquire_translation_batch_execution") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.acquireTranslationBatchExecution(request.input),
     };
   }
   if (method === "renew_process_execution_lease") {
@@ -202,11 +209,20 @@ async function executeRequestV1(
       value: await repository.commitProgramRevisionWithProcessExecutionTerminal(request.input),
     };
   }
-  if (method === "commit_translation_project_finalize_with_process_execution_terminal") {
+  if (method === "commit_translation_workset_finalize_with_process_execution_terminal") {
     return {
       kind: "success",
       method,
-      value: await repository.commitTranslationProjectFinalizeWithProcessExecutionTerminal(
+      value: await repository.commitTranslationWorksetFinalizeWithProcessExecutionTerminal(
+        request.input,
+      ),
+    };
+  }
+  if (method === "commit_translation_batch_candidate_with_process_execution_terminal") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.commitTranslationBatchCandidateWithProcessExecutionTerminal(
         request.input,
       ),
     };
@@ -218,46 +234,70 @@ async function executeRequestV1(
       value: await repository.queryProcessOperation(request.input),
     };
   }
-  if (method === "begin_translation_project_import") {
+  if (method === "begin_translation_workset_import") {
     return {
       kind: "success",
       method,
-      value: await repository.beginTranslationProjectImport(request.input),
+      value: await repository.beginTranslationWorksetImport(request.input),
     };
   }
-  if (method === "append_translation_project_import") {
+  if (method === "append_translation_workset_import") {
     return {
       kind: "success",
       method,
-      value: await repository.appendTranslationProjectImport(request.input),
+      value: await repository.appendTranslationWorksetImport(request.input),
     };
   }
-  if (method === "load_translation_project_head") {
+  if (method === "load_translation_workset_head") {
     return {
       kind: "success",
       method,
-      value: await repository.loadTranslationProjectHead(request.processId),
+      value: await repository.loadTranslationWorksetHead(request.processId),
     };
   }
-  if (method === "load_translation_project_unit_page") {
+  if (method === "load_translation_batch_candidate") {
     return {
       kind: "success",
       method,
-      value: await repository.loadTranslationProjectUnitPage(request.input),
+      value: await repository.loadTranslationBatchCandidate(
+        request.processId,
+        request.candidateId,
+      ),
     };
   }
-  if (method === "load_translation_project_glossary_page") {
+  if (method === "accept_translation_batch_candidate") {
     return {
       kind: "success",
       method,
-      value: await repository.loadTranslationProjectGlossaryPage(request.input),
+      value: await repository.acceptTranslationBatchCandidate(request.input),
     };
   }
-  if (method === "query_translation_project_operation") {
+  if (method === "reject_translation_batch_candidate") {
     return {
       kind: "success",
       method,
-      value: await repository.queryTranslationProjectOperation(request.input),
+      value: await repository.rejectTranslationBatchCandidate(request.input),
+    };
+  }
+  if (method === "load_translation_workset_unit_page") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.loadTranslationWorksetUnitPage(request.input),
+    };
+  }
+  if (method === "load_translation_workset_glossary_page") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.loadTranslationWorksetGlossaryPage(request.input),
+    };
+  }
+  if (method === "query_translation_workset_operation") {
+    return {
+      kind: "success",
+      method,
+      value: await repository.queryTranslationWorksetOperation(request.input),
     };
   }
   if (method === "load_transcript_page") {
@@ -319,7 +359,7 @@ export function createProgramDataRepositoryWorkerRuntimeV1(input: {
     };
     // The repository/storage boundary owns domain admission. This Worker is the
     // response sender, while the page is the untrusted wire receiver and binds
-    // the response to the exact outbound request snapshot.
+    // the response to compact request identity/revision/cursor expectations.
     // DedicatedWorkerGlobalScope.postMessage has no targetOrigin parameter.
     // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
     input.postMessage(response);

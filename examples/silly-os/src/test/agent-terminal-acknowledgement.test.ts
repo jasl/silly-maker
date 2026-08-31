@@ -4,12 +4,68 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   acknowledgeAppliedAgentTerminalV1,
+  acknowledgeTranslationAgentTerminalV1,
   canConsumeAgentTerminalV1,
+  translationAgentTerminalPersistenceDispositionV1,
 } from "../ui/agent-terminal-acknowledgement.ts";
 
 const agentRunIdV1 = "agent.run.terminal-ack";
 
 describe("Agent terminal acknowledgement", () => {
+  it("requires Process recovery before a stale Translation terminal can be acknowledged", () => {
+    expect(translationAgentTerminalPersistenceDispositionV1({
+      kind: "completed",
+      value: { kind: "persisted", candidateId: "candidate.ready" },
+    })).toBe("persisted");
+    expect(translationAgentTerminalPersistenceDispositionV1({
+      kind: "completed",
+      value: { kind: "stale" },
+    })).toBe("recover");
+    expect(translationAgentTerminalPersistenceDispositionV1({
+      kind: "completed",
+      value: { kind: "unavailable" },
+    })).toBe("recover");
+    expect(translationAgentTerminalPersistenceDispositionV1({ kind: "busy" })).toBe("retain");
+    expect(translationAgentTerminalPersistenceDispositionV1({
+      kind: "failed",
+      code: "repository_failed",
+    })).toBe("retain");
+  });
+
+  it("recovers a stale Translation terminal before acknowledging transient Agent evidence", async () => {
+    const order: string[] = [];
+    const recover = vi.fn(async () => {
+      order.push("recover");
+    });
+    const acknowledgeTerminal = vi.fn(async () => {
+      order.push("acknowledge");
+      return { kind: "acknowledged" as const };
+    });
+
+    await expect(acknowledgeTranslationAgentTerminalV1({
+      persistence: { kind: "completed", value: { kind: "stale" } },
+      agentRunId: agentRunIdV1,
+      recover,
+      acknowledgeTerminal,
+    })).resolves.toEqual({ kind: "acknowledged" });
+    expect(order).toEqual(["recover", "acknowledge"]);
+  });
+
+  it("retains a stale Translation terminal when Process recovery fails", async () => {
+    const failure = new Error("repository unavailable");
+    const acknowledgeTerminal = vi.fn(async () => ({ kind: "acknowledged" as const }));
+
+    await expect(acknowledgeTranslationAgentTerminalV1({
+      persistence: { kind: "completed", value: { kind: "stale" } },
+      agentRunId: agentRunIdV1,
+      recover: async () => {
+        throw failure;
+      },
+      acknowledgeTerminal,
+    })).rejects.toBe(failure);
+    expect(acknowledgeTerminal).not.toHaveBeenCalled();
+  });
+
   it("retains the terminal after persistence failure and delegates its Workspace watermark to the Agent port", async () => {
     const acknowledgeTerminal = vi.fn(async () => ({ kind: "acknowledged" as const }));
     const input = {

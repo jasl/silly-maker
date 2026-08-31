@@ -13,12 +13,14 @@ import {
   createProgramDataRepositoryFailureV1,
   type ProcessWorkspaceCreateCompositeCommitResultV1,
 } from "../product/program-data-repository.ts";
-import { createBuiltinCreatorProgramDefinitionRevisionV1 } from "../product/program-process-repository.ts";
+import { createBundledCreatorProgramDefinitionRevisionV1 } from "../product/program-process-repository.ts";
+import type { TranslationAgentRunRequestV1 } from "../product/translation/translation-agent-contracts.ts";
+import type { TranslationBatchBudgetV1 } from "../product/translation/translation-batch-planner.ts";
 import {
   createTranslationProcessControllerV1,
   type TranslationProcessControllerWorkspacePortV1,
 } from "../product/translation/translation-process-controller.ts";
-import { createBuiltinTranslationProgramDefinitionRevisionV1 } from "../product/translation/translation-program-definition.ts";
+import { createBundledTranslationProgramDefinitionRevisionV1 } from "../product/translation/translation-program-definition.ts";
 import {
   createIndexedDbProgramDataRepositoryTestAdapterV1,
   type IndexedDbProgramDataRepositoryTestAdapterV1,
@@ -249,6 +251,29 @@ async function sha256HexV1(bytes: Uint8Array): Promise<string> {
   return [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+function candidateForRunV1(run: TranslationAgentRunRequestV1) {
+  return {
+    targets: run.batch.units.map((unit) => ({
+      unitId: unit.unitId,
+      target: `Translated: ${unit.source}`,
+    })),
+    ambiguities: [],
+  };
+}
+
+function translationBatchBudgetV1(): TranslationBatchBudgetV1 {
+  return {
+    maximumRequestBytes: 64 * 1_024,
+    maximumOutputTokens: 8_192,
+    outputEnvelope: {
+      reasoningReserveTokens: 256,
+      fixedCandidateReserveTokens: 128,
+      perUnitCandidateReserveTokens: 64,
+      targetTokensPerSourceCodePoint: { numerator: 2, denominator: 1 },
+    },
+  };
+}
+
 describe("Translation Process Controller", () => {
   it("publishes the built-in Translation definition without acquiring a Workspace", async () => {
     const repository = createRepositoryV1();
@@ -258,7 +283,7 @@ describe("Translation Process Controller", () => {
     await controller.initialize();
 
     expect(await repository.loadProgramDefinitionRevision("sillyos.builtin.translation", 1))
-      .toEqual(createBuiltinTranslationProgramDefinitionRevisionV1());
+      .toEqual(createBundledTranslationProgramDefinitionRevisionV1());
     expect(workspace.createCalls).toEqual([]);
     expect(controller.getSnapshot()).toMatchObject({
       route: "home",
@@ -350,7 +375,7 @@ describe("Translation Process Controller", () => {
     await first.startOrOpen("program.translation");
     const translationProcessId = first.getSnapshot().activeProcess!.process.processId;
     await repository.publishProgramDefinitionRevision(
-      createBuiltinCreatorProgramDefinitionRevisionV1(),
+      createBundledCreatorProgramDefinitionRevisionV1(),
     );
     await repository.createProcess({
       processId: "process.creator.newer",
@@ -482,7 +507,7 @@ describe("Translation Process Controller", () => {
     });
   });
 
-  it("imports a small SRT into the bound Process Workspace and projects its ready Project", async () => {
+  it("imports a small SRT into the bound Process Workspace and projects its ready work set", async () => {
     const repository = createRepositoryV1();
     await seedProgramV1({ repository, programId: "program.translation" });
     const workspace = createWorkspacePortV1(repository);
@@ -529,15 +554,13 @@ describe("Translation Process Controller", () => {
         workspaceId: active.workspace.workspaceId,
         volumeId: active.workspace.volumeId,
         workspaceFormat: active.workspace.workspaceFormat,
-        path: expect.stringMatching(
-          /^translation-projects\/[a-zA-Z0-9._:-]+\/source\.srt$/u,
-        ),
+        path: `translation-processes/${active.process.processId}/source.srt`,
         checkpointId: `import-checkpoint.${active.workspace.workspaceId}`,
         generation: 2,
       },
     });
     expect(imported.value.source.workspacePath).toMatch(
-      /^translation-projects\/[a-zA-Z0-9._:-]+\/source\.srt$/u,
+      /^translation-processes\/[a-zA-Z0-9._:-]+\/source\.srt$/u,
     );
     expect(imported.value.source.workspacePath.startsWith("/")).toBe(false);
     expect(workspace.importCalls).toHaveLength(1);
@@ -554,13 +577,13 @@ describe("Translation Process Controller", () => {
         transcript: {
           entries: [{ sequence: 1 }, { sequence: 2 }, { sequence: 3 }],
         },
-        project: { phase: "ready", stagedUnitCount: 2 },
+        workset: { phase: "ready", stagedUnitCount: 2 },
       },
     });
 
-    const page = await repository.loadTranslationProjectUnitPage({
+    const page = await repository.loadTranslationWorksetUnitPage({
       processId: active.process.processId,
-      expectedProjectRevision: imported.value.revision,
+      expectedWorksetRevision: imported.value.revision,
       fromOrder: 0,
       maximumRows: 20,
       maximumBytes: 128 * 1_024,
@@ -573,9 +596,9 @@ describe("Translation Process Controller", () => {
         "字幕 2：保持原意。",
       ]);
     }
-    await expect(controller.loadProjectRowWindow({
+    await expect(controller.loadTranslationRowWindow({
       processId: active.process.processId,
-      expectedProjectRevision: imported.value.revision,
+      expectedWorksetRevision: imported.value.revision,
       offset: 1,
       limit: 1,
     })).resolves.toEqual({
@@ -591,9 +614,431 @@ describe("Translation Process Controller", () => {
         source: "字幕 2：保持原意。",
         protectedSegments: [],
         target: null,
-        committedBatchId: null,
       }],
       nextOffset: null,
+    });
+  });
+
+  it("publishes one pending-review candidate with the Process terminal without accepting rows", async () => {
+    const repository = createRepositoryV1();
+    await seedProgramV1({ repository, programId: "program.translation" });
+    const workspace = createWorkspacePortV1(repository);
+    const controller = createTranslationProcessControllerV1({
+      repository,
+      workspace,
+      createId: deterministicIdsV1("candidate"),
+      now: () => 20,
+    });
+    await controller.initialize();
+    await controller.startOrOpen("program.translation");
+    const processId = controller.getSnapshot().activeProcess!.process.processId;
+    const imported = await controller.importSource({
+      source: {
+        kind: "bytes",
+        fileName: "candidate.srt",
+        mediaType: "application/x-subrip",
+        bytes: textEncoderV1.encode(subtitleDocumentV1(2)),
+      },
+      sourceLocale: "ja",
+      targetLocale: "en",
+    });
+    if (imported.kind !== "completed") throw new Error("expected ready Process work set");
+
+    const prepared = await controller.prepareAgentBatch(translationBatchBudgetV1());
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error(`expected prepared Translation Agent batch: ${JSON.stringify(prepared)}`);
+    }
+    const { run } = prepared.value;
+    expect(run.batch.units.map((unit) => unit.order)).toEqual([0, 1]);
+    expect(controller.getSnapshot().activeProcess).toMatchObject({
+      workset: { acceptedUnitCount: 0, acceptedBatchCount: 0, pendingCandidateId: null },
+      pendingCandidate: null,
+    });
+
+    const persisted = await controller.recordAgentRunTerminal({
+      run,
+      outcome: "completed",
+      candidate: candidateForRunV1(run),
+    });
+    expect(persisted).toMatchObject({
+      kind: "completed",
+      value: { kind: "persisted", candidateId: expect.any(String) },
+    });
+    if (
+      persisted.kind !== "completed" || persisted.value.kind !== "persisted" ||
+      persisted.value.candidateId === null
+    ) throw new Error("expected durable pending-review candidate");
+
+    const active = controller.getSnapshot().activeProcess!;
+    expect(active).toMatchObject({
+      process: {
+        activeAttempt: null,
+        lastTerminalAttempt: {
+          attemptId: run.agentRunId,
+          generation: run.processAttemptGeneration,
+          outcome: "completed",
+        },
+      },
+      workset: {
+        acceptedUnitCount: 0,
+        acceptedBatchCount: 0,
+        pendingCandidateId: persisted.value.candidateId,
+      },
+      pendingCandidate: {
+        candidateId: persisted.value.candidateId,
+        attemptId: run.agentRunId,
+        generation: run.processAttemptGeneration,
+        targets: candidateForRunV1(run).targets,
+      },
+    });
+    const rowWindow = await controller.loadTranslationRowWindow({
+      processId,
+      expectedWorksetRevision: active.workset!.revision,
+      offset: 0,
+      limit: 2,
+    });
+    expect(rowWindow.rows).toEqual([
+      expect.objectContaining({ order: 0, target: null }),
+      expect.objectContaining({ order: 1, target: null }),
+    ]);
+    expect(await controller.prepareAgentBatch(translationBatchBudgetV1())).toEqual({
+      kind: "completed",
+      value: { kind: "pending_review" },
+    });
+
+    controller.dispose();
+    const cold = createTranslationProcessControllerV1({
+      repository,
+      workspace: createWorkspacePortV1(repository),
+      createId: deterministicIdsV1("candidate-cold"),
+      now: () => 21,
+    });
+    await cold.initialize();
+    expect(await cold.openProcess(processId)).toEqual({ kind: "completed", value: true });
+    expect(cold.getSnapshot().activeProcess).toMatchObject({
+      workset: {
+        acceptedUnitCount: 0,
+        acceptedBatchCount: 0,
+        pendingCandidateId: persisted.value.candidateId,
+      },
+      pendingCandidate: {
+        candidateId: persisted.value.candidateId,
+        targets: candidateForRunV1(run).targets,
+      },
+    });
+
+    const pending = cold.getSnapshot().activeProcess!;
+    const editedTargets = candidateForRunV1(run).targets.map((target) => ({
+      ...target,
+      target: `Reviewed: ${target.target}`,
+    }));
+    expect(
+      await cold.acceptPendingCandidate({
+        expectedWorksetRevision: pending.workset!.revision - 1,
+        candidateId: persisted.value.candidateId,
+        targets: editedTargets,
+      }),
+    ).toMatchObject({
+      kind: "completed",
+      value: {
+        kind: "stale",
+        currentWorkset: { pendingCandidateId: persisted.value.candidateId },
+      },
+    });
+    expect(
+      await cold.acceptPendingCandidate({
+        expectedWorksetRevision: pending.workset!.revision,
+        candidateId: `${persisted.value.candidateId}.stale`,
+        targets: editedTargets,
+      }),
+    ).toMatchObject({
+      kind: "completed",
+      value: {
+        kind: "stale",
+        currentWorkset: { pendingCandidateId: persisted.value.candidateId },
+      },
+    });
+    expect(
+      await cold.acceptPendingCandidate({
+        expectedWorksetRevision: pending.workset!.revision,
+        candidateId: persisted.value.candidateId,
+        targets: editedTargets,
+      }),
+    ).toMatchObject({
+      kind: "completed",
+      value: {
+        kind: "accepted",
+        workset: {
+          acceptedUnitCount: 2,
+          acceptedBatchCount: 1,
+          pendingCandidateId: null,
+        },
+      },
+    });
+    const accepted = cold.getSnapshot().activeProcess!;
+    expect(accepted).toMatchObject({
+      workset: {
+        acceptedUnitCount: 2,
+        acceptedBatchCount: 1,
+        pendingCandidateId: null,
+      },
+      pendingCandidate: null,
+    });
+    expect(
+      await repository.loadTranslationBatchCandidate(
+        processId,
+        persisted.value.candidateId,
+      ),
+    ).toBeNull();
+    expect(
+      (await cold.loadTranslationRowWindow({
+        processId,
+        expectedWorksetRevision: accepted.workset!.revision,
+        offset: 0,
+        limit: 2,
+      })).rows,
+    ).toEqual([
+      expect.objectContaining({ order: 0, target: editedTargets[0]!.target }),
+      expect.objectContaining({ order: 1, target: editedTargets[1]!.target }),
+    ]);
+    expect(await cold.prepareAgentBatch(translationBatchBudgetV1())).toEqual({
+      kind: "completed",
+      value: { kind: "complete" },
+    });
+  });
+
+  it("rejects an exact pending candidate without accepting its rows", async () => {
+    const repository = createRepositoryV1();
+    await seedProgramV1({ repository, programId: "program.translation.reject" });
+    const controller = createTranslationProcessControllerV1({
+      repository,
+      workspace: createWorkspacePortV1(repository),
+      createId: deterministicIdsV1("candidate-reject"),
+      now: () => 25,
+    });
+    await controller.initialize();
+    await controller.startOrOpen("program.translation.reject");
+    const processId = controller.getSnapshot().activeProcess!.process.processId;
+    const imported = await controller.importSource({
+      source: {
+        kind: "bytes",
+        fileName: "reject.srt",
+        mediaType: "application/x-subrip",
+        bytes: textEncoderV1.encode(subtitleDocumentV1(1)),
+      },
+      sourceLocale: "ja",
+      targetLocale: "en",
+    });
+    if (imported.kind !== "completed") throw new Error("expected ready Process work set");
+    const prepared = await controller.prepareAgentBatch(translationBatchBudgetV1());
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Translation Agent batch");
+    }
+    const persisted = await controller.recordAgentRunTerminal({
+      run: prepared.value.run,
+      outcome: "completed",
+      candidate: candidateForRunV1(prepared.value.run),
+    });
+    if (
+      persisted.kind !== "completed" || persisted.value.kind !== "persisted" ||
+      persisted.value.candidateId === null
+    ) throw new Error("expected pending-review candidate");
+    const pending = controller.getSnapshot().activeProcess!;
+
+    expect(
+      await controller.rejectPendingCandidate({
+        expectedWorksetRevision: pending.workset!.revision,
+        candidateId: persisted.value.candidateId,
+      }),
+    ).toMatchObject({
+      kind: "completed",
+      value: {
+        kind: "rejected",
+        workset: {
+          acceptedUnitCount: 0,
+          acceptedBatchCount: 0,
+          pendingCandidateId: null,
+        },
+      },
+    });
+    const rejected = controller.getSnapshot().activeProcess!;
+    expect(rejected).toMatchObject({
+      workset: {
+        acceptedUnitCount: 0,
+        acceptedBatchCount: 0,
+        pendingCandidateId: null,
+      },
+      pendingCandidate: null,
+    });
+    expect(
+      await repository.loadTranslationBatchCandidate(
+        processId,
+        persisted.value.candidateId,
+      ),
+    ).toBeNull();
+    expect(
+      (await controller.loadTranslationRowWindow({
+        processId,
+        expectedWorksetRevision: rejected.workset!.revision,
+        offset: 0,
+        limit: 1,
+      })).rows,
+    ).toEqual([
+      expect.objectContaining({ order: 0, target: null }),
+    ]);
+    expect(await controller.prepareAgentBatch(translationBatchBudgetV1())).toMatchObject({
+      kind: "completed",
+      value: { kind: "prepared" },
+    });
+  });
+
+  it.each(["failed", "cancelled"] as const)(
+    "does not publish a candidate when the Translation Agent terminal is %s",
+    async (outcome) => {
+      const repository = createRepositoryV1();
+      await seedProgramV1({ repository, programId: `program.translation.${outcome}` });
+      const controller = createTranslationProcessControllerV1({
+        repository,
+        workspace: createWorkspacePortV1(repository),
+        createId: deterministicIdsV1(`terminal-${outcome}`),
+        now: () => 30,
+      });
+      await controller.initialize();
+      await controller.startOrOpen(`program.translation.${outcome}`);
+      const processId = controller.getSnapshot().activeProcess!.process.processId;
+      const imported = await controller.importSource({
+        source: {
+          kind: "bytes",
+          fileName: `${outcome}.srt`,
+          mediaType: "application/x-subrip",
+          bytes: textEncoderV1.encode(subtitleDocumentV1(1)),
+        },
+        sourceLocale: "ja",
+        targetLocale: "en",
+      });
+      if (imported.kind !== "completed") throw new Error("expected ready Process work set");
+      const prepared = await controller.prepareAgentBatch(translationBatchBudgetV1());
+      if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+        throw new Error(`expected prepared Translation Agent batch: ${JSON.stringify(prepared)}`);
+      }
+      const terminal = outcome === "failed"
+        ? {
+          run: prepared.value.run,
+          outcome,
+          diagnosticCode: "run_failed" as const,
+        }
+        : { run: prepared.value.run, outcome };
+
+      expect(await controller.recordAgentRunTerminal(terminal)).toEqual({
+        kind: "completed",
+        value: { kind: "persisted", candidateId: null },
+      });
+      expect(controller.getSnapshot().activeProcess).toMatchObject({
+        process: { activeAttempt: null, lastTerminalAttempt: { outcome } },
+        workset: {
+          acceptedUnitCount: 0,
+          acceptedBatchCount: 0,
+          pendingCandidateId: null,
+        },
+        pendingCandidate: null,
+      });
+      expect(await repository.loadTranslationWorksetHead(processId)).toMatchObject({
+        pendingCandidateId: null,
+      });
+    },
+  );
+
+  it("recovers an expired ready-workset batch as retryable and fences its stale generation", async () => {
+    const repository = createRepositoryV1();
+    await seedProgramV1({ repository, programId: "program.translation.retry" });
+    let observedAt = 40;
+    const predecessor = createTranslationProcessControllerV1({
+      repository,
+      workspace: createWorkspacePortV1(repository),
+      createId: deterministicIdsV1("batch-predecessor"),
+      ownerInstanceId: "owner.batch.predecessor",
+      now: () => observedAt,
+      processExecutionLeaseDurationMilliseconds: 20,
+    });
+    await predecessor.initialize();
+    await predecessor.startOrOpen("program.translation.retry");
+    const imported = await predecessor.importSource({
+      source: {
+        kind: "bytes",
+        fileName: "retry.srt",
+        mediaType: "application/x-subrip",
+        bytes: textEncoderV1.encode(subtitleDocumentV1(1)),
+      },
+      sourceLocale: "ja",
+      targetLocale: "en",
+    });
+    if (imported.kind !== "completed") throw new Error("expected ready Process work set");
+    const firstPrepared = await predecessor.prepareAgentBatch(translationBatchBudgetV1());
+    if (firstPrepared.kind !== "completed" || firstPrepared.value.kind !== "prepared") {
+      throw new Error(
+        `expected predecessor Translation Agent batch: ${JSON.stringify(firstPrepared)}`,
+      );
+    }
+    const firstRun = firstPrepared.value.run;
+    const frontierBeforeRecovery = (await repository.loadProcess(firstRun.processId))!
+      .transcriptFrontier;
+
+    observedAt = 61;
+    const successor = createTranslationProcessControllerV1({
+      repository,
+      workspace: createWorkspacePortV1(repository),
+      createId: deterministicIdsV1("batch-successor"),
+      ownerInstanceId: "owner.batch.successor",
+      now: () => observedAt,
+      processExecutionLeaseDurationMilliseconds: 20,
+    });
+    await successor.initialize();
+    expect(await successor.openProcess(firstRun.processId)).toEqual({
+      kind: "completed",
+      value: true,
+    });
+    expect(successor.getSnapshot().activeProcess?.process).toMatchObject({
+      status: "interrupted_retryable",
+      transcriptFrontier: frontierBeforeRecovery + 1,
+      activeAttempt: null,
+      lastTerminalAttempt: {
+        attemptId: firstRun.agentRunId,
+        generation: firstRun.processAttemptGeneration,
+        outcome: "interrupted",
+        interruptionDisposition: "retryable",
+      },
+    });
+    expect(successor.getSnapshot().activeProcess).toMatchObject({
+      workset: { phase: "ready", pendingCandidateId: null },
+      pendingCandidate: null,
+    });
+
+    const retried = await successor.prepareAgentBatch(translationBatchBudgetV1());
+    if (retried.kind !== "completed" || retried.value.kind !== "prepared") {
+      throw new Error("expected retryable successor Translation Agent batch");
+    }
+    expect(retried.value.run).toMatchObject({
+      processId: firstRun.processId,
+      processAttemptGeneration: firstRun.processAttemptGeneration + 1,
+    });
+    expect(
+      await predecessor.recordAgentRunTerminal({
+        run: firstRun,
+        outcome: "completed",
+        candidate: candidateForRunV1(firstRun),
+      }),
+    ).toEqual({ kind: "completed", value: { kind: "stale" } });
+    expect((await repository.loadTranslationWorksetHead(firstRun.processId))?.pendingCandidateId)
+      .toBeNull();
+
+    expect(
+      await successor.recordAgentRunTerminal({
+        run: retried.value.run,
+        outcome: "cancelled",
+      }),
+    ).toEqual({
+      kind: "completed",
+      value: { kind: "persisted", candidateId: null },
     });
   });
 
@@ -716,18 +1161,18 @@ describe("Translation Process Controller", () => {
     expect(successor.kind).toBe("completed");
     release.resolve();
     expect(await firstImport).toEqual({ kind: "failed", code: "process_execution_stale" });
-    expect((await repository.loadTranslationProjectHead(processId))?.source.fileName).toBe(
+    expect((await repository.loadTranslationWorksetHead(processId))?.source.fileName).toBe(
       "second.srt",
     );
   });
 
-  it("does not acquire a stale import after another controller completes the Project", async () => {
+  it("does not acquire a stale import after another controller completes the work set", async () => {
     const repository = createRepositoryV1();
     await seedProgramV1({ repository, programId: "program.translation" });
     const staleAcquireEntered = Promise.withResolvers<void>();
     const releaseStaleAcquire = Promise.withResolvers<void>();
-    const acquire = repository.acquireTranslationProjectImportExecution.bind(repository);
-    repository.acquireTranslationProjectImportExecution = async (input) => {
+    const acquire = repository.acquireTranslationWorksetImportExecution.bind(repository);
+    repository.acquireTranslationWorksetImportExecution = async (input) => {
       if (input.execution.ownerInstanceId === "owner.stale") {
         staleAcquireEntered.resolve();
         await releaseStaleAcquire.promise;
@@ -770,7 +1215,7 @@ describe("Translation Process Controller", () => {
 
     expect(await staleImport).toEqual({
       kind: "failed",
-      code: "translation_project_exists",
+      code: "translation_workset_exists",
     });
     expect(staleWorkspace.importCalls).toEqual([]);
     expect(await repository.loadProcessExecutionLease(processId)).toBeNull();
@@ -827,19 +1272,19 @@ describe("Translation Process Controller", () => {
     expect((await repository.loadProcess(processId))?.lastTerminalAttempt?.outcome).toBe("failed");
   });
 
-  it("preserves an expired import for review without blocking a fresh Translation Process", async () => {
+  it("keeps an expired staging import unrecoverable without blocking a fresh Translation Process", async () => {
     const repository = createRepositoryV1();
     await seedProgramV1({ repository, programId: "program.translation" });
     let currentTime = 20;
     const entered = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
-    const firstWorkspace = createWorkspacePortV1(repository, {
-      async importFile(_input, commit) {
-        entered.resolve();
-        await release.promise;
-        return await commit();
-      },
-    });
+    const append = repository.appendTranslationWorksetImport.bind(repository);
+    repository.appendTranslationWorksetImport = async (input) => {
+      entered.resolve();
+      await release.promise;
+      return await append(input);
+    };
+    const firstWorkspace = createWorkspacePortV1(repository);
     const first = createTranslationProcessControllerV1({
       repository,
       workspace: firstWorkspace,
@@ -862,6 +1307,11 @@ describe("Translation Process Controller", () => {
       targetLocale: "en",
     });
     await entered.promise;
+    expect(await repository.loadTranslationWorksetHead(processId)).toMatchObject({
+      phase: "staging",
+      stagedUnitCount: 0,
+      pendingCandidateId: null,
+    });
     currentTime = 50;
 
     const restart = createTranslationProcessControllerV1({
@@ -901,7 +1351,7 @@ describe("Translation Process Controller", () => {
     expect(review.getSnapshot().activeProcess?.process.processId).toBe(processId);
 
     release.resolve();
-    expect(await importing).toEqual({ kind: "failed", code: "process_execution_stale" });
+    expect(await importing).toEqual({ kind: "failed", code: "translation_workset_conflict" });
   });
 
   it("renews the Process lease while a Workspace import exceeds one lease window", async () => {
@@ -981,17 +1431,17 @@ describe("Translation Process Controller", () => {
     expect(controller.getSnapshot().activeProcess?.process.activeAttempt).toBeNull();
   });
 
-  it("reconciles a lost atomic Project-finalize and Process-terminal response", async () => {
+  it("reconciles a lost atomic work-set finalize and Process-terminal response", async () => {
     const repository = createRepositoryV1();
     await seedProgramV1({ repository, programId: "program.translation" });
-    const commit = repository.commitTranslationProjectFinalizeWithProcessExecutionTerminal.bind(
+    const commit = repository.commitTranslationWorksetFinalizeWithProcessExecutionTerminal.bind(
       repository,
     );
-    repository.commitTranslationProjectFinalizeWithProcessExecutionTerminal = async (input) => {
+    repository.commitTranslationWorksetFinalizeWithProcessExecutionTerminal = async (input) => {
       await commit(input);
       throw createProgramDataRepositoryFailureV1(
         "outcome_unknown",
-        "commit_translation_project_finalize_with_process_execution_terminal",
+        "commit_translation_workset_finalize_with_process_execution_terminal",
       );
     };
     const controller = createTranslationProcessControllerV1({
@@ -1023,31 +1473,31 @@ describe("Translation Process Controller", () => {
       transcript: {
         entries: [{ sequence: 1 }, { sequence: 2 }, { sequence: 3 }],
       },
-      project: { phase: "ready" },
+      workset: { phase: "ready" },
     });
   });
 
-  it("refreshes the completed Process and transcript when retry observes a ready Project", async () => {
+  it("refreshes the completed Process and transcript when retry observes a ready work set", async () => {
     const repository = createRepositoryV1();
     await seedProgramV1({ repository, programId: "program.translation" });
-    const commit = repository.commitTranslationProjectFinalizeWithProcessExecutionTerminal.bind(
+    const commit = repository.commitTranslationWorksetFinalizeWithProcessExecutionTerminal.bind(
       repository,
     );
-    const query = repository.queryTranslationProjectOperation.bind(repository);
+    const query = repository.queryTranslationWorksetOperation.bind(repository);
     let loseQueryResponse = true;
-    repository.commitTranslationProjectFinalizeWithProcessExecutionTerminal = async (input) => {
+    repository.commitTranslationWorksetFinalizeWithProcessExecutionTerminal = async (input) => {
       await commit(input);
       throw createProgramDataRepositoryFailureV1(
         "outcome_unknown",
-        "commit_translation_project_finalize_with_process_execution_terminal",
+        "commit_translation_workset_finalize_with_process_execution_terminal",
       );
     };
-    repository.queryTranslationProjectOperation = async (input) => {
+    repository.queryTranslationWorksetOperation = async (input) => {
       if (loseQueryResponse) {
         loseQueryResponse = false;
         throw createProgramDataRepositoryFailureV1(
           "outcome_unknown",
-          "query_translation_project_operation",
+          "query_translation_workset_operation",
         );
       }
       return await query(input);
@@ -1072,9 +1522,9 @@ describe("Translation Process Controller", () => {
     expect(controller.getSnapshot().activeProcess).toMatchObject({
       process: { transcriptFrontier: 1 },
       transcript: { entries: [{ sequence: 1 }] },
-      project: { phase: "staging" },
+      workset: { phase: "staging" },
     });
-    expect(await repository.loadTranslationProjectHead(processId)).toMatchObject({
+    expect(await repository.loadTranslationWorksetHead(processId)).toMatchObject({
       phase: "ready",
     });
 
@@ -1089,7 +1539,7 @@ describe("Translation Process Controller", () => {
       transcript: {
         entries: [{ sequence: 1 }, { sequence: 2 }, { sequence: 3 }],
       },
-      project: { phase: "ready" },
+      workset: { phase: "ready" },
     });
   });
 
@@ -1098,10 +1548,10 @@ describe("Translation Process Controller", () => {
     await seedProgramV1({ repository, programId: "program.translation" });
     const committed = Promise.withResolvers<void>();
     const releaseResponse = Promise.withResolvers<void>();
-    const commit = repository.commitTranslationProjectFinalizeWithProcessExecutionTerminal.bind(
+    const commit = repository.commitTranslationWorksetFinalizeWithProcessExecutionTerminal.bind(
       repository,
     );
-    repository.commitTranslationProjectFinalizeWithProcessExecutionTerminal = async (input) => {
+    repository.commitTranslationWorksetFinalizeWithProcessExecutionTerminal = async (input) => {
       const result = await commit(input);
       committed.resolve();
       await releaseResponse.promise;
@@ -1131,7 +1581,7 @@ describe("Translation Process Controller", () => {
 
     expect(await importing).toEqual({ kind: "failed", code: "superseded" });
     expect(controller.getSnapshot()).toMatchObject({ route: "home", activeProcess: null });
-    expect(await repository.loadTranslationProjectHead(processId)).toMatchObject({
+    expect(await repository.loadTranslationWorksetHead(processId)).toMatchObject({
       phase: "ready",
     });
     expect(await repository.loadProcess(processId)).toMatchObject({
@@ -1143,9 +1593,9 @@ describe("Translation Process Controller", () => {
   it("plans and commits a large import in actual byte-bounded append pages", async () => {
     const repository = createRepositoryV1();
     await seedProgramV1({ repository, programId: "program.translation" });
-    const appendInputs: Parameters<TestRepositoryV1["appendTranslationProjectImport"]>[0][] = [];
-    const append = repository.appendTranslationProjectImport.bind(repository);
-    repository.appendTranslationProjectImport = async (input) => {
+    const appendInputs: Parameters<TestRepositoryV1["appendTranslationWorksetImport"]>[0][] = [];
+    const append = repository.appendTranslationWorksetImport.bind(repository);
+    repository.appendTranslationWorksetImport = async (input) => {
       appendInputs.push(structuredClone(input));
       return await append(input);
     };
@@ -1188,7 +1638,7 @@ describe("Translation Process Controller", () => {
     }
     expect(
       appendInputs.slice(1).every((page, index) =>
-        page.expectedProjectRevision === appendInputs[index]!.expectedProjectRevision + 1
+        page.expectedWorksetRevision === appendInputs[index]!.expectedWorksetRevision + 1
       ),
     ).toBe(true);
   });
@@ -1196,19 +1646,19 @@ describe("Translation Process Controller", () => {
   it("reconciles a lost append response only through its exact operation receipt", async () => {
     const repository = createRepositoryV1();
     await seedProgramV1({ repository, programId: "program.translation" });
-    const appendInputs: Parameters<TestRepositoryV1["appendTranslationProjectImport"]>[0][] = [];
-    const queried: Parameters<TestRepositoryV1["queryTranslationProjectOperation"]>[0][] = [];
-    const append = repository.appendTranslationProjectImport.bind(repository);
-    const query = repository.queryTranslationProjectOperation.bind(repository);
-    repository.appendTranslationProjectImport = async (input) => {
+    const appendInputs: Parameters<TestRepositoryV1["appendTranslationWorksetImport"]>[0][] = [];
+    const queried: Parameters<TestRepositoryV1["queryTranslationWorksetOperation"]>[0][] = [];
+    const append = repository.appendTranslationWorksetImport.bind(repository);
+    const query = repository.queryTranslationWorksetOperation.bind(repository);
+    repository.appendTranslationWorksetImport = async (input) => {
       appendInputs.push(structuredClone(input));
       await append(input);
       throw createProgramDataRepositoryFailureV1(
         "outcome_unknown",
-        "append_translation_project_import",
+        "append_translation_workset_import",
       );
     };
-    repository.queryTranslationProjectOperation = async (input) => {
+    repository.queryTranslationWorksetOperation = async (input) => {
       queried.push(structuredClone(input));
       return await query(input);
     };
@@ -1238,7 +1688,7 @@ describe("Translation Process Controller", () => {
     expect(queried).toEqual([{ operation: "append", input: appendInputs[0] }]);
   });
 
-  it("cold-reopens the durable Translation Project without acquiring its Workspace", async () => {
+  it("cold-reopens the durable Translation Process work set without acquiring its Workspace", async () => {
     const repository = createRepositoryV1();
     await seedProgramV1({ repository, programId: "program.translation" });
     const firstWorkspace = createWorkspacePortV1(repository);
@@ -1272,14 +1722,14 @@ describe("Translation Process Controller", () => {
       route: "process",
       sourceImport: { phase: "idle" },
       activeProcess: {
-        project: { phase: "ready", document: { format: "markdown" } },
+        workset: { phase: "ready", document: { format: "markdown" } },
       },
     });
     expect(coldWorkspace.createCalls).toEqual([]);
     expect(coldWorkspace.importCalls).toEqual([]);
   });
 
-  it("does not begin a Project when the Process Workspace source write has a known failure", async () => {
+  it("does not begin a work set when the Process Workspace source write has a known failure", async () => {
     const repository = createRepositoryV1();
     await seedProgramV1({ repository, programId: "program.translation" });
     const workspace = createWorkspacePortV1(repository, {
@@ -1314,9 +1764,9 @@ describe("Translation Process Controller", () => {
     ).toEqual({ kind: "failed", code: "workspace_write_failed" });
     expect(controller.getSnapshot()).toMatchObject({
       sourceImport: { phase: "failed", code: "workspace_write_failed" },
-      activeProcess: { project: null },
+      activeProcess: { workset: null },
     });
-    expect(await repository.loadTranslationProjectHead(processId)).toBeNull();
+    expect(await repository.loadTranslationWorksetHead(processId)).toBeNull();
     controller.dispose();
 
     const cold = createTranslationProcessControllerV1({
@@ -1327,21 +1777,21 @@ describe("Translation Process Controller", () => {
     expect(await cold.openProcess(processId)).toEqual({ kind: "completed", value: true });
     expect(cold.getSnapshot()).toMatchObject({
       sourceImport: { phase: "idle" },
-      activeProcess: { project: null },
+      activeProcess: { workset: null },
     });
   });
 
   it("resumes an exact staging import from its durable row frontier and source binding", async () => {
     const repository = createRepositoryV1();
     await seedProgramV1({ repository, programId: "program.translation" });
-    const append = repository.appendTranslationProjectImport.bind(repository);
+    const append = repository.appendTranslationWorksetImport.bind(repository);
     let appendAttempt = 0;
-    repository.appendTranslationProjectImport = async (input) => {
+    repository.appendTranslationWorksetImport = async (input) => {
       appendAttempt += 1;
       if (appendAttempt === 2) {
         throw createProgramDataRepositoryFailureV1(
           "request_failed",
-          "append_translation_project_import",
+          "append_translation_workset_import",
         );
       }
       return await append(input);
@@ -1370,7 +1820,7 @@ describe("Translation Process Controller", () => {
 
     expect(await controller.importSource({ source, sourceLocale: "ja", targetLocale: "zh-Hans" }))
       .toEqual({ kind: "failed", code: "request_failed" });
-    const staging = await repository.loadTranslationProjectHead(processId);
+    const staging = await repository.loadTranslationWorksetHead(processId);
     expect(staging).toMatchObject({
       phase: "staging",
       stagedGlossaryCount: 0,
@@ -1394,9 +1844,9 @@ describe("Translation Process Controller", () => {
     expect(resumed.value.sourceBinding).toEqual(staging!.sourceBinding);
     expect(workspace.importCalls).toHaveLength(2);
 
-    const rows = await repository.loadTranslationProjectUnitPage({
+    const rows = await repository.loadTranslationWorksetUnitPage({
       processId,
-      expectedProjectRevision: resumed.value.revision,
+      expectedWorksetRevision: resumed.value.revision,
       fromOrder: 0,
       maximumRows: 30,
       maximumBytes: 128 * 1_024,
@@ -1412,14 +1862,14 @@ describe("Translation Process Controller", () => {
   it("retains staging and rejects resume when the Workspace exact binding changed", async () => {
     const repository = createRepositoryV1();
     await seedProgramV1({ repository, programId: "program.translation" });
-    const append = repository.appendTranslationProjectImport.bind(repository);
+    const append = repository.appendTranslationWorksetImport.bind(repository);
     let failAppend = true;
-    repository.appendTranslationProjectImport = async (input) => {
+    repository.appendTranslationWorksetImport = async (input) => {
       if (failAppend) {
         failAppend = false;
         throw createProgramDataRepositoryFailureV1(
           "request_failed",
-          "append_translation_project_import",
+          "append_translation_workset_import",
         );
       }
       return await append(input);
@@ -1458,12 +1908,12 @@ describe("Translation Process Controller", () => {
 
     expect(await controller.importSource({ source, sourceLocale: "en", targetLocale: "zh-Hans" }))
       .toEqual({ kind: "failed", code: "request_failed" });
-    const staging = await repository.loadTranslationProjectHead(processId);
+    const staging = await repository.loadTranslationWorksetHead(processId);
     expect(staging).toMatchObject({ phase: "staging", stagedUnitCount: 0 });
     changeBinding = true;
     expect(await controller.importSource({ source, sourceLocale: "en", targetLocale: "zh-Hans" }))
       .toEqual({ kind: "failed", code: "translation_source_binding_mismatch" });
-    expect(await repository.loadTranslationProjectHead(processId)).toEqual(staging);
+    expect(await repository.loadTranslationWorksetHead(processId)).toEqual(staging);
   });
 
   it("keeps an existing Process reopenable when its subject Program is no longer cataloged", async () => {
@@ -1530,7 +1980,7 @@ describe("Translation Process Controller", () => {
         targetLocale: "en",
       }),
     ).toEqual({ kind: "failed", code: "translation_unit_exceeds_operation_budget" });
-    expect(await repository.loadTranslationProjectHead(processId)).toBeNull();
+    expect(await repository.loadTranslationWorksetHead(processId)).toBeNull();
     expect(workspace.importCalls).toEqual([]);
   });
 
@@ -1592,9 +2042,9 @@ describe("Translation Process Controller", () => {
       expectedUnitCount: 1,
       stagedUnitCount: 1,
     });
-    const page = await repository.loadTranslationProjectUnitPage({
+    const page = await repository.loadTranslationWorksetUnitPage({
       processId: imported.value.processId,
-      expectedProjectRevision: imported.value.revision,
+      expectedWorksetRevision: imported.value.revision,
       fromOrder: 0,
       maximumRows: 1,
       maximumBytes: 4_096,
@@ -1605,7 +2055,7 @@ describe("Translation Process Controller", () => {
     });
   });
 
-  it("reports a born-digital PDF rejection without writing the Workspace or Project", async () => {
+  it("reports a born-digital PDF rejection without writing the Workspace or work set", async () => {
     const repository = createRepositoryV1();
     await seedProgramV1({ repository, programId: "program.translation" });
     const workspace = createWorkspacePortV1(repository);
@@ -1640,11 +2090,11 @@ describe("Translation Process Controller", () => {
       kind: "failed",
       code: "pdf_no_extractable_text",
     });
-    expect(await repository.loadTranslationProjectHead(processId)).toBeNull();
+    expect(await repository.loadTranslationWorksetHead(processId)).toBeNull();
     expect(workspace.importCalls).toEqual([]);
   });
 
-  it("rejects a partially extracted PDF instead of publishing a silently incomplete Project", async () => {
+  it("rejects a partially extracted PDF instead of publishing a silently incomplete work set", async () => {
     const repository = createRepositoryV1();
     await seedProgramV1({ repository, programId: "program.translation" });
     const workspace = createWorkspacePortV1(repository);
@@ -1688,7 +2138,7 @@ describe("Translation Process Controller", () => {
         targetLocale: "zh-Hans",
       }),
     ).toEqual({ kind: "failed", code: "pdf_partial_text_extraction" });
-    expect(await repository.loadTranslationProjectHead(processId)).toBeNull();
+    expect(await repository.loadTranslationWorksetHead(processId)).toBeNull();
     expect(workspace.importCalls).toEqual([]);
   });
 });

@@ -150,8 +150,8 @@ implementation baseline before P0 is commit
 
 ## Product invariant and execution rule
 
-Program Creator remains the only built-in user-facing Program in the current
-product. It is a bootstrap and in-product revision path, not an attempt to
+Agent Creator and Translation are the current bundled user-facing Programs.
+Creator is a bootstrap and in-product revision path, not an attempt to
 replace a general coding Agent as the preferred environment for authoring and
 testing sophisticated Programs. A future externally authored Program package
 must enter through the same admission, review, snapshot, and revision-pinning
@@ -167,8 +167,18 @@ For Agent execution, the useful package can be stated more concretely:
 ```text
 SillyOS runtime = fixed harness + VFS/Process authorities + closed UI/tool adapters
 Program package = PROGRAM.md + references + scripts + assets + workflow/profile data
-Process = pinned Program revision + user input + Conversation + mutable work/output
+Process = compatible Program revision + user input + Conversation + Workspace + mutable work/output
 ```
+
+Each durable Process is the user's project instance. A domain may attach a
+Process-owned pageable workset, but it must not add a second Project identity,
+list, route, or lifecycle.
+
+Bundling is a distribution choice, not a privileged execution class. Every
+bundled or later admitted Program uses the same Program UI Container,
+Process/Workspace ownership, Agent execution, admission, and currentness
+contracts. Program-specific prompts, tools, workflow data, and guided UI are
+selected through those contracts rather than bypassing them.
 
 This is an ownership split, not a required on-disk format for every internal
 record. The harness is shipped with SillyOS and owns the Pi Agent bridge, fixed
@@ -200,7 +210,7 @@ SillyOS workflow controllers own stage transitions, context planning,
 checkpoints, and recovery. A Process retains the exact immutable Definition
 content and execution-compatibility requirement that created it, so removing a
 Program from the current catalog cannot erase that Process. After a refresh,
-however, a built-in Program normally runs the newest SillyOS-shipped
+however, a bundled Program normally runs the newest compatible SillyOS-shipped
 implementation that satisfies that compatibility requirement. The current
 prototype loader updates only Agent instructions, prompt projection,
 completion/admission, selected tools, and run policy. Workflow, packaged
@@ -224,7 +234,7 @@ attempt captures one immutable effective settings snapshot when it begins.
 Later edits affect only later attempts or batches. Settings are
 best-effort input, not an execution precondition: absence uses defaults; invalid
 JSON falls back; and missing or invalid fields fall back to the next valid
-Program or built-in default while producing diagnostics. Only a complete
+Program or product default while producing diagnostics. Only a complete
 schema-valid canonical document may replace a saved preference. Provider
 credentials and model capability admission remain SillyOS authorities; a
 Program setting may name translate, review, or OCR model-selection references,
@@ -243,7 +253,7 @@ Those executable pieces may use three deliberately different forms. Stable
 product mechanics are ordinary typed TypeScript operations and remain the
 preferred form. A Program-owned script is versioned content inside the admitted
 Program revision and executes only through a fixed harness-owned interpreter or
-tool boundary. The two current built-in prototypes still come from the build
+tool boundary. The two current bundled prototypes still come from the build
 graph and carry no such script; a later dynamic package may carry admitted
 script bytes without adding an interpreter, tool implementation, dispatcher, or
 ambient authority. An Agent-authored script is an ordinary mutable Process
@@ -422,7 +432,7 @@ There is no migration or dual reader before the first stable release.
 The replacement repository owns these logical units:
 
 1. `program_definitions` — immutable reusable Program/harness definitions,
-   including the pinned built-in Creator revision;
+   including the pinned bundled Creator revision;
 2. `program_heads` — compact current Program/proposal/repository summary;
 3. `program_revisions` — immutable `(programId, programRevision)` content;
 4. `program_decisions` — immutable review outcomes and exact accepted Workspace
@@ -2103,7 +2113,7 @@ through the same `WorkspaceExecutionPort` and capability truth surface; do not
 copy a provider-specific SDK into the product core. Then build translation,
 writing, and role-play as Program capability compositions using fixed Pi
 extensions/skills/tools plus closed SillyMaker/OpenUI UI mappings. They remain
-generated Programs, not additional built-in apps.
+generated Programs, not additional bundled apps.
 
 ### Editor inheritance follow-on (inactive, product/tooling-side)
 
@@ -2704,8 +2714,8 @@ streamed rather than folded into the Creator bundle.
 #### P1-B1 — Pi-owned Browser Provider settings (B1a/B1b closed; B1c UI local, S0 closed)
 
 P1-B1 replaces B0b's fixed query-only profile; it does not preserve that
-pre-stable user-facing route as a compatibility mode. Agent Creator remains the
-only built-in user-facing program. Settings is an application control surface
+pre-stable user-facing route as a compatibility mode. At that checkpoint,
+Agent Creator was the only bundled user-facing Program. Settings remains an application control surface
 for the Creator supervisor, not another Program. B1 selects the current live
 supervisor's device/session execution profile; it does not yet publish that
 choice into the Program-owned Pi profile/capability composition. Credentials
@@ -4829,17 +4839,20 @@ expand the existing focused public SillyMaker Mod API, and it introduces no
 public Agent, Program, or plugin ABI.
 
 The first composition cleanup is now delivered only for the two current
-build-known built-in Programs. Creator and Translation each have one private
+build-known bundled Programs. Creator and Translation each have one private
 Program-package module that co-locates the current instructions, user-prompt
 projection, completion contract and candidate admission, selected subset of
 fixed Workspace tools, text-delta policy, Provider timeout, and output envelope.
 Translation remains on its existing compatibility reference while its current
-system-prompt revision is 5. The Worker resolves the selected built-in package
+system-prompt revision is 6. The Worker resolves the selected bundled package
 before starting an Agent run and does not fall back from an unknown reference.
 
 This is bootstrap cleanup, not the final externally authored Program package
 contract. The persisted `harnessReference` is a compatibility selector for the
-two built-ins, not their source-code revision. Their compatible instructions,
+two bundled Programs, not their source-code revision. Existing
+`sillyos.builtin.*` Program IDs retain their historical spelling as current
+identifiers; that spelling does not create a privileged Program class or a
+pre-stable storage-migration promise. Their compatible instructions,
 prompt projection, completion/admission, selected tools, and run policy may
 improve when SillyOS updates. A
 later externally authored package still needs durable retained content so a
@@ -4871,13 +4884,13 @@ Creator blueprint experiment, and a lazy born-digital PDF text-adapter
 experiment. The evidence supports beginning the formal P5-B product slice
 without replacing the production prompt wholesale. The build-known Creator /
 Translation Program-package colocation cleanup is also complete; Translation's
-compatibility reference remains `@1` and its current prompt revision is 5.
+compatibility reference remains `@1` and its current prompt revision is 6.
 The first formal P5-B UI/domain foundation is now implemented: a SillyOS-owned
 Program UI Container switches guided “Simple” and Conversation presentation for
 the same Process; a bounded run strip projects the latest one to three activity
 lines and truthful mechanical/indeterminate progress; the Translation workbench
-uses a virtualized unit list with desktop/mobile target-detail presentation,
-while durable target save/mutation remains disabled; and the ordinary
+uses a virtualized unit list with desktop/mobile target-detail presentation;
+and the ordinary
 Translation route owns a real `sillyos.builtin.translation` revision 1 Process
 controller. That
 controller creates or cold-reopens the exact Process and its independent
@@ -4885,30 +4898,60 @@ Workspace without pre-acquiring an idle Workspace. Existing Processes remain
 explicitly reopenable by `processId` at the controller boundary if their subject
 later disappears from the current catalog; Home does not yet discover those
 orphan Processes. Source import reuses the existing Process execution lease;
-lease acquisition and the expected absent/exact-staging Project revision are
+lease acquisition and the expected absent/exact-staging workset revision are
 one IndexedDB admission, so a stale tab cannot begin a successor attempt after
-another tab has already finalized the Project. After admission,
-the Workspace write, Project begin, each bounded append, and finalize all fence
+another tab has already finalized that Process's workset. After admission,
+the Workspace write, workset begin, each bounded append, and finalize all fence
 on its exact attempt/generation. The Workspace write owns an operation-scoped
 foreground renewal loop; subsequent persistence cuts renew only near expiry,
-without claiming progress through browser suspension. Ready Project publication
+without claiming progress through browser suspension. Ready workset publication
 and its completed Process terminal/checkpoint are one IndexedDB transaction.
 Cold open terminalizes an expired unfinished import as explicitly unrecoverable
 for direct review; ordinary Home selection skips that terminal Process and
 creates a fresh one instead of leaving the Program permanently blocked.
 
-Physical Product Repository V11 now stores a compact Translation Project head,
+Physical Product Repository V13 now stores a compact Process-owned Translation workset head,
 exact import-operation receipts, and separately pageable unit/glossary rows.
 The UI paging source requests only bounded visible row windows; the 10,000-unit
-evidence no longer depends on moving one in-memory Project aggregate through the
+evidence no longer depends on moving one in-memory workset aggregate through the
 Worker. Source import computes the raw SHA-256, uses a canonical relative path,
 and imports the original bytes through the same Browser Workspace Authority
-before binding its exact checkpoint to the Project. TXT, Markdown, SRT, and the
+before binding its exact checkpoint to the Process-owned workset. TXT, Markdown, SRT, and the
 closed Translation JSON format retain their deterministic round-trip adapters.
 Born-digital PDF is a lazy text-only `pdf_text_reflow` projection; it retains
 the original PDF but provides no OCR, layout-preserving rewrite, password UI,
-or PDF round-trip output. Project-subset batch admission continues to preserve
+or PDF round-trip output. Workset-subset batch admission continues to preserve
 global contiguous order for second and later pages.
+
+The first execution/review slice is also delivered. Batch planning starts at
+the Process's next unaccepted row, pages only the required source/glossary
+neighbors, and fits the exact dynamic prompt plus an explicit output reserve to
+the selected model envelope without a semantic item-count ceiling. Creator and
+Translation share one Browser Agent Worker/Session owner behind separate typed
+facades. A completed Run publishes one admitted pending candidate and the
+Process terminal in one IndexedDB transaction; failed/cancelled runs publish no
+candidate. Process/attempt/generation/lease fencing prevents a stale page from
+publishing, while an expired Run is retryable only when the exact Workspace
+checkpoint/source binding is unchanged and no pending candidate exists.
+
+Review keeps candidate drafts in presentation state keyed by candidate ID. An
+accept submits the complete edited target set against the exact candidate ID
+and workset revision, rechecks unit order/identity and protected-token
+structure, atomically writes accepted targets/counters, clears the candidate,
+and records one receipt. Reject clears only that candidate. Both paths support
+lost-response reconciliation and cold reopen. The ordinary Chromium/WebKit
+journey proves import → deterministic Agent → edit → accept → reload. This is
+mechanical/product-flow evidence, not real-Provider translation-quality
+qualification.
+
+The product model remains `Program -> durable Process`: each Translation
+Process directly owns its pageable/CAS workset, candidate, and review state.
+There is no independent Project identity, list, route, or lifecycle. Physical
+stores and receipts use current `translation_workset_*` terminology. Program
+Data Repository V13 row-blind resets any earlier preview database rather than
+retaining pre-stable migration code. The research candidate script still uses
+its own `project.json` wire format; it is laboratory input, not the product
+domain model or production persistence authority.
 
 The fixed QuickJS 0.32 harness separately passes real regular-expression
 coverage for ordinary expressions, Unicode property escapes, lookbehind, and
@@ -4916,13 +4959,12 @@ named captures. Translation has not selected that capability: its intended
 Definition currently advertises no tools, and no Translation Agent profile
 authorizes Workspace tools, `bash`, or `qjs`.
 
-P5-B through P5-D remain incomplete. The route, original-source import, Project
-head/paging, cold reopen, and PDF text projection are storage and presentation
-foundations—not a completed workflow. There is still no real Translation Agent
-batch loop, target candidate commit, interruption/resume, structured human
-Review/QA, final format-preserving exporter, OpenUI renderer, Python, or CodeAct
-path. The guided workbench now consumes the controller import and bounded
-pageable Project source, but this only forms an import-and-browse journey. See
+P5-B through P5-D remain incomplete. Import, bounded Agent batching, stale-safe
+candidate publication, editable human accept/reject, accepted-target
+persistence, and cold reopen now form one real execution/review loop. There is
+still no discovery-oriented QA beyond protected-structure admission, final
+format-preserving exporter, OpenUI renderer, Conversation-mode free follow-up,
+real-Provider product qualification, Python, or CodeAct path. See
 [TRANSLATION-PROGRAM-RESEARCH.md](./TRANSLATION-PROGRAM-RESEARCH.md).
 
 Make translation the first complete product consumer. Its denominator is one

@@ -13,11 +13,11 @@ import {
   type ProgramDataRepositoryV1,
 } from "../product/program-data-repository.ts";
 import {
-  createBuiltinCreatorProgramDefinitionRevisionV1,
+  createBundledCreatorProgramDefinitionRevisionV1,
   type ProcessTranscriptAppendInputV1,
   type TranscriptEntryV1,
 } from "../product/program-process-repository.ts";
-import { createBuiltinTranslationProgramDefinitionRevisionV1 } from "../product/translation/translation-program-definition.ts";
+import { createBundledTranslationProgramDefinitionRevisionV1 } from "../product/translation/translation-program-definition.ts";
 import type { PreviewProgramV1 } from "../product/contracts.ts";
 import type { BrowserWorkspaceHostPagePortV1 } from "../workspace/browser-workspace-host-port.ts";
 import type {
@@ -430,7 +430,7 @@ async function authorityHarnessV1(
   });
   await authority.initialize();
   await repository.publishProgramDefinitionRevision(
-    createBuiltinCreatorProgramDefinitionRevisionV1(),
+    createBundledCreatorProgramDefinitionRevisionV1(),
   );
   return { authority, repository, host };
 }
@@ -497,7 +497,7 @@ async function createTranslationProcessWorkspaceV1(input: {
 }) {
   const subject = await createProgramV1({ harness: input.harness });
   await input.harness.repository.publishProgramDefinitionRevision(
-    createBuiltinTranslationProgramDefinitionRevisionV1(),
+    createBundledTranslationProgramDefinitionRevisionV1(),
   );
   const processInput = createProcessWorkspaceInputV1({
     programId: subject.programId,
@@ -517,7 +517,7 @@ async function acquireTranslationImportLeaseV1(input: {
   readonly observedAt?: number;
 }) {
   const process = await input.harness.repository.loadProcess(input.processId);
-  const project = await input.harness.repository.loadTranslationProjectHead(input.processId);
+  const project = await input.harness.repository.loadTranslationWorksetHead(input.processId);
   const checkpoint = process?.checkpoint ?? null;
   if (process === null || checkpoint === null) {
     throw new Error("missing Translation Process predecessor");
@@ -525,8 +525,8 @@ async function acquireTranslationImportLeaseV1(input: {
   const observedAt = input.observedAt ?? Math.max(3, process.updatedAt);
   const attemptId = `attempt.${input.processId}.import`;
   const triggerSequence = process.transcriptFrontier + 1;
-  const acquired = await input.harness.repository.acquireTranslationProjectImportExecution({
-    expectedProjectRevision: project?.revision ?? null,
+  const acquired = await input.harness.repository.acquireTranslationWorksetImportExecution({
+    expectedWorksetRevision: project?.revision ?? null,
     execution: {
       ownerInstanceId: `owner.${input.processId}.import`,
       observedAt,
@@ -743,7 +743,7 @@ describe("Browser Program Workspace authority V1", () => {
     const harness = await authorityHarnessV1();
     const subject = await createProgramV1({ harness });
     await harness.repository.publishProgramDefinitionRevision(
-      createBuiltinTranslationProgramDefinitionRevisionV1(),
+      createBundledTranslationProgramDefinitionRevisionV1(),
     );
     const input = createProcessWorkspaceInputV1({
       programId: subject.programId,
@@ -876,7 +876,7 @@ describe("Browser Program Workspace authority V1", () => {
     const harness = await authorityHarnessV1(repository);
     const subject = await createProgramV1({ harness });
     await harness.repository.publishProgramDefinitionRevision(
-      createBuiltinTranslationProgramDefinitionRevisionV1(),
+      createBundledTranslationProgramDefinitionRevisionV1(),
     );
     const input = createProcessWorkspaceInputV1({
       programId: subject.programId,

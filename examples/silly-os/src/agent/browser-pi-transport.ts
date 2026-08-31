@@ -14,6 +14,7 @@ import browserPiWorkerUrlV1 from "./browser-pi.worker.ts?worker&url";
 import type {
   BrowserProgramWorkspaceAuthorityV1,
   BrowserProgramWorkspaceFatalV1,
+  BrowserProcessWorkspaceAuthorityV1,
 } from "../product/browser-program-workspace-authority.ts";
 import type { ProgramNetworkAccessV1 } from "../product/program-network-access.ts";
 import type { BrowserWorkspaceHostSnapshotWireV1 } from "../workspace/browser-workspace-host-protocol.ts";
@@ -120,10 +121,11 @@ export interface BrowserPiWorkerConnectorV1 extends AgentSessionConnectorV1 {
   setReasoningEffort(
     preferredReasoningEffort: BrowserPiReasoningEffortV1,
   ): Promise<BrowserPiWorkerSetReasoningEffortResultV1>;
-  openWorkspace(input: {
-    readonly programId: string;
-    readonly workspaceId: string;
-  }): Promise<BrowserPiWorkspaceSnapshotWireV1>;
+  openWorkspace(
+    input:
+      | { readonly programId: string; readonly workspaceId: string }
+      | { readonly processId: string; readonly workspaceId: string },
+  ): Promise<BrowserPiWorkspaceSnapshotWireV1>;
   closeWorkspace(workspaceSessionId: string): Promise<BrowserPiWorkspaceSnapshotWireV1>;
   queryWorkspace(workspaceSessionId: string): Promise<BrowserPiWorkspaceSnapshotWireV1>;
   acknowledgeWorkspaceReceipts(input: {
@@ -318,7 +320,9 @@ export function createBrowserPiWorkerConnectorV1({
 }:
   & {
     readonly openNetworkBroker: BrowserPiOpenNetworkBrokerV1;
-    readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
+    readonly workspaceAuthority:
+      & BrowserProgramWorkspaceAuthorityV1
+      & Partial<Pick<BrowserProcessWorkspaceAuthorityV1, "openProcessWorkspace">>;
     readonly workerFactory?: BrowserPiWorkerFactoryV1;
     readonly createCredentialHandoffId?: () => string;
     readonly preferredReasoningEffort?: BrowserPiReasoningEffortV1;
@@ -1111,7 +1115,15 @@ export function createBrowserPiWorkerConnectorV1({
       return { kind: "connected", connection: createConnectionV1(state) };
     },
     async openWorkspace(input): Promise<BrowserPiWorkspaceSnapshotWireV1> {
-      const opened = await workspaceAuthority.openWorkspace(input);
+      const opened = "processId" in input
+        ? await (() => {
+          const openProcessWorkspace = workspaceAuthority.openProcessWorkspace;
+          if (openProcessWorkspace === undefined) {
+            throw transportErrorV1("process_workspace_unsupported");
+          }
+          return openProcessWorkspace.call(workspaceAuthority, input);
+        })()
+        : await workspaceAuthority.openWorkspace(input);
       try {
         const snapshot = await workspaceRequestV1(
           {

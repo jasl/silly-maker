@@ -47,6 +47,8 @@ export function projectProviderSettingsCatalogV1(
         name: model.name,
         api: model.api,
         baseUrl: model.baseUrl,
+        contextWindow: model.contextWindow,
+        maxTokens: model.maxTokens,
         supportedReasoningEfforts: model.supportedReasoningEfforts,
         defaultReasoningEffort: model.defaultReasoningEffort,
         availability: settingsAvailabilityV1(model.availability),

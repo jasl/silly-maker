@@ -26,7 +26,7 @@ export function browserPiCompletionToolChoiceV1(proposed) {
 
 export function browserPiAgentProviderTimeoutMillisecondsV1(programPackage, dispatch) {
   if (programPackage.reference !== dispatch.harnessReference) {
-    throw new TypeError("SillyOS built-in Program package does not match dispatch");
+    throw new TypeError("SillyOS bundled Program package does not match dispatch");
   }
   return programPackage.providerTimeoutMilliseconds;
 }
@@ -41,7 +41,7 @@ export function browserPiAgentMaximumOutputTokensV1(
     throw new TypeError("Pi model maximum output tokens are invalid");
   }
   if (programPackage.reference !== dispatch.harnessReference) {
-    throw new TypeError("SillyOS built-in Program package does not match dispatch");
+    throw new TypeError("SillyOS bundled Program package does not match dispatch");
   }
   const requested = programPackage.requestedOutputTokens(dispatch);
   return Math.min(modelMaximumTokens, requested);

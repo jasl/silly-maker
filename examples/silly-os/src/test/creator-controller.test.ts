@@ -14,11 +14,11 @@ import {
   type ProgramDataRepositoryV1,
 } from "../product/program-data-repository.ts";
 import {
-  createBuiltinCreatorProgramDefinitionRevisionV1,
+  createBundledCreatorProgramDefinitionRevisionV1,
   transcriptEntryUtf8ByteLengthV1,
   type TranscriptEntryV1,
 } from "../product/program-process-repository.ts";
-import { createBuiltinTranslationProgramDefinitionRevisionV1 } from "../product/translation/translation-program-definition.ts";
+import { createBundledTranslationProgramDefinitionRevisionV1 } from "../product/translation/translation-program-definition.ts";
 import type { CreatorAgentTerminalRunV1, PreviewProgramV1 } from "../product/contracts.ts";
 import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
 import {
@@ -328,7 +328,7 @@ describe("Creator Controller Program/Process projection", () => {
     await controller.initialize();
     expect(
       await repository.loadProgramDefinitionRevision("sillyos.builtin.creator", 1),
-    ).toEqual(createBuiltinCreatorProgramDefinitionRevisionV1());
+    ).toEqual(createBundledCreatorProgramDefinitionRevisionV1());
     expect(controller.getSnapshot().catalog.phase).toBe("ready");
     expect(controller.getSnapshot().catalog.summaries.length).toBeLessThan(12);
 
@@ -378,7 +378,7 @@ describe("Creator Controller Program/Process projection", () => {
   it("opens the newest Process for one Program and loads only its pinned rich projection", async () => {
     const repository = createMemoryProgramDataRepositoryV1();
     await repository.publishProgramDefinitionRevision(
-      createBuiltinCreatorProgramDefinitionRevisionV1(),
+      createBundledCreatorProgramDefinitionRevisionV1(),
     );
     await seedProgramV1({ repository, programId: "program.subject", updatedAt: 1 });
     await seedProcessV1({
@@ -416,10 +416,10 @@ describe("Creator Controller Program/Process projection", () => {
   it("keeps Program editing pinned to the newest Creator Process when a newer gameplay Process exists", async () => {
     const repository = createMemoryProgramDataRepositoryV1();
     await repository.publishProgramDefinitionRevision(
-      createBuiltinCreatorProgramDefinitionRevisionV1(),
+      createBundledCreatorProgramDefinitionRevisionV1(),
     );
     await repository.publishProgramDefinitionRevision(
-      createBuiltinTranslationProgramDefinitionRevisionV1(),
+      createBundledTranslationProgramDefinitionRevisionV1(),
     );
     await seedProgramV1({ repository, programId: "program.subject", updatedAt: 1 });
     await seedProcessV1({
@@ -456,7 +456,7 @@ describe("Creator Controller Program/Process projection", () => {
   it("loads older transcript pages while keeping the mounted window byte-bounded", async () => {
     const repository = createMemoryProgramDataRepositoryV1();
     await repository.publishProgramDefinitionRevision(
-      createBuiltinCreatorProgramDefinitionRevisionV1(),
+      createBundledCreatorProgramDefinitionRevisionV1(),
     );
     await seedProgramV1({ repository, programId: "program.long", updatedAt: 1 });
     await seedProcessV1({
@@ -514,7 +514,7 @@ describe("Creator Controller Program/Process projection", () => {
   it("fences a late Process load after a newer Process wins", async () => {
     const repository = createMemoryProgramDataRepositoryV1();
     await repository.publishProgramDefinitionRevision(
-      createBuiltinCreatorProgramDefinitionRevisionV1(),
+      createBundledCreatorProgramDefinitionRevisionV1(),
     );
     await seedProgramV1({ repository, programId: "program.first", updatedAt: 1 });
     await seedProgramV1({ repository, programId: "program.second", updatedAt: 2 });
@@ -556,7 +556,7 @@ describe("Creator Controller Program/Process projection", () => {
   it("fences a late older-page load after switching the active Process", async () => {
     const repository = createMemoryProgramDataRepositoryV1();
     await repository.publishProgramDefinitionRevision(
-      createBuiltinCreatorProgramDefinitionRevisionV1(),
+      createBundledCreatorProgramDefinitionRevisionV1(),
     );
     await seedProgramV1({ repository, programId: "program.first", updatedAt: 1 });
     await seedProgramV1({ repository, programId: "program.second", updatedAt: 2 });
@@ -1948,7 +1948,7 @@ describe("Creator Controller Program/Process projection", () => {
   it("clears the predecessor projection while switching the single active Process", async () => {
     const repository = createMemoryProgramDataRepositoryV1();
     await repository.publishProgramDefinitionRevision(
-      createBuiltinCreatorProgramDefinitionRevisionV1(),
+      createBundledCreatorProgramDefinitionRevisionV1(),
     );
     await seedProgramV1({ repository, programId: "program.first", updatedAt: 1 });
     await seedProgramV1({ repository, programId: "program.second", updatedAt: 2 });

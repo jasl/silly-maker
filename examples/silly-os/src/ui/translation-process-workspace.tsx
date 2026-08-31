@@ -12,7 +12,8 @@ import { ChatPaneV1 } from "./chat-pane.tsx";
 import type { ProgramRunProjectionV1, ProgramUiModeV1 } from "./program-ui-container.tsx";
 import {
   type TranslationProgramImportRequestV1,
-  type TranslationProjectPresentationSourceV1,
+  type TranslationProgramWorkspacePropsV1,
+  type TranslationProcessPresentationSourceV1,
   TranslationProgramWorkspaceV1,
 } from "./translation-program-workspace.tsx";
 import { ProgramWorkspaceTopbarV1 } from "./workspace-chrome.tsx";
@@ -29,13 +30,32 @@ export interface TranslationProcessWorkspacePropsV1 {
     request: TranslationProgramImportRequestV1,
   ) => void | Promise<void>;
   readonly sourceImport: TranslationSourceImportStateV1;
-  readonly onLoadProjectRowWindow: TranslationProcessControllerV1["loadProjectRowWindow"];
+  readonly onLoadTranslationRowWindow: TranslationProcessControllerV1["loadTranslationRowWindow"];
+  readonly agentRun?: ProgramRunProjectionV1 | null;
+  readonly onStartTranslation?: () => void | Promise<void>;
+  readonly onAcceptCandidate?: TranslationProgramWorkspacePropsV1["onAcceptCandidate"];
+  readonly onRejectCandidate?: TranslationProgramWorkspacePropsV1["onRejectCandidate"];
   readonly onOperationError?: (error: unknown) => void;
+}
+
+function translationProgramStageV1(
+  source: TranslationProcessPresentationSourceV1 | null,
+  pendingCandidate: TranslationActiveProcessProjectionV1["pendingCandidate"],
+  agentRun: ProgramRunProjectionV1 | null,
+  hasActiveAgentAttempt: boolean,
+): "import" | "analyze" | "translate" | "review" | "export" {
+  if (source === null) return "import";
+  if (pendingCandidate !== null) return "review";
+  if (hasActiveAgentAttempt || agentRun?.status === "running") return "translate";
+  if (source.totalUnitCount > 0 && source.committedUnitCount === source.totalUnitCount) {
+    return "export";
+  }
+  return "analyze";
 }
 
 function importRunProjectionV1(
   sourceImport: TranslationSourceImportStateV1,
-  project: TranslationActiveProcessProjectionV1["project"],
+  workset: TranslationActiveProcessProjectionV1["workset"],
   locale: SillyOsLocaleV1,
 ): ProgramRunProjectionV1 | null {
   if (sourceImport.phase === "idle") return null;
@@ -51,21 +71,21 @@ function importRunProjectionV1(
     };
   }
   const labels = locale === "zh-CN"
-    ? { source: "正在保存原始文件", project: "正在建立翻译条目", finalize: "正在完成导入" }
+    ? { source: "正在保存原始文件", prepare: "正在建立翻译条目", finalize: "正在完成导入" }
     : {
       source: "Saving the original source",
-      project: "Preparing translation units",
+      prepare: "Preparing translation units",
       finalize: "Finalizing import",
     };
   const label = labels[sourceImport.stage];
-  const determinate = project !== null && sourceImport.stage !== "source"
+  const determinate = workset !== null && sourceImport.stage !== "source"
     ? {
       kind: "determinate" as const,
       completed: sourceImport.stage === "finalize"
-        ? project.expectedUnitCount
-        : project.stagedUnitCount,
-      total: project.expectedUnitCount,
-      label: `${String(project.stagedUnitCount)} / ${String(project.expectedUnitCount)}`,
+        ? workset.expectedUnitCount
+        : workset.stagedUnitCount,
+      total: workset.expectedUnitCount,
+      label: `${String(workset.stagedUnitCount)} / ${String(workset.expectedUnitCount)}`,
     }
     : { kind: "indeterminate" as const, label };
   return {
@@ -95,36 +115,61 @@ export function TranslationProcessWorkspaceV1({
   onOpenSettings,
   onImportFile,
   sourceImport,
-  onLoadProjectRowWindow,
+  onLoadTranslationRowWindow,
+  agentRun = null,
+  onStartTranslation,
+  onAcceptCandidate,
+  onRejectCandidate,
   onOperationError,
 }: TranslationProcessWorkspacePropsV1): ReactNode {
   const [mode, setMode] = useState<ProgramUiModeV1>("guided");
   const title = activeProcess.subject?.currentProgram.name ?? activeProcess.definition.name;
-  const projectSource = useMemo<TranslationProjectPresentationSourceV1 | null>(() => {
-    const project = activeProcess.project;
-    if (project === null || project.phase !== "ready") return null;
+  const translationSource = useMemo<TranslationProcessPresentationSourceV1 | null>(() => {
+    const workset = activeProcess.workset;
+    if (workset === null || workset.phase !== "ready") return null;
     return {
-      projectId: project.projectId,
-      revision: project.revision,
-      title: project.title,
-      documentPurpose: project.documentPurpose,
-      sourceLocale: project.sourceLocale,
-      targetLocale: project.targetLocale,
-      totalUnitCount: project.expectedUnitCount,
-      committedUnitCount: 0,
-      committedBatchCount: 0,
-      glossaryTermCount: project.stagedGlossaryCount,
+      revision: workset.revision,
+      title: workset.title,
+      documentPurpose: workset.documentPurpose,
+      sourceLocale: workset.sourceLocale,
+      targetLocale: workset.targetLocale,
+      totalUnitCount: workset.expectedUnitCount,
+      committedUnitCount: workset.acceptedUnitCount,
+      committedBatchCount: workset.acceptedBatchCount,
+      glossaryTermCount: workset.stagedGlossaryCount,
+      pendingCandidate: activeProcess.pendingCandidate === null ? null : {
+        candidateId: activeProcess.pendingCandidate.candidateId,
+        firstOrder: activeProcess.pendingCandidate.firstOrder,
+        unitCount: activeProcess.pendingCandidate.unitCount,
+        targets: activeProcess.pendingCandidate.targets,
+        ambiguities: activeProcess.pendingCandidate.ambiguities,
+      },
       loadRowWindow: ({ offset, limit, signal }) =>
-        onLoadProjectRowWindow({
+        onLoadTranslationRowWindow({
           processId: activeProcess.process.processId,
-          expectedProjectRevision: project.revision,
+          expectedWorksetRevision: workset.revision,
           offset,
           limit,
           signal,
         }),
     };
-  }, [activeProcess.process.processId, activeProcess.project, onLoadProjectRowWindow]);
-  const run = importRunProjectionV1(sourceImport, activeProcess.project, copy.locale);
+  }, [
+    activeProcess.pendingCandidate,
+    activeProcess.process.processId,
+    activeProcess.workset,
+    onLoadTranslationRowWindow,
+  ]);
+  const importRun = importRunProjectionV1(sourceImport, activeProcess.workset, copy.locale);
+  const run = importRun ?? agentRun;
+  const stage = translationProgramStageV1(
+    translationSource,
+    activeProcess.pendingCandidate,
+    agentRun,
+    sourceImport.phase === "idle" && activeProcess.process.activeAttempt !== null,
+  );
+  const startTranslationDisabled = sourceImport.phase !== "idle" ||
+    activeProcess.process.activeAttempt !== null || activeProcess.pendingCandidate !== null ||
+    agentRun?.status === "running";
 
   return (
     <main
@@ -148,11 +193,15 @@ export function TranslationProcessWorkspaceV1({
         locale={copy.locale}
         mode={mode}
         onModeChange={setMode}
-        projectSource={projectSource}
-        stage={projectSource === null ? "import" : "analyze"}
+        translationSource={translationSource}
+        stage={stage}
         run={run}
         importPending={sourceImport.phase === "pending"}
         onImportFile={onImportFile}
+        startTranslationDisabled={startTranslationDisabled}
+        {...(onStartTranslation === undefined ? {} : { onStartTranslation })}
+        {...(onAcceptCandidate === undefined ? {} : { onAcceptCandidate })}
+        {...(onRejectCandidate === undefined ? {} : { onRejectCandidate })}
         {...(onOperationError === undefined ? {} : { onOperationError })}
         conversationSurface={
           <ChatPaneV1

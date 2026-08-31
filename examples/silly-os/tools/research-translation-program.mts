@@ -17,7 +17,7 @@ import {
 import {
   translationBatchOutputTokenEnvelopeV1,
   translationProgramPromptRevisionV1,
-} from "../src/agent/builtin-program-packages/translation-current.ts";
+} from "../src/agent/bundled-program-packages/translation-current.ts";
 import {
   sanitizeResearchErrorV1,
   sanitizeResearchProviderMessageV1,

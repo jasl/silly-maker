@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+// @ts-self-types="./pi-workspace-runtime-bridge.d.ts"
 
 // Keep the fixed Pi package as the runtime authority while shielding the
 // product typecheck from provider SDK declarations that are irrelevant to the

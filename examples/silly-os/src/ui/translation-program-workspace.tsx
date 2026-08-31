@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
+  Check,
   CheckCircle2,
   Download,
   FileText,
   Languages,
   Play,
-  Save,
   ShieldCheck,
   Upload,
+  X,
 } from "lucide-react";
 import {
   type ChangeEvent,
@@ -25,9 +26,9 @@ import {
 } from "react";
 
 import {
-  type TranslationProjectRowWindowV1,
-  type TranslationProjectUnitV1,
-} from "../product/translation/translation-project.ts";
+  type TranslationProcessRowWindowV1,
+  type TranslationProcessUnitProjectionV1,
+} from "../product/translation/translation-process-view.ts";
 import { BadgeV1 } from "./design-system/badge.tsx";
 import { ButtonV1 as Button } from "./design-system/button.tsx";
 import { FieldLabelV1, FieldV1 } from "./design-system/field.tsx";
@@ -54,7 +55,7 @@ export interface TranslationProgramImportRequestV1 {
   readonly targetLocale: string;
 }
 
-export interface TranslationProjectRowWindowRequestV1 {
+export interface TranslationProcessRowWindowRequestV1 {
   readonly offset: number;
   readonly limit: number;
   readonly signal: AbortSignal;
@@ -62,11 +63,10 @@ export interface TranslationProjectRowWindowRequestV1 {
 
 /**
  * Small, pageable projection consumed by the Program UI. The complete
- * Translation Project remains behind its repository; a React render receives
+ * Translation Process work set remains behind its repository; a React render receives
  * only stable identity, summary counters and the row ranges it can display.
  */
-export interface TranslationProjectPresentationSourceV1 {
-  readonly projectId: string;
+export interface TranslationProcessPresentationSourceV1 {
   readonly revision: number;
   readonly title: string;
   readonly documentPurpose: string;
@@ -76,9 +76,22 @@ export interface TranslationProjectPresentationSourceV1 {
   readonly committedUnitCount: number;
   readonly committedBatchCount: number;
   readonly glossaryTermCount: number;
+  readonly pendingCandidate: {
+    readonly candidateId: string;
+    readonly firstOrder: number;
+    readonly unitCount: number;
+    readonly targets: readonly {
+      readonly unitId: string;
+      readonly target: string;
+    }[];
+    readonly ambiguities: readonly {
+      readonly unitId: string;
+      readonly question: string;
+    }[];
+  } | null;
   readonly loadRowWindow: (
-    request: TranslationProjectRowWindowRequestV1,
-  ) => Promise<TranslationProjectRowWindowV1>;
+    request: TranslationProcessRowWindowRequestV1,
+  ) => Promise<TranslationProcessRowWindowV1>;
 }
 
 export interface TranslationProgramWorkspacePropsV1 {
@@ -86,7 +99,7 @@ export interface TranslationProgramWorkspacePropsV1 {
   readonly locale: "en" | "zh-CN";
   readonly mode: ProgramUiModeV1;
   readonly onModeChange: (mode: ProgramUiModeV1) => void;
-  readonly projectSource: TranslationProjectPresentationSourceV1 | null;
+  readonly translationSource: TranslationProcessPresentationSourceV1 | null;
   readonly stage: TranslationProgramStageV1;
   readonly run: ProgramRunProjectionV1 | null;
   readonly conversationSurface: ReactNode;
@@ -94,10 +107,16 @@ export interface TranslationProgramWorkspacePropsV1 {
   readonly importPending?: boolean;
   readonly onImportFile: (request: TranslationProgramImportRequestV1) => void | Promise<void>;
   readonly onStartTranslation?: () => void | Promise<void>;
-  readonly onSaveTarget?: (
-    unit: TranslationProjectUnitV1,
-    target: string,
-  ) => void | Promise<void>;
+  readonly startTranslationDisabled?: boolean;
+  readonly onAcceptCandidate?: (input: {
+    readonly expectedWorksetRevision: number;
+    readonly candidateId: string;
+    readonly targets: readonly { readonly unitId: string; readonly target: string }[];
+  }) => void | Promise<void>;
+  readonly onRejectCandidate?: (input: {
+    readonly expectedWorksetRevision: number;
+    readonly candidateId: string;
+  }) => void | Promise<void>;
   readonly onExport?: () => void | Promise<void>;
   readonly onOperationError?: (error: unknown) => void;
 }
@@ -107,7 +126,7 @@ const translationProgramCopyV1 = {
     guided: "Simple",
     conversation: "Conversation",
     stages: ["Import", "Analyze", "Translate", "Review", "Export"],
-    importTitle: "Start a translation project",
+    importTitle: "Start translating",
     importDescription:
       "Import one source file. SillyOS detects its structure, preserves the original, and prepares stable units before the Agent runs.",
     chooseFile: "Choose file",
@@ -125,10 +144,17 @@ const translationProgramCopyV1 = {
     target: "Target",
     status: "Status",
     pending: "Pending",
+    awaitingReview: "Awaiting review",
     committed: "Committed",
     row: "Unit",
     details: "Unit details",
-    saveTarget: "Save target",
+    reviewTitle: "Review this batch",
+    reviewDescription:
+      "Edit the bounded candidate before accepting it. Accepted progress changes only after the complete batch is committed.",
+    acceptCandidate: "Accept batch",
+    rejectCandidate: "Reject candidate",
+    ambiguity: "Needs clarification",
+    readOnlyTarget: "Accepted and pending rows are read-only until a review candidate exists.",
     startTranslation: "Start translation",
     export: "Export",
     targetPlaceholder: "Translation appears here after a committed batch, or can be edited here.",
@@ -142,7 +168,7 @@ const translationProgramCopyV1 = {
     guided: "简单",
     conversation: "对话",
     stages: ["导入", "分析", "翻译", "审查", "导出"],
-    importTitle: "开始一个翻译工程",
+    importTitle: "开始翻译",
     importDescription:
       "导入一个源文件。SillyOS 会先识别结构、保留原件并生成稳定条目，之后才让 Agent 工作。",
     chooseFile: "选择文件",
@@ -159,10 +185,16 @@ const translationProgramCopyV1 = {
     target: "译文",
     status: "状态",
     pending: "待处理",
+    awaitingReview: "待审查",
     committed: "已提交",
     row: "条目",
     details: "条目详情",
-    saveTarget: "保存译文",
+    reviewTitle: "审查本批候选",
+    reviewDescription: "可先编辑这批候选，再整体接受。只有完整批次提交后，已翻译进度才会变化。",
+    acceptCandidate: "接受批次",
+    rejectCandidate: "拒绝候选",
+    ambiguity: "需要澄清",
+    readOnlyTarget: "已接受或待处理条目为只读；出现待审查候选后才能编辑。",
     startTranslation: "开始翻译",
     export: "导出",
     targetPlaceholder: "批次提交后译文会显示在这里，也可以在这里人工编辑。",
@@ -346,37 +378,65 @@ function TranslationStageRailV1({
   );
 }
 
-function TranslationProjectWorkbenchV1({
+function TranslationProcessWorkbenchV1({
+  processId,
   locale,
-  projectSource,
+  translationSource,
   stage,
   onStartTranslation,
-  onSaveTarget,
+  startTranslationDisabled,
+  onAcceptCandidate,
+  onRejectCandidate,
   onExport,
   onOperationError,
 }:
   & Pick<
     TranslationProgramWorkspacePropsV1,
+    | "processId"
     | "locale"
-    | "projectSource"
+    | "translationSource"
     | "stage"
     | "onStartTranslation"
-    | "onSaveTarget"
+    | "startTranslationDisabled"
+    | "onAcceptCandidate"
+    | "onRejectCandidate"
     | "onExport"
     | "onOperationError"
   >
-  & { readonly projectSource: TranslationProjectPresentationSourceV1 }): ReactNode {
+  & { readonly translationSource: TranslationProcessPresentationSourceV1 }): ReactNode {
   const copy = translationProgramCopyV1[locale];
-  const progressPhase = projectSource.totalUnitCount === 0
+  const candidate = translationSource.pendingCandidate;
+  const initialCandidateTargetByUnitId = useMemo(
+    () =>
+      new Map(
+        candidate?.targets.map(({ unitId, target }) => [unitId, target]) ?? [],
+      ),
+    [candidate],
+  );
+  const ambiguityByUnitId = useMemo(
+    () => new Map(candidate?.ambiguities.map(({ unitId, question }) => [unitId, question]) ?? []),
+    [candidate],
+  );
+  const [candidateDraft, setCandidateDraft] = useState<
+    {
+      readonly candidateId: string;
+      readonly targets: ReadonlyMap<string, string>;
+    } | null
+  >(null);
+  const candidateTargetByUnitId =
+    candidate !== null && candidateDraft?.candidateId === candidate.candidateId
+      ? candidateDraft.targets
+      : initialCandidateTargetByUnitId;
+  const progressPhase = translationSource.totalUnitCount === 0
     ? "empty"
-    : projectSource.committedUnitCount === 0
+    : translationSource.committedUnitCount === 0
     ? "pending"
-    : projectSource.committedUnitCount === projectSource.totalUnitCount
+    : translationSource.committedUnitCount === translationSource.totalUnitCount
     ? "complete"
     : "in_progress";
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
-    count: projectSource.totalUnitCount,
+    count: translationSource.totalUnitCount,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 68,
     overscan: 8,
@@ -385,19 +445,18 @@ function TranslationProjectWorkbenchV1({
   const virtualRows = rowVirtualizer.getVirtualItems();
   const firstVirtualIndex = virtualRows[0]?.index ?? 0;
   const lastVirtualIndex = virtualRows.at(-1)?.index ?? -1;
-  const projectId = projectSource.projectId;
-  const projectRevision = projectSource.revision;
+  const worksetRevision = translationSource.revision;
   const rowCache = useMemo(() => ({
-    projectId,
-    projectRevision,
+    processId,
+    worksetRevision,
     active: true,
-    rows: new Map<number, TranslationProjectUnitV1>(),
+    rows: new Map<number, TranslationProcessUnitProjectionV1>(),
     pending: new Map<
       string,
       { readonly offset: number; readonly limit: number; readonly controller: AbortController }
     >(),
     failures: new Map<string, { readonly offset: number; readonly limit: number }>(),
-  }), [projectId, projectRevision]);
+  }), [processId, worksetRevision]);
   const [rowCacheVersion, invalidateRowCache] = useReducer((current: number) => current + 1, 0);
 
   useEffect(() => {
@@ -412,8 +471,8 @@ function TranslationProjectWorkbenchV1({
   }, [rowCache]);
 
   const requestRowWindowV1 = useCallback((offset: number, requestedLimit: number): void => {
-    if (offset < 0 || offset >= projectSource.totalUnitCount || requestedLimit < 1) return;
-    const limit = Math.min(requestedLimit, projectSource.totalUnitCount - offset);
+    if (offset < 0 || offset >= translationSource.totalUnitCount || requestedLimit < 1) return;
+    const limit = Math.min(requestedLimit, translationSource.totalUnitCount - offset);
     let complete = true;
     for (let order = offset; order < offset + limit; order += 1) {
       if (!rowCache.rows.has(order)) {
@@ -433,12 +492,12 @@ function TranslationProjectWorkbenchV1({
     rowCache.failures.delete(requestKey);
     invalidateRowCache();
 
-    projectSource.loadRowWindow({ offset, limit, signal: controller.signal }).then((window) => {
+    translationSource.loadRowWindow({ offset, limit, signal: controller.signal }).then((window) => {
       if (controller.signal.aborted || !rowCache.active) return;
       if (
         window.offset !== offset ||
         window.limit !== limit ||
-        window.totalRowCount !== projectSource.totalUnitCount ||
+        window.totalRowCount !== translationSource.totalUnitCount ||
         window.rows.length !== limit
       ) {
         throw new Error("sillyos.translation_program.row_window_identity_mismatch");
@@ -460,7 +519,7 @@ function TranslationProjectWorkbenchV1({
       if (!rowCache.active) return;
       invalidateRowCache();
     });
-  }, [onOperationError, projectSource, rowCache]);
+  }, [onOperationError, translationSource, rowCache]);
 
   useEffect(() => {
     if (lastVirtualIndex < firstVirtualIndex) return;
@@ -470,15 +529,27 @@ function TranslationProjectWorkbenchV1({
     );
   }, [firstVirtualIndex, lastVirtualIndex, requestRowWindowV1]);
 
-  const [requestedOrder, setRequestedOrder] = useState(0);
-  const selectedOrder = projectSource.totalUnitCount === 0
+  const [requestedOrder, setRequestedOrder] = useState(
+    () => translationSource.pendingCandidate?.firstOrder ?? 0,
+  );
+  const selectedCandidateIdRef = useRef<string | null>(
+    translationSource.pendingCandidate?.candidateId ?? null,
+  );
+  useEffect(() => {
+    if (
+      candidate === null || selectedCandidateIdRef.current === candidate.candidateId
+    ) return;
+    selectedCandidateIdRef.current = candidate.candidateId;
+    setRequestedOrder(candidate.firstOrder);
+  }, [candidate]);
+  const selectedOrder = translationSource.totalUnitCount === 0
     ? 0
-    : Math.min(requestedOrder, projectSource.totalUnitCount - 1);
+    : Math.min(requestedOrder, translationSource.totalUnitCount - 1);
   const selectedUnit = rowCache.rows.get(selectedOrder) ?? null;
 
   useEffect(() => {
-    if (projectSource.totalUnitCount > 0) requestRowWindowV1(selectedOrder, 1);
-  }, [projectSource.totalUnitCount, requestRowWindowV1, selectedOrder]);
+    if (translationSource.totalUnitCount > 0) requestRowWindowV1(selectedOrder, 1);
+  }, [translationSource.totalUnitCount, requestRowWindowV1, selectedOrder]);
 
   useEffect(() => {
     const hasVisibleRange = lastVirtualIndex >= firstVirtualIndex;
@@ -516,38 +587,16 @@ function TranslationProjectWorkbenchV1({
     selectedOrder,
   ]);
 
-  const [targetDraft, setTargetDraft] = useState(() => ({
-    unitId: null as string | null,
-    baseline: "",
-    value: "",
-  }));
-  const [savePending, setSavePending] = useState(false);
+  const [reviewPending, setReviewPending] = useState(false);
+  const [startPending, setStartPending] = useState(false);
   const selectedUnitId = selectedUnit?.unitId ?? null;
-  const selectedUnitTarget = selectedUnit?.target ?? "";
-  const visibleTargetDraft = targetDraft.unitId === selectedUnitId
-    ? targetDraft.value
-    : selectedUnitTarget;
-
-  // A clean editor follows an authoritative target revision; a dirty editor
-  // keeps the human draft until the user saves it or selects another unit.
-  useEffect(() => {
-    if (selectedUnit === null) return;
-    setTargetDraft((current) => {
-      if (current.unitId !== selectedUnitId) {
-        return {
-          unitId: selectedUnitId,
-          baseline: selectedUnitTarget,
-          value: selectedUnitTarget,
-        };
-      }
-      if (current.baseline === selectedUnitTarget) return current;
-      return {
-        unitId: current.unitId,
-        baseline: selectedUnitTarget,
-        value: current.value === current.baseline ? selectedUnitTarget : current.value,
-      };
-    });
-  }, [selectedUnit, selectedUnitId, selectedUnitTarget]);
+  const selectedUnitCandidateTarget = selectedUnitId === null
+    ? undefined
+    : candidateTargetByUnitId.get(selectedUnitId);
+  const selectedUnitTarget = selectedUnitCandidateTarget ?? selectedUnit?.target ?? "";
+  const selectedAmbiguity = selectedUnitId === null
+    ? undefined
+    : ambiguityByUnitId.get(selectedUnitId);
 
   const loadingRows = rowCache.pending.size > 0;
   const failedRows = Array.from(rowCache.failures.values());
@@ -565,13 +614,62 @@ function TranslationProjectWorkbenchV1({
     Promise.resolve(operation()).catch((error) => onOperationError?.(error));
   };
 
-  const saveTargetV1 = (): void => {
-    if (selectedUnit === null || onSaveTarget === undefined || savePending) return;
-    setSavePending(true);
-    Promise.resolve(onSaveTarget(selectedUnit, visibleTargetDraft)).catch((error) => {
+  const startTranslationV1 = (): void => {
+    if (
+      onStartTranslation === undefined || startTranslationDisabled === true || startPending ||
+      progressPhase === "empty" || stage === "translate" || stage === "review"
+    ) return;
+    setStartPending(true);
+    Promise.resolve(onStartTranslation()).catch((error) => {
       onOperationError?.(error);
-    }).finally(() => setSavePending(false));
+    }).finally(() => setStartPending(false));
   };
+
+  const editCandidateTargetV1 = (unitId: string, target: string): void => {
+    if (candidate === null || !initialCandidateTargetByUnitId.has(unitId)) return;
+    setCandidateDraft((current) => {
+      const targets = new Map(
+        current?.candidateId === candidate.candidateId
+          ? current.targets
+          : initialCandidateTargetByUnitId,
+      );
+      targets.set(unitId, target);
+      return { candidateId: candidate.candidateId, targets };
+    });
+  };
+
+  const acceptCandidateV1 = (): void => {
+    if (candidate === null || onAcceptCandidate === undefined || reviewPending) return;
+    const targets = candidate.targets.map(({ unitId }) => ({
+      unitId,
+      target: candidateTargetByUnitId.get(unitId) ?? "",
+    }));
+    if (targets.some(({ target }) => target.trim().length === 0)) return;
+    setReviewPending(true);
+    Promise.resolve(onAcceptCandidate({
+      expectedWorksetRevision: translationSource.revision,
+      candidateId: candidate.candidateId,
+      targets,
+    })).catch((error) => {
+      onOperationError?.(error);
+    }).finally(() => setReviewPending(false));
+  };
+
+  const rejectCandidateV1 = (): void => {
+    if (candidate === null || onRejectCandidate === undefined || reviewPending) return;
+    setReviewPending(true);
+    Promise.resolve(onRejectCandidate({
+      expectedWorksetRevision: translationSource.revision,
+      candidateId: candidate.candidateId,
+    })).catch((error) => {
+      onOperationError?.(error);
+    }).finally(() => setReviewPending(false));
+  };
+
+  const candidateTargetsComplete = candidate !== null &&
+    candidate.targets.every(({ unitId }) =>
+      (candidateTargetByUnitId.get(unitId) ?? "").trim().length > 0
+    );
 
   return (
     <section className="translation-workbench" data-translation-stage={stage}>
@@ -583,17 +681,17 @@ function TranslationProjectWorkbenchV1({
             <FileText size={18} />
           </span>
           <div>
-            <h1>{projectSource.title}</h1>
-            <p>{projectSource.documentPurpose}</p>
+            <h1>{translationSource.title}</h1>
+            <p>{translationSource.documentPurpose}</p>
           </div>
         </div>
         <div
           className="translation-workbench__language-pair"
-          aria-label={`${projectSource.sourceLocale} → ${projectSource.targetLocale}`}
+          aria-label={`${translationSource.sourceLocale} → ${translationSource.targetLocale}`}
         >
-          <span className="translation-workbench__locale">{projectSource.sourceLocale}</span>
+          <span className="translation-workbench__locale">{translationSource.sourceLocale}</span>
           <span aria-hidden="true">→</span>
-          <span className="translation-workbench__locale">{projectSource.targetLocale}</span>
+          <span className="translation-workbench__locale">{translationSource.targetLocale}</span>
         </div>
         <div className="translation-workbench__actions">
           {progressPhase !== "complete" && onStartTranslation !== undefined && (
@@ -602,7 +700,10 @@ function TranslationProjectWorkbenchV1({
               size="sm"
               variant="primary"
               icon={Play}
-              onClick={() => invokeV1(onStartTranslation)}
+              disabled={progressPhase === "empty" || startTranslationDisabled === true ||
+                startPending ||
+                stage === "translate" || stage === "review"}
+              onClick={startTranslationV1}
             >
               {copy.startTranslation}
             </Button>
@@ -623,28 +724,75 @@ function TranslationProjectWorkbenchV1({
       <div className="translation-workbench__progress" aria-label={copy.exactProgress}>
         <Progress
           accessibleName={copy.exactProgress}
-          max={Math.max(1, projectSource.totalUnitCount)}
-          value={projectSource.committedUnitCount}
-          valueText={`${String(projectSource.committedUnitCount)} / ${
-            String(projectSource.totalUnitCount)
+          max={Math.max(1, translationSource.totalUnitCount)}
+          value={translationSource.committedUnitCount}
+          valueText={`${String(translationSource.committedUnitCount)} / ${
+            String(translationSource.totalUnitCount)
           }`}
         />
         <span>
-          {`${projectSource.committedUnitCount.toLocaleString(locale)} / ${
-            projectSource.totalUnitCount.toLocaleString(locale)
-          } ${copy.translated}`}
+          {`${translationSource.committedUnitCount.toLocaleString(locale)} / ${
+            translationSource.totalUnitCount.toLocaleString(locale)
+          } ${copy.translated}${
+            translationSource.pendingCandidate === null
+              ? ""
+              : ` · ${
+                translationSource.pendingCandidate.unitCount.toLocaleString(locale)
+              } ${copy.awaitingReview}`
+          }`}
         </span>
-        <span>{`${projectSource.committedBatchCount.toLocaleString(locale)} ${copy.batches}`}</span>
-        <span>{`${projectSource.glossaryTermCount.toLocaleString(locale)} ${copy.glossary}`}</span>
+        <span>
+          {`${translationSource.committedBatchCount.toLocaleString(locale)} ${copy.batches}`}
+        </span>
+        <span>
+          {`${translationSource.glossaryTermCount.toLocaleString(locale)} ${copy.glossary}`}
+        </span>
       </div>
 
-      {projectSource.totalUnitCount === 0
+      {candidate === null ? null : (
+        <section
+          className="translation-candidate-review"
+          aria-labelledby="translation-candidate-review-title"
+        >
+          <div>
+            <h2 id="translation-candidate-review-title">{copy.reviewTitle}</h2>
+            <p>{copy.reviewDescription}</p>
+          </div>
+          <div className="translation-candidate-review__actions">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              icon={X}
+              disabled={onRejectCandidate === undefined || reviewPending}
+              onClick={rejectCandidateV1}
+            >
+              {copy.rejectCandidate}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="primary"
+              icon={Check}
+              disabled={onAcceptCandidate === undefined || reviewPending ||
+                !candidateTargetsComplete}
+              onClick={acceptCandidateV1}
+            >
+              {copy.acceptCandidate}
+            </Button>
+          </div>
+        </section>
+      )}
+
+      {translationSource.totalUnitCount === 0
         ? <p className="translation-workbench__empty">{copy.noUnits}</p>
         : (
           <div className="translation-workbench__body">
             <section
               className="translation-unit-table"
-              aria-label={`${projectSource.totalUnitCount.toLocaleString(locale)} ${copy.units}`}
+              aria-label={`${
+                translationSource.totalUnitCount.toLocaleString(locale)
+              } ${copy.units}`}
             >
               <div ref={scrollRef} className="translation-unit-table__viewport">
                 <div
@@ -665,6 +813,11 @@ function TranslationProjectWorkbenchV1({
                   {virtualRows.map((virtualRow) => {
                     const unit = rowCache.rows.get(virtualRow.index);
                     if (unit === undefined) return null;
+                    const candidateTarget = candidateTargetByUnitId.get(unit.unitId);
+                    const target = candidateTarget ?? unit.target;
+                    const status = candidateTarget === undefined
+                      ? unit.target === null ? "pending" : "committed"
+                      : "candidate";
                     return (
                       <button
                         type="button"
@@ -672,9 +825,7 @@ function TranslationProjectWorkbenchV1({
                         className="translation-unit-table__row"
                         data-selected={selectedOrder === unit.order ? "true" : "false"}
                         aria-pressed={selectedOrder === unit.order}
-                        data-translation-unit-status={unit.target === null
-                          ? "pending"
-                          : "committed"}
+                        data-translation-unit-status={status}
                         style={{
                           blockSize: `${String(virtualRow.size)}px`,
                           transform: `translateY(${
@@ -687,12 +838,23 @@ function TranslationProjectWorkbenchV1({
                         <span className="translation-unit-table__text">{unit.source}</span>
                         <span
                           className="translation-unit-table__text"
-                          data-empty={unit.target === null ? "true" : "false"}
+                          data-empty={target === null ? "true" : "false"}
+                          data-candidate={candidateTarget === undefined ? "false" : "true"}
                         >
-                          {unit.target ?? "—"}
+                          {target ?? "—"}
                         </span>
-                        <BadgeV1 variant={unit.target === null ? "neutral" : "success"}>
-                          {unit.target === null ? copy.pending : copy.committed}
+                        <BadgeV1
+                          variant={status === "candidate"
+                            ? "warning"
+                            : status === "committed"
+                            ? "success"
+                            : "neutral"}
+                        >
+                          {status === "candidate"
+                            ? copy.awaitingReview
+                            : status === "committed"
+                            ? copy.committed
+                            : copy.pending}
                         </BadgeV1>
                       </button>
                     );
@@ -730,8 +892,18 @@ function TranslationProjectWorkbenchV1({
                       {`${copy.row} ${String(selectedUnit.order + 1)}`}
                     </h2>
                   </div>
-                  <BadgeV1 variant={selectedUnit.target === null ? "neutral" : "success"}>
-                    {selectedUnit.target === null ? copy.pending : copy.committed}
+                  <BadgeV1
+                    variant={selectedUnitCandidateTarget !== undefined
+                      ? "warning"
+                      : selectedUnit.target === null
+                      ? "neutral"
+                      : "success"}
+                  >
+                    {selectedUnitCandidateTarget !== undefined
+                      ? copy.awaitingReview
+                      : selectedUnit.target === null
+                      ? copy.pending
+                      : copy.committed}
                   </BadgeV1>
                 </header>
                 <dl>
@@ -748,35 +920,42 @@ function TranslationProjectWorkbenchV1({
                   <h3>{copy.source}</h3>
                   <p>{selectedUnit.source}</p>
                 </section>
+                {selectedAmbiguity === undefined ? null : (
+                  <section
+                    className="translation-unit-detail__ambiguity"
+                    aria-label={copy.ambiguity}
+                  >
+                    <h3>{copy.ambiguity}</h3>
+                    <p>{selectedAmbiguity}</p>
+                  </section>
+                )}
                 <FieldV1>
                   <FieldLabelV1 htmlFor="translation-target-editor">{copy.target}</FieldLabelV1>
                   <TextareaV1
                     id="translation-target-editor"
                     rows={7}
-                    value={visibleTargetDraft}
+                    value={selectedUnitTarget}
                     placeholder={copy.targetPlaceholder}
+                    readOnly={selectedUnitCandidateTarget === undefined}
+                    aria-describedby={selectedUnitCandidateTarget === undefined
+                      ? "translation-target-readonly-note"
+                      : undefined}
                     onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      setTargetDraft({
-                        unitId: selectedUnit.unitId,
-                        baseline: selectedUnitTarget,
-                        value,
-                      });
+                      if (selectedUnitCandidateTarget === undefined) return;
+                      editCandidateTargetV1(selectedUnit.unitId, event.currentTarget.value);
                     }}
                   />
                 </FieldV1>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  icon={Save}
-                  disabled={onSaveTarget === undefined || savePending ||
-                    visibleTargetDraft.length === 0 ||
-                    visibleTargetDraft === selectedUnitTarget}
-                  onClick={saveTargetV1}
-                >
-                  {copy.saveTarget}
-                </Button>
+                {selectedUnitCandidateTarget === undefined
+                  ? (
+                    <p
+                      id="translation-target-readonly-note"
+                      className="translation-unit-detail__readonly-note"
+                    >
+                      {copy.readOnlyTarget}
+                    </p>
+                  )
+                  : null}
                 {selectedUnit.protectedSegments.length === 0
                   ? null
                   : (
@@ -806,7 +985,7 @@ export function TranslationProgramWorkspaceV1({
   locale,
   mode,
   onModeChange,
-  projectSource,
+  translationSource,
   stage,
   run,
   conversationSurface,
@@ -814,7 +993,9 @@ export function TranslationProgramWorkspaceV1({
   importPending = false,
   onImportFile,
   onStartTranslation,
-  onSaveTarget,
+  startTranslationDisabled = false,
+  onAcceptCandidate,
+  onRejectCandidate,
   onExport,
   onOperationError,
 }: TranslationProgramWorkspacePropsV1): ReactNode {
@@ -827,7 +1008,7 @@ export function TranslationProgramWorkspaceV1({
       locale={locale}
       guidedLabel={copy.guided}
       conversationLabel={copy.conversation}
-      guidedSurface={projectSource === null
+      guidedSurface={translationSource === null
         ? (
           <TranslationIntakeV1
             locale={locale}
@@ -837,12 +1018,15 @@ export function TranslationProgramWorkspaceV1({
           />
         )
         : (
-          <TranslationProjectWorkbenchV1
+          <TranslationProcessWorkbenchV1
+            processId={processId}
             locale={locale}
-            projectSource={projectSource}
+            translationSource={translationSource}
             stage={stage}
             {...(onStartTranslation === undefined ? {} : { onStartTranslation })}
-            {...(onSaveTarget === undefined ? {} : { onSaveTarget })}
+            startTranslationDisabled={startTranslationDisabled}
+            {...(onAcceptCandidate === undefined ? {} : { onAcceptCandidate })}
+            {...(onRejectCandidate === undefined ? {} : { onRejectCandidate })}
             {...(onExport === undefined ? {} : { onExport })}
             {...(onOperationError === undefined ? {} : { onOperationError })}
           />

@@ -56,7 +56,8 @@ export interface ProcessExecutionTerminalInputV1 {
 
 export type ProcessOperationKindV1 =
   | "execution_acquire"
-  | "translation_project_execution_acquire"
+  | "translation_workset_import_execution_acquire"
+  | "translation_batch_execution_acquire"
   | "execution_terminal"
   | "program_revision_terminal";
 
@@ -294,7 +295,8 @@ export function normalizeProcessOperationReceiptV1(
   if (
     !identifierV1(row.processId) || !identifierV1(row.operationId) ||
     (operation !== "execution_acquire" &&
-      operation !== "translation_project_execution_acquire" &&
+      operation !== "translation_workset_import_execution_acquire" &&
+      operation !== "translation_batch_execution_acquire" &&
       operation !== "execution_terminal" && operation !== "program_revision_terminal") ||
     typeof row.operationDigest !== "string" || !/^[0-9a-f]{64}$/u.test(row.operationDigest) ||
     !identifierV1(row.attemptId) || !positiveIntegerV1(row.generation) ||
@@ -315,7 +317,8 @@ export function normalizeProcessOperationReceiptV1(
       (lease.processId !== row.processId || lease.attemptId !== row.attemptId ||
         lease.generation !== row.generation)) ||
     ((operation === "execution_acquire" ||
-      operation === "translation_project_execution_acquire") !== (lease !== null)) ||
+      operation === "translation_workset_import_execution_acquire" ||
+      operation === "translation_batch_execution_acquire") !== (lease !== null)) ||
     ((operation === "execution_terminal" || operation === "program_revision_terminal") !==
       (row.terminalOutcome !== null)) ||
     ((operation === "program_revision_terminal") !== (row.programId !== null))

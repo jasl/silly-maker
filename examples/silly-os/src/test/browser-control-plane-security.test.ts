@@ -72,11 +72,11 @@ describe("SillyOS Browser control-plane source boundary", () => {
     }
   });
 
-  it("keeps the Browser Pi connector and Creator facade on the public Agent Session boundary", async () => {
+  it("keeps the Browser Pi connector and Program Agent implementation on the public Agent Session boundary", async () => {
     for (
       const path of [
         new URL("../agent/browser-pi-transport.ts", import.meta.url),
-        new URL("../agent/creator-agent-port.ts", import.meta.url),
+        new URL("../agent/browser-program-agent-port.ts", import.meta.url),
       ]
     ) {
       const source = await readFile(path, "utf8");

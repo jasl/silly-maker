@@ -2,11 +2,12 @@
 
 Status: **P5-A completed on 2026-08-31; prompt revisions 4 and 5 have recorded
 model-protocol evidence, including a revision-5 confirmed-plan ablation. The
-first formal P5-B route/storage foundation is implemented: an ordinary
-Translation Process, Process-owned Workspace source import, durable V11 Project
-head and pageable rows, cold reopen, and lazy born-digital PDF text projection.
-The real Agent batch/commit/review/export workflow, OpenUI, and P5-B through
-P5-D qualification remain incomplete**.
+first formal P5-B execution/review slice is implemented: one ordinary
+Translation Process directly owns its Workspace, pageable/CAS workset, bounded
+Agent batches, pending candidate, editable accept/reject review, and cold
+reopen. Discovery-oriented QA, format-preserving export, OpenUI,
+Conversation-mode free follow-up, real-Provider qualification, and P5-B through
+P5-D closure remain incomplete**.
 
 This plan activates the first real Program study described by
 [PLAN.md](./PLAN.md#p5--translation-program). It asks whether SillyOS can carry
@@ -36,86 +37,53 @@ must remain usable as a multi-turn workbench. Conversation is the durable
 explanation and decision record; translation units and exported artifacts are
 product-owned records rather than text reconstructed from the transcript.
 
-### Formal product foundation implemented after P5-A
+### Formal product execution/review foundation implemented after P5-A
 
-The first formal slice deliberately stops before claiming an ordinary
-Translation product journey. It establishes the following product-owned
-foundations:
+The current formal slice deliberately stops before claiming a complete
+Translation product journey. It establishes these product-owned foundations:
 
-- a SillyOS-owned Program UI Container with `guided` (labelled “Simple” in the
-  Translation UI) and `conversation` views over the same `processId`; switching
-  presentation does not create another Process, Conversation, Workspace, or
-  Agent authority;
-- a closed Program UI boundary. Host-owned React surfaces are implementation
-  inputs only. A later Program-produced OpenUI document must first be admitted
-  as data and rendered by a closed SillyOS renderer inside the guided slot; it
-  cannot supply a React node, portal, renderer, outer chrome, overlay, or
-  activity strip;
-- a bottom Agent-run projection that shows the latest activity line when
-  collapsed and at most the latest three when expanded. Exact mechanical work
-  may expose determinate completed/total progress; model work remains
-  indeterminate. Elapsed time, cancellation, and expansion are supported, but
-  the UI invents no completion percentage or ETA;
-- a Translation workbench with import and language inputs, workflow stages,
-  a virtualized unit list, and a target-detail/editor presentation on desktop
-  and mobile. Durable target save/mutation is disabled and committed counters
-  remain zero until the future candidate-commit loop. The 10,000-unit contract proves that only
-  the visible row window enters the DOM. The later V11 repository slice now
-  stores one compact Project head plus separately pageable unit and glossary
-  rows; the UI paging source asks only for the visible bounded row window and
-  does not move a complete aggregate through the Worker;
-- an ordinary Translation Process route and controller. It publishes the
-  built-in `sillyos.builtin.translation` Definition at revision 1, opens only an accepted Translation
-  subject, creates one Process with its own Workspace and initial transcript,
-  and cold-reopens the exact Process/Workspace binding without pre-acquiring an
-  idle Workspace. Removing a subject from the current catalog does not erase an
-  existing Process: it remains explicitly reopenable by `processId` at the
-  controller boundary, although Home does not yet discover orphan Processes.
-  Source import acquires the shared Process execution lease only after parsing,
-  in the same IndexedDB transaction that verifies the Project is still absent
-  or at the caller's exact staging revision;
-  the Workspace write, Project begin, each byte-bounded append, and finalize all
-  verify its exact attempt and fencing generation. The long Workspace write has
-  an operation-scoped foreground renewal loop; later persistence cuts renew only
-  near expiry. Browser suspension can still stop renewal, so correctness remains
-  generation-fenced rather than claiming background execution. Project
-  finalization and the completed Process terminal/checkpoint share one
-  IndexedDB transaction, so a ready Project cannot coexist with a failed or
-  uncheckpointed import attempt. An expired unfinished import is retained as
-  explicitly unrecoverable for direct review, while a later Home start creates
-  a fresh Process instead of reopening that terminal Process;
-- a V11 Translation Project authority with a human-facing title, immutable
-  source identity, compact progress counts, exact operation receipts, and
-  pageable unit/glossary rows without an arbitrary total-row ceiling. Import
-  admits File or bytes, computes the raw SHA-256, stores a canonical relative
-  source path, imports the original through the same Browser Workspace
-  Authority, and binds the resulting checkpoint before publishing the ready
-  Project head;
-- the four round-trip text formats plus a lazy born-digital PDF text-only path.
-  PDF yields a truthful `pdf_text_reflow` projection and retains the original
-  PDF bytes. Any per-page extraction diagnostic rejects the complete import
-  because this slice has no durable partial-document review state. It does not
-  claim OCR, layout-preserving translation, password UI, PDF rewriting, or PDF
-  round-trip export;
-- a batch-order correction for Project subsets: unit order remains global and
-  contiguous across the complete Project, so a later batch may correctly begin
-  at a non-zero `order` while still being checked against the authoritative
-  Project selection; and
-- a real fixed QuickJS 0.32 harness test for ordinary regular expressions,
-  Unicode property escapes, lookbehind, and named capture groups. This proves
-  the fixed SillyOS `qjs` environment can support those mechanics. It does not
-  authorize `qjs`, `bash`, or Agent Workspace tools for Translation: the
-  published Translation Definition advertises no capabilities and no
-  Translation Agent execution profile exists.
+- one SillyOS-owned Program UI Container with `guided` (labelled “Simple”) and
+  `conversation` views over the same `processId`; switching presentation does
+  not create another Process, Conversation, Workspace, or Agent authority;
+- one closed Program UI boundary. A later Program-produced OpenUI document must
+  first be admitted as data and rendered by SillyOS inside the guided slot; it
+  cannot supply React nodes, portals, outer chrome, overlays, or executable UI;
+- one ordinary `sillyos.builtin.translation` revision 1 Process route. A
+  Process owns its initial transcript, exact Workspace binding, source identity,
+  compact progress head, pageable unit/glossary/candidate rows, and review
+  receipts. It is the user's translation project; no independent Project
+  identity, list, route, or lifecycle exists;
+- exact source import through the shared Process execution lease. Lease
+  acquisition verifies the absent/exact-staging workset revision; Workspace
+  write, workset begin, byte-bounded append, and finalize all verify the same
+  attempt and generation. Ready workset publication and the completed Process
+  terminal/checkpoint share one IndexedDB transaction;
+- a virtualized desktop/mobile workbench. Only the visible unit window enters
+  the DOM at the 10,000-unit scale, and no arbitrary semantic row ceiling is
+  introduced;
+- model-envelope batch planning with no hidden item-count cap, followed by one
+  shared Worker/Agent Session dispatch. A successful terminal atomically
+  publishes one pending candidate; failed, cancelled, or replaced Runs publish
+  no candidate;
+- editable candidate review keyed by candidate ID. Accept writes the complete
+  target set and progress under exact workset-revision/candidate CAS; reject
+  clears only that candidate. Both use one durable operation receipt and support
+  `outcome_unknown` reconciliation and cold reopen;
+- a bottom Agent-run projection with truthful indeterminate model progress,
+  elapsed time, cancellation, and bounded recent transcript lines rather than
+  an invented percentage or ETA;
+- four deterministic round-trip text formats plus a lazy born-digital PDF
+  text-reflow path. PDF retains the original bytes and does not claim OCR,
+  layout-preserving rewrite, password UI, or PDF round-trip export; and
+- a fixed QuickJS 0.32 harness test for ordinary regular expressions, Unicode
+  property escapes, lookbehind, and named captures. Translation selects no
+  Workspace, `bash`, or `qjs` tools in this slice.
 
-The slice does **not** deliver a real Agent batching, candidate commit,
-interruption/resume, structured Review, QA, or export loop; target-row mutation;
-OpenUI production or rendering; Python; or CodeAct. The ordinary route and
-durable import substrate are therefore implementation inputs to P5-B and P5-C,
-not evidence that either stage has closed. The mounted workbench now connects
-guided source import and bounded Project row paging to those controller
-operations, but remains an import-and-browse foundation rather than a qualified
-end-user import-to-export journey.
+Chromium and WebKit now exercise import → deterministic Agent → review edit →
+accept → reload through the ordinary UI. This closes an execution/review loop,
+not P5-B or P5-C. Discovery-oriented QA, a format-preserving final exporter,
+OpenUI, Conversation-mode free follow-up, real-Provider product qualification,
+Python, and CodeAct remain future work.
 
 ## Clean-room reference boundary
 
@@ -165,10 +133,10 @@ The common useful pattern is not one special prompt. It is a layered workflow:
 
 1. keep a small stable execution contract for fidelity, unit mapping, protected
    structure, and candidate publication;
-2. build a project-owned, human-confirmed translation profile containing only
+2. build a Process-owned, human-confirmed translation profile containing only
    relevant terminology, entity/relationship facts, style decisions, and
    accepted examples;
-3. calibrate a new project on a small representative sample before bulk work;
+3. calibrate a new Process on a small representative sample before bulk work;
 4. commit bounded batches to durable Process checkpoints and resume from the
    last admitted batch;
 5. separate deterministic structure/glossary checks from semantic review and
@@ -279,7 +247,7 @@ Program-owned UI definitions. A Process owns the actual translation records,
 Conversation, user input, mutable work, review decisions, and exported
 artifacts. It retains the immutable Definition content and compatibility
 requirement that created it, so removing the Program from the current catalog
-does not erase or silently reinterpret the Process. After refresh, a built-in
+does not erase or silently reinterpret the Process. After refresh, a bundled
 Program normally uses the newest SillyOS-shipped implementation compatible with
 that requirement. The current prototype loader updates only its Agent
 instructions, prompt projection, completion/admission, tool selection, and run
@@ -288,16 +256,16 @@ when the formal Program package actually owns those facets. Committed Process
 records are never rewritten by that update.
 
 The first implementation slice only co-locates the two current build-known
-built-in Program packages. Creator and Translation each own their current
+bundled Program packages. Creator and Translation each own their current
 instructions, prompt projection, completion contract, candidate admission,
 selected fixed-tool subset, text-delta policy, Provider timeout, and output
 envelope. Translation keeps `sillyos.harness.translation@1` while its current
-system-prompt revision is 5. The Worker resolves the selected built-in package
+system-prompt revision is 6. The Worker resolves the selected bundled package
 before beginning an Agent run and does not fall back from an unknown reference.
 
 This remains bootstrap structure rather than the final externally authored
 Program package format. Today's persisted `harnessReference` selects a
-compatibility generation, not an exact built-in source revision; the built-in
+compatibility generation, not an exact bundled source revision; the bundled
 implementation may improve with SillyOS. P5-B must separately retain the exact
 content of an externally authored package so a removed package cannot strand a
 Process, while its compatibility marker selects a current fixed harness able to
@@ -387,7 +355,7 @@ interchangeable. Format adapters, stable unit construction, profile matching,
 batching, structural QA, and export are ordinary typed product operations. A
 Program-owned script is admitted, versioned content in the pinned Program
 package and runs only through a fixed harness-owned interpreter/tool boundary.
-The current built-in prototype comes from the build graph and carries no script;
+The current bundled prototype comes from the build graph and carries no script;
 a later dynamic Program package may carry script bytes without extending the
 harness. A script written by the Agent is a mutable Process Workspace file and
 may execute only after the workflow explicitly enters a CodeAct stage. Neither
@@ -678,11 +646,13 @@ timeout field is a requested setting rather than a proven wall-clock ceiling.
 The corresponding P5-A deterministic floor is the checked-in original corpus,
 format adapters, strict batch admission, export/reopen oracles, secret-safe
 research runner, and focused tests. It closed only that deterministic research
-stage. The subsequent formal slice now consumes the Process-owned Workspace
-binding, exact Host import, Browser Translation dispatch, V11 Project head and
-pageable rows for a real Translation Process route and cold reopen. It still
-does not close P5-B or P5-C because no real Agent batch/commit/review/export
-journey consumes those records.
+stage. The subsequent formal slice consumes the Process-owned Workspace
+binding, exact Host import, Browser Translation dispatch, V13 Process workset,
+pageable rows, pending candidate, and exact-CAS accept/reject review. Chromium
+and WebKit prove that deterministic execution/review loop and cold reopen. It
+still does not close P5-B or P5-C because discovery QA, format-preserving final
+export, OpenUI, Conversation free follow-up, and real-Provider qualification
+remain incomplete.
 
 ## Follow-up evidence — prompt revision 5 and confirmed plan
 
@@ -808,7 +778,7 @@ quantity facts. It does not support replacing the production prompt wholesale,
 removing deterministic admission, or cancelling human Review.
 
 The request layout now keeps system instructions, one invariant tool schema,
-and a stable workflow prefix before dynamic project facts and units. Repeated
+and a stable workflow prefix before dynamic Process/workset facts and units. Repeated
 DeepSeek requests reported cache reads; the observed OpenRouter route did not.
 DeepSeek still reported cache reads when Pi requested `cacheRetention: none`,
 so that setting is not evidence that provider automatic caching was disabled.
@@ -825,12 +795,14 @@ Program design:
   package without installing another runtime;
 - the fixed script prepares bounded pending work, selects only matching
   glossary entries, validates protected tokens and locked terminology, commits
-  to a successor project, and verifies completeness without overwriting source.
-  Commit first re-derives the exact pending units, source/context metadata, and
-  glossary from the current Project, so an outdated or mismatched batch cannot
-  publish into the wrong source units and later batches retain their global
-  unit order. This is ordinary mutable-work consistency, not a provenance or
-  supply-chain mechanism;
+  to a successor laboratory `project.json` workset snapshot, and verifies
+  completeness without overwriting source. Commit first re-derives the exact
+  pending units, source/context metadata, and glossary from that laboratory
+  document, so an outdated or mismatched batch cannot publish into the wrong
+  source units and later batches retain their global unit order. `project.json`
+  is only the research script's wire fixture; it is not a runtime Project
+  identity or second persistence authority. This is ordinary mutable-work
+  consistency, not a provenance or supply-chain mechanism;
 - settings are optional and non-blocking. Missing settings use defaults;
   malformed JSON falls back; valid fields in a partial document may influence
   only the current attempt while missing or invalid fields fall back. Only a

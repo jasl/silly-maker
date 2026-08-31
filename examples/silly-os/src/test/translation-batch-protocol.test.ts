@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   admitTranslationBatchRequestV1,
@@ -10,14 +10,23 @@ import {
 import {
   createTranslationBatchUserPromptV1,
   translationProgramSystemPromptV1,
-} from "../agent/builtin-program-packages/translation-current.ts";
+} from "../agent/bundled-program-packages/translation-current.ts";
 
 const requestV1: TranslationBatchRequestV1 = {
   sourceLocale: "zh-CN",
   targetLocale: "en",
   documentPurpose: "A fictional game scene.",
   style: "Natural, concise dialogue.",
-  glossary: [{ source: "回声", target: "Echo", note: "Project codename." }],
+  glossary: [{
+    entryId: "glossary.echo",
+    source: "回声",
+    target: "Echo",
+    note: "Project codename.",
+    locked: true,
+    appliesToUnitIds: ["unit.2"],
+  }],
+  confirmedMeaningFacts: [],
+  neighboringUnits: { preceding: null, following: null },
   units: [
     {
       unitId: "unit.1",
@@ -50,6 +59,22 @@ describe("SillyOS translation batch protocol", () => {
     expect(admitted.request.units[0]?.protectedSegments).not.toBe(
       requestV1.units[0]?.protectedSegments,
     );
+  });
+
+  it("rejects missing, duplicate, unknown, and source-mismatched glossary bindings", () => {
+    for (
+      const appliesToUnitIds of [
+        [],
+        ["unit.2", "unit.2"],
+        ["unit.unknown"],
+        ["unit.1"],
+      ]
+    ) {
+      expect(admitTranslationBatchRequestV1({
+        ...requestV1,
+        glossary: [{ ...requestV1.glossary[0]!, appliesToUnitIds }],
+      })).toEqual({ kind: "rejected" });
+    }
   });
 
   it.each([
@@ -140,16 +165,23 @@ describe("SillyOS translation batch protocol", () => {
       "fidelity to that source detail wins",
     );
     expect(translationProgramSystemPromptV1).toContain(
-      "use its target exactly and apply its note",
+      "use a locked entry's target exactly",
+    );
+    expect(translationProgramSystemPromptV1).toContain(
+      "an unlocked entry as preferred terminology",
     );
     expect(translationProgramSystemPromptV1).toContain(
       "add at most one concise question for that unit",
     );
   });
 
-  it("admits a later contiguous Project batch without renumbering global unit order", () => {
+  it("admits a later contiguous workset batch without renumbering global unit order", () => {
     const laterBatch: TranslationBatchRequestV1 = {
       ...requestV1,
+      glossary: requestV1.glossary.map((entry) => ({
+        ...entry,
+        appliesToUnitIds: ["unit.42"],
+      })),
       units: requestV1.units.map((unit, index) => ({
         ...unit,
         unitId: `unit.${String(index + 41)}`,
@@ -168,6 +200,59 @@ describe("SillyOS translation batch protocol", () => {
       ],
       ambiguities: [],
     }, admitted.request)).toMatchObject({ kind: "admitted" });
+  });
+
+  it("admits exact confirmed meaning facts and adjacent context while rejecting duplicate facts", () => {
+    const request: TranslationBatchRequestV1 = {
+      ...requestV1,
+      glossary: [
+        ...requestV1.glossary,
+        {
+          entryId: "glossary.signal",
+          source: "信号",
+          target: "signal",
+          note: null,
+          locked: false,
+          appliesToUnitIds: ["unit.2"],
+        },
+      ],
+      units: [
+        requestV1.units[0]!,
+        { ...requestV1.units[1]!, source: "回声和信号比昨天更近了。" },
+      ],
+      confirmedMeaningFacts: [{ factId: "fact.echo-name", statement: "Echo is a proper noun." }],
+      neighboringUnits: {
+        preceding: null,
+        following: {
+          unitId: "unit.3",
+          order: 2,
+          locator: "line/3",
+          context: null,
+          durationMilliseconds: null,
+          source: "继续。",
+          protectedSegments: [],
+        },
+      },
+    };
+    expect(admitTranslationBatchRequestV1(request)).toEqual({ kind: "admitted", request });
+    const prompt = JSON.parse(createTranslationBatchUserPromptV1(request));
+    expect(prompt.glossary).toEqual(request.glossary);
+    expect(prompt.confirmedMeaningFacts).toEqual(request.confirmedMeaningFacts);
+    expect(prompt.neighboringUnits).toEqual({
+      preceding: null,
+      following: {
+        unitId: "unit.3",
+        locator: "line/3",
+        context: null,
+        durationMilliseconds: null,
+        source: "继续。",
+        protectedSegments: [],
+      },
+    });
+    expect(admitTranslationBatchRequestV1({
+      ...request,
+      confirmedMeaningFacts: [request.confirmedMeaningFacts[0], request.confirmedMeaningFacts[0]],
+    })).toEqual({ kind: "rejected" });
   });
 
   it.each([
@@ -242,9 +327,46 @@ describe("SillyOS translation batch protocol", () => {
     });
   });
 
+  it("rejects a target that ignores an applicable locked glossary entry", () => {
+    expect(admitTranslationBatchCandidateV1({
+      targets: [
+        { unitId: "unit.1", target: "Welcome back, ⟦SM:1⟧." },
+        { unitId: "unit.2", target: "The resonance is closer than it was yesterday." },
+      ],
+      ambiguities: [],
+    }, requestV1)).toEqual({
+      kind: "rejected",
+      reason: "locked_glossary_changed",
+      unitId: "unit.2",
+    });
+  });
+
+  it("uses admitted glossary bindings without rematching every source during candidate admission", () => {
+    const includes = vi.spyOn(String.prototype, "includes");
+    const admitted = admitTranslationBatchCandidateV1({
+      targets: [
+        { unitId: "unit.1", target: "Welcome back, ⟦SM:1⟧." },
+        { unitId: "unit.2", target: "Echo is closer than it was yesterday." },
+      ],
+      ambiguities: [],
+    }, requestV1);
+    const sourceRematches = includes.mock.calls.reduce(
+      (count, [term], index) =>
+        term === "回声" && String(includes.mock.contexts[index]) === requestV1.units[1]!.source
+          ? count + 1
+          : count,
+      0,
+    );
+    includes.mockRestore();
+
+    expect(admitted.kind).toBe("admitted");
+    expect(sourceRematches).toBe(0);
+  });
+
   it("rejects targets that retain tokens but detach structural Markdown adjacency", () => {
     const structuralRequest: TranslationBatchRequestV1 = {
       ...requestV1,
+      glossary: [],
       units: [{
         unitId: "unit.1",
         order: 0,
@@ -272,6 +394,7 @@ describe("SillyOS translation batch protocol", () => {
   it("rejects moving a translated link label outside its structural token pair", () => {
     const structuralRequest: TranslationBatchRequestV1 = {
       ...requestV1,
+      glossary: [],
       units: [{
         unitId: "unit.1",
         order: 0,
@@ -299,6 +422,7 @@ describe("SillyOS translation batch protocol", () => {
   it("rejects moving translated markup text outside its tag pair", () => {
     const structuralRequest: TranslationBatchRequestV1 = {
       ...requestV1,
+      glossary: [],
       units: [{
         unitId: "unit.1",
         order: 0,

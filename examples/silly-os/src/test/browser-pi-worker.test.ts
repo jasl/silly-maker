@@ -29,9 +29,10 @@ import type {
 } from "../agent/browser-pi-worker-protocol.ts";
 import { browserPiSelectionEndpointOriginV1 } from "../agent/browser-pi-worker-protocol.ts";
 import {
-  createBrowserCreatorAgentPortV1 as createBrowserCreatorAgentPortCoreV1,
+  type BrowserProgramAgentPortInputV1,
+  createBrowserProgramAgentPortsV1,
   type CreatorAgentPortV1,
-} from "../agent/creator-agent-port.ts";
+} from "../agent/browser-program-agent-port.ts";
 import type { BrowserNetworkBrokerLeaseV1 } from "../network/browser-network-broker-frame-transport.ts";
 import {
   admitBrowserNetworkBrokerCancelV1,
@@ -72,6 +73,7 @@ import {
 import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
 import type { CreatorAgentRunRequestV1, CreatorAgentSubmitV1 } from "../product/contracts.ts";
 import { translationProgramHarnessReferenceV1 } from "../product/translation/translation-batch-protocol.ts";
+import type { TranslationAgentRunRequestV1 } from "../product/translation/translation-agent-contracts.ts";
 import {
   applyProgramNetworkAccessMutationV1,
   cloneProgramNetworkAccessV1,
@@ -357,16 +359,16 @@ function createBrowserPiWorkerRuntimeV1(
 }
 
 function createBrowserCreatorAgentPortV1(
-  input: Omit<Parameters<typeof createBrowserCreatorAgentPortCoreV1>[0], "openNetworkBroker"> & {
+  input: Omit<BrowserProgramAgentPortInputV1, "openNetworkBroker"> & {
     readonly openNetworkBroker?: () => Promise<BrowserNetworkBrokerLeaseV1>;
   },
 ): CreatorAgentPortV1 {
-  return createBrowserCreatorAgentPortCoreV1(
+  return createBrowserProgramAgentPortsV1(
     {
       ...input,
       openNetworkBroker: input.openNetworkBroker ?? openTestNetworkBrokerV1,
-    } as Parameters<typeof createBrowserCreatorAgentPortCoreV1>[0],
-  );
+    } as BrowserProgramAgentPortInputV1,
+  ).creator;
 }
 
 afterEach(async () => {
@@ -408,6 +410,45 @@ function productRunV1(
     baseProgramRevision: submitV1.baseProgramRevision,
     baseRepositoryRevision: 1,
     text: submitV1.text,
+    ...overrides,
+  };
+}
+
+function translationAgentRunV1(
+  overrides: Partial<TranslationAgentRunRequestV1> = {},
+): TranslationAgentRunRequestV1 {
+  return {
+    agentRunId: "agent.run.translation.1",
+    executionCompatibilityReference: translationProgramHarnessReferenceV1,
+    processId: "process.translation.agent-port.1",
+    processAttemptGeneration: 1,
+    workspaceCheckpointId: "sillyos.workspace.checkpoint.test.1",
+    workspaceGeneration: 1,
+    programId: submitV1.programId,
+    expectedWorksetRevision: 1,
+    requestedOutputTokens: 8_192,
+    batch: {
+      sourceLocale: "zh-CN",
+      targetLocale: "en",
+      documentPurpose: "Fictional game dialogue.",
+      style: "Natural and concise.",
+      glossary: [],
+      confirmedMeaningFacts: [],
+      neighboringUnits: { preceding: null, following: null },
+      units: [{
+        unitId: "translation.unit.agent-port.1",
+        order: 0,
+        locator: "line/1",
+        context: null,
+        durationMilliseconds: null,
+        source: "欢迎回来，⟦SM:0⟧。",
+        protectedSegments: [{
+          token: "⟦SM:0⟧",
+          kind: "placeholder",
+          source: "{name}",
+        }],
+      }],
+    },
     ...overrides,
   };
 }
@@ -1038,6 +1079,16 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     return { snapshot: attached.snapshot, environmentPort: channel.port2 };
   }
 
+  openProcessWorkspace(input: {
+    readonly processId: string;
+    readonly workspaceId: string;
+  }): ReturnType<TestBrowserProgramWorkspaceAuthorityV1["openWorkspace"]> {
+    if (!input.processId.startsWith("process.")) {
+      return Promise.reject(new Error("test Process identity mismatch"));
+    }
+    return this.openWorkspace({ programId: submitV1.programId, workspaceId: input.workspaceId });
+  }
+
   async queryWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1> {
     const response = await this.control({ method: "query_workspace", workspaceSessionId });
     if (response.method !== "query_workspace") throw new Error("test query response mismatch");
@@ -1209,12 +1260,21 @@ class InMemoryBrowserPiWorkerV1 {
   terminated = false;
   private readonly messageListeners = new Set<(event: { readonly data: unknown }) => void>();
   private readonly errorListeners = new Set<(event: unknown) => void>();
-  private readonly runtime = createBrowserPiWorkerRuntimeV1({
-    postMessage: (message) => {
-      const data = structuredClone(message);
-      for (const listener of [...this.messageListeners]) listener({ data });
-    },
-  });
+  private readonly runtime;
+
+  constructor(
+    input: Partial<
+      Pick<Parameters<typeof createBrowserPiWorkerRuntimeCoreV1>[0], "createProviderAgent">
+    > = {},
+  ) {
+    this.runtime = createBrowserPiWorkerRuntimeV1({
+      ...input,
+      postMessage: (message) => {
+        const data = structuredClone(message);
+        for (const listener of [...this.messageListeners]) listener({ data });
+      },
+    });
+  }
 
   postMessage(message: unknown, transfer: Transferable[] = []): void {
     if (this.terminated) throw new Error("Worker is terminated");
@@ -1794,12 +1854,15 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         text: serializeBrowserPiTranslationAgentDispatchV1({
           executionCompatibilityReference: translationProgramHarnessReferenceV1,
           programId: submitV1.programId,
+          requestedOutputTokens: 4_608,
           request: {
             sourceLocale: "zh-CN",
             targetLocale: "en",
             documentPurpose: "Fictional game dialogue.",
             style: "Natural and concise.",
             glossary: [],
+            confirmedMeaningFacts: [],
+            neighboringUnits: { preceding: null, following: null },
             units: [{
               unitId: "translation.unit.000001",
               order: 0,
@@ -1858,7 +1921,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
-      loadBuiltinProgramPackage: () =>
+      loadBundledProgramPackage: () =>
         Promise.reject(new TypeError("synthetic shipped Program package failure")),
     });
     runtime.receive({
@@ -4293,6 +4356,129 @@ describe("SillyOS Browser Pi Worker runtime", () => {
 });
 
 describe("SillyOS Browser Pi transport and product port", () => {
+  it("runs Translation through the same credential-bearing Worker without requiring text output", async () => {
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    let workerFactoryCalls = 0;
+    const ports = createBrowserProgramAgentPortsV1({
+      runtime: "pi_provider",
+      selection: availableSelectionV1,
+      workspaceAuthority,
+      openNetworkBroker: openTestNetworkBrokerV1,
+      workerFactory: () => {
+        workerFactoryCalls += 1;
+        return new InMemoryBrowserPiWorkerV1({
+          createProviderAgent: (input) => ({
+            async prompt() {
+              expect(input.dispatch.harnessReference).toBe(translationProgramHarnessReferenceV1);
+              expect(input.workspaceTools).toEqual([]);
+              await input.onCandidate({
+                targets: [{
+                  unitId: "translation.unit.agent-port.1",
+                  target: "Welcome back, ⟦SM:0⟧.",
+                }],
+                ambiguities: [],
+              });
+              input.onTextDelta("This non-product explanation is intentionally ignored.");
+              return { stopReason: "stop" as const };
+            },
+            abort() {},
+            dispose() {},
+          }),
+        });
+      },
+    });
+    await expect(ports.creator.configureCredential("translation-port-key")).resolves
+      .toMatchObject({ kind: "configured" });
+    expect(workerFactoryCalls).toBe(1);
+    expect(ports.translation.getSnapshot().phase).toBe("ready");
+    await expect(ports.translation.openWorkspace({
+      processId: "process.translation.agent-port.1",
+      programId: submitV1.programId,
+      workspaceId: workspaceIdV1,
+    })).resolves.toMatchObject({
+      kind: "opened",
+      descriptor: { programId: submitV1.programId, generation: 1 },
+    });
+
+    const run = translationAgentRunV1();
+    await expect(ports.translation.submit(run)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: run.agentRunId,
+    });
+    await waitUntilV1(() => ports.translation.getSnapshot().terminalRuns.length === 1);
+    expect(ports.translation.getSnapshot()).toMatchObject({
+      phase: "completed",
+      activeRunId: null,
+      terminalRuns: [{
+        run: { agentRunId: run.agentRunId },
+        outcome: "completed",
+        candidate: {
+          targets: [{
+            unitId: "translation.unit.agent-port.1",
+            target: "Welcome back, ⟦SM:0⟧.",
+          }],
+          ambiguities: [],
+        },
+      }],
+    });
+    expect(ports.creator.getSnapshot().terminalRuns).toEqual([]);
+    expect(JSON.stringify(ports.translation.getSnapshot())).not.toContain(
+      "non-product explanation",
+    );
+    await expect(ports.translation.acknowledgeTerminal(run.agentRunId)).resolves.toEqual({
+      kind: "acknowledged",
+    });
+    expect(ports.translation.getSnapshot()).toMatchObject({ phase: "ready", terminalRuns: [] });
+    await ports.creator.dispose();
+    expect(ports.translation.getSnapshot().phase).toBe("disposed");
+  });
+
+  it("fences Translation by the opened Process Workspace and projects shared connection loss", async () => {
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const worker = new ControllableBrowserPiWorkerV1();
+    const ports = createBrowserProgramAgentPortsV1({
+      runtime: "pi_provider",
+      selection: availableSelectionV1,
+      workspaceAuthority,
+      openNetworkBroker: openTestNetworkBrokerV1,
+      workerFactory: () => worker,
+    });
+    await expect(ports.translation.configureCredential("translation-port-key")).resolves
+      .toMatchObject({ kind: "configured" });
+    await expect(ports.translation.openWorkspace({
+      processId: "process.translation.agent-port.1",
+      programId: submitV1.programId,
+      workspaceId: workspaceIdV1,
+    })).resolves.toMatchObject({ kind: "opened" });
+    await expect(ports.translation.submit(translationAgentRunV1({
+      agentRunId: "agent.run.translation.stale-workspace",
+      workspaceGeneration: 2,
+    }))).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "request_failed", path: "/workspace/submit" },
+    });
+
+    const run = translationAgentRunV1({ agentRunId: "agent.run.translation.connection-loss" });
+    await expect(ports.translation.submit(run)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: run.agentRunId,
+    });
+    worker.emitWorkerError();
+    await waitUntilV1(() => ports.translation.getSnapshot().phase === "failed");
+    expect(ports.translation.getSnapshot()).toMatchObject({
+      phase: "failed",
+      activeRunId: null,
+      terminalRuns: [],
+      diagnostic: { code: "connection_failed", path: "/connection" },
+    });
+    expect(ports.creator.getSnapshot()).toMatchObject({
+      phase: "failed",
+      terminalRuns: [],
+      diagnostic: { code: "connection_failed" },
+    });
+    await ports.translation.dispose();
+  });
+
   it("hands off exact workspace exports and aborts a held export before Forget", async () => {
     const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
     const port = createBrowserCreatorAgentPortV1({

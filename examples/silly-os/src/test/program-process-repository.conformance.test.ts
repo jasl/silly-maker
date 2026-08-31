@@ -8,8 +8,8 @@ import {
 } from "../product/memory-program-process-repository.ts";
 import {
   admitProcessHeadV1,
-  builtinCreatorProgramCompatibilityReferenceV1,
-  createBuiltinCreatorProgramDefinitionRevisionV1,
+  bundledCreatorProgramCompatibilityReferenceV1,
+  createBundledCreatorProgramDefinitionRevisionV1,
   processSummaryUtf8ByteLengthV1,
   transcriptEntryUtf8ByteLengthV1,
   type ProcessAttemptBeginInputV1,
@@ -25,10 +25,10 @@ import {
 function programRevisionV1(
   revision: number,
   purpose = `Creator definition revision ${String(revision)}.`,
-  harnessReference = builtinCreatorProgramCompatibilityReferenceV1,
+  harnessReference = bundledCreatorProgramCompatibilityReferenceV1,
 ): ProgramDefinitionRevisionV1 {
   return {
-    ...createBuiltinCreatorProgramDefinitionRevisionV1(),
+    ...createBundledCreatorProgramDefinitionRevisionV1(),
     revision,
     purpose,
     harnessReference,
@@ -118,11 +118,11 @@ describe("Memory Program/Process repository conformance", () => {
     expect(
       (await repository.loadProgramDefinitionRevision("sillyos.builtin.creator", 1))
         ?.harnessReference,
-    ).toBe(builtinCreatorProgramCompatibilityReferenceV1);
+    ).toBe(bundledCreatorProgramCompatibilityReferenceV1);
     expect(
       (await repository.loadProgramDefinitionRevision("sillyos.builtin.creator", 2))
         ?.harnessReference,
-    ).toBe(builtinCreatorProgramCompatibilityReferenceV1);
+    ).toBe(bundledCreatorProgramCompatibilityReferenceV1);
   });
 
   it("keeps two Processes and their transcript frontiers independent", async () => {

@@ -23,6 +23,7 @@ import {
   type BrowserProgramWorkspaceExportProgressV1,
   type BrowserProgramWorkspaceExportReadyV1,
   type BrowserProgramWorkspaceAuthorityV1,
+  type BrowserProcessWorkspaceAuthorityV1,
 } from "../product/browser-program-workspace-authority.ts";
 import {
   admitProgramNetworkAccessV1,
@@ -32,7 +33,21 @@ import {
   browserPiDistributionIdentityV1,
   type BrowserPiDistributionIdentityV1,
 } from "./browser-pi-distribution.ts";
-import { serializeBrowserPiCreatorAgentDispatchV1 } from "./browser-pi-agent-dispatch.ts";
+import {
+  serializeBrowserPiCreatorAgentDispatchV1,
+  serializeBrowserPiTranslationAgentDispatchV1,
+} from "./browser-pi-agent-dispatch.ts";
+import {
+  admitTranslationBatchCandidateV1,
+  admitTranslationBatchRequestV1,
+  type TranslationBatchCandidateV1,
+  type TranslationBatchRequestV1,
+} from "../product/translation/translation-batch-protocol.ts";
+import type {
+  TranslationAgentRunRequestV1,
+  TranslationAgentTerminalDiagnosticCodeV1,
+  TranslationAgentTerminalRunV1,
+} from "../product/translation/translation-agent-contracts.ts";
 import type {
   WorkspaceExecutionDescriptorV1,
   WorkspaceMutationReceiptV1,
@@ -230,7 +245,55 @@ export interface CreatorAgentPortV1 {
   dispose(): Promise<void>;
 }
 
+export interface TranslationAgentSnapshotV1 {
+  readonly revision: number;
+  readonly phase: CreatorAgentPhaseV1;
+  readonly distribution: BrowserPiDistributionIdentityV1;
+  /** Product-owned identity. Pi session and run identities remain private to this port. */
+  readonly activeRunId: string | null;
+  readonly candidate: TranslationBatchCandidateV1 | null;
+  /** Unacknowledged terminal product projections, in arrival order. */
+  readonly terminalRuns: readonly TranslationAgentTerminalRunV1[];
+  readonly diagnostic: CreatorAgentDiagnosticV1 | null;
+  readonly workspace: CreatorAgentWorkspaceSnapshotV1;
+}
+
+export interface TranslationAgentPortV1 {
+  getSnapshot(): TranslationAgentSnapshotV1;
+  subscribe(listener: () => void): () => void;
+  configureCredential(apiKey: string): Promise<CreatorAgentConfigureCredentialResultV1>;
+  configureCredentialHandoff(input: {
+    readonly binding: CredentialVaultBindingV2;
+    readonly handoff: BrowserPiCredentialHandoffV1;
+  }): Promise<CreatorAgentConfigureCredentialResultV1>;
+  testConnection(
+    selection?: BrowserPiModelSelectionV1 | null,
+  ): Promise<CreatorAgentTestConnectionResultV1>;
+  selectModel(selection: BrowserPiModelSelectionV1): Promise<CreatorAgentSelectModelResultV1>;
+  selectReasoningEffort(
+    preferredReasoningEffort: BrowserPiReasoningEffortV1,
+  ): Promise<CreatorAgentSelectReasoningEffortResultV1>;
+  openWorkspace(input: {
+    readonly processId: string;
+    readonly programId: string;
+    readonly workspaceId: string;
+  }): Promise<CreatorAgentOpenWorkspaceResultV1>;
+  closeWorkspace(workspaceSessionId?: string): Promise<CreatorAgentCloseWorkspaceResultV1>;
+  submit(input: TranslationAgentRunRequestV1): Promise<CreatorAgentPortSubmitResultV1>;
+  cancel(agentRunId?: string): Promise<CreatorAgentPortCancelResultV1>;
+  acknowledgeTerminal(agentRunId: string): Promise<CreatorAgentAcknowledgeTerminalResultV1>;
+  revokeCredential(): void;
+  forget(): Promise<void>;
+  dispose(): Promise<void>;
+}
+
+export interface BrowserProgramAgentPortsV1 {
+  readonly creator: CreatorAgentPortV1;
+  readonly translation: TranslationAgentPortV1;
+}
+
 interface TrackedCreatorAgentRunV1 {
+  readonly kind: "creator";
   readonly run: CreatorAgentRunRequestV1;
   readonly sessionId: string;
   readonly ordinal: number;
@@ -239,9 +302,26 @@ interface TrackedCreatorAgentRunV1 {
   candidate: CreatorProgramRevisionCandidateV1 | null;
 }
 
+interface TrackedTranslationAgentRunV1 {
+  readonly kind: "translation";
+  readonly run: TranslationAgentRunRequestV1;
+  readonly request: TranslationBatchRequestV1;
+  readonly sessionId: string;
+  readonly ordinal: number;
+  piRunId: string | null;
+  candidate: TranslationBatchCandidateV1 | null;
+}
+
+type TrackedProgramAgentRunV1 = TrackedCreatorAgentRunV1 | TrackedTranslationAgentRunV1;
+
 interface NormalizedCreatorAgentRunV1 {
   readonly run: CreatorAgentRunRequestV1;
   readonly submit: CreatorAgentSubmitV1;
+}
+
+interface NormalizedTranslationAgentRunV1 {
+  readonly run: TranslationAgentRunRequestV1;
+  readonly request: TranslationBatchRequestV1;
 }
 
 interface FailedTerminalProjectionV1 {
@@ -249,7 +329,12 @@ interface FailedTerminalProjectionV1 {
   readonly diagnostic: CreatorAgentDiagnosticV1;
 }
 
-export const creatorAgentTerminalRunMaximumV1 = 32;
+/**
+ * Shared in-memory drain boundary for terminal records that the product has not
+ * durably acknowledged yet. It protects one Worker/Session owner; it is not a
+ * Translation workset, Process, or document-size limit.
+ */
+export const programAgentUnacknowledgedTerminalDrainMaximumV1 = 32;
 const creatorAgentPendingStreamEventMaximumV1 = 2_048;
 const creatorAgentPendingWorkspaceReceiptMaximumV1 = 64;
 
@@ -389,6 +474,57 @@ function normalizeCreatorAgentRunV1(value: unknown): NormalizedCreatorAgentRunV1
   return { run, submit: Object.freeze(admitted.value) };
 }
 
+function normalizeTranslationAgentRunV1(
+  value: unknown,
+): NormalizedTranslationAgentRunV1 | null {
+  const record = exactRecordV1(value, [
+    "agentRunId",
+    "executionCompatibilityReference",
+    "processId",
+    "processAttemptGeneration",
+    "workspaceCheckpointId",
+    "workspaceGeneration",
+    "programId",
+    "expectedWorksetRevision",
+    "requestedOutputTokens",
+    "batch",
+  ]);
+  if (
+    record === null || typeof record.agentRunId !== "string" ||
+    !identifierPatternV1.test(record.agentRunId) ||
+    typeof record.executionCompatibilityReference !== "string" ||
+    record.executionCompatibilityReference.length === 0 ||
+    typeof record.processId !== "string" || !identifierPatternV1.test(record.processId) ||
+    typeof record.processAttemptGeneration !== "number" ||
+    !Number.isSafeInteger(record.processAttemptGeneration) ||
+    record.processAttemptGeneration <= 0 ||
+    typeof record.workspaceCheckpointId !== "string" ||
+    !identifierPatternV1.test(record.workspaceCheckpointId) ||
+    typeof record.workspaceGeneration !== "number" ||
+    !Number.isSafeInteger(record.workspaceGeneration) || record.workspaceGeneration <= 0 ||
+    typeof record.programId !== "string" || !identifierPatternV1.test(record.programId) ||
+    typeof record.expectedWorksetRevision !== "number" ||
+    !Number.isSafeInteger(record.expectedWorksetRevision) || record.expectedWorksetRevision <= 0 ||
+    typeof record.requestedOutputTokens !== "number" ||
+    !Number.isSafeInteger(record.requestedOutputTokens) || record.requestedOutputTokens <= 0
+  ) return null;
+  const admitted = admitTranslationBatchRequestV1(record.batch);
+  if (admitted.kind === "rejected") return null;
+  const run: TranslationAgentRunRequestV1 = Object.freeze({
+    agentRunId: record.agentRunId,
+    executionCompatibilityReference: record.executionCompatibilityReference,
+    processId: record.processId,
+    processAttemptGeneration: record.processAttemptGeneration,
+    workspaceCheckpointId: record.workspaceCheckpointId,
+    workspaceGeneration: record.workspaceGeneration,
+    programId: record.programId,
+    expectedWorksetRevision: record.expectedWorksetRevision,
+    requestedOutputTokens: record.requestedOutputTokens,
+    batch: admitted.request,
+  });
+  return { run, request: admitted.request };
+}
+
 function piRunKeyV1(sessionId: string, piRunId: string): string {
   return `${sessionId}\u0000${piRunId}`;
 }
@@ -491,21 +627,44 @@ function isFailedProjectionV1(
   return Object.hasOwn(value, "terminalRun");
 }
 
-export function createBrowserCreatorAgentPortV1(
-  input:
-    & {
-      readonly onConnectionLost?: () => void;
-      readonly workerFactory?: BrowserPiWorkerFactoryV1;
-      readonly createCredentialHandoffId?: () => string;
-      readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
-      readonly openNetworkBroker: BrowserPiOpenNetworkBrokerV1;
-      readonly preferredReasoningEffort?: BrowserPiReasoningEffortV1;
-    }
-    & (
-      | { readonly runtime: "deterministic_test"; readonly selection?: null }
-      | { readonly runtime: "pi_provider"; readonly selection: BrowserPiModelSelectionV1 }
-    ),
-): CreatorAgentPortV1 {
+function mapTranslationRemoteFailureV1(
+  run: TranslationAgentRunRequestV1,
+  value: AgentSessionDiagnosticV1,
+): TranslationAgentTerminalRunV1 {
+  const remoteCode = value.path.startsWith("/remote/") ? value.path.slice("/remote/".length) : "";
+  if (remoteCode === "cancelled" || remoteCode === "replaced") {
+    return Object.freeze({ run, outcome: remoteCode });
+  }
+  const diagnosticCode: TranslationAgentTerminalDiagnosticCodeV1 =
+    remoteCode === "candidate_invalid" || remoteCode === "candidate_context_mismatch" ||
+      remoteCode === "candidate_duplicate"
+      ? "candidate_invalid"
+      : remoteCode === "candidate_missing"
+      ? "protocol_invalid"
+      : "run_failed";
+  return Object.freeze({ run, outcome: "failed", diagnosticCode });
+}
+
+export type BrowserProgramAgentPortInputV1 =
+  & {
+    readonly onConnectionLost?: () => void;
+    readonly workerFactory?: BrowserPiWorkerFactoryV1;
+    readonly createCredentialHandoffId?: () => string;
+    readonly workspaceAuthority:
+      & BrowserProgramWorkspaceAuthorityV1
+      & Partial<Pick<BrowserProcessWorkspaceAuthorityV1, "openProcessWorkspace">>;
+    readonly openNetworkBroker: BrowserPiOpenNetworkBrokerV1;
+    readonly preferredReasoningEffort?: BrowserPiReasoningEffortV1;
+  }
+  & (
+    | { readonly runtime: "deterministic_test"; readonly selection?: null }
+    | { readonly runtime: "pi_provider"; readonly selection: BrowserPiModelSelectionV1 }
+  );
+
+/** Creates both package facades over one credential-bearing Worker/Session owner. */
+export function createBrowserProgramAgentPortsV1(
+  input: BrowserProgramAgentPortInputV1,
+): BrowserProgramAgentPortsV1 {
   const { onConnectionLost: notifyConnectionLost, workspaceAuthority, ...connectorInput } = input;
   let providerCredentialConfigured = false;
   let configuredEffectiveReasoningEffort: BrowserPiReasoningEffortV1 | null = null;
@@ -516,8 +675,8 @@ export function createBrowserCreatorAgentPortV1(
   });
   const client = createAgentSessionClientV1({ connector });
   const listeners = new Set<() => void>();
-  const trackedByProductRunId = new Map<string, TrackedCreatorAgentRunV1>();
-  const trackedByPiRun = new Map<string, TrackedCreatorAgentRunV1>();
+  const trackedByProductRunId = new Map<string, TrackedProgramAgentRunV1>();
+  const trackedByPiRun = new Map<string, TrackedProgramAgentRunV1>();
   const pendingStreamEvents = new Map<string, AgentSessionStreamEventV1[]>();
   const pendingWorkspaceReceipts = new Map<
     string,
@@ -537,7 +696,14 @@ export function createBrowserCreatorAgentPortV1(
   let activeRunId: string | null = null;
   let draft = "";
   let candidate: CreatorProgramRevisionCandidateV1 | null = null;
-  let terminalRuns: readonly CreatorAgentTerminalRunV1[] = [];
+  let creatorTerminalRuns: readonly CreatorAgentTerminalRunV1[] = [];
+  let translationActiveRunId: string | null = null;
+  let translationCandidate: TranslationBatchCandidateV1 | null = null;
+  let translationTerminalRuns: readonly TranslationAgentTerminalRunV1[] = [];
+  let terminalRunOrder: readonly (
+    | CreatorAgentTerminalRunV1
+    | TranslationAgentTerminalRunV1
+  )[] = [];
   let diagnostic: CreatorAgentDiagnosticV1 | null = null;
   let connectionFailureDiagnostic: CreatorAgentDiagnosticV1 | null = null;
   let workspacePhase: CreatorAgentWorkspacePhaseV1 = "closed";
@@ -565,9 +731,10 @@ export function createBrowserCreatorAgentPortV1(
   let unsubscribeWorkspaceReceipts: (() => void) | null = null;
   let unsubscribeWorkspaceFailures: (() => void) | null = null;
   let snapshot!: CreatorAgentSnapshotV1;
+  let translationSnapshot!: TranslationAgentSnapshotV1;
 
-  const latestTrackedRunV1 = (): TrackedCreatorAgentRunV1 | null => {
-    let latest: TrackedCreatorAgentRunV1 | null = null;
+  const latestTrackedRunV1 = (): TrackedProgramAgentRunV1 | null => {
+    let latest: TrackedProgramAgentRunV1 | null = null;
     for (const run of trackedByProductRunId.values()) {
       if (latest === null || run.ordinal > latest.ordinal) latest = run;
     }
@@ -576,56 +743,107 @@ export function createBrowserCreatorAgentPortV1(
 
   const refreshFacadeV1 = (): void => {
     const active = latestTrackedRunV1();
+    const latestTerminalRun = terminalRunOrder.at(-1) ?? null;
+    activeRunId = null;
+    draft = "";
+    candidate = null;
+    translationActiveRunId = null;
+    translationCandidate = null;
     if (active !== null) {
-      activeRunId = active.run.agentRunId;
-      draft = active.draft;
-      candidate = active.candidate;
+      if (active.kind === "creator") {
+        activeRunId = active.run.agentRunId;
+        draft = active.draft;
+        candidate = active.candidate;
+      } else {
+        translationActiveRunId = active.run.agentRunId;
+        translationCandidate = active.candidate;
+      }
       phase = "running";
       diagnostic = null;
       return;
     }
-    activeRunId = null;
-    draft = "";
-    candidate = null;
-    const latestTerminal = terminalRuns.at(-1);
     if (connectionFailureDiagnostic !== null) {
       phase = "failed";
       diagnostic = connectionFailureDiagnostic;
       return;
     }
-    if (latestTerminal?.outcome === "completed") {
+    if (latestTerminalRun?.outcome === "completed") {
       phase = "completed";
       diagnostic = null;
       return;
     }
-    if (latestTerminal?.outcome === "failed") {
+    if (latestTerminalRun?.outcome === "failed") {
       phase = "failed";
-      diagnostic = terminalDiagnostics.get(latestTerminal.run.agentRunId) ??
-        diagnosticV1(latestTerminal.diagnosticCode, "/terminal");
+      diagnostic = terminalDiagnostics.get(latestTerminalRun.run.agentRunId) ??
+        diagnosticV1(latestTerminalRun.diagnosticCode, "/terminal");
       return;
     }
     phase = "ready";
     diagnostic = null;
   };
 
+  const projectPackagePhaseV1 = (
+    kind: "creator" | "translation",
+  ): CreatorAgentPhaseV1 => {
+    if (
+      phase === "uninitialized" || phase === "configuring" || phase === "configured" ||
+      phase === "testing" || phase === "forgotten" || phase === "disposed"
+    ) return phase;
+    if (connectionFailureDiagnostic !== null) return "failed";
+    const active = latestTrackedRunV1();
+    if (active?.kind === kind) return "running";
+    const latest = kind === "creator" ? creatorTerminalRuns.at(-1) : translationTerminalRuns.at(-1);
+    if (latest?.outcome === "completed") return "completed";
+    if (latest?.outcome === "failed") return "failed";
+    if (phase === "failed" && terminalRunOrder.length === 0) return "failed";
+    return "ready";
+  };
+
+  const projectPackageDiagnosticV1 = (
+    kind: "creator" | "translation",
+    packagePhase: CreatorAgentPhaseV1,
+  ): CreatorAgentDiagnosticV1 | null => {
+    if (packagePhase !== "failed") return null;
+    if (connectionFailureDiagnostic !== null) return connectionFailureDiagnostic;
+    const latest = kind === "creator" ? creatorTerminalRuns.at(-1) : translationTerminalRuns.at(-1);
+    if (latest?.outcome === "failed") {
+      return terminalDiagnostics.get(latest.run.agentRunId) ??
+        diagnosticV1(latest.diagnosticCode, "/terminal");
+    }
+    return diagnostic;
+  };
+
   const rebuildSnapshot = (): void => {
     revision += 1;
+    const creatorPhase = projectPackagePhaseV1("creator");
+    const translationPhase = projectPackagePhaseV1("translation");
+    const workspace = Object.freeze({
+      phase: workspacePhase,
+      descriptor: workspaceDescriptor,
+      receipts: Object.freeze([...workspaceReceipts]),
+      lastReceipt: workspaceLastReceipt,
+      diagnostic: workspaceDiagnostic,
+    });
     snapshot = Object.freeze({
       revision,
-      phase,
+      phase: creatorPhase,
       distribution: browserPiDistributionIdentityV1,
       activeRunId,
       draft,
       candidate,
-      terminalRuns: Object.freeze([...terminalRuns]),
-      diagnostic,
-      workspace: Object.freeze({
-        phase: workspacePhase,
-        descriptor: workspaceDescriptor,
-        receipts: Object.freeze([...workspaceReceipts]),
-        lastReceipt: workspaceLastReceipt,
-        diagnostic: workspaceDiagnostic,
-      }),
+      terminalRuns: Object.freeze([...creatorTerminalRuns]),
+      diagnostic: projectPackageDiagnosticV1("creator", creatorPhase),
+      workspace,
+    });
+    translationSnapshot = Object.freeze({
+      revision,
+      phase: translationPhase,
+      distribution: browserPiDistributionIdentityV1,
+      activeRunId: translationActiveRunId,
+      candidate: translationCandidate,
+      terminalRuns: Object.freeze([...translationTerminalRuns]),
+      diagnostic: projectPackageDiagnosticV1("translation", translationPhase),
+      workspace,
     });
   };
   const publish = (): void => {
@@ -643,6 +861,8 @@ export function createBrowserCreatorAgentPortV1(
     activeRunId = null;
     draft = "";
     candidate = null;
+    translationActiveRunId = null;
+    translationCandidate = null;
     diagnostic = nextDiagnostic;
     publish();
   };
@@ -848,7 +1068,7 @@ export function createBrowserCreatorAgentPortV1(
   };
 
   const projectWorkspaceReceiptV1 = (
-    tracked: TrackedCreatorAgentRunV1,
+    tracked: TrackedProgramAgentRunV1,
     value: BrowserPiWorkspaceMutationReceiptWireV1,
   ): void => {
     const descriptor = workspaceDescriptor;
@@ -919,7 +1139,7 @@ export function createBrowserCreatorAgentPortV1(
     }
   };
 
-  const removeTrackedRunV1 = (tracked: TrackedCreatorAgentRunV1): void => {
+  const removeTrackedRunV1 = (tracked: TrackedProgramAgentRunV1): void => {
     trackedByProductRunId.delete(tracked.run.agentRunId);
     if (tracked.piRunId !== null) {
       const key = piRunKeyV1(tracked.sessionId, tracked.piRunId);
@@ -941,15 +1161,18 @@ export function createBrowserCreatorAgentPortV1(
   };
 
   const settleTrackedRunV1 = (
-    tracked: TrackedCreatorAgentRunV1,
-    terminalRun: CreatorAgentTerminalRunV1,
+    tracked: TrackedProgramAgentRunV1,
+    terminalRun: CreatorAgentTerminalRunV1 | TranslationAgentTerminalRunV1,
     terminalDiagnostic: CreatorAgentDiagnosticV1 | null = null,
   ): void => {
     if (!trackedByProductRunId.has(tracked.run.agentRunId)) return;
     if (tracked.piRunId !== null) {
       flushWorkspaceReceiptsV1(piRunKeyV1(tracked.sessionId, tracked.piRunId));
     }
-    if (terminalRuns.length >= creatorAgentTerminalRunMaximumV1) {
+    if (
+      creatorTerminalRuns.length + translationTerminalRuns.length >=
+        programAgentUnacknowledgedTerminalDrainMaximumV1
+    ) {
       removeTrackedRunV1(tracked);
       failFacadeV1(diagnosticV1("protocol_invalid", "/terminalRuns"));
       return;
@@ -957,7 +1180,18 @@ export function createBrowserCreatorAgentPortV1(
     // The terminal snapshot no longer treats this run as active, while the
     // private Pi correlation remains available through terminal publication.
     trackedByProductRunId.delete(tracked.run.agentRunId);
-    terminalRuns = Object.freeze([...terminalRuns, Object.freeze(terminalRun)]);
+    if (tracked.kind === "creator") {
+      creatorTerminalRuns = Object.freeze([
+        ...creatorTerminalRuns,
+        Object.freeze(terminalRun as CreatorAgentTerminalRunV1),
+      ]);
+    } else {
+      translationTerminalRuns = Object.freeze([
+        ...translationTerminalRuns,
+        Object.freeze(terminalRun as TranslationAgentTerminalRunV1),
+      ]);
+    }
+    terminalRunOrder = Object.freeze([...terminalRunOrder, terminalRun]);
     if (terminalDiagnostic !== null) {
       terminalDiagnostics.set(tracked.run.agentRunId, terminalDiagnostic);
     }
@@ -966,13 +1200,92 @@ export function createBrowserCreatorAgentPortV1(
     removeTrackedRunV1(tracked);
   };
 
+  const failTrackedRunV1 = (
+    tracked: TrackedProgramAgentRunV1,
+    diagnosticCode: "connection_failed" | "protocol_invalid",
+    terminalDiagnostic: CreatorAgentDiagnosticV1,
+  ): void => {
+    settleTrackedRunV1(
+      tracked,
+      Object.freeze({ run: tracked.run, outcome: "failed", diagnosticCode }) as
+        | CreatorAgentTerminalRunV1
+        | TranslationAgentTerminalRunV1,
+      terminalDiagnostic,
+    );
+  };
+
   rebuildSnapshot();
 
   const handleStreamEventV1 = (
-    tracked: TrackedCreatorAgentRunV1,
+    tracked: TrackedProgramAgentRunV1,
     event: AgentSessionStreamEventV1,
   ): void => {
     if (!trackedByProductRunId.has(tracked.run.agentRunId)) return;
+    if (tracked.kind === "translation") {
+      switch (event.kind) {
+        case "output_text_delta":
+          // Translation completion is the admitted structured candidate. The
+          // provider may still emit explanatory text, but it is not product data.
+          return;
+        case "output_data": {
+          const admitted = admitTranslationBatchCandidateV1(event.value, tracked.request);
+          if (admitted.kind === "rejected" || tracked.candidate !== null) {
+            const nextDiagnostic = diagnosticV1("candidate_invalid", "/candidate");
+            settleTrackedRunV1(
+              tracked,
+              Object.freeze({
+                run: tracked.run,
+                outcome: "failed",
+                diagnosticCode: "candidate_invalid",
+              }),
+              nextDiagnostic,
+            );
+            void client.cancel({ sessionId: tracked.sessionId, runId: event.runId });
+            return;
+          }
+          tracked.candidate = Object.freeze(admitted.candidate);
+          if (translationActiveRunId === tracked.run.agentRunId) {
+            translationCandidate = tracked.candidate;
+            publish();
+          }
+          return;
+        }
+        case "run_completed":
+          if (tracked.candidate === null) {
+            const nextDiagnostic = diagnosticV1("protocol_invalid", "/run_completed");
+            settleTrackedRunV1(
+              tracked,
+              Object.freeze({
+                run: tracked.run,
+                outcome: "failed",
+                diagnosticCode: "protocol_invalid",
+              }),
+              nextDiagnostic,
+            );
+            return;
+          }
+          settleTrackedRunV1(
+            tracked,
+            Object.freeze({
+              run: tracked.run,
+              outcome: "completed",
+              candidate: tracked.candidate,
+            }),
+          );
+          return;
+        case "run_failed": {
+          const terminalRun = mapTranslationRemoteFailureV1(tracked.run, event.diagnostic);
+          settleTrackedRunV1(
+            tracked,
+            terminalRun,
+            terminalRun.outcome === "failed"
+              ? diagnosticV1(terminalRun.diagnosticCode, event.diagnostic.path)
+              : null,
+          );
+          return;
+        }
+      }
+    }
     switch (event.kind) {
       case "output_text_delta":
         if (tracked.draft.length + event.text.length > creatorAgentFinalReplyMaximumCharactersV1) {
@@ -1127,7 +1440,7 @@ export function createBrowserCreatorAgentPortV1(
     connectionFailureDiagnostic = nextDiagnostic;
     const retired = retireCredentialOwnerV1(true);
     const interrupted = [...trackedByProductRunId.values()];
-    const acceptedRuns: TrackedCreatorAgentRunV1[] = [];
+    const acceptedRuns: TrackedProgramAgentRunV1[] = [];
     for (const tracked of interrupted) {
       if (tracked.piRunId === null) removeTrackedRunV1(tracked);
       else acceptedRuns.push(tracked);
@@ -1139,15 +1452,7 @@ export function createBrowserCreatorAgentPortV1(
     for (const tracked of acceptedRuns) {
       const piRunId = tracked.piRunId;
       if (piRunId === null) continue;
-      settleTrackedRunV1(
-        tracked,
-        Object.freeze({
-          run: tracked.run,
-          outcome: "failed",
-          diagnosticCode: "protocol_invalid",
-        }),
-        nextDiagnostic,
-      );
+      failTrackedRunV1(tracked, "protocol_invalid", nextDiagnostic);
     }
     if (retired) {
       try {
@@ -1218,7 +1523,7 @@ export function createBrowserCreatorAgentPortV1(
 
     const interrupted = [...trackedByProductRunId.values()];
     connectionFailureDiagnostic = diagnosticV1("connection_failed", "/workspace/host");
-    const acceptedRuns: TrackedCreatorAgentRunV1[] = [];
+    const acceptedRuns: TrackedProgramAgentRunV1[] = [];
     for (const tracked of interrupted) {
       if (tracked.piRunId === null) removeTrackedRunV1(tracked);
       else acceptedRuns.push(tracked);
@@ -1228,13 +1533,9 @@ export function createBrowserCreatorAgentPortV1(
       return;
     }
     for (const tracked of acceptedRuns) {
-      settleTrackedRunV1(
+      failTrackedRunV1(
         tracked,
-        Object.freeze({
-          run: tracked.run,
-          outcome: "failed",
-          diagnosticCode: "connection_failed",
-        }),
+        "connection_failed",
         diagnosticV1("connection_failed", "/workspace/host"),
       );
     }
@@ -1485,10 +1786,15 @@ export function createBrowserCreatorAgentPortV1(
     workspaceDiagnostic = null;
   };
 
-  const openWorkspace = async (raw: {
-    readonly programId: string;
-    readonly workspaceId: string;
-  }): Promise<CreatorAgentOpenWorkspaceResultV1> => {
+  const openWorkspaceForV1 = async (
+    raw:
+      | { readonly programId: string; readonly workspaceId: string }
+      | {
+        readonly processId: string;
+        readonly programId: string;
+        readonly workspaceId: string;
+      },
+  ): Promise<CreatorAgentOpenWorkspaceResultV1> => {
     if (terminal || finishPromise !== null) {
       return {
         kind: "unavailable",
@@ -1496,7 +1802,8 @@ export function createBrowserCreatorAgentPortV1(
       };
     }
     if (
-      !identifierPatternV1.test(raw.programId) || !identifierPatternV1.test(raw.workspaceId)
+      !identifierPatternV1.test(raw.programId) || !identifierPatternV1.test(raw.workspaceId) ||
+      ("processId" in raw && !identifierPatternV1.test(raw.processId))
     ) {
       return {
         kind: "unavailable",
@@ -1533,7 +1840,13 @@ export function createBrowserCreatorAgentPortV1(
           diagnostic: workspaceDiagnosticV1("disposed", "/"),
         };
       }
-      const result = await connector.openWorkspace(raw);
+      const result = await connector.openWorkspace(
+        "processId" in raw ? { processId: raw.processId, workspaceId: raw.workspaceId } : raw,
+      );
+      if (result.programId !== raw.programId) {
+        await connector.closeWorkspace(result.workspaceSessionId).catch(() => undefined);
+        throw new TypeError("sillyos.program_agent.workspace_subject_mismatch");
+      }
       adoptWorkspaceSnapshotV1(result);
       publish();
       return { kind: "opened", descriptor: workspaceDescriptorV1(result) };
@@ -1551,6 +1864,17 @@ export function createBrowserCreatorAgentPortV1(
       workspaceControlBusy = false;
     }
   };
+
+  const openCreatorWorkspace = (raw: {
+    readonly programId: string;
+    readonly workspaceId: string;
+  }): Promise<CreatorAgentOpenWorkspaceResultV1> => openWorkspaceForV1(raw);
+
+  const openTranslationWorkspace = (raw: {
+    readonly processId: string;
+    readonly programId: string;
+    readonly workspaceId: string;
+  }): Promise<CreatorAgentOpenWorkspaceResultV1> => openWorkspaceForV1(raw);
 
   const closeWorkspace = async (
     requestedWorkspaceSessionId?: string,
@@ -1766,6 +2090,11 @@ export function createBrowserCreatorAgentPortV1(
       activeRunId = null;
       draft = "";
       candidate = null;
+      creatorTerminalRuns = [];
+      translationActiveRunId = null;
+      translationCandidate = null;
+      translationTerminalRuns = [];
+      terminalRunOrder = [];
       diagnostic = null;
       connectionFailureDiagnostic = null;
       phase = finalPhase;
@@ -1782,258 +2111,305 @@ export function createBrowserCreatorAgentPortV1(
     return attempt;
   };
 
-  return {
+  const hasTerminalRunIdV1 = (agentRunId: string): boolean =>
+    creatorTerminalRuns.some(({ run }) => run.agentRunId === agentRunId) ||
+    translationTerminalRuns.some(({ run }) => run.agentRunId === agentRunId);
+
+  const submitTrackedRunV1 = async (
+    run: CreatorAgentRunRequestV1 | TranslationAgentRunRequestV1,
+    createTracked: (expectedSessionId: string, ordinal: number) => TrackedProgramAgentRunV1,
+    requireDescriptorGeneration: boolean,
+    performSubmit: (
+      expectedSessionId: string,
+      submitWorkspace: WorkspaceExecutionDescriptorV1,
+    ) => ReturnType<typeof client.submit>,
+  ): Promise<CreatorAgentPortSubmitResultV1> => {
+    if (terminal || finishPromise !== null) {
+      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+    }
+    if (trackedByProductRunId.has(run.agentRunId) || hasTerminalRunIdV1(run.agentRunId)) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("submit_invalid", "/run/agentRunId"),
+      };
+    }
+    if (
+      trackedByProductRunId.size + creatorTerminalRuns.length + translationTerminalRuns.length >=
+        programAgentUnacknowledgedTerminalDrainMaximumV1
+    ) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("protocol_invalid", "/terminalRuns"),
+      };
+    }
+    if (sessionId === null) {
+      return {
+        kind: "unavailable",
+        diagnostic: connectionFailureDiagnostic ?? diagnosticV1("unconfigured", "/connection"),
+      };
+    }
+    const submitWorkspace = workspaceDescriptor;
+    if (
+      workspacePhase !== "open" || submitWorkspace === null ||
+      submitWorkspace.programId !== run.programId ||
+      (requireDescriptorGeneration && submitWorkspace.generation !== run.workspaceGeneration)
+    ) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("request_failed", "/workspace/submit"),
+      };
+    }
+    if (workspaceControlBusy) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("request_failed", "/workspace/busy"),
+      };
+    }
+    const expectedEpoch = lifecycleEpoch;
+    const expectedSessionId = sessionId;
+    const tracked = createTracked(expectedSessionId, nextRunOrdinal++);
+    trackedByProductRunId.set(run.agentRunId, tracked);
+    refreshFacadeV1();
+    publish();
+    let result: Awaited<ReturnType<typeof client.submit>>;
+    try {
+      result = await performSubmit(expectedSessionId, submitWorkspace);
+    } catch {
+      removeTrackedRunV1(tracked);
+      refreshFacadeV1();
+      const rejected = diagnosticV1("request_failed", "/workspace/submit/admission");
+      diagnostic = rejected;
+      publish();
+      return { kind: "unavailable", diagnostic: rejected };
+    }
+    if (terminal || lifecycleEpoch !== expectedEpoch) {
+      removeTrackedRunV1(tracked);
+      return {
+        kind: "unavailable",
+        diagnostic: terminal
+          ? diagnosticV1("disposed", "/")
+          : connectionFailureDiagnostic ?? diagnosticV1("disposed", "/"),
+      };
+    }
+    if (!trackedByProductRunId.has(run.agentRunId)) {
+      return {
+        kind: "unavailable",
+        diagnostic: connectionFailureDiagnostic ??
+          diagnosticV1("request_failed", "/workspace/submit"),
+      };
+    }
+    if (result.kind !== "submitted") {
+      removeTrackedRunV1(tracked);
+      refreshFacadeV1();
+      const mapped = mapCallFailureV1(result);
+      diagnostic = mapped;
+      publish();
+      return { kind: "unavailable", diagnostic: mapped };
+    }
+    tracked.piRunId = result.runId;
+    const key = piRunKeyV1(expectedSessionId, result.runId);
+    trackedByPiRun.set(key, tracked);
+    submitSettlementGates.add(key);
+    discardOrphanedStreamEventsV1(expectedSessionId);
+    refreshFacadeV1();
+    publish();
+    // The caller must observe `submitted` before a buffered terminal projection.
+    // Two microtasks place the async-function continuation ahead of the release.
+    queueMicrotask(() =>
+      queueMicrotask(() => {
+        submitSettlementGates.delete(key);
+        if (!terminal) {
+          flushWorkspaceReceiptsV1(key);
+          flushStreamEventsV1(key);
+        }
+      })
+    );
+    return { kind: "submitted", agentRunId: run.agentRunId };
+  };
+
+  const submitCreatorRunV1 = async (
+    rawRun: CreatorAgentRunRequestV1,
+  ): Promise<CreatorAgentPortSubmitResultV1> => {
+    const normalized = normalizeCreatorAgentRunV1(rawRun);
+    if (normalized === null) {
+      return { kind: "unavailable", diagnostic: diagnosticV1("submit_invalid", "/run") };
+    }
+    let serializedSubmit: string;
+    try {
+      serializedSubmit = serializeBrowserPiCreatorAgentDispatchV1({
+        executionCompatibilityReference: normalized.run.executionCompatibilityReference,
+        submit: normalized.submit,
+      });
+    } catch {
+      return { kind: "unavailable", diagnostic: diagnosticV1("submit_invalid", "/run") };
+    }
+    return await submitTrackedRunV1(
+      normalized.run,
+      (expectedSessionId, ordinal): TrackedCreatorAgentRunV1 => ({
+        kind: "creator",
+        run: normalized.run,
+        sessionId: expectedSessionId,
+        ordinal,
+        piRunId: null,
+        draft: "",
+        candidate: null,
+      }),
+      false,
+      async (expectedSessionId, submitWorkspace) =>
+        await workspaceAuthority.withAgentSubmitAdmission({
+          programId: normalized.run.programId,
+          workspaceSessionId: submitWorkspace.workspaceSessionId,
+          expectedProgramRevision: normalized.run.baseProgramRevision,
+          expectedRepositoryRevision: normalized.run.baseRepositoryRevision,
+          expectedCheckpointId: normalized.run.workspaceCheckpointId,
+          expectedGeneration: normalized.run.workspaceGeneration,
+          operation: async (access) => {
+            await connector.replaceNetworkAccess({
+              access,
+              workspaceSessionId: submitWorkspace.workspaceSessionId,
+            });
+            return await client.submit({ sessionId: expectedSessionId, text: serializedSubmit });
+          },
+        }),
+    );
+  };
+
+  const submitTranslationRunV1 = async (
+    rawRun: TranslationAgentRunRequestV1,
+  ): Promise<CreatorAgentPortSubmitResultV1> => {
+    const normalized = normalizeTranslationAgentRunV1(rawRun);
+    if (normalized === null) {
+      return { kind: "unavailable", diagnostic: diagnosticV1("submit_invalid", "/run") };
+    }
+    let serializedSubmit: string;
+    try {
+      serializedSubmit = serializeBrowserPiTranslationAgentDispatchV1({
+        executionCompatibilityReference: normalized.run.executionCompatibilityReference,
+        programId: normalized.run.programId,
+        requestedOutputTokens: normalized.run.requestedOutputTokens,
+        request: normalized.request,
+      });
+    } catch {
+      return { kind: "unavailable", diagnostic: diagnosticV1("submit_invalid", "/run") };
+    }
+    return await submitTrackedRunV1(
+      normalized.run,
+      (expectedSessionId, ordinal): TrackedTranslationAgentRunV1 => ({
+        kind: "translation",
+        run: normalized.run,
+        request: normalized.request,
+        sessionId: expectedSessionId,
+        ordinal,
+        piRunId: null,
+        candidate: null,
+      }),
+      true,
+      (expectedSessionId) =>
+        client.submit({ sessionId: expectedSessionId, text: serializedSubmit }),
+    );
+  };
+
+  const cancelRunV1 = async (
+    agentRunId?: string,
+  ): Promise<CreatorAgentPortCancelResultV1> => {
+    if (terminal || finishPromise !== null) {
+      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+    }
+    if (agentRunId === undefined) return { kind: "idle" };
+    const tracked = trackedByProductRunId.get(agentRunId);
+    if (tracked === undefined || tracked.piRunId === null) return { kind: "idle" };
+    const result = await client.cancel({ sessionId: tracked.sessionId, runId: tracked.piRunId });
+    if (result.kind !== "cancel_requested") {
+      const mapped = mapCallFailureV1(result);
+      diagnostic = mapped;
+      publish();
+      return { kind: "unavailable", diagnostic: mapped };
+    }
+    return { kind: "cancel_requested" };
+  };
+
+  const acknowledgeTerminalV1 = async (
+    kind: "creator" | "translation",
+    agentRunId: string,
+  ): Promise<CreatorAgentAcknowledgeTerminalResultV1> => {
+    const terminalRuns = kind === "creator" ? creatorTerminalRuns : translationTerminalRuns;
+    if (!terminalRuns.some(({ run }) => run.agentRunId === agentRunId)) return { kind: "idle" };
+    const receiptWatermark = workspaceReceiptWatermarksByRunId.get(agentRunId) ?? 0;
+    if (receiptWatermark > 0) {
+      const workspaceAcknowledged = await acknowledgeWorkspaceReceiptWatermarkV1(receiptWatermark);
+      if (workspaceAcknowledged.kind === "unavailable") {
+        return { kind: "workspace_unavailable", diagnostic: workspaceAcknowledged.diagnostic };
+      }
+    }
+    if (kind === "creator") {
+      const index = creatorTerminalRuns.findIndex(({ run }) => run.agentRunId === agentRunId);
+      if (index < 0) return { kind: "idle" };
+      creatorTerminalRuns = Object.freeze([
+        ...creatorTerminalRuns.slice(0, index),
+        ...creatorTerminalRuns.slice(index + 1),
+      ]);
+    } else {
+      const index = translationTerminalRuns.findIndex(({ run }) => run.agentRunId === agentRunId);
+      if (index < 0) return { kind: "idle" };
+      translationTerminalRuns = Object.freeze([
+        ...translationTerminalRuns.slice(0, index),
+        ...translationTerminalRuns.slice(index + 1),
+      ]);
+    }
+    terminalDiagnostics.delete(agentRunId);
+    workspaceReceiptWatermarksByRunId.delete(agentRunId);
+    terminalRunOrder = Object.freeze(
+      terminalRunOrder.filter(({ run }) => run.agentRunId !== agentRunId),
+    );
+    if (!terminal) refreshFacadeV1();
+    publish();
+    return { kind: "acknowledged" };
+  };
+
+  const subscribe = (listener: () => void): () => void => {
+    if (terminal) return () => {};
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  };
+  const revokeCredential = (): void => {
+    if (!terminal) retireCredentialOwnerV1(true);
+  };
+
+  const creator: CreatorAgentPortV1 = {
     getSnapshot: () => snapshot,
-    subscribe(listener: () => void): () => void {
-      if (terminal) return () => {};
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
+    subscribe,
     configureCredential,
     configureCredentialHandoff,
     testConnection,
     selectModel,
     selectReasoningEffort,
-    openWorkspace,
+    openWorkspace: openCreatorWorkspace,
     closeWorkspace,
     exportWorkspace,
-    revokeCredential(): void {
-      if (terminal) return;
-      retireCredentialOwnerV1(true);
-    },
-    async submit(rawRun: CreatorAgentRunRequestV1): Promise<CreatorAgentPortSubmitResultV1> {
-      if (terminal || finishPromise !== null) {
-        return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
-      }
-      const normalized = normalizeCreatorAgentRunV1(rawRun);
-      if (normalized === null) {
-        return {
-          kind: "unavailable",
-          diagnostic: diagnosticV1("submit_invalid", "/run"),
-        };
-      }
-      if (
-        trackedByProductRunId.has(normalized.run.agentRunId) ||
-        terminalRuns.some(({ run }) => run.agentRunId === normalized.run.agentRunId)
-      ) {
-        return {
-          kind: "unavailable",
-          diagnostic: diagnosticV1("submit_invalid", "/run/agentRunId"),
-        };
-      }
-      if (
-        trackedByProductRunId.size + terminalRuns.length >= creatorAgentTerminalRunMaximumV1
-      ) {
-        return {
-          kind: "unavailable",
-          diagnostic: diagnosticV1("protocol_invalid", "/terminalRuns"),
-        };
-      }
-      if (sessionId === null) {
-        return {
-          kind: "unavailable",
-          diagnostic: connectionFailureDiagnostic ?? diagnosticV1("unconfigured", "/connection"),
-        };
-      }
-      // Concurrent callers can pass the pre-connection checks together. Repeat
-      // identity and capacity admission immediately before reserving the run.
-      if (
-        trackedByProductRunId.has(normalized.run.agentRunId) ||
-        terminalRuns.some(({ run }) => run.agentRunId === normalized.run.agentRunId)
-      ) {
-        return {
-          kind: "unavailable",
-          diagnostic: diagnosticV1("submit_invalid", "/run/agentRunId"),
-        };
-      }
-      if (
-        trackedByProductRunId.size + terminalRuns.length >= creatorAgentTerminalRunMaximumV1
-      ) {
-        return {
-          kind: "unavailable",
-          diagnostic: diagnosticV1("protocol_invalid", "/terminalRuns"),
-        };
-      }
-      const submitWorkspace = workspaceDescriptor;
-      if (
-        workspacePhase !== "open" || submitWorkspace === null ||
-        submitWorkspace.programId !== normalized.run.programId
-      ) {
-        return {
-          kind: "unavailable",
-          diagnostic: diagnosticV1("request_failed", "/workspace/submit"),
-        };
-      }
-      if (workspaceControlBusy) {
-        return {
-          kind: "unavailable",
-          diagnostic: diagnosticV1("request_failed", "/workspace/busy"),
-        };
-      }
-      const expectedEpoch = lifecycleEpoch;
-      const expectedSessionId = sessionId;
-      const tracked: TrackedCreatorAgentRunV1 = {
-        run: normalized.run,
-        sessionId: expectedSessionId,
-        ordinal: nextRunOrdinal++,
-        piRunId: null,
-        draft: "",
-        candidate: null,
-      };
-      trackedByProductRunId.set(tracked.run.agentRunId, tracked);
-      refreshFacadeV1();
-      publish();
-      let serializedSubmit: string;
-      try {
-        // Product-only Process/Workspace currentness and Repository identity
-        // never cross the Pi RPC boundary.
-        serializedSubmit = serializeBrowserPiCreatorAgentDispatchV1({
-          executionCompatibilityReference: normalized.run.executionCompatibilityReference,
-          submit: normalized.submit,
-        });
-      } catch {
-        removeTrackedRunV1(tracked);
-        refreshFacadeV1();
-        const invalid = diagnosticV1("submit_invalid", "/run");
-        diagnostic = invalid;
-        publish();
-        return { kind: "unavailable", diagnostic: invalid };
-      }
-      const admittedSubmit = await (async () => {
-        try {
-          // This product facade, not the semantic Pi connector, owns submit
-          // admission. Holding the shared Authority operation through the RPC
-          // response prevents submit from crossing a review-head/Repository CAS.
-          const result = await workspaceAuthority.withAgentSubmitAdmission({
-            programId: normalized.run.programId,
-            workspaceSessionId: submitWorkspace.workspaceSessionId,
-            expectedProgramRevision: normalized.run.baseProgramRevision,
-            expectedRepositoryRevision: normalized.run.baseRepositoryRevision,
-            expectedCheckpointId: normalized.run.workspaceCheckpointId,
-            expectedGeneration: normalized.run.workspaceGeneration,
-            operation: async (access) => {
-              await connector.replaceNetworkAccess({
-                access,
-                workspaceSessionId: submitWorkspace.workspaceSessionId,
-              });
-              return await client.submit({
-                sessionId: expectedSessionId,
-                text: serializedSubmit,
-              });
-            },
-          });
-          return { kind: "settled" as const, result };
-        } catch {
-          return { kind: "rejected" as const };
-        }
-      })();
-      if (admittedSubmit.kind === "rejected") {
-        removeTrackedRunV1(tracked);
-        refreshFacadeV1();
-        const rejected = diagnosticV1("request_failed", "/workspace/submit/admission");
-        diagnostic = rejected;
-        publish();
-        return { kind: "unavailable", diagnostic: rejected };
-      }
-      const result = admittedSubmit.result;
-      if (terminal || lifecycleEpoch !== expectedEpoch) {
-        removeTrackedRunV1(tracked);
-        return {
-          kind: "unavailable",
-          diagnostic: terminal
-            ? diagnosticV1("disposed", "/")
-            : connectionFailureDiagnostic ?? diagnosticV1("disposed", "/"),
-        };
-      }
-      if (!trackedByProductRunId.has(tracked.run.agentRunId)) {
-        return {
-          kind: "unavailable",
-          diagnostic: connectionFailureDiagnostic ??
-            diagnosticV1("request_failed", "/workspace/submit"),
-        };
-      }
-      if (result.kind !== "submitted") {
-        removeTrackedRunV1(tracked);
-        refreshFacadeV1();
-        const mapped = mapCallFailureV1(result);
-        diagnostic = mapped;
-        publish();
-        return { kind: "unavailable", diagnostic: mapped };
-      }
-      tracked.piRunId = result.runId;
-      const key = piRunKeyV1(expectedSessionId, result.runId);
-      trackedByPiRun.set(key, tracked);
-      submitSettlementGates.add(key);
-      discardOrphanedStreamEventsV1(expectedSessionId);
-      refreshFacadeV1();
-      publish();
-      // The caller must observe `submitted` before a buffered terminal projection.
-      // Two microtasks place the async-function continuation ahead of the release.
-      queueMicrotask(() =>
-        queueMicrotask(() => {
-          submitSettlementGates.delete(key);
-          if (!terminal) {
-            flushWorkspaceReceiptsV1(key);
-            flushStreamEventsV1(key);
-          }
-        })
-      );
-      return { kind: "submitted", agentRunId: tracked.run.agentRunId };
-    },
-    async cancel(agentRunId?: string): Promise<CreatorAgentPortCancelResultV1> {
-      if (terminal || finishPromise !== null) {
-        return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
-      }
-      if (agentRunId === undefined) return { kind: "idle" };
-      const tracked = trackedByProductRunId.get(agentRunId);
-      if (tracked === undefined || tracked.piRunId === null) return { kind: "idle" };
-      const expectedSessionId = tracked.sessionId;
-      const expectedPiRunId = tracked.piRunId;
-      const result = await client.cancel({
-        sessionId: expectedSessionId,
-        runId: expectedPiRunId,
-      });
-      if (result.kind !== "cancel_requested") {
-        const mapped = mapCallFailureV1(result);
-        diagnostic = mapped;
-        publish();
-        return { kind: "unavailable", diagnostic: mapped };
-      }
-      // cancel_requested is not terminal. Preserve the run until the Worker emits
-      // run_failed(cancelled), which becomes the durable product projection.
-      return { kind: "cancel_requested" };
-    },
+    submit: submitCreatorRunV1,
+    cancel: cancelRunV1,
     synchronizeNetworkAccess,
-    async acknowledgeTerminal(
-      agentRunId: string,
-    ): Promise<CreatorAgentAcknowledgeTerminalResultV1> {
-      const index = terminalRuns.findIndex(({ run }) => run.agentRunId === agentRunId);
-      if (index < 0) return { kind: "idle" };
-      const receiptWatermark = workspaceReceiptWatermarksByRunId.get(agentRunId) ?? 0;
-      if (receiptWatermark > 0) {
-        const workspaceAcknowledged = await acknowledgeWorkspaceReceiptWatermarkV1(
-          receiptWatermark,
-        );
-        if (workspaceAcknowledged.kind === "unavailable") {
-          return {
-            kind: "workspace_unavailable",
-            diagnostic: workspaceAcknowledged.diagnostic,
-          };
-        }
-      }
-      const currentIndex = terminalRuns.findIndex(({ run }) => run.agentRunId === agentRunId);
-      if (currentIndex < 0) return { kind: "idle" };
-      terminalRuns = Object.freeze([
-        ...terminalRuns.slice(0, currentIndex),
-        ...terminalRuns.slice(currentIndex + 1),
-      ]);
-      terminalDiagnostics.delete(agentRunId);
-      workspaceReceiptWatermarksByRunId.delete(agentRunId);
-      if (!terminal) refreshFacadeV1();
-      publish();
-      return { kind: "acknowledged" };
-    },
+    acknowledgeTerminal: (agentRunId) => acknowledgeTerminalV1("creator", agentRunId),
+    revokeCredential,
     forget: () => finish("forgotten"),
     dispose: () => finish("disposed"),
   };
+  const translation: TranslationAgentPortV1 = {
+    getSnapshot: () => translationSnapshot,
+    subscribe,
+    configureCredential,
+    configureCredentialHandoff,
+    testConnection,
+    selectModel,
+    selectReasoningEffort,
+    openWorkspace: openTranslationWorkspace,
+    closeWorkspace,
+    submit: submitTranslationRunV1,
+    cancel: cancelRunV1,
+    acknowledgeTerminal: (agentRunId) => acknowledgeTerminalV1("translation", agentRunId),
+    revokeCredential,
+    forget: () => finish("forgotten"),
+    dispose: () => finish("disposed"),
+  };
+  return Object.freeze({ creator, translation });
 }

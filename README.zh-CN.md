@@ -12,9 +12,11 @@ coding agent 在同一组所有权边界与运行证据内实现。浏览器与
 Narrative/Stage、Player、Save、音频、本地化、响应式与 Inspector 作者路径。它的可发布 Browser artifact
 已接入静态站构建；本仓库不声称已经执行远程 live deployment。
 
-**探索 GUI 产品方向**：[SillyOS](examples/silly-os/) 围绕唯一可见程序
-**Agent Creator** 构建。它把创作意图整理进可审查的 Program 工作区，让对话、方案、
-工作成果与活动记录保持在一起。确定性的本地预览仍然可用；配置后的 Browser Provider
+**探索 GUI 产品方向**：[SillyOS](examples/silly-os/) 当前随附 **Agent Creator** 与
+**Translation** 两个 bundled Programs。Creator 把创作意图整理进可审查的 Program 工作区；
+Translation 在一个持久 Process 内完成导入、Agent 候选、人工审查与结果接受。Bundling
+只决定分发和发现，两者使用相同的固定 Program 容器与运行规则，不存在特权 Program 类。
+确定性的本地预览仍然可用；配置后的 Browser Provider
 路线则在 Agent Worker 中运行产品固定版本的 Pi，经 typed Worker RPC 接入，
 并使用浏览器本地 Program 数据库与 OPFS mutable workspace checkpoint。当前已交付恢复与
 单写者 ownership 合同、Chromium/WebKit 的 20 MiB 级存储门禁，以及来源存储估算/

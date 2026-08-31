@@ -3,7 +3,7 @@
 import type { AgentTool } from "./pi-workspace-runtime-bridge.js";
 import type { BrowserPiAgentDispatchV1 } from "./browser-pi-agent-dispatch.ts";
 
-export type BrowserBuiltinProgramHarnessToolIdV1 =
+export type BrowserBundledProgramHarnessToolIdV1 =
   | "read"
   | "write"
   | "edit"
@@ -12,7 +12,7 @@ export type BrowserBuiltinProgramHarnessToolIdV1 =
   | "fetch_url"
   | "download";
 
-export type BrowserBuiltinProgramCandidateAdmissionV1 =
+export type BrowserBundledProgramCandidateAdmissionV1 =
   | { readonly kind: "admitted"; readonly candidate: object }
   | {
     readonly kind: "rejected";
@@ -20,20 +20,21 @@ export type BrowserBuiltinProgramCandidateAdmissionV1 =
   };
 
 /**
- * One current, build-known built-in Program prototype. It carries the
- * Program-owned instructions and completion policy while selecting a subset of
- * the fixed Browser harness tools. Its reference identifies the compatible
- * harness contract; a refreshed product may select newer compatible Program
- * instructions or policy for the same reference.
+ * One current, build-known bundled Program package. Bundling controls only
+ * distribution and discovery; it grants no runtime privilege. The package
+ * carries Program-owned instructions and completion policy while selecting a
+ * subset of the fixed Browser harness tools. Its reference identifies the
+ * compatible harness contract; a refreshed product may select newer compatible
+ * Program instructions or policy for the same reference.
  *
  * This is neither the harness implementation nor the final dynamic Program
  * package format. It is not a manifest, resolver, workflow language, or public
  * Program SDK. Unknown harness contracts never fall back.
  */
-export interface BrowserBuiltinProgramPackageV1 {
+export interface BrowserBundledProgramPackageV1 {
   readonly reference: BrowserPiAgentDispatchV1["harnessReference"];
   readonly instructions: string;
-  readonly harnessToolIds: readonly BrowserBuiltinProgramHarnessToolIdV1[];
+  readonly harnessToolIds: readonly BrowserBundledProgramHarnessToolIdV1[];
   readonly providerTimeoutMilliseconds: number;
   readonly publishTextDeltas: boolean;
   requestedOutputTokens(dispatch: BrowserPiAgentDispatchV1): number;
@@ -45,5 +46,5 @@ export interface BrowserBuiltinProgramPackageV1 {
   admitCandidate(
     value: unknown,
     dispatch: BrowserPiAgentDispatchV1,
-  ): BrowserBuiltinProgramCandidateAdmissionV1;
+  ): BrowserBundledProgramCandidateAdmissionV1;
 }

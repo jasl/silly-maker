@@ -117,6 +117,8 @@ export interface ProviderSettingsModelV1 {
   readonly name: string;
   readonly api: string;
   readonly baseUrl: string;
+  readonly contextWindow: number;
+  readonly maxTokens: number;
   readonly supportedReasoningEfforts: readonly BrowserPiReasoningEffortV1[];
   readonly defaultReasoningEffort: BrowserPiReasoningEffortV1;
   readonly availability: ProviderSettingsAvailabilityV1;

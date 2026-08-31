@@ -3,16 +3,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createDeterministicPiAgentV1,
   createPiAgentV1,
   type PiSimpleStreamOptionsV1,
   type PiStreamFnV1,
 } from "../agent/browser-pi-runtime-bridge.js";
 import { creatorProgramHarnessReferenceV1 } from "../agent/browser-pi-agent-dispatch.ts";
-import { creatorBuiltinProgramPackageV1 } from "../agent/builtin-program-packages/creator-current.ts";
+import { creatorBundledProgramPackageV1 } from "../agent/bundled-program-packages/creator-current.ts";
 import {
   translationBatchToolNameV1,
-  translationBuiltinProgramPackageV1,
-} from "../agent/builtin-program-packages/translation-current.ts";
+  translationBundledProgramPackageV1,
+} from "../agent/bundled-program-packages/translation-current.ts";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "./pi-faux-runtime.js";
 import {
   translationProgramHarnessReferenceV1,
@@ -43,9 +44,9 @@ describe("SillyOS Browser Pi runtime bridge", () => {
       },
     } as const;
     const agent = createPiAgentV1({
-      instructions: creatorBuiltinProgramPackageV1.instructions,
+      instructions: creatorBundledProgramPackageV1.instructions,
       workspaceTools: [],
-      completionTool: creatorBuiltinProgramPackageV1.createCompletionTool({
+      completionTool: creatorBundledProgramPackageV1.createCompletionTool({
         dispatch,
         onCandidate: () => {},
       }),
@@ -82,12 +83,15 @@ describe("SillyOS Browser Pi runtime bridge", () => {
       revision: 1,
       harnessReference: translationProgramHarnessReferenceV1,
       programId: "program.translation.1",
+      requestedOutputTokens: 4_608,
       request: {
         sourceLocale: "zh-CN",
         targetLocale: "en",
         documentPurpose: "Fictional dialogue.",
         style: "Natural.",
         glossary: [],
+        confirmedMeaningFacts: [],
+        neighboringUnits: { preceding: null, following: null },
         units: [{
           unitId: "translation.unit.000001",
           order: 0,
@@ -103,9 +107,9 @@ describe("SillyOS Browser Pi runtime bridge", () => {
       candidates.push(candidate);
     };
     const agent = createPiAgentV1({
-      instructions: translationBuiltinProgramPackageV1.instructions,
+      instructions: translationBundledProgramPackageV1.instructions,
       workspaceTools: [],
-      completionTool: translationBuiltinProgramPackageV1.createCompletionTool({
+      completionTool: translationBundledProgramPackageV1.createCompletionTool({
         dispatch,
         onCandidate,
       }),
@@ -123,6 +127,62 @@ describe("SillyOS Browser Pi runtime bridge", () => {
       ambiguities: [],
     }]);
     expect(textDeltas.join("")).toContain("translation is ready");
+
+    agent.dispose();
+  });
+
+  it("drives a Translation package through the deterministic product runtime", async () => {
+    const candidates: unknown[] = [];
+    const dispatch = {
+      revision: 1,
+      harnessReference: translationProgramHarnessReferenceV1,
+      programId: "program.translation.deterministic.1",
+      requestedOutputTokens: 4_608,
+      request: {
+        sourceLocale: "zh-CN",
+        targetLocale: "en",
+        documentPurpose: "Fictional dialogue.",
+        style: "Natural.",
+        glossary: [],
+        confirmedMeaningFacts: [],
+        neighboringUnits: { preceding: null, following: null },
+        units: [{
+          unitId: "translation.unit.deterministic.1",
+          order: 0,
+          locator: "line/1",
+          context: null,
+          durationMilliseconds: null,
+          source: "你好，⟦SM:0⟧。",
+          protectedSegments: [{
+            token: "⟦SM:0⟧",
+            source: "{name}",
+            kind: "placeholder",
+          }],
+        }],
+      },
+    } as const;
+    const agent = createDeterministicPiAgentV1({
+      dispatch,
+      programPackage: translationBundledProgramPackageV1,
+      workspaceTools: [],
+      onCandidate: (candidate) => {
+        candidates.push(candidate);
+      },
+      onTextDelta: () => undefined,
+      reasoningEffort: "off",
+      runNumber: 1,
+    });
+
+    await expect(agent.prompt("Translate the admitted batch.")).resolves.toEqual({
+      stopReason: "stop",
+    });
+    expect(candidates).toEqual([{
+      targets: [{
+        unitId: "translation.unit.deterministic.1",
+        target: "[deterministic] 你好，⟦SM:0⟧。",
+      }],
+      ambiguities: [],
+    }]);
 
     agent.dispose();
   });

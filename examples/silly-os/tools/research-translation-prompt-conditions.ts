@@ -6,7 +6,7 @@ import {
   createTranslationBatchUserPromptV1,
   translationBatchToolNameV1,
   translationProgramSystemPromptV1,
-} from "../src/agent/builtin-program-packages/translation-current.ts";
+} from "../src/agent/bundled-program-packages/translation-current.ts";
 import type {
   TranslationBatchRequestV1,
 } from "../src/product/translation/translation-batch-protocol.ts";

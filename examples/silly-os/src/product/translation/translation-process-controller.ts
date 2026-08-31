@@ -29,22 +29,34 @@ import {
   type PreparedTranslationDocumentV1,
 } from "./translation-document-codec.ts";
 import type {
-  TranslationProjectRowWindowV1,
-  TranslationProjectUnitV1 as TranslationProjectPresentationUnitV1,
-} from "./translation-project.ts";
+  TranslationAgentRunRequestV1,
+  TranslationAgentTerminalRunV1,
+} from "./translation-agent-contracts.ts";
 import {
-  builtinTranslationProgramIdV1,
-  createBuiltinTranslationProgramDefinitionRevisionV1,
+  planTranslationBatchRequestV1,
+  type TranslationBatchBudgetV1,
+} from "./translation-batch-planner.ts";
+import type {
+  TranslationProcessRowWindowV1,
+  TranslationProcessUnitProjectionV1,
+} from "./translation-process-view.ts";
+import {
+  bundledTranslationProgramIdV1,
+  createBundledTranslationProgramDefinitionRevisionV1,
 } from "./translation-program-definition.ts";
 import {
-  translationProjectRowUtf8ByteLengthV1,
-  type TranslationProjectAppendImportInputV1,
-  type TranslationProjectBeginImportInputV1,
-  type TranslationProjectHeadV1,
-  type TranslationProjectMutationResultV1,
-  type TranslationProjectOperationExpectationV1,
-  type TranslationProjectSourceBindingV1,
-} from "./translation-project-repository.ts";
+  translationWorksetRowUtf8ByteLengthV1,
+  type TranslationBatchCandidateAcceptInputV1,
+  type TranslationBatchCandidateRecordV1,
+  type TranslationWorksetAppendImportInputV1,
+  type TranslationWorksetBeginImportInputV1,
+  type TranslationWorksetGlossaryEntryV1,
+  type TranslationWorksetHeadV1,
+  type TranslationWorksetMutationResultV1,
+  type TranslationWorksetOperationExpectationV1,
+  type TranslationWorksetSourceBindingV1,
+  type TranslationWorksetUnitV1,
+} from "./translation-workset-repository.ts";
 import type {
   BornDigitalPdfImportInputV1,
   BornDigitalPdfImportResultV1,
@@ -74,14 +86,15 @@ export interface TranslationActiveProcessProjectionV1 {
   readonly subject: ProgramCatalogRecordV1 | null;
   readonly workspace: BrowserProcessWorkspaceInspectionV1["workspace"];
   readonly transcript: TranslationProcessTranscriptProjectionV1;
-  readonly project: TranslationProjectHeadV1 | null;
+  readonly workset: TranslationWorksetHeadV1 | null;
+  readonly pendingCandidate: TranslationBatchCandidateRecordV1 | null;
 }
 
 export type TranslationSourceImportStateV1 =
   | { readonly phase: "idle" }
   | {
     readonly phase: "pending";
-    readonly stage: "project" | "source" | "finalize";
+    readonly stage: "prepare" | "source" | "finalize";
   }
   | { readonly phase: "failed"; readonly code: string };
 
@@ -97,6 +110,39 @@ export type TranslationProcessControllerResultV1<T> =
   | { readonly kind: "completed"; readonly value: T }
   | { readonly kind: "busy" }
   | { readonly kind: "failed"; readonly code: string };
+
+export type TranslationBatchPrepareResultV1 =
+  | { readonly kind: "prepared"; readonly run: TranslationAgentRunRequestV1 }
+  | { readonly kind: "complete" | "pending_review" | "unavailable" }
+  | {
+    readonly kind: "unit_exceeds_budget";
+    readonly unitId: string;
+    readonly requestByteLength: number;
+    readonly maximumRequestBytes: number;
+  };
+
+export type TranslationAgentTerminalPersistenceResultV1 =
+  | { readonly kind: "persisted"; readonly candidateId: string | null }
+  | { readonly kind: "stale" | "unavailable" };
+
+export interface TranslationPendingCandidateReferenceV1 {
+  readonly expectedWorksetRevision: number;
+  readonly candidateId: string;
+}
+
+export interface TranslationPendingCandidateAcceptInputV1
+  extends TranslationPendingCandidateReferenceV1 {
+  /** Complete editable replacement for the pending candidate's ordered targets. */
+  readonly targets: TranslationBatchCandidateAcceptInputV1["targets"];
+}
+
+export type TranslationPendingCandidateReviewResultV1 =
+  | {
+    readonly kind: "accepted" | "rejected";
+    readonly workset: TranslationWorksetHeadV1;
+  }
+  | { readonly kind: "stale"; readonly currentWorkset: TranslationWorksetHeadV1 | null }
+  | { readonly kind: "unavailable" };
 
 export type TranslationProcessControllerWorkspacePortV1 = Pick<
   BrowserProcessWorkspaceAuthorityV1,
@@ -133,14 +179,29 @@ export interface TranslationProcessControllerV1 {
   openProcess(processId: string): Promise<TranslationProcessControllerResultV1<boolean>>;
   importSource(
     input: TranslationProcessImportInputV1,
-  ): Promise<TranslationProcessControllerResultV1<TranslationProjectHeadV1>>;
-  loadProjectRowWindow(input: {
+  ): Promise<TranslationProcessControllerResultV1<TranslationWorksetHeadV1>>;
+  prepareAgentBatch(
+    budget: TranslationBatchBudgetV1,
+  ): Promise<TranslationProcessControllerResultV1<TranslationBatchPrepareResultV1>>;
+  renewAgentRunLease(
+    run: TranslationAgentRunRequestV1,
+  ): Promise<TranslationProcessControllerResultV1<"renewed" | "lost" | "idle">>;
+  recordAgentRunTerminal(
+    terminal: TranslationAgentTerminalRunV1,
+  ): Promise<TranslationProcessControllerResultV1<TranslationAgentTerminalPersistenceResultV1>>;
+  acceptPendingCandidate(
+    input: TranslationPendingCandidateAcceptInputV1,
+  ): Promise<TranslationProcessControllerResultV1<TranslationPendingCandidateReviewResultV1>>;
+  rejectPendingCandidate(
+    input: TranslationPendingCandidateReferenceV1,
+  ): Promise<TranslationProcessControllerResultV1<TranslationPendingCandidateReviewResultV1>>;
+  loadTranslationRowWindow(input: {
     readonly processId: string;
-    readonly expectedProjectRevision: number;
+    readonly expectedWorksetRevision: number;
     readonly offset: number;
     readonly limit: number;
     readonly signal?: AbortSignal;
-  }): Promise<TranslationProjectRowWindowV1>;
+  }): Promise<TranslationProcessRowWindowV1>;
   openHome(): boolean;
   retry(): Promise<boolean>;
   dispose(): void;
@@ -149,7 +210,7 @@ export interface TranslationProcessControllerV1 {
 export interface TranslationProcessControllerBudgetsV1 {
   readonly processSummaryPageMaximumBytes: number;
   readonly transcriptPageMaximumBytes: number;
-  /** Per-repository mutation work budget; it never limits total Project rows. */
+  /** Per-repository mutation work budget; it never limits total Process rows. */
   readonly importAppendMaximumBytes: number;
 }
 
@@ -157,7 +218,7 @@ type TranslationImportExecutionAcquireV1 =
   | { readonly kind: "acquired"; readonly lease: ProcessExecutionLeaseV1 }
   | {
     readonly kind: "conflict";
-    readonly currentProject: TranslationProjectHeadV1 | null;
+    readonly currentWorkset: TranslationWorksetHeadV1 | null;
   };
 
 const translationProcessDefaultPageMaximumBytesV1 = 128 * 1_024;
@@ -174,7 +235,7 @@ interface TranslationImportMaterialV1 {
   readonly fileName: string;
   readonly mediaType: string;
   readonly sha256: string;
-  readonly document: TranslationProjectHeadV1["document"];
+  readonly document: TranslationWorksetHeadV1["document"];
   readonly sourceUnits: PreparedTranslationDocumentV1["sourceUnits"];
   readonly sourceLocale: string;
   readonly targetLocale: string;
@@ -244,7 +305,7 @@ async function prepareImportMaterialV1(
     bytes = new Uint8Array(input.source.bytes);
   }
   const pdf = mediaType.toLowerCase() === "application/pdf" || /\.pdf$/iu.test(fileName);
-  let document: TranslationProjectHeadV1["document"];
+  let document: TranslationWorksetHeadV1["document"];
   let sourceUnits: PreparedTranslationDocumentV1["sourceUnits"];
   if (pdf) {
     const imported = await importBornDigitalPdf({ bytes });
@@ -253,7 +314,7 @@ async function prepareImportMaterialV1(
     }
     if (imported.document.pageDiagnostics.length > 0) {
       // This first product slice has no durable partial-document state or
-      // review surface. Publishing the remaining pages as a complete Project
+      // review surface. Publishing the remaining pages as a complete Process work set
       // would silently lose source text, so partial extraction is rejected.
       throw controllerErrorV1("pdf_partial_text_extraction");
     }
@@ -292,7 +353,7 @@ async function prepareImportMaterialV1(
     targetLocale: trimmedRequiredV1(input.targetLocale, "invalid_target_locale"),
     title: input.title === undefined
       ? fileName
-      : trimmedRequiredV1(input.title, "invalid_project_title"),
+      : trimmedRequiredV1(input.title, "invalid_workset_title"),
     documentPurpose: input.documentPurpose === undefined
       ? "translation"
       : trimmedRequiredV1(input.documentPurpose, "invalid_document_purpose"),
@@ -302,7 +363,7 @@ async function prepareImportMaterialV1(
   };
 }
 
-function sourceExtensionV1(format: TranslationProjectHeadV1["document"]["format"]): string {
+function sourceExtensionV1(format: TranslationWorksetHeadV1["document"]["format"]): string {
   if (format === "plain_text") return "txt";
   if (format === "markdown") return "md";
   if (format === "subrip") return "srt";
@@ -312,17 +373,17 @@ function sourceExtensionV1(format: TranslationProjectHeadV1["document"]["format"
 }
 
 function canonicalSourcePathV1(
-  projectId: string,
-  format: TranslationProjectHeadV1["document"]["format"],
+  processId: string,
+  format: TranslationWorksetHeadV1["document"]["format"],
 ): string {
-  return `translation-projects/${projectId}/source.${sourceExtensionV1(format)}`;
+  return `translation-processes/${processId}/source.${sourceExtensionV1(format)}`;
 }
 
 function headMatchesImportV1(
-  head: TranslationProjectHeadV1,
-  begin: Omit<TranslationProjectBeginImportInputV1, "sourceBinding" | "lease">,
+  head: TranslationWorksetHeadV1,
+  begin: Omit<TranslationWorksetBeginImportInputV1, "sourceBinding" | "lease">,
 ): boolean {
-  return head.processId === begin.processId && head.projectId === begin.projectId &&
+  return head.processId === begin.processId && head.importOperationId === begin.operationId &&
     head.title === begin.title && head.document.format === begin.document.format &&
     head.document.capabilityGrade === begin.document.capabilityGrade &&
     head.document.capabilityReason === begin.document.capabilityReason &&
@@ -338,7 +399,7 @@ function headMatchesImportV1(
 
 function sourceBindingFromImportV1(
   imported: BrowserProcessWorkspaceImportFileResultV1,
-): TranslationProjectSourceBindingV1 {
+): TranslationWorksetSourceBindingV1 {
   return {
     revision: imported.source.revision,
     workspaceId: imported.source.workspaceId,
@@ -351,8 +412,8 @@ function sourceBindingFromImportV1(
 }
 
 function sameSourceBindingV1(
-  left: TranslationProjectSourceBindingV1,
-  right: TranslationProjectSourceBindingV1,
+  left: TranslationWorksetSourceBindingV1,
+  right: TranslationWorksetSourceBindingV1,
 ): boolean {
   return left.revision === right.revision && left.workspaceId === right.workspaceId &&
     left.volumeId === right.volumeId && left.workspaceFormat === right.workspaceFormat &&
@@ -363,7 +424,7 @@ function sameSourceBindingV1(
 function completedImportProcessMatchesV1(
   process: ProcessHeadV1,
   lease: ProcessExecutionLeaseV1,
-  sourceBinding: TranslationProjectSourceBindingV1,
+  sourceBinding: TranslationWorksetSourceBindingV1,
 ): boolean {
   const terminal = process.lastTerminalAttempt;
   const checkpoint = process.checkpoint;
@@ -376,26 +437,26 @@ function completedImportProcessMatchesV1(
     checkpoint.workspaceGeneration === sourceBinding.generation;
 }
 
-function completedImportProjectMatchesProcessV1(
+function completedImportWorksetMatchesProcessV1(
   process: ProcessHeadV1,
-  project: TranslationProjectHeadV1,
+  workset: TranslationWorksetHeadV1,
 ): boolean {
   const terminal = process.lastTerminalAttempt;
   const checkpoint = process.checkpoint;
-  return project.phase === "ready" && project.processId === process.processId &&
+  return workset.phase === "ready" && workset.processId === process.processId &&
     process.activeAttempt === null && terminal?.outcome === "completed" &&
     terminal.interruptionDisposition === null && checkpoint !== null &&
     checkpoint.throughSequence === process.transcriptFrontier &&
-    checkpoint.workspaceId === project.sourceBinding.workspaceId &&
-    checkpoint.workspaceCheckpointId === project.sourceBinding.checkpointId &&
-    checkpoint.workspaceGeneration === project.sourceBinding.generation;
+    checkpoint.workspaceId === workset.sourceBinding.workspaceId &&
+    checkpoint.workspaceCheckpointId === workset.sourceBinding.checkpointId &&
+    checkpoint.workspaceGeneration === workset.sourceBinding.generation;
 }
 
-async function mutateProjectV1(
+async function mutateWorksetV1(
   repository: ProgramDataRepositoryV1,
-  expectation: TranslationProjectOperationExpectationV1,
-  operation: () => Promise<TranslationProjectMutationResultV1>,
-): Promise<TranslationProjectMutationResultV1> {
+  expectation: TranslationWorksetOperationExpectationV1,
+  operation: () => Promise<TranslationWorksetMutationResultV1>,
+): Promise<TranslationWorksetMutationResultV1> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       return await operation();
@@ -403,13 +464,13 @@ async function mutateProjectV1(
       if (!isProgramDataRepositoryFailureV1(error) || error.code !== "outcome_unknown") {
         throw error;
       }
-      const queried = await repository.queryTranslationProjectOperation(expectation);
+      const queried = await repository.queryTranslationWorksetOperation(expectation);
       if (queried.kind === "mismatch") {
         throw controllerErrorV1("operation_receipt_mismatch");
       }
       if (queried.kind === "committed") {
-        const head = await repository.loadTranslationProjectHead(expectation.input.processId);
-        if (head === null || head.revision !== queried.receipt.projectRevision) {
+        const head = await repository.loadTranslationWorksetHead(expectation.input.processId);
+        if (head === null || head.revision !== queried.receipt.worksetRevision) {
           throw controllerErrorV1("operation_reconciliation_conflict");
         }
         return {
@@ -431,15 +492,15 @@ function appendInputV1(input: {
   readonly processId: string;
   readonly operationId: string;
   readonly lease: ProcessExecutionLeaseV1;
-  readonly expectedProjectRevision: number;
-  readonly units: TranslationProjectAppendImportInputV1["units"];
+  readonly expectedWorksetRevision: number;
+  readonly units: TranslationWorksetAppendImportInputV1["units"];
   readonly updatedAt: number;
-}): TranslationProjectAppendImportInputV1 {
+}): TranslationWorksetAppendImportInputV1 {
   return {
     processId: input.processId,
     operationId: input.operationId,
     lease: input.lease,
-    expectedProjectRevision: input.expectedProjectRevision,
+    expectedWorksetRevision: input.expectedWorksetRevision,
     units: input.units,
     glossaryEntries: [],
     updatedAt: input.updatedAt,
@@ -450,19 +511,19 @@ function nextAppendPageV1(input: {
   readonly processId: string;
   readonly operationId: string;
   readonly lease: ProcessExecutionLeaseV1;
-  readonly expectedProjectRevision: number;
-  readonly units: TranslationProjectAppendImportInputV1["units"];
+  readonly expectedWorksetRevision: number;
+  readonly units: TranslationWorksetAppendImportInputV1["units"];
   readonly from: number;
   readonly updatedAt: number;
   readonly maximumBytes: number;
-}): { readonly input: TranslationProjectAppendImportInputV1; readonly next: number } {
+}): { readonly input: TranslationWorksetAppendImportInputV1; readonly next: number } {
   const empty = appendInputV1({ ...input, units: [] });
-  let byteLength = translationProjectRowUtf8ByteLengthV1(empty);
-  const selected: TranslationProjectAppendImportInputV1["units"][number][] = [];
+  let byteLength = translationWorksetRowUtf8ByteLengthV1(empty);
+  const selected: TranslationWorksetAppendImportInputV1["units"][number][] = [];
   let cursor = input.from;
   while (cursor < input.units.length) {
     const row = input.units[cursor]!;
-    const addition = translationProjectRowUtf8ByteLengthV1(row) +
+    const addition = translationWorksetRowUtf8ByteLengthV1(row) +
       (selected.length === 0 ? 0 : 1);
     if (byteLength + addition > input.maximumBytes) {
       if (selected.length === 0) {
@@ -484,7 +545,7 @@ function nextAppendPageV1(input: {
 }
 
 interface PlannedTranslationAppendV1 {
-  readonly input: TranslationProjectAppendImportInputV1;
+  readonly input: TranslationWorksetAppendImportInputV1;
   readonly next: number;
 }
 
@@ -504,8 +565,8 @@ function importEnvelopeSizingLeaseV1(processId: string): ProcessExecutionLeaseV1
 function planAppendPagesV1(input: {
   readonly processId: string;
   readonly lease: ProcessExecutionLeaseV1;
-  readonly initialProjectRevision: number;
-  readonly units: TranslationProjectAppendImportInputV1["units"];
+  readonly initialWorksetRevision: number;
+  readonly units: TranslationWorksetAppendImportInputV1["units"];
   readonly from: number;
   readonly updatedAt: () => number;
   readonly createOperationId: () => string;
@@ -513,13 +574,13 @@ function planAppendPagesV1(input: {
 }): readonly PlannedTranslationAppendV1[] {
   const pages: PlannedTranslationAppendV1[] = [];
   let cursor = input.from;
-  let expectedProjectRevision = input.initialProjectRevision;
+  let expectedWorksetRevision = input.initialWorksetRevision;
   while (cursor < input.units.length) {
     const page = nextAppendPageV1({
       processId: input.processId,
       operationId: input.createOperationId(),
       lease: input.lease,
-      expectedProjectRevision,
+      expectedWorksetRevision,
       units: input.units,
       from: cursor,
       updatedAt: input.updatedAt(),
@@ -527,7 +588,7 @@ function planAppendPagesV1(input: {
     });
     pages.push(page);
     cursor = page.next;
-    expectedProjectRevision += 1;
+    expectedWorksetRevision += 1;
   }
   return pages;
 }
@@ -559,7 +620,7 @@ function acceptedTranslationProgramV1(record: ProgramCatalogRecordV1 | null): bo
 }
 
 function translationProcessV1(process: ProcessHeadV1): boolean {
-  return process.programDefinition.programId === builtinTranslationProgramIdV1 &&
+  return process.programDefinition.programId === bundledTranslationProgramIdV1 &&
     process.programDefinition.revision === 1;
 }
 
@@ -652,6 +713,8 @@ export function createTranslationProcessControllerV1(input: {
     sourceImport: { phase: "idle" },
     durability: { phase: "ready" },
   };
+  let ownedAgentLease: ProcessExecutionLeaseV1 | null = null;
+  let terminalizingAgentRunId: string | null = null;
 
   const leaseMatchesV1 = (
     left: ProcessExecutionLeaseV1,
@@ -662,13 +725,13 @@ export function createTranslationProcessControllerV1(input: {
 
   const acquireImportLeaseV1 = async (
     process: ProcessHeadV1,
-    expectedProjectRevision: number | null,
+    expectedWorksetRevision: number | null,
   ): Promise<TranslationImportExecutionAcquireV1> => {
     const checkpoint = process.checkpoint;
     if (checkpoint === null || process.activeAttempt !== null) {
       return {
         kind: "conflict",
-        currentProject: await repository.loadTranslationProjectHead(process.processId),
+        currentWorkset: await repository.loadTranslationWorksetHead(process.processId),
       };
     }
     const observedAt = Math.max(now(), process.updatedAt);
@@ -712,16 +775,16 @@ export function createTranslationProcessControllerV1(input: {
       },
     };
     const expectation = {
-      operation: "translation_project_execution_acquire" as const,
-      input: { expectedProjectRevision, execution: acquireInput },
+      operation: "translation_workset_import_execution_acquire" as const,
+      input: { expectedWorksetRevision, execution: acquireInput },
     };
     let acquiredLease: ProcessExecutionLeaseV1 | null = null;
     try {
-      const result = await repository.acquireTranslationProjectImportExecution(
+      const result = await repository.acquireTranslationWorksetImportExecution(
         expectation.input,
       );
       if (result.kind === "conflict") {
-        return { kind: "conflict", currentProject: result.currentProject };
+        return { kind: "conflict", currentWorkset: result.currentWorkset };
       }
       acquiredLease = result.lease;
     } catch (error) {
@@ -740,7 +803,7 @@ export function createTranslationProcessControllerV1(input: {
       current.ownerInstanceId !== ownerInstanceId ||
       current.attemptId !== attemptId ||
       current.generation !== acquireInput.attempt.generation
-    ) return { kind: "conflict", currentProject: null };
+    ) return { kind: "conflict", currentWorkset: null };
     return { kind: "acquired", lease: current };
   };
 
@@ -834,7 +897,7 @@ export function createTranslationProcessControllerV1(input: {
     readonly lease: ProcessExecutionLeaseV1;
     readonly observedAt: number;
     readonly outcome: "completed" | "failed";
-    readonly sourceBinding: TranslationProjectSourceBindingV1 | null;
+    readonly sourceBinding: TranslationWorksetSourceBindingV1 | null;
   }): Promise<ProcessExecutionTerminalInputV1> => {
     const process = await repository.loadProcess(terminal.lease.processId);
     if (
@@ -897,7 +960,7 @@ export function createTranslationProcessControllerV1(input: {
   const commitImportTerminalV1 = async (terminal: {
     readonly lease: ProcessExecutionLeaseV1;
     readonly outcome: "completed" | "failed";
-    readonly sourceBinding: TranslationProjectSourceBindingV1 | null;
+    readonly sourceBinding: TranslationWorksetSourceBindingV1 | null;
   }): Promise<void> => {
     const current = await currentImportLeaseAtCutV1(terminal.lease);
     const terminalInput = await createImportTerminalInputV1({
@@ -921,7 +984,7 @@ export function createTranslationProcessControllerV1(input: {
     }
   };
 
-  const settleExpiredImportAttemptV1 = async (
+  const settleExpiredAttemptV1 = async (
     process: ProcessHeadV1,
   ): Promise<ProcessHeadV1> => {
     const attempt = process.activeAttempt;
@@ -931,9 +994,21 @@ export function createTranslationProcessControllerV1(input: {
       lease === null || lease.attemptId !== attempt.attemptId ||
       lease.generation !== attempt.generation || now() < lease.expiresAt
     ) return process;
+    const workset = await repository.loadTranslationWorksetHead(process.processId);
+    const checkpoint = process.checkpoint;
+    const startingCheckpoint = attempt.startingCheckpoint;
+    const retryable = workset?.phase === "ready" && workset.pendingCandidateId === null &&
+      checkpoint !== null && checkpoint.checkpointId === startingCheckpoint.checkpointId &&
+      checkpoint.throughSequence === startingCheckpoint.throughSequence &&
+      checkpoint.workspaceId === startingCheckpoint.workspaceId &&
+      checkpoint.workspaceCheckpointId === startingCheckpoint.workspaceCheckpointId &&
+      checkpoint.workspaceGeneration === startingCheckpoint.workspaceGeneration &&
+      workset.sourceBinding.workspaceId === startingCheckpoint.workspaceId &&
+      workset.sourceBinding.checkpointId === startingCheckpoint.workspaceCheckpointId &&
+      workset.sourceBinding.generation === startingCheckpoint.workspaceGeneration;
     const observedAt = Math.max(now(), lease.expiresAt, process.updatedAt);
     const sequence = process.transcriptFrontier + 1;
-    const entryId = createId("translation-import-interrupted-entry");
+    const entryId = createId("translation-attempt-interrupted-entry");
     const terminalInput: ProcessExecutionTerminalInputV1 = {
       lease,
       observedAt,
@@ -941,7 +1016,7 @@ export function createTranslationProcessControllerV1(input: {
         processId: process.processId,
         expectedProcessRevision: process.revision,
         expectedTranscriptFrontier: process.transcriptFrontier,
-        commitId: createId("translation-import-interrupted"),
+        commitId: createId("translation-attempt-interrupted"),
         attemptBinding: { attemptId: lease.attemptId, generation: lease.generation },
         entries: [{
           schemaVersion: 1,
@@ -949,12 +1024,15 @@ export function createTranslationProcessControllerV1(input: {
           sequence,
           entryId,
           role: "system",
-          state: "committed",
+          state: "interrupted_partial",
           parts: [{
             kind: "text_markdown",
             partId: `${entryId}.text`,
-            markdown:
-              "The previous source import stopped after its execution lease expired. Review the durable Project before retrying.",
+            markdown: retryable
+              ? "The previous translation batch was interrupted. Its committed request can be retried from the unchanged Process Workspace checkpoint."
+              : workset?.phase === "staging"
+              ? "The previous source import stopped before the Process work set became ready. Review the incomplete import before continuing."
+              : "The previous translation attempt stopped after its durable Process evidence changed or became unavailable. SillyOS will not replay it automatically.",
           }],
         }],
         checkpoint: null,
@@ -966,7 +1044,7 @@ export function createTranslationProcessControllerV1(input: {
           outcome: "interrupted",
           terminalSequence: sequence,
           terminalEntryId: entryId,
-          interruptionDisposition: "unrecoverable",
+          interruptionDisposition: retryable ? "retryable" : "unrecoverable",
         },
         updatedAt: observedAt,
       },
@@ -1010,9 +1088,9 @@ export function createTranslationProcessControllerV1(input: {
   const publishCompletedImportProjectionV1 = async (projectionInput: {
     readonly epoch: number;
     readonly processId: string;
-    readonly project: TranslationProjectHeadV1;
+    readonly workset: TranslationWorksetHeadV1;
     readonly expectedLease?: ProcessExecutionLeaseV1;
-  }): Promise<TranslationProcessControllerResultV1<TranslationProjectHeadV1>> => {
+  }): Promise<TranslationProcessControllerResultV1<TranslationWorksetHeadV1>> => {
     const [process, transcript] = await Promise.all([
       repository.loadProcess(projectionInput.processId),
       repository.loadTranscriptPage({
@@ -1034,12 +1112,12 @@ export function createTranslationProcessControllerV1(input: {
       process === null || transcript === null ||
       transcript.processId !== projectionInput.processId ||
       newestEntry?.sequence !== process.transcriptFrontier ||
-      !completedImportProjectMatchesProcessV1(process, projectionInput.project) ||
+      !completedImportWorksetMatchesProcessV1(process, projectionInput.workset) ||
       (projectionInput.expectedLease !== undefined &&
         !completedImportProcessMatchesV1(
           process,
           projectionInput.expectedLease,
-          projectionInput.project.sourceBinding,
+          projectionInput.workset.sourceBinding,
         ))
     ) throw controllerErrorV1("operation_reconciliation_conflict");
     publish({
@@ -1052,12 +1130,12 @@ export function createTranslationProcessControllerV1(input: {
           byteLength: transcript.byteLength,
           nextBeforeSequence: transcript.nextBeforeSequence,
         },
-        project: projectionInput.project,
+        workset: projectionInput.workset,
       },
       sourceImport: { phase: "idle" },
       durability: { phase: "ready" },
     });
-    return { kind: "completed", value: projectionInput.project };
+    return { kind: "completed", value: projectionInput.workset };
   };
 
   const fail = (
@@ -1099,7 +1177,7 @@ export function createTranslationProcessControllerV1(input: {
       if (!processWorkspaceMatchesV1(inspection, expectedSubjectProgramId)) {
         return fail("open", "process_workspace_mismatch", null, null);
       }
-      const settledProcess = await settleExpiredImportAttemptV1(inspection.process);
+      const settledProcess = await settleExpiredAttemptV1(inspection.process);
       if (settledProcess.revision !== inspection.process.revision) {
         inspection = await input.workspace.inspectProcessWorkspace(processId);
         if (
@@ -1109,15 +1187,15 @@ export function createTranslationProcessControllerV1(input: {
         }
       }
       const subjectProgramId = inspection.process.subjectProgramId!;
-      const [definition, subject, transcript, project] = await Promise.all([
-        repository.loadProgramDefinitionRevision(builtinTranslationProgramIdV1, 1),
+      const [definition, subject, transcript, workset] = await Promise.all([
+        repository.loadProgramDefinitionRevision(bundledTranslationProgramIdV1, 1),
         repository.load(subjectProgramId),
         repository.loadTranscriptPage({
           processId,
           beforeSequence: null,
           maximumBytes: budgets.transcriptPageMaximumBytes,
         }),
-        repository.loadTranslationProjectHead(processId),
+        repository.loadTranslationWorksetHead(processId),
       ]);
       if (disposed || epoch !== routeEpoch) return { kind: "failed", code: "superseded" };
       if (definition === null || definition.kind !== "translation") {
@@ -1129,6 +1207,18 @@ export function createTranslationProcessControllerV1(input: {
       if (transcript === null || transcript.processId !== processId) {
         return fail("open", "process_transcript_not_found", null, null);
       }
+      const pendingCandidate = workset?.pendingCandidateId === null ||
+          workset?.pendingCandidateId === undefined
+        ? null
+        : await repository.loadTranslationBatchCandidate(
+          processId,
+          workset.pendingCandidateId,
+        );
+      if (
+        workset?.pendingCandidateId !== null && workset?.pendingCandidateId !== undefined &&
+        (pendingCandidate === null || pendingCandidate.processId !== processId ||
+          pendingCandidate.candidateId !== workset.pendingCandidateId)
+      ) return fail("open", "translation_candidate_missing", null, null);
       retryCommand = null;
       publish({
         route: "process",
@@ -1142,9 +1232,10 @@ export function createTranslationProcessControllerV1(input: {
             byteLength: transcript.byteLength,
             nextBeforeSequence: transcript.nextBeforeSequence,
           },
-          project,
+          workset,
+          pendingCandidate,
         },
-        sourceImport: project?.phase === "staging"
+        sourceImport: workset?.phase === "staging"
           ? { phase: "failed", code: "translation_import_incomplete" }
           : { phase: "idle" },
         durability: { phase: "ready" },
@@ -1176,7 +1267,7 @@ export function createTranslationProcessControllerV1(input: {
       workspaceId,
       process: {
         processId,
-        programDefinition: { programId: builtinTranslationProgramIdV1, revision: 1 },
+        programDefinition: { programId: bundledTranslationProgramIdV1, revision: 1 },
         subjectProgramId: subject.head.programId,
         createdAt,
       },
@@ -1240,7 +1331,7 @@ export function createTranslationProcessControllerV1(input: {
 
   const importSourceV1 = async (
     importInput: TranslationProcessImportInputV1,
-  ): Promise<TranslationProcessControllerResultV1<TranslationProjectHeadV1>> => {
+  ): Promise<TranslationProcessControllerResultV1<TranslationWorksetHeadV1>> => {
     if (disposed) return { kind: "failed", code: "disposed" };
     const active = snapshot.activeProcess;
     if (snapshot.route !== "process" || active === null) {
@@ -1249,42 +1340,40 @@ export function createTranslationProcessControllerV1(input: {
     if (snapshot.sourceImport.phase === "pending") return { kind: "busy" };
     const epoch = routeEpoch;
     const publishImportV1 = (
-      project: TranslationProjectHeadV1 | null,
+      workset: TranslationWorksetHeadV1 | null,
       sourceImport: TranslationSourceImportStateV1,
     ): void => {
       if (disposed || epoch !== routeEpoch || snapshot.activeProcess === null) return;
       publish({
         route: "process",
-        activeProcess: { ...snapshot.activeProcess, project },
+        activeProcess: { ...snapshot.activeProcess, workset },
         sourceImport,
         durability: { phase: "ready" },
       });
     };
     const failImportV1 = (
       code: string,
-      project: TranslationProjectHeadV1 | null,
-    ): TranslationProcessControllerResultV1<TranslationProjectHeadV1> => {
-      publishImportV1(project, { phase: "failed", code });
+      workset: TranslationWorksetHeadV1 | null,
+    ): TranslationProcessControllerResultV1<TranslationWorksetHeadV1> => {
+      publishImportV1(workset, { phase: "failed", code });
       return { kind: "failed", code };
     };
 
-    publishImportV1(active.project, { phase: "pending", stage: "project" });
-    let latestHead = active.project;
+    publishImportV1(active.workset, { phase: "pending", stage: "prepare" });
+    let latestHead = active.workset;
     let lease: ProcessExecutionLeaseV1 | null = null;
-    let sourceBinding: TranslationProjectSourceBindingV1 | null = null;
+    let sourceBinding: TranslationWorksetSourceBindingV1 | null = null;
     let terminalSettled = false;
     try {
       const material = await prepareImportMaterialV1(importInput, importBornDigitalPdf);
       if (disposed || epoch !== routeEpoch) return { kind: "failed", code: "superseded" };
-      const durableHead = await repository.loadTranslationProjectHead(active.process.processId);
+      const durableHead = await repository.loadTranslationWorksetHead(active.process.processId);
       if (disposed || epoch !== routeEpoch) return { kind: "failed", code: "superseded" };
-      const projectId = durableHead?.projectId ?? createId("translation-project");
       const workspacePath = durableHead?.source.workspacePath ??
-        canonicalSourcePathV1(projectId, material.document.format);
-      const beginDraft: Omit<TranslationProjectBeginImportInputV1, "sourceBinding" | "lease"> = {
+        canonicalSourcePathV1(active.process.processId, material.document.format);
+      const beginDraft: Omit<TranslationWorksetBeginImportInputV1, "sourceBinding" | "lease"> = {
         processId: active.process.processId,
-        operationId: createId("translation-import-begin"),
-        projectId,
+        operationId: durableHead?.importOperationId ?? createId("translation-import-begin"),
         title: material.title,
         document: material.document,
         source: {
@@ -1306,29 +1395,29 @@ export function createTranslationProcessControllerV1(input: {
       if (durableHead !== null) {
         latestHead = durableHead;
         if (!headMatchesImportV1(durableHead, beginDraft)) {
-          return failImportV1("translation_project_exists", durableHead);
+          return failImportV1("translation_workset_exists", durableHead);
         }
         if (durableHead.phase === "ready") {
           return await publishCompletedImportProjectionV1({
             epoch,
             processId: active.process.processId,
-            project: durableHead,
+            workset: durableHead,
           });
         }
         if (
           durableHead.stagedUnitCount > material.sourceUnits.length ||
           durableHead.stagedGlossaryCount !== 0
-        ) return failImportV1("translation_project_conflict", durableHead);
+        ) return failImportV1("translation_workset_conflict", durableHead);
       }
 
       // Plan and byte-check every repository append before touching the
-      // execution lease, Workspace, or Project stores. The maximum-width
+      // execution lease, Workspace, or Process work-set stores. The maximum-width
       // sizing lease makes every later admitted envelope no larger than the
       // plan, so a single oversized row cannot leave either authority started.
       const plannedAppends = planAppendPagesV1({
         processId: active.process.processId,
         lease: importEnvelopeSizingLeaseV1(active.process.processId),
-        initialProjectRevision: durableHead?.revision ?? 1,
+        initialWorksetRevision: durableHead?.revision ?? 1,
         units: material.sourceUnits,
         from: durableHead?.stagedUnitCount ?? 0,
         updatedAt: () => Number.MAX_SAFE_INTEGER,
@@ -1341,33 +1430,33 @@ export function createTranslationProcessControllerV1(input: {
       if (currentProcess === null) {
         return failImportV1("translation_process_unavailable", latestHead);
       }
-      const expectedProjectRevision = durableHead?.revision ?? null;
-      const acquired = await acquireImportLeaseV1(currentProcess, expectedProjectRevision);
+      const expectedWorksetRevision = durableHead?.revision ?? null;
+      const acquired = await acquireImportLeaseV1(currentProcess, expectedWorksetRevision);
       if (acquired.kind === "conflict") {
-        const currentProject = acquired.currentProject;
-        const projectExpectationStillCurrent = expectedProjectRevision === null
-          ? currentProject === null
-          : currentProject?.phase === "staging" &&
-            currentProject.revision === expectedProjectRevision;
-        if (projectExpectationStillCurrent) {
-          return failImportV1("process_execution_busy", currentProject);
+        const currentWorkset = acquired.currentWorkset;
+        const worksetExpectationStillCurrent = expectedWorksetRevision === null
+          ? currentWorkset === null
+          : currentWorkset?.phase === "staging" &&
+            currentWorkset.revision === expectedWorksetRevision;
+        if (worksetExpectationStillCurrent) {
+          return failImportV1("process_execution_busy", currentWorkset);
         }
-        latestHead = currentProject;
+        latestHead = currentWorkset;
         if (
-          currentProject !== null && currentProject.phase === "ready" &&
-          headMatchesImportV1(currentProject, beginDraft)
+          currentWorkset !== null && currentWorkset.phase === "ready" &&
+          headMatchesImportV1(currentWorkset, beginDraft)
         ) {
           return await publishCompletedImportProjectionV1({
             epoch,
             processId: active.process.processId,
-            project: currentProject,
+            workset: currentWorkset,
           });
         }
         return failImportV1(
-          currentProject !== null && !headMatchesImportV1(currentProject, beginDraft)
-            ? "translation_project_exists"
-            : "translation_project_conflict",
-          currentProject,
+          currentWorkset !== null && !headMatchesImportV1(currentWorkset, beginDraft)
+            ? "translation_workset_exists"
+            : "translation_workset_conflict",
+          currentWorkset,
         );
       }
       lease = acquired.lease;
@@ -1437,62 +1526,62 @@ export function createTranslationProcessControllerV1(input: {
       if (durableHead === null) {
         currentLease = await currentImportLeaseAtCutV1(lease);
         lease = currentLease.lease;
-        const beginInput: TranslationProjectBeginImportInputV1 = {
+        const beginInput: TranslationWorksetBeginImportInputV1 = {
           ...beginDraft,
           lease,
           updatedAt: currentLease.observedAt,
           sourceBinding,
         };
         const expectation = { operation: "begin" as const, input: beginInput };
-        const result = await mutateProjectV1(
+        const result = await mutateWorksetV1(
           repository,
           expectation,
-          () => repository.beginTranslationProjectImport(beginInput),
+          () => repository.beginTranslationWorksetImport(beginInput),
         );
         if (disposed || epoch !== routeEpoch) return { kind: "failed", code: "superseded" };
         if (result.kind === "conflict") {
-          return failImportV1("translation_project_conflict", result.current);
+          return failImportV1("translation_workset_conflict", result.current);
         }
         latestHead = result.head;
-        publishImportV1(latestHead, { phase: "pending", stage: "project" });
+        publishImportV1(latestHead, { phase: "pending", stage: "prepare" });
       }
 
       if (
         latestHead === null || latestHead.phase !== "staging" ||
         latestHead.stagedUnitCount > material.sourceUnits.length ||
         latestHead.stagedGlossaryCount !== 0
-      ) return failImportV1("translation_project_conflict", latestHead);
+      ) return failImportV1("translation_workset_conflict", latestHead);
 
       for (const page of plannedAppends) {
-        if (page.input.expectedProjectRevision !== latestHead.revision) {
-          return failImportV1("translation_project_conflict", latestHead);
+        if (page.input.expectedWorksetRevision !== latestHead.revision) {
+          return failImportV1("translation_workset_conflict", latestHead);
         }
         currentLease = await currentImportLeaseAtCutV1(lease);
         lease = currentLease.lease;
-        const pageInput: TranslationProjectAppendImportInputV1 = {
+        const pageInput: TranslationWorksetAppendImportInputV1 = {
           ...page.input,
           lease,
           updatedAt: currentLease.observedAt,
         };
-        if (translationProjectRowUtf8ByteLengthV1(pageInput) > budgets.importAppendMaximumBytes) {
+        if (translationWorksetRowUtf8ByteLengthV1(pageInput) > budgets.importAppendMaximumBytes) {
           return failImportV1("translation_append_envelope_exceeds_operation_budget", latestHead);
         }
         const expectation = { operation: "append" as const, input: pageInput };
-        const result = await mutateProjectV1(
+        const result = await mutateWorksetV1(
           repository,
           expectation,
-          () => repository.appendTranslationProjectImport(pageInput),
+          () => repository.appendTranslationWorksetImport(pageInput),
         );
         if (disposed || epoch !== routeEpoch) return { kind: "failed", code: "superseded" };
         if (result.kind === "conflict") {
-          return failImportV1("translation_project_conflict", result.current);
+          return failImportV1("translation_workset_conflict", result.current);
         }
         latestHead = result.head;
         if (
           latestHead.phase !== "staging" || latestHead.stagedUnitCount !== page.next ||
           latestHead.stagedGlossaryCount !== 0
-        ) return failImportV1("translation_project_conflict", latestHead);
-        publishImportV1(latestHead, { phase: "pending", stage: "project" });
+        ) return failImportV1("translation_workset_conflict", latestHead);
+        publishImportV1(latestHead, { phase: "pending", stage: "prepare" });
       }
 
       publishImportV1(latestHead, { phase: "pending", stage: "finalize" });
@@ -1502,7 +1591,7 @@ export function createTranslationProcessControllerV1(input: {
         processId: active.process.processId,
         operationId: createId("translation-import-finalize"),
         lease,
-        expectedProjectRevision: latestHead.revision,
+        expectedWorksetRevision: latestHead.revision,
         sourceBinding,
         updatedAt: currentLease.observedAt,
       };
@@ -1516,12 +1605,12 @@ export function createTranslationProcessControllerV1(input: {
       let terminalProcess: ProcessHeadV1;
       try {
         const finalized = await repository
-          .commitTranslationProjectFinalizeWithProcessExecutionTerminal({
-            project: finalizeInput,
+          .commitTranslationWorksetFinalizeWithProcessExecutionTerminal({
+            workset: finalizeInput,
             terminal: terminalInput,
           });
         if (finalized.kind === "conflict") {
-          return failImportV1("translation_project_conflict", finalized.currentProject);
+          return failImportV1("translation_workset_conflict", finalized.currentWorkset);
         }
         terminalSettled = true;
         latestHead = finalized.head;
@@ -1530,19 +1619,19 @@ export function createTranslationProcessControllerV1(input: {
         if (!isProgramDataRepositoryFailureV1(error) || error.code !== "outcome_unknown") {
           throw error;
         }
-        const queried = await repository.queryTranslationProjectOperation(expectation);
+        const queried = await repository.queryTranslationWorksetOperation(expectation);
         if (queried.kind === "mismatch") {
           throw controllerErrorV1("operation_receipt_mismatch");
         }
         if (queried.kind === "absent") throw error;
         terminalSettled = true;
         const [reconciledHead, reconciledProcess] = await Promise.all([
-          repository.loadTranslationProjectHead(active.process.processId),
+          repository.loadTranslationWorksetHead(active.process.processId),
           repository.loadProcess(active.process.processId),
         ]);
         if (
           reconciledHead === null || reconciledHead.phase !== "ready" ||
-          reconciledHead.revision !== queried.receipt.projectRevision ||
+          reconciledHead.revision !== queried.receipt.worksetRevision ||
           !sameSourceBindingV1(reconciledHead.sourceBinding, sourceBinding) ||
           reconciledProcess === null ||
           !completedImportProcessMatchesV1(reconciledProcess, lease, sourceBinding)
@@ -1564,7 +1653,7 @@ export function createTranslationProcessControllerV1(input: {
       return await publishCompletedImportProjectionV1({
         epoch,
         processId: active.process.processId,
-        project: latestHead,
+        workset: latestHead,
         expectedLease: lease,
       });
     } catch (error) {
@@ -1583,13 +1672,13 @@ export function createTranslationProcessControllerV1(input: {
     }
   };
 
-  const loadProjectRowWindowV1 = async (rowInput: {
+  const loadTranslationRowWindowV1 = async (rowInput: {
     readonly processId: string;
-    readonly expectedProjectRevision: number;
+    readonly expectedWorksetRevision: number;
     readonly offset: number;
     readonly limit: number;
     readonly signal?: AbortSignal;
-  }): Promise<TranslationProjectRowWindowV1> => {
+  }): Promise<TranslationProcessRowWindowV1> => {
     throwIfAbortedV1(rowInput.signal);
     if (disposed) throw controllerErrorV1("disposed");
     if (!Number.isSafeInteger(rowInput.offset) || rowInput.offset < 0) {
@@ -1599,22 +1688,22 @@ export function createTranslationProcessControllerV1(input: {
       throw new RangeError("sillyos.translation_process_controller.invalid_row_limit");
     }
     if (
-      !Number.isSafeInteger(rowInput.expectedProjectRevision) ||
-      rowInput.expectedProjectRevision < 1
+      !Number.isSafeInteger(rowInput.expectedWorksetRevision) ||
+      rowInput.expectedWorksetRevision < 1
     ) {
-      throw new RangeError("sillyos.translation_process_controller.invalid_project_revision");
+      throw new RangeError("sillyos.translation_process_controller.invalid_workset_revision");
     }
     const epoch = routeEpoch;
     const active = snapshot.activeProcess;
-    const project = active === null ? null : active.project;
+    const workset = active === null ? null : active.workset;
     if (
-      snapshot.route !== "process" || active === null || project === null ||
-      project.phase !== "ready" || active.process.processId !== rowInput.processId ||
-      project.processId !== rowInput.processId ||
-      project.revision !== rowInput.expectedProjectRevision
-    ) throw controllerErrorV1("translation_project_unavailable");
+      snapshot.route !== "process" || active === null || workset === null ||
+      workset.phase !== "ready" || active.process.processId !== rowInput.processId ||
+      workset.processId !== rowInput.processId ||
+      workset.revision !== rowInput.expectedWorksetRevision
+    ) throw controllerErrorV1("translation_workset_unavailable");
 
-    const totalRowCount = project.expectedUnitCount;
+    const totalRowCount = workset.expectedUnitCount;
     const requestedCount = rowInput.offset >= totalRowCount
       ? 0
       : Math.min(rowInput.limit, totalRowCount - rowInput.offset);
@@ -1628,13 +1717,13 @@ export function createTranslationProcessControllerV1(input: {
       };
     }
 
-    const rows: TranslationProjectPresentationUnitV1[] = [];
+    const rows: TranslationProcessUnitProjectionV1[] = [];
     let cursor = rowInput.offset;
     while (rows.length < requestedCount) {
       throwIfAbortedV1(rowInput.signal);
-      const result = await repository.loadTranslationProjectUnitPage({
+      const result = await repository.loadTranslationWorksetUnitPage({
         processId: rowInput.processId,
-        expectedProjectRevision: rowInput.expectedProjectRevision,
+        expectedWorksetRevision: rowInput.expectedWorksetRevision,
         fromOrder: cursor,
         maximumRows: requestedCount - rows.length,
         maximumBytes: operationalStructuredPayloadMaximumBytesV1,
@@ -1642,17 +1731,17 @@ export function createTranslationProcessControllerV1(input: {
       throwIfAbortedV1(rowInput.signal);
       if (disposed || epoch !== routeEpoch) throw controllerErrorV1("superseded");
       if (result.kind === "conflict") {
-        throw controllerErrorV1("translation_project_revision_conflict");
+        throw controllerErrorV1("translation_workset_revision_conflict");
       }
       const page = result.page;
       if (
         page.processId !== rowInput.processId ||
-        page.projectRevision !== rowInput.expectedProjectRevision ||
+        page.worksetRevision !== rowInput.expectedWorksetRevision ||
         page.fromOrder !== cursor || page.rows.length === 0
-      ) throw controllerErrorV1("translation_project_page_mismatch");
+      ) throw controllerErrorV1("translation_workset_page_mismatch");
       for (const row of page.rows) {
         if (row.processId !== rowInput.processId || row.order !== cursor) {
-          throw controllerErrorV1("translation_project_page_mismatch");
+          throw controllerErrorV1("translation_workset_page_mismatch");
         }
         rows.push({
           unitId: row.unitId,
@@ -1662,13 +1751,12 @@ export function createTranslationProcessControllerV1(input: {
           durationMilliseconds: row.durationMilliseconds,
           source: row.source,
           protectedSegments: row.protectedSegments.map((segment) => ({ ...segment })),
-          target: null,
-          committedBatchId: null,
+          target: row.target,
         });
         cursor += 1;
       }
       if (rows.length < requestedCount && page.nextOrder !== cursor) {
-        throw controllerErrorV1("translation_project_page_mismatch");
+        throw controllerErrorV1("translation_workset_page_mismatch");
       }
     }
     return {
@@ -1680,6 +1768,536 @@ export function createTranslationProcessControllerV1(input: {
         ? rowInput.offset + rows.length
         : null,
     };
+  };
+
+  const loadBatchPlanningRowsV1 = async (
+    workset: TranslationWorksetHeadV1,
+    budget: TranslationBatchBudgetV1,
+  ): Promise<{
+    readonly sourceRows: readonly TranslationWorksetUnitV1[];
+    readonly glossaryRows: readonly TranslationWorksetGlossaryEntryV1[];
+    readonly preceding: TranslationWorksetUnitV1 | null;
+  }> => {
+    const preceding = workset.acceptedUnitCount === 0
+      ? null
+      : await repository.loadTranslationWorksetUnitPage({
+        processId: workset.processId,
+        expectedWorksetRevision: workset.revision,
+        fromOrder: workset.acceptedUnitCount - 1,
+        maximumRows: 1,
+        maximumBytes: operationalStructuredPayloadMaximumBytesV1,
+      }).then((result) => {
+        if (result.kind === "conflict") throw controllerErrorV1("translation_workset_changed");
+        return result.page.rows[0] ?? null;
+      });
+
+    const sourceRows: TranslationWorksetUnitV1[] = [];
+    let cursor = workset.acceptedUnitCount;
+    while (cursor < workset.stagedUnitCount) {
+      const pageResult = await repository.loadTranslationWorksetUnitPage({
+        processId: workset.processId,
+        expectedWorksetRevision: workset.revision,
+        fromOrder: cursor,
+        maximumRows: workset.stagedUnitCount - cursor,
+        maximumBytes: operationalStructuredPayloadMaximumBytesV1,
+      });
+      if (pageResult.kind === "conflict") {
+        throw controllerErrorV1("translation_workset_changed");
+      }
+      const page = pageResult.page;
+      if (page.rows.length === 0) throw controllerErrorV1("translation_workset_page_mismatch");
+      sourceRows.push(...page.rows);
+      const probe = planTranslationBatchRequestV1({
+        sourceLocale: workset.sourceLocale,
+        targetLocale: workset.targetLocale,
+        documentPurpose: workset.documentPurpose,
+        style: workset.style,
+        sourceRows,
+        glossaryRows: [],
+        confirmedMeaningFacts: [],
+        neighboringUnits: { preceding, following: null },
+        budget,
+      });
+      if (
+        probe.kind === "unit_exceeds_budget" ||
+        probe.kind === "planned" && probe.request.units.length < sourceRows.length
+      ) break;
+      if (page.nextOrder === null) break;
+      if (page.nextOrder <= cursor) throw controllerErrorV1("translation_workset_page_mismatch");
+      cursor = page.nextOrder;
+    }
+
+    const glossaryRows: TranslationWorksetGlossaryEntryV1[] = [];
+    let glossaryCursor = 0;
+    while (glossaryCursor < workset.stagedGlossaryCount) {
+      const pageResult = await repository.loadTranslationWorksetGlossaryPage({
+        processId: workset.processId,
+        expectedWorksetRevision: workset.revision,
+        fromOrder: glossaryCursor,
+        maximumRows: workset.stagedGlossaryCount - glossaryCursor,
+        maximumBytes: operationalStructuredPayloadMaximumBytesV1,
+      });
+      if (pageResult.kind === "conflict") {
+        throw controllerErrorV1("translation_workset_changed");
+      }
+      const page = pageResult.page;
+      if (page.rows.length === 0) throw controllerErrorV1("translation_workset_page_mismatch");
+      for (const entry of page.rows) {
+        if (entry.locked) glossaryRows.push(entry);
+      }
+      if (page.nextOrder === null) break;
+      if (page.nextOrder <= glossaryCursor) {
+        throw controllerErrorV1("translation_workset_page_mismatch");
+      }
+      glossaryCursor = page.nextOrder;
+    }
+    return { sourceRows, glossaryRows, preceding };
+  };
+
+  const refreshProcessProjectionV1 = async (processId: string): Promise<void> => {
+    const active = snapshot.activeProcess;
+    if (active === null || active.process.processId !== processId) return;
+    const reopened = await openProcessAtEpochV1(
+      processId,
+      routeEpoch,
+      active.process.subjectProgramId ?? undefined,
+    );
+    if (reopened.kind !== "completed") {
+      throw controllerErrorV1(reopened.kind === "failed" ? reopened.code : "process_busy");
+    }
+  };
+
+  const prepareAgentBatchV1 = async (
+    budget: TranslationBatchBudgetV1,
+  ): Promise<TranslationProcessControllerResultV1<TranslationBatchPrepareResultV1>> => {
+    if (disposed) return { kind: "failed", code: "disposed" };
+    if (!Number.isSafeInteger(budget.maximumRequestBytes) || budget.maximumRequestBytes <= 0) {
+      return { kind: "failed", code: "invalid_translation_request_budget" };
+    }
+    const active = snapshot.activeProcess;
+    const workset = active?.workset ?? null;
+    if (
+      snapshot.route !== "process" || active === null || workset === null ||
+      workset.phase !== "ready" || workset.processId !== active.process.processId
+    ) return { kind: "completed", value: { kind: "unavailable" } };
+    if (workset.pendingCandidateId !== null || active.pendingCandidate !== null) {
+      return { kind: "completed", value: { kind: "pending_review" } };
+    }
+    if (workset.acceptedUnitCount >= workset.stagedUnitCount) {
+      return { kind: "completed", value: { kind: "complete" } };
+    }
+    const process = await repository.loadProcess(active.process.processId);
+    if (
+      process === null || process.activeAttempt !== null || process.checkpoint === null ||
+      (process.status !== "active" && process.status !== "interrupted_retryable")
+    ) return { kind: "completed", value: { kind: "unavailable" } };
+
+    try {
+      const planningRows = await loadBatchPlanningRowsV1(workset, budget);
+      const planned = planTranslationBatchRequestV1({
+        sourceLocale: workset.sourceLocale,
+        targetLocale: workset.targetLocale,
+        documentPurpose: workset.documentPurpose,
+        style: workset.style,
+        sourceRows: planningRows.sourceRows,
+        glossaryRows: planningRows.glossaryRows,
+        confirmedMeaningFacts: [],
+        neighboringUnits: { preceding: planningRows.preceding, following: null },
+        budget,
+      });
+      if (planned.kind === "empty") {
+        return { kind: "completed", value: { kind: "complete" } };
+      }
+      if (planned.kind === "unit_exceeds_budget") {
+        return { kind: "completed", value: planned };
+      }
+
+      const durableWorkset = await repository.loadTranslationWorksetHead(process.processId);
+      const durableProcess = await repository.loadProcess(process.processId);
+      if (
+        durableWorkset === null || durableProcess === null ||
+        durableWorkset.revision !== workset.revision ||
+        durableWorkset.acceptedUnitCount !== workset.acceptedUnitCount ||
+        durableWorkset.pendingCandidateId !== null || durableProcess.activeAttempt !== null ||
+        durableProcess.checkpoint === null
+      ) return { kind: "completed", value: { kind: "unavailable" } };
+
+      const attemptId = createId("translation-agent-run");
+      const generation = (durableProcess.lastTerminalAttempt?.generation ?? 0) + 1;
+      const observedAt = Math.max(now(), durableProcess.updatedAt);
+      const triggerSequence = durableProcess.transcriptFrontier + 1;
+      const triggerEntryId = `${attemptId}.request`;
+      const isRetry = durableProcess.status === "interrupted_retryable" &&
+        durableProcess.lastTerminalAttempt?.outcome === "interrupted";
+      const trigger = isRetry
+        ? {
+          kind: "existing_entry" as const,
+          entryId: durableProcess.lastTerminalAttempt!.triggerEntryId,
+          sequence: durableProcess.lastTerminalAttempt!.triggerSequence,
+        }
+        : {
+          kind: "new_entry" as const,
+          entry: {
+            schemaVersion: 1 as const,
+            processId: durableProcess.processId,
+            sequence: triggerSequence,
+            entryId: triggerEntryId,
+            role: "user" as const,
+            state: "committed" as const,
+            parts: [{
+              kind: "text_markdown" as const,
+              partId: `${triggerEntryId}.text`,
+              markdown: `Translate the next ${String(planned.request.units.length)} source units.`,
+            }],
+          },
+        };
+      const startingCheckpoint: ProcessCheckpointV1 = {
+        checkpointId: `${attemptId}.start`,
+        throughSequence: trigger.kind === "new_entry"
+          ? trigger.entry.sequence
+          : durableProcess.transcriptFrontier,
+        workspaceId: durableProcess.checkpoint.workspaceId,
+        workspaceCheckpointId: durableProcess.checkpoint.workspaceCheckpointId,
+        workspaceGeneration: durableProcess.checkpoint.workspaceGeneration,
+      };
+      const acquireInput = {
+        expectedWorksetRevision: workset.revision,
+        expectedFirstPendingOrder: workset.acceptedUnitCount,
+        expectedPendingCandidateId: null,
+        execution: {
+          ownerInstanceId,
+          observedAt,
+          expiresAt: observedAt + processExecutionLeaseDurationMilliseconds,
+          attempt: {
+            processId: durableProcess.processId,
+            expectedProcessRevision: durableProcess.revision,
+            expectedTranscriptFrontier: durableProcess.transcriptFrontier,
+            commitId: `${attemptId}.acquire`,
+            attemptId,
+            generation,
+            trigger,
+            startingCheckpoint,
+            updatedAt: observedAt,
+          },
+        },
+      } as const;
+      const expectation = {
+        operation: "translation_batch_execution_acquire" as const,
+        input: acquireInput,
+      };
+      let lease: ProcessExecutionLeaseV1 | null = null;
+      try {
+        const acquired = await repository.acquireTranslationBatchExecution(acquireInput);
+        if (acquired.kind === "conflict") {
+          return { kind: "completed", value: { kind: "unavailable" } };
+        }
+        lease = acquired.lease;
+      } catch (error) {
+        if (!isProgramDataRepositoryFailureV1(error) || error.code !== "outcome_unknown") {
+          throw error;
+        }
+        const queried = await repository.queryProcessOperation(expectation);
+        if (queried.kind === "mismatch") throw controllerErrorV1("operation_receipt_mismatch");
+        if (queried.kind === "absent") throw error;
+        lease = queried.receipt.lease;
+      }
+      const currentLease = await repository.loadProcessExecutionLease(durableProcess.processId);
+      if (
+        lease === null || currentLease === null || !leaseMatchesV1(lease, currentLease) ||
+        currentLease.ownerInstanceId !== ownerInstanceId ||
+        currentLease.attemptId !== attemptId || currentLease.generation !== generation
+      ) return { kind: "completed", value: { kind: "unavailable" } };
+      ownedAgentLease = currentLease;
+      await refreshProcessProjectionV1(durableProcess.processId);
+      return {
+        kind: "completed",
+        value: {
+          kind: "prepared",
+          run: {
+            agentRunId: attemptId,
+            executionCompatibilityReference: active.definition.harnessReference,
+            processId: durableProcess.processId,
+            processAttemptGeneration: generation,
+            workspaceCheckpointId: startingCheckpoint.workspaceCheckpointId,
+            workspaceGeneration: startingCheckpoint.workspaceGeneration,
+            programId: durableProcess.subjectProgramId!,
+            expectedWorksetRevision: workset.revision,
+            requestedOutputTokens: planned.requestedOutputTokens,
+            batch: planned.request,
+          },
+        },
+      };
+    } catch (error) {
+      return { kind: "failed", code: failureCodeV1(error) };
+    }
+  };
+
+  const renewAgentRunLeaseV1 = async (
+    run: TranslationAgentRunRequestV1,
+  ): Promise<TranslationProcessControllerResultV1<"renewed" | "lost" | "idle">> => {
+    if (disposed) return { kind: "failed", code: "disposed" };
+    if (terminalizingAgentRunId === run.agentRunId) {
+      return { kind: "completed", value: "idle" };
+    }
+    const lease = ownedAgentLease;
+    if (
+      lease === null || lease.processId !== run.processId ||
+      lease.attemptId !== run.agentRunId ||
+      lease.generation !== run.processAttemptGeneration
+    ) return { kind: "completed", value: "lost" };
+    const observedAt = now();
+    if (observedAt >= lease.expiresAt) {
+      ownedAgentLease = null;
+      return { kind: "completed", value: "lost" };
+    }
+    const expiresAt = Math.max(
+      observedAt + processExecutionLeaseDurationMilliseconds,
+      lease.expiresAt + 1,
+    );
+    try {
+      const renewed = await repository.renewProcessExecutionLease({ lease, observedAt, expiresAt });
+      if (renewed.kind === "conflict") {
+        ownedAgentLease = null;
+        return { kind: "completed", value: "lost" };
+      }
+      ownedAgentLease = renewed.lease;
+      return { kind: "completed", value: "renewed" };
+    } catch (error) {
+      if (isProgramDataRepositoryFailureV1(error) && error.code === "outcome_unknown") {
+        const current = await repository.loadProcessExecutionLease(run.processId).catch(() => null);
+        if (
+          current !== null && leaseMatchesV1(current, lease) && current.expiresAt >= expiresAt
+        ) {
+          ownedAgentLease = current;
+          return { kind: "completed", value: "renewed" };
+        }
+      }
+      ownedAgentLease = null;
+      return { kind: "failed", code: failureCodeV1(error) };
+    }
+  };
+
+  const recordAgentRunTerminalV1 = async (
+    terminal: TranslationAgentTerminalRunV1,
+  ): Promise<
+    TranslationProcessControllerResultV1<TranslationAgentTerminalPersistenceResultV1>
+  > => {
+    if (disposed) return { kind: "failed", code: "disposed" };
+    if (terminalizingAgentRunId !== null) return { kind: "busy" };
+    terminalizingAgentRunId = terminal.run.agentRunId;
+    try {
+      const [process, workset] = await Promise.all([
+        repository.loadProcess(terminal.run.processId),
+        repository.loadTranslationWorksetHead(terminal.run.processId),
+      ]);
+      const attempt = process?.activeAttempt ?? null;
+      const lease = ownedAgentLease;
+      if (
+        process === null || workset === null || attempt === null || lease === null ||
+        terminal.run.programId !== process.subjectProgramId ||
+        terminal.run.expectedWorksetRevision !== workset.revision ||
+        attempt.attemptId !== terminal.run.agentRunId ||
+        attempt.generation !== terminal.run.processAttemptGeneration ||
+        attempt.startingCheckpoint.workspaceCheckpointId !==
+          terminal.run.workspaceCheckpointId ||
+        attempt.startingCheckpoint.workspaceGeneration !== terminal.run.workspaceGeneration ||
+        !leaseMatchesV1(lease, {
+          processId: terminal.run.processId,
+          ownerInstanceId: lease.ownerInstanceId,
+          attemptId: terminal.run.agentRunId,
+          generation: terminal.run.processAttemptGeneration,
+          expiresAt: lease.expiresAt,
+        })
+      ) return { kind: "completed", value: { kind: "stale" } };
+      const observedAt = now();
+      if (observedAt >= lease.expiresAt) {
+        ownedAgentLease = null;
+        return { kind: "completed", value: { kind: "stale" } };
+      }
+      const sequence = process.transcriptFrontier + 1;
+      const entryId = `${terminal.run.agentRunId}.terminal.entry`;
+      const outcome = terminal.outcome;
+      const markdown = outcome === "completed"
+        ? `A translation candidate for ${
+          String(terminal.run.batch.units.length)
+        } units is ready for review.`
+        : outcome === "cancelled"
+        ? "Translation was cancelled before a review candidate was published."
+        : outcome === "replaced"
+        ? "Translation was replaced before a review candidate was published."
+        : "Translation failed before a review candidate was published.";
+      const terminalInput: ProcessExecutionTerminalInputV1 = {
+        lease,
+        observedAt,
+        transcript: {
+          processId: process.processId,
+          expectedProcessRevision: process.revision,
+          expectedTranscriptFrontier: process.transcriptFrontier,
+          commitId: `${terminal.run.agentRunId}.terminal`,
+          attemptBinding: { attemptId: attempt.attemptId, generation: attempt.generation },
+          entries: [{
+            schemaVersion: 1,
+            processId: process.processId,
+            sequence,
+            entryId,
+            role: outcome === "completed" ? "assistant" : "system",
+            state: "committed",
+            parts: [{ kind: "text_markdown", partId: `${entryId}.text`, markdown }],
+          }],
+          checkpoint: outcome === "completed"
+            ? {
+              checkpointId: `${terminal.run.agentRunId}.terminal-checkpoint`,
+              throughSequence: sequence,
+              workspaceId: attempt.startingCheckpoint.workspaceId,
+              workspaceCheckpointId: attempt.startingCheckpoint.workspaceCheckpointId,
+              workspaceGeneration: attempt.startingCheckpoint.workspaceGeneration,
+            }
+            : null,
+          terminalAttemptReceipt: {
+            schemaVersion: 1,
+            processId: process.processId,
+            attemptId: attempt.attemptId,
+            generation: attempt.generation,
+            outcome,
+            terminalSequence: sequence,
+            terminalEntryId: entryId,
+            interruptionDisposition: null,
+          },
+          updatedAt: observedAt,
+        },
+      };
+
+      let candidateId: string | null = null;
+      if (terminal.outcome === "completed") {
+        const publishInput = {
+          processId: process.processId,
+          operationId: `${terminal.run.agentRunId}.candidate`,
+          lease,
+          expectedWorksetRevision: terminal.run.expectedWorksetRevision,
+          expectedFirstPendingOrder: terminal.run.batch.units[0]!.order,
+          request: terminal.run.batch,
+          candidate: terminal.candidate,
+          updatedAt: observedAt,
+        };
+        try {
+          const committed = await repository
+            .commitTranslationBatchCandidateWithProcessExecutionTerminal({
+              workset: publishInput,
+              terminal: terminalInput,
+            });
+          if (committed.kind === "conflict") {
+            return { kind: "completed", value: { kind: "stale" } };
+          }
+          candidateId = committed.candidate.candidateId;
+        } catch (error) {
+          if (!isProgramDataRepositoryFailureV1(error) || error.code !== "outcome_unknown") {
+            throw error;
+          }
+          const queried = await repository.queryTranslationWorksetOperation({
+            operation: "publish_candidate",
+            input: publishInput,
+          });
+          if (queried.kind === "mismatch") {
+            throw controllerErrorV1("operation_receipt_mismatch");
+          }
+          if (queried.kind === "absent" || queried.receipt.candidateId === null) throw error;
+          candidateId = queried.receipt.candidateId;
+        }
+      } else {
+        try {
+          const committed = await repository.commitProcessExecutionTerminal(terminalInput);
+          if (committed.kind === "conflict") {
+            return { kind: "completed", value: { kind: "stale" } };
+          }
+        } catch (error) {
+          if (!isProgramDataRepositoryFailureV1(error) || error.code !== "outcome_unknown") {
+            throw error;
+          }
+          const queried = await repository.queryProcessOperation({
+            operation: "execution_terminal",
+            input: terminalInput,
+          });
+          if (queried.kind !== "committed") throw error;
+        }
+      }
+      ownedAgentLease = null;
+      await refreshProcessProjectionV1(process.processId);
+      return { kind: "completed", value: { kind: "persisted", candidateId } };
+    } catch (error) {
+      return { kind: "failed", code: failureCodeV1(error) };
+    } finally {
+      terminalizingAgentRunId = null;
+    }
+  };
+
+  const reviewPendingCandidateV1 = async (
+    decision: "accept" | "reject",
+    reviewInput: TranslationPendingCandidateAcceptInputV1 | TranslationPendingCandidateReferenceV1,
+  ): Promise<
+    TranslationProcessControllerResultV1<TranslationPendingCandidateReviewResultV1>
+  > => {
+    if (disposed) return { kind: "failed", code: "disposed" };
+    const active = snapshot.activeProcess;
+    const workset = active?.workset ?? null;
+    const candidate = active?.pendingCandidate ?? null;
+    if (
+      snapshot.route !== "process" || active === null || workset === null || candidate === null ||
+      workset.phase !== "ready" || workset.pendingCandidateId !== candidate.candidateId
+    ) return { kind: "completed", value: { kind: "unavailable" } };
+    if (
+      reviewInput.expectedWorksetRevision !== workset.revision ||
+      reviewInput.candidateId !== candidate.candidateId
+    ) {
+      return { kind: "completed", value: { kind: "stale", currentWorkset: workset } };
+    }
+    const updatedAt = Math.max(now(), workset.updatedAt, active.process.updatedAt);
+    try {
+      const expectation = decision === "accept"
+        ? {
+          operation: "accept_candidate" as const,
+          input: {
+            processId: active.process.processId,
+            operationId: createId("translation-candidate-accept"),
+            expectedWorksetRevision: reviewInput.expectedWorksetRevision,
+            candidateId: reviewInput.candidateId,
+            targets: (reviewInput as TranslationPendingCandidateAcceptInputV1).targets,
+            updatedAt,
+          },
+        }
+        : {
+          operation: "reject_candidate" as const,
+          input: {
+            processId: active.process.processId,
+            operationId: createId("translation-candidate-reject"),
+            expectedWorksetRevision: reviewInput.expectedWorksetRevision,
+            candidateId: reviewInput.candidateId,
+            updatedAt,
+          },
+        };
+      const reviewed = await mutateWorksetV1(
+        repository,
+        expectation,
+        () =>
+          decision === "accept"
+            ? repository.acceptTranslationBatchCandidate(
+              expectation.input as TranslationBatchCandidateAcceptInputV1,
+            )
+            : repository.rejectTranslationBatchCandidate(expectation.input),
+      );
+      if (reviewed.kind === "conflict") {
+        return {
+          kind: "completed",
+          value: { kind: "stale", currentWorkset: reviewed.current },
+        };
+      }
+      await refreshProcessProjectionV1(active.process.processId);
+      return {
+        kind: "completed",
+        value: { kind: decision === "accept" ? "accepted" : "rejected", workset: reviewed.head },
+      };
+    } catch (error) {
+      return { kind: "failed", code: failureCodeV1(error) };
+    }
   };
 
   const startOrOpenV1 = async (
@@ -1708,7 +2326,7 @@ export function createTranslationProcessControllerV1(input: {
         });
         if (disposed || epoch !== routeEpoch) return { kind: "failed", code: "superseded" };
         const existing = page.summaries.find((summary) =>
-          summary.programDefinition.programId === builtinTranslationProgramIdV1 &&
+          summary.programDefinition.programId === bundledTranslationProgramIdV1 &&
           summary.programDefinition.revision === 1 &&
           summary.status !== "interrupted_unrecoverable"
         );
@@ -1716,7 +2334,7 @@ export function createTranslationProcessControllerV1(input: {
           const process = await repository.loadProcess(existing.processId);
           if (disposed || epoch !== routeEpoch) return { kind: "failed", code: "superseded" };
           if (process === null) return fail("open", "process_not_found", null, null);
-          const settled = await settleExpiredImportAttemptV1(process);
+          const settled = await settleExpiredAttemptV1(process);
           if (disposed || epoch !== routeEpoch) return { kind: "failed", code: "superseded" };
           if (settled.status === "interrupted_unrecoverable") {
             return await createProcessV1(subject!, epoch);
@@ -1742,7 +2360,7 @@ export function createTranslationProcessControllerV1(input: {
     try {
       await repository.initialize();
       const published = await repository.publishProgramDefinitionRevision(
-        createBuiltinTranslationProgramDefinitionRevisionV1(),
+        createBundledTranslationProgramDefinitionRevisionV1(),
       );
       if (published.kind === "conflict") {
         throw new TypeError("sillyos.translation_process_controller.definition_conflict");
@@ -1775,7 +2393,16 @@ export function createTranslationProcessControllerV1(input: {
     initialize: initializeV1,
     startOrOpen: startOrOpenV1,
     importSource: importSourceV1,
-    loadProjectRowWindow: loadProjectRowWindowV1,
+    loadTranslationRowWindow: loadTranslationRowWindowV1,
+    prepareAgentBatch: prepareAgentBatchV1,
+    renewAgentRunLease: renewAgentRunLeaseV1,
+    recordAgentRunTerminal: recordAgentRunTerminalV1,
+    acceptPendingCandidate(reviewInput) {
+      return reviewPendingCandidateV1("accept", reviewInput);
+    },
+    rejectPendingCandidate(reviewInput) {
+      return reviewPendingCandidateV1("reject", reviewInput);
+    },
     openProcess(processId) {
       if (disposed) return Promise.resolve({ kind: "failed", code: "disposed" });
       return openProcessAtEpochV1(processId, beginRouteLoadV1());
@@ -1804,6 +2431,8 @@ export function createTranslationProcessControllerV1(input: {
       routeEpoch += 1;
       initializeEpoch += 1;
       retryCommand = null;
+      ownedAgentLease = null;
+      terminalizingAgentRunId = null;
       snapshot = {
         revision: snapshot.revision + 1,
         route: "home",

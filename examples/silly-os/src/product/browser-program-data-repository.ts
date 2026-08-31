@@ -19,8 +19,10 @@ import {
   type ProgramProcessDecisionBundleInputV1,
   type ProgramProcessRevisionBundleInputV1,
   type ProcessWorkspaceCreateBundleInputV1,
-  type TranslationProjectFinalizeExecutionBundleInputV1,
-  type TranslationProjectImportExecutionAcquireInputV1,
+  type TranslationBatchCandidateExecutionBundleInputV1,
+  type TranslationBatchExecutionAcquireInputV1,
+  type TranslationWorksetFinalizeExecutionBundleInputV1,
+  type TranslationWorksetImportExecutionAcquireInputV1,
 } from "./program-data-repository.ts";
 import type {
   ProcessExecutionAcquireInputV1,
@@ -28,12 +30,17 @@ import type {
   ProcessExecutionLeaseRenewInputV1,
   ProcessExecutionTerminalInputV1,
 } from "./process-execution-repository.ts";
+import type {
+  TranslationBatchCandidateAcceptInputV1,
+  TranslationBatchCandidateRejectInputV1,
+} from "./translation/translation-workset-repository.ts";
 import {
-  admitProgramDataRepositoryWorkerRequestEnvelopeV1,
   admitProgramDataRepositoryWorkerResponseEnvelopeV1,
+  createProgramDataRepositoryWorkerResponseExpectationV1,
   operationForProgramDataRepositoryWorkerMethodV1,
   type ProgramDataRepositoryWorkerRequestEnvelopeV1,
   type ProgramDataRepositoryWorkerRequestV1,
+  type ProgramDataRepositoryWorkerResponseExpectationV1,
   type ProgramDataRepositoryWorkerSuccessV1,
 } from "./program-data-repository-worker-protocol.ts";
 
@@ -61,7 +68,7 @@ export interface CreateBrowserProgramDataRepositoryOptionsV1 {
 }
 
 interface PendingCallV1 {
-  readonly request: ProgramDataRepositoryWorkerRequestV1;
+  readonly expectation: ProgramDataRepositoryWorkerResponseExpectationV1;
   readonly operation: ProgramDataRepositoryOperationV1;
   readonly mutation: boolean;
   delivered: boolean;
@@ -76,14 +83,18 @@ function isMutationMethodV1(method: ProgramDataRepositoryWorkerRequestV1["method
     method === "decide_program_with_process_transcript" ||
     method === "publish_program_definition_revision" ||
     method === "acquire_process_execution" ||
-    method === "acquire_translation_project_import_execution" ||
+    method === "acquire_translation_workset_import_execution" ||
+    method === "acquire_translation_batch_execution" ||
     method === "renew_process_execution_lease" ||
     method === "release_process_execution_lease" ||
     method === "commit_process_execution_terminal" ||
     method === "commit_program_revision_with_process_execution_terminal" ||
-    method === "commit_translation_project_finalize_with_process_execution_terminal" ||
-    method === "begin_translation_project_import" ||
-    method === "append_translation_project_import" ||
+    method === "commit_translation_workset_finalize_with_process_execution_terminal" ||
+    method === "commit_translation_batch_candidate_with_process_execution_terminal" ||
+    method === "accept_translation_batch_candidate" ||
+    method === "reject_translation_batch_candidate" ||
+    method === "begin_translation_workset_import" ||
+    method === "append_translation_workset_import" ||
     method === "set_program_network_access" || method === "reset";
 }
 
@@ -178,7 +189,7 @@ export function createBrowserProgramDataRepositoryV1(
     }
     const response = admitProgramDataRepositoryWorkerResponseEnvelopeV1(
       event.data,
-      call.request,
+      call.expectation,
     );
     if (response.kind === "rejected" || response.value.requestId !== requestId) {
       terminateForInvalidWireV1();
@@ -233,16 +244,13 @@ export function createBrowserProgramDataRepositoryV1(
       requestId,
       record: request,
     };
-    const admitted = admitProgramDataRepositoryWorkerRequestEnvelopeV1(candidate);
-    if (admitted.kind === "rejected") {
-      return Promise.reject(createProgramDataRepositoryFailureV1("wire_invalid", operation));
-    }
-    // This outbound admission is also the immutable normalized snapshot used
-    // by the page-side response receiver for exact request/response binding.
-    // Worker receive and repository admission remain separate trust boundaries.
+    const expectation = createProgramDataRepositoryWorkerResponseExpectationV1(request);
+    // Worker receive is the request admission owner. The page keeps only this
+    // compact response binding, so a multi-megabyte import is structured-cloned
+    // once into the Worker rather than normalized and deep-cloned beforehand.
     return new Promise((resolve, reject) => {
       const call: PendingCallV1 = {
-        request: admitted.value.record,
+        expectation,
         operation,
         mutation: isMutationMethodV1(request.method),
         delivered: false,
@@ -253,7 +261,7 @@ export function createBrowserProgramDataRepositoryV1(
       try {
         // Worker.postMessage has no targetOrigin parameter.
         // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
-        worker.postMessage(admitted.value);
+        worker.postMessage(candidate);
         call.delivered = true;
       } catch {
         pending.delete(requestId);
@@ -403,15 +411,22 @@ export function createBrowserProgramDataRepositoryV1(
       }
       return response.value;
     },
-    async acquireTranslationProjectImportExecution(
-      input: TranslationProjectImportExecutionAcquireInputV1,
+    async acquireTranslationWorksetImportExecution(
+      input: TranslationWorksetImportExecutionAcquireInputV1,
     ) {
       const response = await callV1({
-        method: "acquire_translation_project_import_execution",
+        method: "acquire_translation_workset_import_execution",
         input,
       });
-      if (response.method !== "acquire_translation_project_import_execution") {
-        throw new TypeError("invalid Translation Project execution acquire response");
+      if (response.method !== "acquire_translation_workset_import_execution") {
+        throw new TypeError("invalid Translation workset execution acquire response");
+      }
+      return response.value;
+    },
+    async acquireTranslationBatchExecution(input: TranslationBatchExecutionAcquireInputV1) {
+      const response = await callV1({ method: "acquire_translation_batch_execution", input });
+      if (response.method !== "acquire_translation_batch_execution") {
+        throw new TypeError("invalid Translation batch execution acquire response");
       }
       return response.value;
     },
@@ -453,17 +468,30 @@ export function createBrowserProgramDataRepositoryV1(
       }
       return response.value;
     },
-    async commitTranslationProjectFinalizeWithProcessExecutionTerminal(
-      input: TranslationProjectFinalizeExecutionBundleInputV1,
+    async commitTranslationWorksetFinalizeWithProcessExecutionTerminal(
+      input: TranslationWorksetFinalizeExecutionBundleInputV1,
     ) {
       const response = await callV1({
-        method: "commit_translation_project_finalize_with_process_execution_terminal",
+        method: "commit_translation_workset_finalize_with_process_execution_terminal",
         input,
       });
       if (
         response.method !==
-          "commit_translation_project_finalize_with_process_execution_terminal"
-      ) throw new TypeError("invalid Translation Project/Process terminal response");
+          "commit_translation_workset_finalize_with_process_execution_terminal"
+      ) throw new TypeError("invalid Translation workset/Process terminal response");
+      return response.value;
+    },
+    async commitTranslationBatchCandidateWithProcessExecutionTerminal(
+      input: TranslationBatchCandidateExecutionBundleInputV1,
+    ) {
+      const response = await callV1({
+        method: "commit_translation_batch_candidate_with_process_execution_terminal",
+        input,
+      });
+      if (
+        response.method !==
+          "commit_translation_batch_candidate_with_process_execution_terminal"
+      ) throw new TypeError("invalid Translation batch/Process terminal response");
       return response.value;
     },
     async queryProcessOperation(input: ProgramDataProcessOperationExpectationV1) {
@@ -473,56 +501,81 @@ export function createBrowserProgramDataRepositoryV1(
       }
       return response.value;
     },
-    async beginTranslationProjectImport(input) {
+    async beginTranslationWorksetImport(input) {
       const response = await callV1(
-        { method: "begin_translation_project_import", input },
+        { method: "begin_translation_workset_import", input },
         false,
         true,
       );
-      if (response.method !== "begin_translation_project_import") {
+      if (response.method !== "begin_translation_workset_import") {
         throw new TypeError("invalid Translation begin response");
       }
       return response.value;
     },
-    async appendTranslationProjectImport(input) {
+    async appendTranslationWorksetImport(input) {
       const response = await callV1(
-        { method: "append_translation_project_import", input },
+        { method: "append_translation_workset_import", input },
         false,
         true,
       );
-      if (response.method !== "append_translation_project_import") {
+      if (response.method !== "append_translation_workset_import") {
         throw new TypeError("invalid Translation append response");
       }
       return response.value;
     },
-    async loadTranslationProjectHead(processId) {
-      const response = await callV1({ method: "load_translation_project_head", processId });
-      if (response.method !== "load_translation_project_head") {
+    async loadTranslationWorksetHead(processId) {
+      const response = await callV1({ method: "load_translation_workset_head", processId });
+      if (response.method !== "load_translation_workset_head") {
         throw new TypeError("invalid Translation head response");
       }
       return response.value;
     },
-    async loadTranslationProjectUnitPage(input) {
-      const response = await callV1({ method: "load_translation_project_unit_page", input });
-      if (response.method !== "load_translation_project_unit_page") {
+    async loadTranslationBatchCandidate(processId, candidateId) {
+      const response = await callV1({
+        method: "load_translation_batch_candidate",
+        processId,
+        candidateId,
+      });
+      if (response.method !== "load_translation_batch_candidate") {
+        throw new TypeError("invalid Translation batch candidate response");
+      }
+      return response.value;
+    },
+    async acceptTranslationBatchCandidate(input: TranslationBatchCandidateAcceptInputV1) {
+      const response = await callV1({ method: "accept_translation_batch_candidate", input });
+      if (response.method !== "accept_translation_batch_candidate") {
+        throw new TypeError("invalid Translation candidate acceptance response");
+      }
+      return response.value;
+    },
+    async rejectTranslationBatchCandidate(input: TranslationBatchCandidateRejectInputV1) {
+      const response = await callV1({ method: "reject_translation_batch_candidate", input });
+      if (response.method !== "reject_translation_batch_candidate") {
+        throw new TypeError("invalid Translation candidate rejection response");
+      }
+      return response.value;
+    },
+    async loadTranslationWorksetUnitPage(input) {
+      const response = await callV1({ method: "load_translation_workset_unit_page", input });
+      if (response.method !== "load_translation_workset_unit_page") {
         throw new TypeError("invalid Translation unit page response");
       }
       return response.value;
     },
-    async loadTranslationProjectGlossaryPage(input) {
-      const response = await callV1({ method: "load_translation_project_glossary_page", input });
-      if (response.method !== "load_translation_project_glossary_page") {
+    async loadTranslationWorksetGlossaryPage(input) {
+      const response = await callV1({ method: "load_translation_workset_glossary_page", input });
+      if (response.method !== "load_translation_workset_glossary_page") {
         throw new TypeError("invalid Translation glossary page response");
       }
       return response.value;
     },
-    async queryTranslationProjectOperation(input) {
+    async queryTranslationWorksetOperation(input) {
       const response = await callV1(
-        { method: "query_translation_project_operation", input },
+        { method: "query_translation_workset_operation", input },
         false,
         true,
       );
-      if (response.method !== "query_translation_project_operation") {
+      if (response.method !== "query_translation_workset_operation") {
         throw new TypeError("invalid Translation operation response");
       }
       return response.value;

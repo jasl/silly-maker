@@ -30,8 +30,8 @@ import {
   type ProgramProcessExecutionCompositeCommitResultV1,
 } from "./program-data-repository.ts";
 import {
-  builtinCreatorProgramIdV1,
-  createBuiltinCreatorProgramDefinitionRevisionV1,
+  bundledCreatorProgramIdV1,
+  createBundledCreatorProgramDefinitionRevisionV1,
   operationalStructuredPayloadMaximumBytesV1,
   type ProcessHeadV1,
   type ProcessSummaryV1,
@@ -557,7 +557,7 @@ export function createCreatorControllerV1(input: {
     try {
       await repository.initialize();
       const creatorDefinition = await repository.publishProgramDefinitionRevision(
-        createBuiltinCreatorProgramDefinitionRevisionV1(),
+        createBundledCreatorProgramDefinitionRevisionV1(),
       );
       if (creatorDefinition.kind === "conflict") {
         throw new TypeError("sillyos.creator_controller.creator_definition_conflict");
@@ -833,7 +833,7 @@ export function createCreatorControllerV1(input: {
           return { kind: "failed", code: "superseded" };
         }
         process = page.summaries.find((summary) =>
-          summary.programDefinition.programId === builtinCreatorProgramIdV1 &&
+          summary.programDefinition.programId === bundledCreatorProgramIdV1 &&
           summary.programDefinition.revision === 1
         );
         before = page.nextCursor;
@@ -1111,7 +1111,7 @@ export function createCreatorControllerV1(input: {
         },
         process: {
           processId,
-          programDefinition: { programId: builtinCreatorProgramIdV1, revision: 1 },
+          programDefinition: { programId: bundledCreatorProgramIdV1, revision: 1 },
           subjectProgramId: preview.program.programId,
           createdAt: updatedAt,
         },

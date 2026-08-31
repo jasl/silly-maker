@@ -15,14 +15,23 @@ const translationRequestV1 = {
   targetLocale: "en",
   documentPurpose: "A fictional game scene.",
   style: "Natural, concise dialogue.",
-  glossary: [{ source: "回声", target: "Echo", note: "Project codename." }],
+  glossary: [{
+    entryId: "glossary.echo",
+    source: "回声",
+    target: "Echo",
+    note: "Project codename.",
+    locked: true,
+    appliesToUnitIds: ["translation.unit.000001"],
+  }],
+  confirmedMeaningFacts: [],
+  neighboringUnits: { preceding: null, following: null },
   units: [{
     unitId: "translation.unit.000001",
     order: 0,
     locator: "line/1",
     context: null,
     durationMilliseconds: 2_800,
-    source: "欢迎回来，⟦SM:0⟧。",
+    source: "回声欢迎回来，⟦SM:0⟧。",
     protectedSegments: [{ token: "⟦SM:0⟧", kind: "placeholder", source: "{name}" }],
   }],
 } as const;
@@ -53,6 +62,7 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
       serializeBrowserPiTranslationAgentDispatchV1({
         executionCompatibilityReference: translationProgramHarnessReferenceV1,
         programId: "program.translation.1",
+        requestedOutputTokens: 4_608,
         request: translationRequestV1,
       }),
     );
@@ -62,6 +72,7 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
         revision: 1,
         harnessReference: translationProgramHarnessReferenceV1,
         programId: "program.translation.1",
+        requestedOutputTokens: 4_608,
         request: translationRequestV1,
       },
     });
@@ -71,6 +82,7 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
     const validText = serializeBrowserPiTranslationAgentDispatchV1({
       executionCompatibilityReference: translationProgramHarnessReferenceV1,
       programId: "program.translation.1",
+      requestedOutputTokens: 4_608,
       request: translationRequestV1,
     });
     const valid = JSON.parse(validText) as Record<string, unknown>;

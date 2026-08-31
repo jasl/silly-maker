@@ -16,10 +16,13 @@ Save, audio, localization, responsive, and Inspector authoring paths. Its
 publishable Browser artifact is wired into the static site; this repository does
 not claim that a remote live deployment has been performed.
 
-**Explore the GUI product direction**: [SillyOS](examples/silly-os/) is built
-around one visible program, **Agent Creator**. It turns a creative intent
-into a reviewable Program workspace where the conversation, proposal, workpiece,
-and activity stay together. A deterministic local preview remains available;
+**Explore the GUI product direction**: [SillyOS](examples/silly-os/) currently
+ships the bundled **Agent Creator** and **Translation** Programs. Creator turns
+a creative intent into a reviewable Program workspace; Translation owns an
+import, Agent candidate, human review, and accepted-result loop inside one
+durable Process. Bundling controls distribution and discovery only: both use
+the same fixed Program container and runtime rules, with no privileged Program
+class. A deterministic local preview remains available;
 configured Browser Provider routes run the product-pinned Pi inside an Agent
 Worker over typed Worker RPC, with a browser-local Program database and an
 OPFS-backed mutable workspace checkpoint. The current recovery

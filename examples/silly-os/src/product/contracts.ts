@@ -52,7 +52,7 @@ export interface CreatorAgentRunRequestV1 {
   readonly agentRunId: string;
   /**
    * Opaque compatibility generation copied from the Process-pinned Program
-   * Definition. A refreshed product resolves its latest compatible built-in
+   * Definition. A refreshed product resolves its latest compatible bundled
    * implementation and never falls back from an unknown reference.
    */
   readonly executionCompatibilityReference: string;

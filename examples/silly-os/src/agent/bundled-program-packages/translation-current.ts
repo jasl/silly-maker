@@ -4,27 +4,15 @@ import { Type } from "@earendil-works/pi-ai";
 
 import {
   admitTranslationBatchCandidateV1,
-  type TranslationBatchRequestV1,
 } from "../../product/translation/translation-batch-protocol.ts";
+import { createTranslationBatchUserPromptV1 } from "../../product/translation/translation-agent-prompt.ts";
+export { createTranslationBatchUserPromptV1 } from "../../product/translation/translation-agent-prompt.ts";
+import type { TranslationBatchBudgetV1 } from "../../product/translation/translation-batch-planner.ts";
 import { translationProgramHarnessReferenceV1 } from "../../product/translation/translation-program-definition.ts";
-import type { BrowserBuiltinProgramPackageV1 } from "../browser-builtin-program-package.ts";
+import type { BrowserBundledProgramPackageV1 } from "../browser-bundled-program-package.ts";
 
 export const translationBatchToolNameV1 = "sillyos_submit_translation_batch" as const;
-export const translationProgramPromptRevisionV1 = 5 as const;
-
-// One GLM 5.3 Flash low-reasoning observation consumed 3,255 reasoning tokens
-// before producing the tool call. This leaves room for that measured path plus
-// target JSON; it is a request budget, not a document or Program size cap.
-const measuredTranslationReasoningEnvelopeTokensV1 = 4_096;
-const measuredTranslationTargetEnvelopeTokensPerUnitV1 = 512;
-
-export function translationBatchOutputTokenEnvelopeV1(unitCount: number): number {
-  if (!Number.isSafeInteger(unitCount) || unitCount <= 0) {
-    throw new TypeError("Translation batch unit count is invalid");
-  }
-  return measuredTranslationReasoningEnvelopeTokensV1 +
-    unitCount * measuredTranslationTargetEnvelopeTokensPerUnitV1;
-}
+export const translationProgramPromptRevisionV1 = 6 as const;
 
 export const translationProgramSystemPromptV1 =
   `You are the translation execution capability for SillyOS Translation Program v${translationProgramPromptRevisionV1}.
@@ -33,9 +21,9 @@ Translate every admitted source unit in the user message completely. Every unit 
 
 Produce an accurate, complete, natural target-language rendering while preserving the source's meaning and voice. Preserve who does what to whom, possession and other relationships, negation, modality, quantities, time and causality, speaker intent, emotion, subtext, register, and character-specific speech. Do not add, omit, summarize, sanitize, soften, intensify, explain, or beautify meaning. Do not invent a subject, object, gender, relationship, or pronoun that the source and supplied context do not establish.
 
-Use documentPurpose, style, adjacent units, per-unit context, and the glossary together to resolve wording. Prefer idiomatic target-language expression over copying source syntax, but keep a fragment or incomplete thought fragmentary. Use colloquial, formal, technical, literary, rough, or restrained wording only when the source, character, or admitted style calls for it. If a general style request conflicts with a concrete source detail or character voice, fidelity to that source detail wins.
+Use documentPurpose, style, neighboring units, confirmedMeaningFacts, per-unit context, and the glossary together to resolve wording. Prefer idiomatic target-language expression over copying source syntax, but keep a fragment or incomplete thought fragmentary. Use colloquial, formal, technical, literary, rough, or restrained wording only when the source, character, or admitted style calls for it. If a general style request conflicts with a concrete source detail or character voice, fidelity to that source detail wins.
 
-When a glossary source appears in its intended sense, use its target exactly and apply its note. Keep the same admitted term, name, title, and relationship wording consistently across the batch. Do not report an ambiguity that the glossary, document context, neighboring units, or protected-segment facts already resolve.
+Treat confirmedMeaningFacts as binding semantic evidence for the batch; when a glossary source appears in its intended sense, use a locked entry's target exactly, treat an unlocked entry as preferred terminology that must not override source meaning, and keep each selected term, name, title, and relationship wording consistent across the batch. Do not report an ambiguity that the glossary, document context, neighboring units, or protected-segment facts already resolve.
 
 You must call ${translationBatchToolNameV1} exactly once. Include every unitId exactly once and in the original order. Never add, drop, merge, split, or reorder units.
 
@@ -46,38 +34,6 @@ For timed subtitle units, durationMilliseconds is the exact display duration. Pr
 Keep translatable text that starts between paired structural tokens—such as a link label, emphasized span, or tag body—between that same token pair. Never move the text outside the pair or leave the pair empty.
 
 Before calling the tool, review the complete candidate for meaning preservation, subject-object and relationship accuracy, glossary consistency, voice, unit coverage, and protected-token placement. Return only per-unit target text through the tool. Do not reconstruct the source file. Add an ambiguity only when an unresolved semantic choice or official term could materially change the target after using all supplied evidence. Never report format spacing, table padding, token mechanics, source wording that already answers the question, or routine commentary as an ambiguity. When wording is genuinely ambiguous, choose the most conservative usable translation and add at most one concise question for that unit.`;
-
-function protectedAdjacencyV1(source: string, token: string) {
-  const start = source.indexOf(token);
-  const end = start + token.length;
-  return {
-    adjacentBefore: start > 0 && !/\s/u.test(source[start - 1] ?? ""),
-    adjacentAfter: end < source.length && !/\s/u.test(source[end] ?? ""),
-  };
-}
-
-export function createTranslationBatchUserPromptV1(request: TranslationBatchRequestV1): string {
-  return JSON.stringify({
-    schema: "sillyos.translation-batch-request.v1",
-    sourceLocale: request.sourceLocale,
-    targetLocale: request.targetLocale,
-    documentPurpose: request.documentPurpose,
-    style: request.style,
-    glossary: request.glossary,
-    units: request.units.map((unit) => ({
-      unitId: unit.unitId,
-      locator: unit.locator,
-      context: unit.context,
-      durationMilliseconds: unit.durationMilliseconds,
-      protectedSegments: unit.protectedSegments.map((segment) => ({
-        token: segment.token,
-        kind: segment.kind,
-        ...protectedAdjacencyV1(unit.source, segment.token),
-      })),
-      source: unit.source,
-    })),
-  });
-}
 
 const translationBatchToolSchemaV1 = Type.Object(
   {
@@ -99,7 +55,50 @@ const translationBatchToolSchemaV1 = Type.Object(
   { additionalProperties: false },
 );
 
-export const translationBuiltinProgramPackageV1: BrowserBuiltinProgramPackageV1 = {
+const textEncoderV1 = new TextEncoder();
+const translationToolDefinitionV1 = {
+  name: translationBatchToolNameV1,
+  label: "Submit translation batch",
+  description:
+    "Submit one complete translation candidate for the exact admitted batch and its ambiguities.",
+  parameters: translationBatchToolSchemaV1,
+};
+
+// UTF-8 bytes are a conservative tokenizer-independent upper bound on input
+// token count. This reserve is derived from the exact stable prompt and tool
+// definition, so Program prompt edits automatically change the batch budget.
+const translationStableHarnessContextReserveTokensV1 =
+  textEncoderV1.encode(translationProgramSystemPromptV1).byteLength +
+  textEncoderV1.encode(JSON.stringify(translationToolDefinitionV1)).byteLength;
+
+/** Model-aware product policy used before a Translation Process acquires execution. */
+export function createTranslationBatchBudgetForModelV1(input: {
+  readonly contextWindow: number;
+  readonly maximumOutputTokens: number;
+}): TranslationBatchBudgetV1 | null {
+  if (
+    !Number.isSafeInteger(input.contextWindow) || input.contextWindow <= 0 ||
+    !Number.isSafeInteger(input.maximumOutputTokens) || input.maximumOutputTokens <= 0 ||
+    input.maximumOutputTokens > input.contextWindow
+  ) return null;
+  const maximumRequestBytes = input.contextWindow - input.maximumOutputTokens -
+    translationStableHarnessContextReserveTokensV1;
+  if (maximumRequestBytes <= 0) return null;
+  return {
+    maximumRequestBytes,
+    maximumOutputTokens: input.maximumOutputTokens,
+    outputEnvelope: {
+      // GLM 5.3 Flash low reasoning consumed 3,255 tokens in the Translation
+      // experiment; the reserve rounds that observed route upward.
+      reasoningReserveTokens: 4_096,
+      fixedCandidateReserveTokens: 512,
+      perUnitCandidateReserveTokens: 96,
+      targetTokensPerSourceCodePoint: { numerator: 2, denominator: 1 },
+    },
+  };
+}
+
+export const translationBundledProgramPackageV1: BrowserBundledProgramPackageV1 = {
   reference: translationProgramHarnessReferenceV1,
   instructions: translationProgramSystemPromptV1,
   harnessToolIds: [],
@@ -107,26 +106,22 @@ export const translationBuiltinProgramPackageV1: BrowserBuiltinProgramPackageV1 
   publishTextDeltas: false,
   requestedOutputTokens(dispatch) {
     if (dispatch.harnessReference !== translationProgramHarnessReferenceV1) {
-      throw new TypeError("Translation built-in Program package received another dispatch");
+      throw new TypeError("Translation bundled Program package received another dispatch");
     }
-    return translationBatchOutputTokenEnvelopeV1(dispatch.request.units.length);
+    return dispatch.requestedOutputTokens;
   },
   createUserPrompt(dispatch) {
     if (dispatch.harnessReference !== translationProgramHarnessReferenceV1) {
-      throw new TypeError("Translation built-in Program package received another dispatch");
+      throw new TypeError("Translation bundled Program package received another dispatch");
     }
     return createTranslationBatchUserPromptV1(dispatch.request);
   },
   createCompletionTool(input) {
     if (input.dispatch.harnessReference !== translationProgramHarnessReferenceV1) {
-      throw new TypeError("Translation built-in Program package received another dispatch");
+      throw new TypeError("Translation bundled Program package received another dispatch");
     }
     return {
-      name: translationBatchToolNameV1,
-      label: "Submit translation batch",
-      description:
-        "Submit one complete translation candidate for the exact admitted batch and its ambiguities.",
-      parameters: translationBatchToolSchemaV1,
+      ...translationToolDefinitionV1,
       execute: async (_toolCallId, params, signal) => {
         if (signal?.aborted) throw new Error("Translation run was cancelled");
         const candidate = params as {

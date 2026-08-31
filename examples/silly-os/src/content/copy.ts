@@ -309,7 +309,7 @@ const englishV1: SillyOsCopyV1 = {
   productName: "SillyOS",
   preview: "Preview",
   creatorName: "Agent Creator",
-  creatorKicker: "One built-in program",
+  creatorKicker: "Bundled with SillyOS",
   creatorTitle: "What would you like to make?",
   creatorDescription:
     "Describe an outcome. Agent Creator will propose a focused program whose instructions, capabilities, work and review surface stay together.",
@@ -646,7 +646,7 @@ const chineseV1: SillyOsCopyV1 = {
   productName: "SillyOS",
   preview: "预览",
   creatorName: "Agent Creator",
-  creatorKicker: "唯一的内置程序",
+  creatorKicker: "随 SillyOS 分发",
   creatorTitle: "你想创作什么？",
   creatorDescription:
     "描述你想得到的结果。Agent Creator 会提出一个专注的程序，把指令、能力、工作内容和人工审查界面组织在同一个工程中。",

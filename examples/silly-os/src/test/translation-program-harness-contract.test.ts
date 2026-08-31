@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { translationBuiltinProgramPackageV1 } from "../agent/builtin-program-packages/translation-current.ts";
+import { translationBundledProgramPackageV1 } from "../agent/bundled-program-packages/translation-current.ts";
 import {
   browserWorkspaceQuickJsRuntimeAllocatorLimitBytesV1,
   browserWorkspaceQuickJsStackLimitBytesV1,
@@ -12,12 +12,12 @@ import {
 import { browserWorkspaceSandboxArtifactBuildIdentityV1 } from "../workspace/browser-workspace-sandbox-build-identity.ts";
 import { executeBrowserWorkspaceQuickJsV1 } from "../workspace-sandbox/browser-workspace-quickjs.worker.ts";
 import {
-  createBuiltinTranslationProgramDefinitionRevisionV1,
+  createBundledTranslationProgramDefinitionRevisionV1,
 } from "../product/translation/translation-program-definition.ts";
 
 describe("SillyOS Translation Program fixed-harness contract", () => {
   it("preserves the existing rev1 compatibility marker without claiming an unselected profile", () => {
-    const definition = createBuiltinTranslationProgramDefinitionRevisionV1();
+    const definition = createBundledTranslationProgramDefinitionRevisionV1();
 
     expect(definition).toEqual({
       schemaVersion: 1,
@@ -29,10 +29,10 @@ describe("SillyOS Translation Program fixed-harness contract", () => {
       harnessReference: "sillyos.harness.translation@1",
       capabilityIds: [],
     });
-    expect(translationBuiltinProgramPackageV1.reference).toBe(definition.harnessReference);
+    expect(translationBundledProgramPackageV1.reference).toBe(definition.harnessReference);
 
     // Runtime availability is not the same as Process tool authority.
-    expect(translationBuiltinProgramPackageV1.harnessToolIds).toEqual([]);
+    expect(translationBundledProgramPackageV1.harnessToolIds).toEqual([]);
   });
 
   it("executes the required regular-expression forms in the fixed QuickJS runtime", async () => {

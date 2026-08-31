@@ -43,6 +43,8 @@ import type {
 } from "../product/creator-controller.ts";
 import { creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1 } from "../product/creator-controller.ts";
 import type { CreatorAgentRunRequestV1 } from "../product/contracts.ts";
+import type { TranslationAgentRunRequestV1 } from "../product/translation/translation-agent-contracts.ts";
+import type { TranslationBatchBudgetV1 } from "../product/translation/translation-batch-planner.ts";
 import {
   createBrowserDataResetCoordinatorV1,
   runBrowserDataResetOperationV1,
@@ -81,6 +83,7 @@ import {
 } from "../product/browser-provider-settings-repository.ts";
 import {
   acknowledgeAppliedAgentTerminalV1,
+  acknowledgeTranslationAgentTerminalV1,
   canConsumeAgentTerminalV1,
 } from "./agent-terminal-acknowledgement.ts";
 import {
@@ -114,6 +117,7 @@ import {
   type ProgramWorkspaceSessionViewStateV1,
   ProgramWorkspaceV1,
 } from "./program-workspace.tsx";
+import type { ProgramRunProjectionV1 } from "./program-ui-container.tsx";
 import { TranslationProcessWorkspaceV1 } from "./translation-process-workspace.tsx";
 import {
   type ProviderSettingsCatalogV1,
@@ -198,15 +202,25 @@ export function createProgramWorkspaceSessionViewStateStoreV1(): ProgramWorkspac
   };
 }
 
-type BrowserCreatorAgentModuleV1 = typeof import("../agent/creator-agent-port.ts");
+type BrowserProgramAgentModuleV1 = typeof import("../agent/browser-program-agent-port.ts");
+type BrowserTranslationProgramModuleV1 =
+  typeof import("../agent/bundled-program-packages/translation-current.ts");
 type BrowserNetworkBrokerModuleV1 =
   typeof import("../network/browser-network-broker-frame-transport.ts");
 type BrowserCredentialVaultModuleV1 =
   typeof import("../credential/browser-credential-vault-port.ts");
 type BrowserCreatorAgentPortV1 = ReturnType<
-  BrowserCreatorAgentModuleV1["createBrowserCreatorAgentPortV1"]
+  BrowserProgramAgentModuleV1["createBrowserProgramAgentPortsV1"]
+>["creator"];
+type BrowserTranslationAgentPortV1 = ReturnType<
+  BrowserProgramAgentModuleV1["createBrowserProgramAgentPortsV1"]
+>["translation"];
+type BrowserProgramAgentPortsV1 = ReturnType<
+  BrowserProgramAgentModuleV1["createBrowserProgramAgentPortsV1"]
 >;
+type BrowserProgramAgentPortV1 = BrowserCreatorAgentPortV1 | BrowserTranslationAgentPortV1;
 type BrowserCreatorAgentSnapshotV1 = ReturnType<BrowserCreatorAgentPortV1["getSnapshot"]>;
+type BrowserTranslationAgentSnapshotV1 = ReturnType<BrowserTranslationAgentPortV1["getSnapshot"]>;
 type BrowserCreatorAgentExportInputV1 = Parameters<BrowserCreatorAgentPortV1["exportWorkspace"]>[0];
 type BrowserCreatorAgentExportReadyV1 = Parameters<
   BrowserCreatorAgentExportInputV1["onReady"]
@@ -255,6 +269,35 @@ function agentRuntimeUsableV1(
   return runtime === "deterministic_test"
     ? status === "ready"
     : agentWorkerHoldsCredentialV1(status);
+}
+
+function translationAgentRunProjectionV1(
+  snapshot: BrowserTranslationAgentSnapshotV1 | null,
+  locale: SillyOsLocaleV1,
+): ProgramRunProjectionV1 | null {
+  if (snapshot === null) return null;
+  const running = snapshot.phase === "running";
+  const terminal = snapshot.terminalRuns[0] ?? null;
+  if (!running && terminal === null) return null;
+  const completed = terminal?.outcome === "completed";
+  const failed = terminal?.outcome === "failed";
+  const label = running
+    ? (locale === "zh-CN" ? "正在翻译当前批次" : "Translating the current batch")
+    : completed
+    ? (locale === "zh-CN" ? "候选译文等待审查" : "Candidate ready for review")
+    : failed
+    ? (locale === "zh-CN" ? "翻译批次失败" : "Translation batch failed")
+    : (locale === "zh-CN" ? "翻译批次已停止" : "Translation batch stopped");
+  return {
+    status: running ? "running" : completed ? "completed" : "failed",
+    label,
+    ...(running ? { progress: { kind: "indeterminate", label } as const } : {}),
+    recentLines: [{
+      lineId: `translation-agent:${snapshot.activeRunId ?? terminal?.run.agentRunId ?? "idle"}`,
+      kind: failed ? "system" : "agent",
+      text: label,
+    }],
+  };
 }
 
 function requestedBrowserPiRuntimeV1(): BrowserPiWorkerRuntimeV1 {
@@ -332,6 +375,8 @@ interface CreatorProviderModelChoiceV1 {
   readonly value: string;
   readonly modelName: string;
   readonly providerName: string;
+  readonly contextWindow: number;
+  readonly maxTokens: number;
   readonly supportedReasoningEfforts: readonly BrowserPiReasoningEffortV1[];
   readonly defaultReasoningEffort: BrowserPiReasoningEffortV1;
   readonly selection: BrowserPiModelSelectionV1;
@@ -418,6 +463,8 @@ function creatorProviderModelChoicesV1(
           value: builtinModelRefKeyV1(preference),
           modelName: model.name,
           providerName: provider.name,
+          contextWindow: model.contextWindow,
+          maxTokens: model.maxTokens,
           supportedReasoningEfforts: model.supportedReasoningEfforts,
           defaultReasoningEffort: model.defaultReasoningEffort,
           selection: {
@@ -436,6 +483,8 @@ function creatorProviderModelChoicesV1(
     value: customModelRefKeyV1(profile.profileId),
     modelName: profile.modelId,
     providerName: profile.displayName,
+    contextWindow: profile.contextWindow,
+    maxTokens: profile.maxTokens,
     supportedReasoningEfforts: Object.freeze(["off"]),
     defaultReasoningEffort: "off",
     selection: { kind: "custom", profile },
@@ -716,6 +765,13 @@ export function SillyOsAppV1({
   const customProviderProfiles = providerSettingsSnapshot.customProfiles;
   const [agentPort, setAgentPort] = useState<BrowserCreatorAgentPortV1 | null>(null);
   const [agentSnapshot, setAgentSnapshot] = useState<BrowserCreatorAgentSnapshotV1 | null>(null);
+  const [translationAgentPort, setTranslationAgentPort] = useState<
+    BrowserTranslationAgentPortV1 | null
+  >(null);
+  const [translationAgentSnapshot, setTranslationAgentSnapshot] = useState<
+    BrowserTranslationAgentSnapshotV1 | null
+  >(null);
+  const [translationTerminalRetryRevision, setTranslationTerminalRetryRevision] = useState(0);
   const [workspaceExport, setWorkspaceExport] = useState<WorkpieceWorkspaceExportV1>({
     phase: "idle",
   });
@@ -724,7 +780,10 @@ export function SillyOsAppV1({
   >(null);
   const [networkAccessMutationPending, setNetworkAccessMutationPending] = useState(false);
   const agentFactoryRef = useRef<
-    BrowserCreatorAgentModuleV1["createBrowserCreatorAgentPortV1"] | null
+    BrowserProgramAgentModuleV1["createBrowserProgramAgentPortsV1"] | null
+  >(null);
+  const translationBudgetFactoryRef = useRef<
+    BrowserTranslationProgramModuleV1["createTranslationBatchBudgetForModelV1"] | null
   >(null);
   const networkBrokerFactoryRef = useRef<
     BrowserNetworkBrokerModuleV1["createBrowserNetworkBrokerFrameTransportV1"] | null
@@ -735,6 +794,8 @@ export function SillyOsAppV1({
   const credentialVaultOperationEpochRef = useRef(0);
   const credentialVaultSettlementRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
   const agentPortRef = useRef<BrowserCreatorAgentPortV1 | null>(null);
+  const translationAgentPortRef = useRef<BrowserTranslationAgentPortV1 | null>(null);
+  const agentPortsRef = useRef<BrowserProgramAgentPortsV1 | null>(null);
   const activeProviderSelectionRef = useRef<BrowserPiModelSelectionV1 | null>(
     activeProviderSelection,
   );
@@ -754,6 +815,9 @@ export function SillyOsAppV1({
   const agentWorkspaceLifecycleRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
   const agentTerminalSettlementRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
   const ownedAgentRunsRef = useRef(new Map<string, CreatorAgentRunRequestV1>());
+  const ownedTranslationAgentRunsRef = useRef(
+    new Map<string, TranslationAgentRunRequestV1>(),
+  );
   const ownedAgentWorkspaceSessionsRef = useRef(
     new Map<string, AgentWorkspaceSessionTokenV1>(),
   );
@@ -762,8 +826,11 @@ export function SillyOsAppV1({
     new Map<string, AgentWorkspaceSessionTokenV1>(),
   );
   const leaseLostAgentRunIdsRef = useRef(new Set<string>());
+  const translationTerminalRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ownedAgentLeaseMonitorRef = useRef<AgentRunLeaseMonitorV1 | null>(null);
+  const ownedTranslationAgentLeaseMonitorRef = useRef<AgentRunLeaseMonitorV1 | null>(null);
   const unownedProcessRecoveryMonitorRef = useRef<AgentRunLeaseMonitorV1 | null>(null);
+  const unownedTranslationProcessRecoveryMonitorRef = useRef<AgentRunLeaseMonitorV1 | null>(null);
   const agentLeaseMonitorSettlementsRef = useRef(new Set<Promise<void>>());
   const workspaceExportEpochRef = useRef(0);
   const networkAccessEpochRef = useRef(0);
@@ -773,6 +840,13 @@ export function SillyOsAppV1({
   const remoteResetActionRef = useRef<() => void>(() => undefined);
   const reportFailureRef = useRef(reportFailure);
   const workspaceExportAbortRef = useRef<AbortController | null>(null);
+  const scheduleTranslationTerminalRetryV1 = useCallback((): void => {
+    if (translationTerminalRetryTimeoutRef.current !== null) return;
+    translationTerminalRetryTimeoutRef.current = setTimeout(() => {
+      translationTerminalRetryTimeoutRef.current = null;
+      setTranslationTerminalRetryRevision((revision) => revision + 1);
+    }, creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1);
+  }, []);
   const claimedTerminalRunIdsRef = useRef(new Set<string>());
   const controllerSnapshot = useSyncExternalStore(
     controller.subscribe,
@@ -800,6 +874,12 @@ export function SillyOsAppV1({
     : null;
   const activeProcessAttemptId = snapshot.route === "process"
     ? snapshot.activeProcess?.process.activeAttempt?.attemptId ?? null
+    : null;
+  const activeTranslationProcessId = translationSnapshot.route === "process"
+    ? translationSnapshot.activeProcess?.process.processId ?? null
+    : null;
+  const activeTranslationProcessAttemptId = translationSnapshot.route === "process"
+    ? translationSnapshot.activeProcess?.process.activeAttempt?.attemptId ?? null
     : null;
   useLayoutEffect(() => {
     credentialVaultStateRef.current = credentialVault;
@@ -894,10 +974,14 @@ export function SillyOsAppV1({
   const drainAgentLeaseMonitorsV1 = useCallback(async (): Promise<void> => {
     const monitors = [
       ownedAgentLeaseMonitorRef.current,
+      ownedTranslationAgentLeaseMonitorRef.current,
       unownedProcessRecoveryMonitorRef.current,
+      unownedTranslationProcessRecoveryMonitorRef.current,
     ].filter((monitor): monitor is AgentRunLeaseMonitorV1 => monitor !== null);
     ownedAgentLeaseMonitorRef.current = null;
+    ownedTranslationAgentLeaseMonitorRef.current = null;
     unownedProcessRecoveryMonitorRef.current = null;
+    unownedTranslationProcessRecoveryMonitorRef.current = null;
     for (const monitor of monitors) void trackAgentLeaseMonitorDrainV1(monitor);
     while (agentLeaseMonitorSettlementsRef.current.size > 0) {
       await Promise.all([...agentLeaseMonitorSettlementsRef.current]);
@@ -918,6 +1002,7 @@ export function SillyOsAppV1({
     workspaceExportAbortRef.current = null;
     claimedTerminalRunIdsRef.current.clear();
     ownedAgentRunsRef.current.clear();
+    ownedTranslationAgentRunsRef.current.clear();
     ownedAgentWorkspaceSessionsRef.current.clear();
     reservedAgentWorkspaceSessionIdsRef.current.clear();
     pendingAgentWorkspaceReleasesRef.current.clear();
@@ -929,6 +1014,8 @@ export function SillyOsAppV1({
     credentialVaultPort?.close();
     const current = agentPortRef.current;
     agentPortRef.current = null;
+    translationAgentPortRef.current = null;
+    agentPortsRef.current = null;
     if (current !== null) void queueAgentPortTeardownV1(current, "disposed");
     await Promise.all([
       agentSetupSettlementRef.current.catch(() => undefined),
@@ -950,16 +1037,25 @@ export function SillyOsAppV1({
 
   useEffect(() => () => processViewStates.clear(), [processViewStates]);
 
+  useEffect(() => () => {
+    if (translationTerminalRetryTimeoutRef.current === null) return;
+    clearTimeout(translationTerminalRetryTimeoutRef.current);
+    translationTerminalRetryTimeoutRef.current = null;
+  }, []);
+
   useEffect(() => {
     if (!agentDrainRegistry.isAccepting()) return undefined;
     let current = true;
     void Promise.all([
-      import("../agent/creator-agent-port.ts"),
+      import("../agent/browser-program-agent-port.ts"),
+      import("../agent/bundled-program-packages/translation-current.ts"),
       import("../network/browser-network-broker-frame-transport.ts"),
     ]).then(
-      ([agentModule, networkModule]) => {
+      ([agentModule, translationProgramModule, networkModule]) => {
         if (!current || !agentDrainRegistry.isAccepting()) return;
-        agentFactoryRef.current = agentModule.createBrowserCreatorAgentPortV1;
+        agentFactoryRef.current = agentModule.createBrowserProgramAgentPortsV1;
+        translationBudgetFactoryRef.current =
+          translationProgramModule.createTranslationBatchBudgetForModelV1;
         networkBrokerFactoryRef.current = networkModule.createBrowserNetworkBrokerFrameTransportV1;
         setPiAgentSetupStatus("available");
       },
@@ -972,6 +1068,7 @@ export function SillyOsAppV1({
     return () => {
       current = false;
       agentFactoryRef.current = null;
+      translationBudgetFactoryRef.current = null;
       networkBrokerFactoryRef.current = null;
     };
   }, [agentDrainRegistry, reportFailure]);
@@ -1030,9 +1127,13 @@ export function SillyOsAppV1({
   useEffect(() => {
     if (agentPort === null) {
       setAgentSnapshot(null);
+      setTranslationAgentSnapshot(null);
       return undefined;
     }
-    const update = (): void => setAgentSnapshot(agentPort.getSnapshot());
+    const update = (): void => {
+      setAgentSnapshot(agentPort.getSnapshot());
+      setTranslationAgentSnapshot(translationAgentPortRef.current?.getSnapshot() ?? null);
+    };
     update();
     return agentPort.subscribe(update);
   }, [agentPort]);
@@ -1091,8 +1192,54 @@ export function SillyOsAppV1({
     return operation;
   }, [agentDrainRegistry, reportFailure]);
 
+  const queueTranslationAgentWorkspaceAcquireV1 = useCallback((
+    port: BrowserTranslationAgentPortV1,
+    desired: {
+      readonly processId: string;
+      readonly programId: string;
+      readonly workspaceId: string;
+    },
+  ): Promise<AgentWorkspaceSessionTokenV1 | null> => {
+    const operation = agentWorkspaceLifecycleRef.current.then(async () => {
+      if (!agentDrainRegistry.isAccepting() || translationAgentPortRef.current !== port) {
+        return null;
+      }
+      const current = port.getSnapshot().workspace;
+      if (
+        current.descriptor !== null &&
+        reservedAgentWorkspaceSessionIdsRef.current.has(current.descriptor.workspaceSessionId)
+      ) return null;
+      // Workspace descriptors are Program-scoped. A Translation Process is a
+      // stricter execution owner, so never reuse a descriptor that cannot
+      // prove the requested Process identity.
+      if (current.descriptor !== null && current.phase !== "closed") {
+        const closed = await port.closeWorkspace(current.descriptor.workspaceSessionId);
+        if (closed.kind === "unavailable") {
+          reportFailure("silly_os.browser_pi_workspace_close_failed", closed.diagnostic);
+          return null;
+        }
+      }
+      if (!agentDrainRegistry.isAccepting() || translationAgentPortRef.current !== port) {
+        return null;
+      }
+      const opened = await port.openWorkspace(desired);
+      if (opened.kind === "unavailable") {
+        reportFailure("silly_os.browser_pi_workspace_open_failed", opened.diagnostic);
+        return null;
+      }
+      const token = agentWorkspaceSessionTokenV1(opened.descriptor);
+      reservedAgentWorkspaceSessionIdsRef.current.add(token.workspaceSessionId);
+      return token;
+    }).catch((error: unknown) => {
+      reportFailure("silly_os.browser_pi_workspace_lifecycle_failed", error);
+      return null;
+    });
+    agentWorkspaceLifecycleRef.current = operation.then(() => undefined);
+    return operation;
+  }, [agentDrainRegistry, reportFailure]);
+
   const queueAgentWorkspaceReleaseV1 = useCallback((
-    port: BrowserCreatorAgentPortV1,
+    port: BrowserProgramAgentPortV1,
     token: AgentWorkspaceSessionTokenV1,
     options: { readonly reportFailure?: boolean } = {},
   ): Promise<boolean> => {
@@ -1105,7 +1252,7 @@ export function SillyOsAppV1({
       });
     };
     const operation = agentWorkspaceLifecycleRef.current.then(async () => {
-      if (agentPortRef.current !== port) {
+      if (agentPortRef.current !== port && translationAgentPortRef.current !== port) {
         releaseTrackingV1();
         return true;
       }
@@ -1128,7 +1275,7 @@ export function SillyOsAppV1({
       releaseTrackingV1();
       return true;
     }).catch((error: unknown) => {
-      if (agentPortRef.current === port) {
+      if (agentPortRef.current === port || translationAgentPortRef.current === port) {
         pendingAgentWorkspaceReleasesRef.current.set(token.workspaceSessionId, token);
       }
       if (options.reportFailure !== false) {
@@ -1183,40 +1330,93 @@ export function SillyOsAppV1({
     leaseLostAgentRunIdsRef.current.add(run.agentRunId);
     ownedAgentRunsRef.current.delete(run.agentRunId);
     let workspaceReleased = workspaceToken === null;
-    await recoverLostAgentRunExecutionV1({
-      cancelRun: async () => {
-        const cancelled = await port.cancel(run.agentRunId);
-        if (cancelled.kind === "unavailable") {
-          reportFailureRef.current(
-            "silly_os.browser_pi_cancel_after_lease_loss_failed",
-            cancelled.diagnostic,
-          );
-        }
-      },
-      releaseWorkspace: async () => {
-        if (workspaceToken === null) return;
-        workspaceReleased = await queueAgentWorkspaceReleaseV1(port, workspaceToken);
-        if (!workspaceReleased) {
-          reportFailureRef.current(
-            "silly_os.browser_pi_workspace_release_after_lease_loss_failed",
-            run.processId,
-          );
-        }
-      },
-      reloadProcess: async () => {
-        const recovered = await controller.reloadLatestTranscript();
-        if (recovered.kind === "failed") {
-          reportFailureRef.current(
-            "silly_os.process_execution_recovery_failed",
-            recovered,
-          );
-        }
-      },
-    });
+    try {
+      await recoverLostAgentRunExecutionV1({
+        cancelRun: async () => {
+          const cancelled = await port.cancel(run.agentRunId);
+          if (cancelled.kind === "unavailable") {
+            reportFailureRef.current(
+              "silly_os.browser_pi_cancel_after_lease_loss_failed",
+              cancelled.diagnostic,
+            );
+          }
+        },
+        releaseWorkspace: async () => {
+          if (workspaceToken === null) return;
+          workspaceReleased = await queueAgentWorkspaceReleaseV1(port, workspaceToken);
+          if (!workspaceReleased) {
+            reportFailureRef.current(
+              "silly_os.browser_pi_workspace_release_after_lease_loss_failed",
+              run.processId,
+            );
+          }
+        },
+        reloadProcess: async () => {
+          const recovered = await controller.reloadLatestTranscript();
+          if (recovered.kind !== "completed") {
+            reportFailureRef.current(
+              "silly_os.process_execution_recovery_failed",
+              recovered,
+            );
+            throw new Error("Creator Process recovery did not complete", { cause: recovered });
+          }
+        },
+      });
+    } catch (error) {
+      leaseLostAgentRunIdsRef.current.delete(run.agentRunId);
+      throw error;
+    }
     if (workspaceReleased) {
       ownedAgentWorkspaceSessionsRef.current.delete(run.agentRunId);
     }
   }, [controller, queueAgentWorkspaceReleaseV1]);
+
+  const recoverLostTranslationAgentRunV1 = useCallback(async (
+    port: BrowserTranslationAgentPortV1,
+    run: TranslationAgentRunRequestV1,
+  ): Promise<void> => {
+    const workspaceToken = ownedAgentWorkspaceSessionsRef.current.get(run.agentRunId) ?? null;
+    leaseLostAgentRunIdsRef.current.add(run.agentRunId);
+    ownedTranslationAgentRunsRef.current.delete(run.agentRunId);
+    let workspaceReleased = workspaceToken === null;
+    try {
+      await recoverLostAgentRunExecutionV1({
+        cancelRun: async () => {
+          const cancelled = await port.cancel(run.agentRunId);
+          if (cancelled.kind === "unavailable") {
+            reportFailureRef.current(
+              "silly_os.translation_agent_cancel_after_lease_loss_failed",
+              cancelled.diagnostic,
+            );
+          }
+        },
+        releaseWorkspace: async () => {
+          if (workspaceToken === null) return;
+          workspaceReleased = await queueAgentWorkspaceReleaseV1(port, workspaceToken);
+          if (!workspaceReleased) {
+            reportFailureRef.current(
+              "silly_os.translation_agent_workspace_release_after_lease_loss_failed",
+              run.processId,
+            );
+          }
+        },
+        reloadProcess: async () => {
+          const recovered = await translationController.openProcess(run.processId);
+          if (recovered.kind !== "completed") {
+            reportFailureRef.current(
+              "silly_os.translation_process_execution_recovery_failed",
+              recovered,
+            );
+            throw new Error("Translation Process recovery did not complete", { cause: recovered });
+          }
+        },
+      });
+    } catch (error) {
+      leaseLostAgentRunIdsRef.current.delete(run.agentRunId);
+      throw error;
+    }
+    if (workspaceReleased) ownedAgentWorkspaceSessionsRef.current.delete(run.agentRunId);
+  }, [queueAgentWorkspaceReleaseV1, translationController]);
 
   useEffect(() => {
     const port = agentPortRef.current;
@@ -1313,6 +1513,91 @@ export function SillyOsAppV1({
   ]);
 
   useEffect(() => {
+    const port = translationAgentPortRef.current;
+    const terminal = translationAgentSnapshot?.terminalRuns[0];
+    if (
+      port === null || terminal === undefined || translationSnapshot.durability.phase !== "ready" ||
+      claimedTerminalRunIdsRef.current.has(terminal.run.agentRunId)
+    ) return;
+    claimedTerminalRunIdsRef.current.add(terminal.run.agentRunId);
+    const settlement = (async (): Promise<void> => {
+      try {
+        let acknowledgement;
+        if (leaseLostAgentRunIdsRef.current.has(terminal.run.agentRunId)) {
+          const transient = await port.acknowledgeTerminal(terminal.run.agentRunId);
+          acknowledgement = transient.kind === "workspace_unavailable"
+            ? { kind: "workspace_unavailable" as const, diagnostic: transient.diagnostic }
+            : transient.kind === "acknowledged"
+            ? { kind: "acknowledged" as const }
+            : { kind: "terminal_unavailable" as const };
+        } else {
+          const persistence = await translationController.recordAgentRunTerminal(terminal);
+          acknowledgement = await acknowledgeTranslationAgentTerminalV1({
+            persistence,
+            agentRunId: terminal.run.agentRunId,
+            recover: () => recoverLostTranslationAgentRunV1(port, terminal.run),
+            acknowledgeTerminal: (agentRunId) => port.acknowledgeTerminal(agentRunId),
+          });
+        }
+        if (acknowledgement.kind === "retained") {
+          reportFailure("silly_os.translation_agent_terminal_rejected", terminal.run.agentRunId);
+          scheduleTranslationTerminalRetryV1();
+          return;
+        }
+        if (acknowledgement.kind === "workspace_unavailable") {
+          reportFailure(
+            "silly_os.translation_agent_workspace_receipt_acknowledge_failed",
+            acknowledgement.diagnostic,
+          );
+          scheduleTranslationTerminalRetryV1();
+          return;
+        }
+        if (acknowledgement.kind === "terminal_unavailable") {
+          reportFailure(
+            "silly_os.translation_agent_terminal_acknowledge_failed",
+            terminal.run.agentRunId,
+          );
+          scheduleTranslationTerminalRetryV1();
+          return;
+        }
+        const workspaceToken = ownedAgentWorkspaceSessionsRef.current.get(
+          terminal.run.agentRunId,
+        );
+        const workspaceReleased = workspaceToken === undefined ||
+          await queueAgentWorkspaceReleaseV1(port, workspaceToken);
+        if (!workspaceReleased) {
+          reportFailure(
+            "silly_os.translation_agent_workspace_release_after_terminal_failed",
+            terminal.run.agentRunId,
+          );
+          return;
+        }
+        ownedTranslationAgentRunsRef.current.delete(terminal.run.agentRunId);
+        ownedAgentWorkspaceSessionsRef.current.delete(terminal.run.agentRunId);
+        leaseLostAgentRunIdsRef.current.delete(terminal.run.agentRunId);
+      } catch (error) {
+        reportFailure("silly_os.translation_agent_terminal_rejected", error);
+        scheduleTranslationTerminalRetryV1();
+      } finally {
+        claimedTerminalRunIdsRef.current.delete(terminal.run.agentRunId);
+      }
+    })();
+    agentTerminalSettlementRef.current = Promise.all([
+      agentTerminalSettlementRef.current.catch(() => undefined),
+      settlement,
+    ]).then(() => undefined);
+  }, [
+    queueAgentWorkspaceReleaseV1,
+    recoverLostTranslationAgentRunV1,
+    reportFailure,
+    scheduleTranslationTerminalRetryV1,
+    translationAgentSnapshot,
+    translationController,
+    translationSnapshot.durability.phase,
+    translationTerminalRetryRevision,
+  ]);
+
+  useEffect(() => {
     const port = agentPortRef.current;
     const activeRunId = agentSnapshot?.activeRunId ?? null;
     const run = activeRunId === null ? null : ownedAgentRunsRef.current.get(activeRunId) ?? null;
@@ -1345,6 +1630,102 @@ export function SillyOsAppV1({
     controller,
     recoverLostOwnedAgentRunV1,
     trackAgentLeaseMonitorDrainV1,
+  ]);
+
+  useEffect(() => {
+    if (
+      activeTranslationProcessId === null ||
+      (activeTranslationProcessAttemptId !== null &&
+        ownedTranslationAgentRunsRef.current.has(activeTranslationProcessAttemptId)) ||
+      !agentDrainRegistry.isAccepting()
+    ) return undefined;
+    const processId = activeTranslationProcessId;
+    let recoveryFailureReported = false;
+    const monitor = startAgentRunLeaseMonitorV1({
+      intervalMilliseconds: creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1,
+      poll: () =>
+        pollPassiveProcessProjectionV1({
+          processId,
+          read: () => {
+            const current = translationController.getSnapshot();
+            const process = current.route === "process" ? current.activeProcess?.process : null;
+            return process === null || process === undefined ? null : {
+              processId: process.processId,
+              activeAttemptId: process.activeAttempt?.attemptId ?? null,
+            };
+          },
+          ownsAttempt: (attemptId) => ownedTranslationAgentRunsRef.current.has(attemptId),
+          refresh: async () => {
+            await retryPendingAgentWorkspaceReleasesV1();
+            const recovered = await translationController.openProcess(processId);
+            if (recovered.kind === "failed") {
+              if (!recoveryFailureReported) {
+                recoveryFailureReported = true;
+                reportFailureRef.current(
+                  "silly_os.translation_process_execution_recovery_failed",
+                  recovered,
+                );
+              }
+            } else {
+              recoveryFailureReported = false;
+            }
+          },
+        }),
+      onError: (error) => {
+        reportFailureRef.current("silly_os.translation_process_execution_recovery_failed", error);
+      },
+    });
+    unownedTranslationProcessRecoveryMonitorRef.current = monitor;
+    return () => {
+      if (unownedTranslationProcessRecoveryMonitorRef.current === monitor) {
+        unownedTranslationProcessRecoveryMonitorRef.current = null;
+      }
+      void trackAgentLeaseMonitorDrainV1(monitor);
+    };
+  }, [
+    activeTranslationProcessAttemptId,
+    activeTranslationProcessId,
+    agentDrainRegistry,
+    retryPendingAgentWorkspaceReleasesV1,
+    trackAgentLeaseMonitorDrainV1,
+    translationController,
+  ]);
+
+  useEffect(() => {
+    const port = translationAgentPortRef.current;
+    const activeRunId = translationAgentSnapshot?.activeRunId ?? null;
+    const run = activeRunId === null
+      ? null
+      : ownedTranslationAgentRunsRef.current.get(activeRunId) ?? null;
+    if (port === null || run === null || !agentDrainRegistry.isAccepting()) return undefined;
+
+    const monitor = startAgentRunLeaseMonitorV1({
+      intervalMilliseconds: creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1,
+      poll: () =>
+        pollOwnedAgentRunLeaseV1({
+          renew: async () => {
+            const renewal = await translationController.renewAgentRunLease(run);
+            return renewal.kind === "completed" ? renewal.value : "lost";
+          },
+          onLost: () => recoverLostTranslationAgentRunV1(port, run),
+        }),
+      onError: (error) => {
+        reportFailureRef.current("silly_os.translation_process_execution_renewal_failed", error);
+      },
+    });
+    ownedTranslationAgentLeaseMonitorRef.current = monitor;
+    return () => {
+      if (ownedTranslationAgentLeaseMonitorRef.current === monitor) {
+        ownedTranslationAgentLeaseMonitorRef.current = null;
+      }
+      void trackAgentLeaseMonitorDrainV1(monitor);
+    };
+  }, [
+    agentDrainRegistry,
+    recoverLostTranslationAgentRunV1,
+    trackAgentLeaseMonitorDrainV1,
+    translationAgentSnapshot?.activeRunId,
+    translationController,
   ]);
 
   useEffect(() => {
@@ -1632,7 +2013,9 @@ export function SillyOsAppV1({
     const epoch = ++agentSetupEpochRef.current;
     agentConfigurationPendingRef.current = true;
     setPiAgentSetupStatus("saving");
+    let ports!: BrowserProgramAgentPortsV1;
     let port!: BrowserCreatorAgentPortV1;
+    let translationPort!: BrowserTranslationAgentPortV1;
     const onConnectionLost = (): void => {
       if (
         agentSetupEpochRef.current !== epoch || agentPortRef.current !== port ||
@@ -1653,13 +2036,18 @@ export function SillyOsAppV1({
       workspaceExportAbortRef.current = null;
       setWorkspaceExport({ phase: "idle" });
       agentPortRef.current = null;
+      translationAgentPortRef.current = null;
+      agentPortsRef.current = null;
       setAgentPort(null);
       setAgentSnapshot(null);
+      setTranslationAgentPort(null);
+      setTranslationAgentSnapshot(null);
       activeProviderSelectionRef.current = null;
       setActiveProviderSelection(null);
       setConnectionTest({ phase: "disconnected", active: null });
       claimedTerminalRunIdsRef.current.clear();
       ownedAgentRunsRef.current.clear();
+      ownedTranslationAgentRunsRef.current.clear();
       ownedAgentWorkspaceSessionsRef.current.clear();
       reservedAgentWorkspaceSessionIdsRef.current.clear();
       pendingAgentWorkspaceReleasesRef.current.clear();
@@ -1671,7 +2059,7 @@ export function SillyOsAppV1({
       void queueAgentPortTeardownV1(port, "disposed");
     };
     try {
-      port = piRuntime === "deterministic_test"
+      ports = piRuntime === "deterministic_test"
         ? factory({
           onConnectionLost,
           openNetworkBroker: () => networkBrokerFactory(),
@@ -1687,6 +2075,8 @@ export function SillyOsAppV1({
           selection: selection as BrowserPiModelSelectionV1,
           workspaceAuthority,
         });
+      port = ports.creator;
+      translationPort = ports.translation;
     } catch (error) {
       setPiAgentSetupStatus("failed");
       reportFailure("silly_os.browser_pi_configure_failed", error);
@@ -1695,12 +2085,17 @@ export function SillyOsAppV1({
     }
     const predecessor = agentPortRef.current;
     agentPortRef.current = null;
+    translationAgentPortRef.current = null;
+    agentPortsRef.current = null;
     setAgentPort(null);
     setAgentSnapshot(null);
+    setTranslationAgentPort(null);
+    setTranslationAgentSnapshot(null);
     activeProviderSelectionRef.current = null;
     setActiveProviderSelection(null);
     claimedTerminalRunIdsRef.current.clear();
     ownedAgentRunsRef.current.clear();
+    ownedTranslationAgentRunsRef.current.clear();
     ownedAgentWorkspaceSessionsRef.current.clear();
     reservedAgentWorkspaceSessionIdsRef.current.clear();
     pendingAgentWorkspaceReleasesRef.current.clear();
@@ -1716,7 +2111,10 @@ export function SillyOsAppV1({
           return false;
         }
         agentPortRef.current = port;
+        translationAgentPortRef.current = translationPort;
+        agentPortsRef.current = ports;
         setAgentPort(port);
+        setTranslationAgentPort(translationPort);
         const configured = await configureCredential(port);
         if (
           agentSetupEpochRef.current !== epoch || agentPortRef.current !== port ||
@@ -1807,13 +2205,18 @@ export function SillyOsAppV1({
     setWorkspaceExport({ phase: "idle" });
     const current = agentPortRef.current;
     agentPortRef.current = null;
+    translationAgentPortRef.current = null;
+    agentPortsRef.current = null;
     setAgentPort(null);
     setAgentSnapshot(null);
+    setTranslationAgentPort(null);
+    setTranslationAgentSnapshot(null);
     activeProviderSelectionRef.current = null;
     setActiveProviderSelection(null);
     setConnectionTest({ phase: "disconnected", active: null });
     claimedTerminalRunIdsRef.current.clear();
     ownedAgentRunsRef.current.clear();
+    ownedTranslationAgentRunsRef.current.clear();
     ownedAgentWorkspaceSessionsRef.current.clear();
     reservedAgentWorkspaceSessionIdsRef.current.clear();
     pendingAgentWorkspaceReleasesRef.current.clear();
@@ -2625,6 +3028,125 @@ export function SillyOsAppV1({
     }
   };
 
+  const startTranslationBatchV1 = async (): Promise<boolean> => {
+    const port = translationAgentPortRef.current;
+    const budgetFactory = translationBudgetFactoryRef.current;
+    if (
+      port === null || budgetFactory === null ||
+      !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus)
+    ) {
+      reportFailure("silly_os.translation_agent_unavailable", "credential_required");
+      return false;
+    }
+    const current = translationController.getSnapshot();
+    const active = current.route === "process" ? current.activeProcess : null;
+    const programId = active?.process.subjectProgramId ?? null;
+    if (active === null || programId === null) {
+      reportFailure("silly_os.translation_agent_workspace_unavailable", "process_not_open");
+      return false;
+    }
+    const modelEnvelope = piRuntime === "deterministic_test"
+      ? { contextWindow: 32_768, maximumOutputTokens: 8_192 }
+      : (() => {
+        const selection = activeProviderSelectionRef.current;
+        if (selection === null) return null;
+        const choice = creatorProviderModelChoicesV1(
+          providerCatalog,
+          customProviderProfiles,
+          providerSettingsSnapshot.enabledBuiltinModels,
+        ).find((candidate) => sameProviderSelectionV1(selection, candidate.selection));
+        return choice === undefined ? null : {
+          contextWindow: choice.contextWindow,
+          maximumOutputTokens: choice.maxTokens,
+        };
+      })();
+    const budget: TranslationBatchBudgetV1 | null = modelEnvelope === null
+      ? null
+      : budgetFactory(modelEnvelope);
+    if (budget === null) {
+      reportFailure("silly_os.translation_agent_budget_unavailable", "model_envelope_invalid");
+      return false;
+    }
+    const workspaceToken = await queueTranslationAgentWorkspaceAcquireV1(port, {
+      processId: active.process.processId,
+      programId,
+      workspaceId: active.workspace.workspaceId,
+    });
+    if (workspaceToken === null) {
+      await translationController.openProcess(active.process.processId);
+      reportFailure("silly_os.translation_agent_workspace_unavailable", "workspace_not_open");
+      return false;
+    }
+    const prepared = await translationController.prepareAgentBatch(budget);
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      await queueAgentWorkspaceReleaseV1(port, workspaceToken);
+      if (
+        prepared.kind === "failed" ||
+        (prepared.kind === "completed" && prepared.value.kind === "unit_exceeds_budget")
+      ) reportFailure("silly_os.translation_agent_submit_rejected", prepared);
+      return false;
+    }
+    const run = prepared.value.run;
+    ownedTranslationAgentRunsRef.current.set(run.agentRunId, run);
+    ownedAgentWorkspaceSessionsRef.current.set(run.agentRunId, workspaceToken);
+    let submitted = false;
+    try {
+      const result = await port.submit(run);
+      if (result.kind === "submitted") {
+        submitted = true;
+        return true;
+      }
+      const terminal = await translationController.recordAgentRunTerminal({
+        run,
+        outcome: "failed",
+        diagnosticCode: result.diagnostic.code === "protocol_invalid"
+          ? "protocol_invalid"
+          : result.diagnostic.code === "connection_failed"
+          ? "connection_failed"
+          : "run_failed",
+      });
+      if (terminal.kind !== "completed" || terminal.value.kind !== "persisted") {
+        reportFailure("silly_os.translation_agent_submit_terminal_failed", terminal);
+      }
+      reportFailure("silly_os.translation_agent_submit_failed", result.diagnostic);
+      return false;
+    } catch (error) {
+      await recoverLostTranslationAgentRunV1(port, run).catch((recoveryError: unknown) => {
+        reportFailure("silly_os.translation_process_execution_recovery_failed", recoveryError);
+      });
+      reportFailure("silly_os.translation_agent_submit_failed", error);
+      return false;
+    } finally {
+      if (!submitted) {
+        const workspaceReleased = await queueAgentWorkspaceReleaseV1(port, workspaceToken);
+        ownedTranslationAgentRunsRef.current.delete(run.agentRunId);
+        if (workspaceReleased) ownedAgentWorkspaceSessionsRef.current.delete(run.agentRunId);
+      }
+    }
+  };
+
+  const acceptTranslationCandidateV1 = async (
+    input: Parameters<TranslationProcessControllerV1["acceptPendingCandidate"]>[0],
+  ): Promise<void> => {
+    const result = await translationController.acceptPendingCandidate(input);
+    if (result.kind === "completed" && result.value.kind === "accepted") return;
+    const code = result.kind === "completed" ? result.value.kind : result.kind;
+    const error = new Error(`sillyos.translation.candidate_accept_${code}`);
+    Object.defineProperty(error, "code", { value: code, enumerable: true });
+    throw error;
+  };
+
+  const rejectTranslationCandidateV1 = async (
+    input: Parameters<TranslationProcessControllerV1["rejectPendingCandidate"]>[0],
+  ): Promise<void> => {
+    const result = await translationController.rejectPendingCandidate(input);
+    if (result.kind === "completed" && result.value.kind === "rejected") return;
+    const code = result.kind === "completed" ? result.value.kind : result.kind;
+    const error = new Error(`sillyos.translation.candidate_reject_${code}`);
+    Object.defineProperty(error, "code", { value: code, enumerable: true });
+    throw error;
+  };
+
   const sendFollowUpV1 = async (text: string): Promise<boolean> => {
     const port = agentPortRef.current;
     if (port === null || !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus)) {
@@ -2961,6 +3483,27 @@ export function SillyOsAppV1({
   const agentMutationPending = agentSnapshot?.phase === "running" ||
     reasoningEffortSelectionPending ||
     (agentSnapshot?.terminalRuns.length ?? 0) > 0;
+  const translationRunProjection = translationAgentRunProjectionV1(
+    translationAgentSnapshot,
+    locale,
+  );
+  const translationRun = translationRunProjection === null ? null : {
+    ...translationRunProjection,
+    ...(translationAgentSnapshot?.phase === "running" &&
+        translationAgentSnapshot.activeRunId !== null && translationAgentPort !== null
+      ? {
+        onCancel: () => {
+          const activeRunId = translationAgentPort.getSnapshot().activeRunId;
+          if (activeRunId === null) return;
+          void translationAgentPort.cancel(activeRunId).then((result) => {
+            if (result.kind === "unavailable") {
+              reportFailure("silly_os.translation_agent_cancel_failed", result.diagnostic);
+            }
+          });
+        },
+      }
+      : {}),
+  };
   const unownedProcessExecutionActive = hasUnownedProcessExecutionV1({
     activeAttemptId: activeProcessAttemptId,
     ownsAttempt: (attemptId) => ownedAgentRunsRef.current.has(attemptId),
@@ -3161,7 +3704,14 @@ export function SillyOsAppV1({
                   onThemeChange={changeThemeV1}
                   {...(internalPiTest ? {} : { onOpenSettings: openSettingsV1 })}
                   sourceImport={translationSnapshot.sourceImport}
-                  onLoadProjectRowWindow={translationController.loadProjectRowWindow}
+                  agentRun={translationRun}
+                  onLoadTranslationRowWindow={translationController.loadTranslationRowWindow}
+                  {...(translationAgentPort !== null &&
+                      agentRuntimeUsableV1(piRuntime, piAgentSetupStatus)
+                    ? { onStartTranslation: async () => void await startTranslationBatchV1() }
+                    : {})}
+                  onAcceptCandidate={acceptTranslationCandidateV1}
+                  onRejectCandidate={rejectTranslationCandidateV1}
                   onImportFile={async ({ file, sourceLocale, targetLocale }) => {
                     const result = await translationController.importSource({
                       source: { kind: "file", file },
@@ -3175,7 +3725,7 @@ export function SillyOsAppV1({
                     throw error;
                   }}
                   onOperationError={(error) => {
-                    reportFailure("silly_os.translation_import_failed", error);
+                    reportFailure("silly_os.translation_operation_failed", error);
                   }}
                 />
               </ActiveProcessMountBoundaryV1>

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+/// <reference lib="dom" />
 
 export type Result<TValue, TError> =
   | { readonly ok: true; readonly value: TValue }

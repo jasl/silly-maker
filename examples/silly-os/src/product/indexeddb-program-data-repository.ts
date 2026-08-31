@@ -68,8 +68,10 @@ import {
   normalizeProgramProcessDecisionBundleInputV1,
   normalizeProgramProcessExecutionRevisionBundleInputV1,
   normalizeProgramProcessRevisionBundleInputV1,
-  normalizeTranslationProjectImportExecutionAcquireInputV1,
-  normalizeTranslationProjectFinalizeExecutionBundleInputV1,
+  normalizeTranslationBatchCandidateExecutionBundleInputV1,
+  normalizeTranslationBatchExecutionAcquireInputV1,
+  normalizeTranslationWorksetImportExecutionAcquireInputV1,
+  normalizeTranslationWorksetFinalizeExecutionBundleInputV1,
   type ProgramDataProcessOperationExpectationV1,
   type ProgramDataRepositoryFailureCodeV1,
   type ProgramDataRepositoryOperationV1,
@@ -82,8 +84,10 @@ import {
   type ProgramProcessRevisionBundleInputV1,
   type ProcessWorkspaceBindingV1,
   type ProcessWorkspaceCreateCompositeCommitResultV1,
-  type TranslationProjectFinalizeExecutionCompositeCommitResultV1,
-  type TranslationProjectImportExecutionAcquireResultV1,
+  type TranslationWorksetFinalizeExecutionCompositeCommitResultV1,
+  type TranslationBatchCandidateExecutionCompositeCommitResultV1,
+  type TranslationBatchExecutionAcquireResultV1,
+  type TranslationWorksetImportExecutionAcquireResultV1,
 } from "./program-data-repository.ts";
 import {
   cloneProcessExecutionLeaseV1,
@@ -98,23 +102,31 @@ import {
 } from "./process-execution-repository.ts";
 import type { PreviewProgramV1 } from "./contracts.ts";
 import {
-  normalizeTranslationProjectAppendImportInputV1,
-  normalizeTranslationProjectBeginImportInputV1,
-  normalizeTranslationProjectFinalizeImportInputV1,
-  normalizeTranslationProjectOperationExpectationV1,
-  normalizeTranslationProjectPageRequestV1,
-  normalizeTranslationProjectSourceBindingV1,
-  translationProjectRowUtf8ByteLengthV1,
-  type TranslationProjectGlossaryEntryV1,
-  type TranslationProjectHeadV1,
-  type TranslationProjectOperationExpectationV1,
-  type TranslationProjectOperationReceiptV1,
-  type TranslationProjectUnitV1,
-} from "./translation/translation-project-repository.ts";
-import { builtinTranslationProgramIdV1 } from "./translation/translation-program-definition.ts";
+  cloneTranslationBatchCandidateRecordV1,
+  cloneTranslationWorksetUnitV1,
+  normalizeTranslationBatchCandidateAcceptInputV1,
+  normalizeTranslationBatchCandidatePublishInputV1,
+  normalizeTranslationBatchCandidateRejectInputV1,
+  normalizeTranslationWorksetAppendImportInputV1,
+  normalizeTranslationWorksetBeginImportInputV1,
+  normalizeTranslationWorksetFinalizeImportInputV1,
+  normalizeTranslationWorksetOperationExpectationV1,
+  normalizeTranslationWorksetPageRequestV1,
+  normalizeTranslationWorksetSourceBindingV1,
+  translationWorksetRowUtf8ByteLengthV1,
+  type TranslationWorksetGlossaryEntryV1,
+  type TranslationBatchCandidateAcceptInputV1,
+  type TranslationBatchCandidateRecordV1,
+  type TranslationBatchCandidateRejectInputV1,
+  type TranslationWorksetHeadV1,
+  type TranslationWorksetOperationReceiptV1,
+  type TranslationWorksetUnitRecordV1,
+} from "./translation/translation-workset-repository.ts";
+import { translationTargetPreservesProtectedStructureV1 } from "./translation/translation-document-codec.ts";
+import { bundledTranslationProgramIdV1 } from "./translation/translation-program-definition.ts";
 
 export const programDataDatabaseNameV1 = "sillymaker.example-silly-os.programs";
-export const programDataDatabaseVersionV1 = 11;
+export const programDataDatabaseVersionV1 = 13;
 
 export const programDataStoreNamesV1 = [
   "catalog_commits",
@@ -128,41 +140,11 @@ export const programDataStoreNamesV1 = [
   "program_network_access",
   "program_revisions",
   "transcript_entries",
+  "translation_batch_candidates",
   "translation_glossary_entries",
-  "translation_project_heads",
-  "translation_project_operations",
-  "translation_project_units",
-  "workspace_continuations",
-] as const;
-
-const programDataV10StoreNamesV1 = [
-  "catalog_commits",
-  "process_commits",
-  "process_execution_leases",
-  "process_workspace_bindings",
-  "processes",
-  "program_decisions",
-  "program_definitions",
-  "program_heads",
-  "program_network_access",
-  "program_revisions",
-  "transcript_entries",
-  "workspace_continuations",
-] as const;
-
-// Historical schemas remain exact literals. Deriving V9 by subtracting a V10
-// store from the current set would silently make a future V11 store part of V9.
-const programDataV9StoreNamesV1 = [
-  "catalog_commits",
-  "process_commits",
-  "process_execution_leases",
-  "processes",
-  "program_decisions",
-  "program_definitions",
-  "program_heads",
-  "program_network_access",
-  "program_revisions",
-  "transcript_entries",
+  "translation_workset_heads",
+  "translation_workset_operations",
+  "translation_workset_units",
   "workspace_continuations",
 ] as const;
 
@@ -201,7 +183,7 @@ interface StoredProcessCommitV1 {
 }
 
 interface StoredProcessOperationV1 extends ProcessOperationReceiptV1 {
-  /** IndexedDB key name retained inside the reset V9 store. */
+  /** Physical IndexedDB key fields for the current Process operation row. */
   readonly commitId: string;
   readonly digest: string;
 }
@@ -276,14 +258,44 @@ type PreparedExecutionAcquireV1 =
 type PreparedTranslationFinalizeV1 =
   | {
     readonly kind: "unchanged";
-    readonly head: TranslationProjectHeadV1;
-    readonly operationReceipt: TranslationProjectOperationReceiptV1;
+    readonly head: TranslationWorksetHeadV1;
+    readonly operationReceipt: TranslationWorksetOperationReceiptV1;
   }
-  | { readonly kind: "conflict"; readonly current: TranslationProjectHeadV1 | null }
+  | { readonly kind: "conflict"; readonly current: TranslationWorksetHeadV1 | null }
   | {
     readonly kind: "committed";
-    readonly head: TranslationProjectHeadV1;
-    readonly operationReceipt: TranslationProjectOperationReceiptV1;
+    readonly head: TranslationWorksetHeadV1;
+    readonly operationReceipt: TranslationWorksetOperationReceiptV1;
+    readonly write: () => Promise<void>;
+  };
+
+type PreparedTranslationCandidateV1 =
+  | {
+    readonly kind: "unchanged";
+    readonly head: TranslationWorksetHeadV1;
+    readonly candidate: TranslationBatchCandidateRecordV1;
+    readonly operationReceipt: TranslationWorksetOperationReceiptV1;
+  }
+  | { readonly kind: "conflict"; readonly current: TranslationWorksetHeadV1 | null }
+  | {
+    readonly kind: "committed";
+    readonly head: TranslationWorksetHeadV1;
+    readonly candidate: TranslationBatchCandidateRecordV1;
+    readonly operationReceipt: TranslationWorksetOperationReceiptV1;
+    readonly write: () => Promise<void>;
+  };
+
+type PreparedTranslationCandidateReviewV1 =
+  | {
+    readonly kind: "unchanged";
+    readonly head: TranslationWorksetHeadV1;
+    readonly operationReceipt: TranslationWorksetOperationReceiptV1;
+  }
+  | { readonly kind: "conflict"; readonly current: TranslationWorksetHeadV1 | null }
+  | {
+    readonly kind: "committed";
+    readonly head: TranslationWorksetHeadV1;
+    readonly operationReceipt: TranslationWorksetOperationReceiptV1;
     readonly write: () => Promise<void>;
   };
 
@@ -334,7 +346,7 @@ function exactStoreV1(
   });
 }
 
-function createV9StoresV1(database: IDBDatabase): void {
+function createCoreStoresV1(database: IDBDatabase): void {
   database.createObjectStore("program_definitions", { keyPath: ["programId", "revision"] });
   const heads = database.createObjectStore("program_heads", { keyPath: "programId" });
   heads.createIndex("by_updated_at", ["updatedAt", "programId"]);
@@ -363,14 +375,9 @@ function createProcessWorkspaceBindingsStoreV1(database: IDBDatabase): void {
   bindings.createIndex("by_volume_id", "volumeId", { unique: true });
 }
 
-function createV10StoresV1(database: IDBDatabase): void {
-  createV9StoresV1(database);
-  createProcessWorkspaceBindingsStoreV1(database);
-}
-
-function createTranslationProjectStoresV1(database: IDBDatabase): void {
-  database.createObjectStore("translation_project_heads", { keyPath: "processId" });
-  const units = database.createObjectStore("translation_project_units", {
+function createTranslationWorksetStoresV1(database: IDBDatabase): void {
+  database.createObjectStore("translation_workset_heads", { keyPath: "processId" });
+  const units = database.createObjectStore("translation_workset_units", {
     keyPath: ["processId", "order"],
   });
   units.createIndex("by_process_unit_id", ["processId", "unitId"], { unique: true });
@@ -378,17 +385,25 @@ function createTranslationProjectStoresV1(database: IDBDatabase): void {
     keyPath: ["processId", "order"],
   });
   glossary.createIndex("by_process_entry_id", ["processId", "entryId"], { unique: true });
-  database.createObjectStore("translation_project_operations", {
+  database.createObjectStore("translation_workset_operations", {
     keyPath: ["processId", "operationId"],
   });
 }
 
-function createV11StoresV1(database: IDBDatabase): void {
-  createV10StoresV1(database);
-  createTranslationProjectStoresV1(database);
+function createTranslationBatchCandidateStoreV1(database: IDBDatabase): void {
+  database.createObjectStore("translation_batch_candidates", {
+    keyPath: ["processId", "candidateId"],
+  });
 }
 
-function hasExactV9StoresV1(transaction: IDBTransaction): boolean {
+function createCurrentStoresV1(database: IDBDatabase): void {
+  createCoreStoresV1(database);
+  createProcessWorkspaceBindingsStoreV1(database);
+  createTranslationWorksetStoresV1(database);
+  createTranslationBatchCandidateStoreV1(database);
+}
+
+function hasExactCoreStoresV1(transaction: IDBTransaction): boolean {
   return exactStoreV1(transaction.objectStore("program_definitions"), [
     "programId",
     "revision",
@@ -425,107 +440,56 @@ function hasExactV9StoresV1(transaction: IDBTransaction): boolean {
     exactStoreV1(transaction.objectStore("program_network_access"), "programId");
 }
 
-function hasExactV11SchemaV1(database: IDBDatabase): boolean {
+function hasExactCurrentStoresV1(transaction: IDBTransaction): boolean {
+  return hasExactCoreStoresV1(transaction) &&
+    exactStoreV1(transaction.objectStore("process_workspace_bindings"), "processId", [{
+      name: "by_volume_id",
+      keyPath: "volumeId",
+      unique: true,
+    }]) &&
+    exactStoreV1(transaction.objectStore("translation_workset_heads"), "processId") &&
+    exactStoreV1(transaction.objectStore("translation_workset_units"), ["processId", "order"], [{
+      name: "by_process_unit_id",
+      keyPath: ["processId", "unitId"],
+      unique: true,
+    }]) &&
+    exactStoreV1(
+      transaction.objectStore("translation_glossary_entries"),
+      ["processId", "order"],
+      [{
+        name: "by_process_entry_id",
+        keyPath: ["processId", "entryId"],
+        unique: true,
+      }],
+    ) &&
+    exactStoreV1(transaction.objectStore("translation_workset_operations"), [
+      "processId",
+      "operationId",
+    ]) &&
+    exactStoreV1(transaction.objectStore("translation_batch_candidates"), [
+      "processId",
+      "candidateId",
+    ]);
+}
+
+function hasExactCurrentSchemaV1(database: IDBDatabase): boolean {
   try {
     if (
-      database.version !== 11 || !exactNamesV1(database.objectStoreNames, programDataStoreNamesV1)
+      database.version !== programDataDatabaseVersionV1 ||
+      !exactNamesV1(database.objectStoreNames, programDataStoreNamesV1)
     ) return false;
     const transaction = database.transaction(programDataStoreNamesV1, "readonly");
-    return hasExactV9StoresV1(transaction) &&
-      exactStoreV1(transaction.objectStore("process_workspace_bindings"), "processId", [{
-        name: "by_volume_id",
-        keyPath: "volumeId",
-        unique: true,
-      }]) &&
-      exactStoreV1(transaction.objectStore("translation_project_heads"), "processId") &&
-      exactStoreV1(transaction.objectStore("translation_project_units"), ["processId", "order"], [{
-        name: "by_process_unit_id",
-        keyPath: ["processId", "unitId"],
-        unique: true,
-      }]) &&
-      exactStoreV1(
-        transaction.objectStore("translation_glossary_entries"),
-        ["processId", "order"],
-        [{
-          name: "by_process_entry_id",
-          keyPath: ["processId", "entryId"],
-          unique: true,
-        }],
-      ) &&
-      exactStoreV1(transaction.objectStore("translation_project_operations"), [
-        "processId",
-        "operationId",
-      ]);
+    return hasExactCurrentStoresV1(transaction);
   } catch {
     return false;
   }
 }
 
-const legacyStoresByVersionV1: Readonly<Record<number, readonly string[]>> = {
-  4: ["programs", "workspace_continuations"],
-  5: ["programs", "workspace_continuations"],
-  6: ["program_network_grants", "programs", "workspace_continuations"],
-  7: ["program_network_access", "programs", "workspace_continuations"],
-};
-
-function resetExactLegacyV1(request: IDBOpenDBRequest, oldVersion: number): void {
-  const expected = legacyStoresByVersionV1[oldVersion];
-  const transaction = request.transaction;
-  if (
-    expected === undefined || transaction === null ||
-    !exactNamesV1(request.result.objectStoreNames, expected)
-  ) {
-    throw createProgramDataRepositoryFailureV1("schema_invalid", "initialize");
+function resetPreviousPreviewSchemaV1(request: IDBOpenDBRequest): void {
+  for (const name of domStringListV1(request.result.objectStoreNames)) {
+    request.result.deleteObjectStore(name);
   }
-  for (const name of expected) {
-    if (!exactStoreV1(transaction.objectStore(name), "programId")) {
-      throw createProgramDataRepositoryFailureV1("schema_invalid", "initialize");
-    }
-  }
-  for (const name of expected) request.result.deleteObjectStore(name);
-  createV11StoresV1(request.result);
-}
-
-function resetExactV8V1(request: IDBOpenDBRequest): void {
-  const transaction = request.transaction;
-  if (transaction === null) {
-    throw createProgramDataRepositoryFailureV1("schema_invalid", "initialize");
-  }
-  const expected = [
-    "agent_run_receipts",
-    ...programDataV9StoreNamesV1.filter((name) => name !== "process_execution_leases"),
-  ];
-  if (!exactNamesV1(request.result.objectStoreNames, expected)) {
-    throw createProgramDataRepositoryFailureV1("schema_invalid", "initialize");
-  }
-  for (const name of expected) request.result.deleteObjectStore(name);
-  createV11StoresV1(request.result);
-}
-
-function upgradeExactV9V1(request: IDBOpenDBRequest): void {
-  const transaction = request.transaction;
-  if (
-    transaction === null ||
-    !exactNamesV1(request.result.objectStoreNames, programDataV9StoreNamesV1) ||
-    !hasExactV9StoresV1(transaction)
-  ) throw createProgramDataRepositoryFailureV1("schema_invalid", "initialize");
-  createProcessWorkspaceBindingsStoreV1(request.result);
-  createTranslationProjectStoresV1(request.result);
-}
-
-function upgradeExactV10V1(request: IDBOpenDBRequest): void {
-  const transaction = request.transaction;
-  if (
-    transaction === null ||
-    !exactNamesV1(request.result.objectStoreNames, programDataV10StoreNamesV1) ||
-    !hasExactV9StoresV1(transaction) ||
-    !exactStoreV1(transaction.objectStore("process_workspace_bindings"), "processId", [{
-      name: "by_volume_id",
-      keyPath: "volumeId",
-      unique: true,
-    }])
-  ) throw createProgramDataRepositoryFailureV1("schema_invalid", "initialize");
-  createTranslationProjectStoresV1(request.result);
+  createCurrentStoresV1(request.result);
 }
 
 function domExceptionNameV1(value: unknown): string | null {
@@ -585,7 +549,7 @@ function openDatabaseV1(input: {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest;
     try {
-      request = input.indexedDB.open(input.databaseName, 11);
+      request = input.indexedDB.open(input.databaseName, programDataDatabaseVersionV1);
     } catch (error) {
       reject(mapFailureV1(error, input.operation));
       return;
@@ -603,18 +567,20 @@ function openDatabaseV1(input: {
         return;
       }
       try {
-        if (event.newVersion !== 11 || ![0, 4, 5, 6, 7, 8, 9, 10].includes(event.oldVersion)) {
+        if (event.newVersion !== programDataDatabaseVersionV1) {
           throw createProgramDataRepositoryFailureV1("schema_invalid", input.operation);
         }
         if (event.oldVersion === 0) {
           if (request.result.objectStoreNames.length !== 0) {
             throw createProgramDataRepositoryFailureV1("schema_invalid", input.operation);
           }
-          createV11StoresV1(request.result);
-        } else if (event.oldVersion === 8) resetExactV8V1(request);
-        else if (event.oldVersion === 9) upgradeExactV9V1(request);
-        else if (event.oldVersion === 10) upgradeExactV10V1(request);
-        else resetExactLegacyV1(request, event.oldVersion);
+          createCurrentStoresV1(request.result);
+        } else {
+          // Preview-local persistence is not a compatibility contract before
+          // the first stable release. An incompatible schema cleanly resets
+          // this dedicated database rather than retaining migration code.
+          resetPreviousPreviewSchemaV1(request);
+        }
       } catch (error) {
         upgradeFailure = error;
         request.transaction?.abort();
@@ -630,7 +596,7 @@ function openDatabaseV1(input: {
         database.close();
         return;
       }
-      if (!hasExactV11SchemaV1(database)) {
+      if (!hasExactCurrentSchemaV1(database)) {
         database.close();
         rejectOnce(createProgramDataRepositoryFailureV1("schema_invalid", input.operation));
         return;
@@ -1659,7 +1625,10 @@ export function createIndexedDbProgramDataRepositoryV1(
     readonly transaction: IDBTransaction;
     readonly value: ReturnType<typeof normalizeProcessExecutionAcquireInputV1>;
     readonly digest: string;
-    readonly operation: "execution_acquire" | "translation_project_execution_acquire";
+    readonly operation:
+      | "execution_acquire"
+      | "translation_workset_import_execution_acquire"
+      | "translation_batch_execution_acquire";
     readonly repositoryOperation: ProgramDataRepositoryOperationV1;
   }): Promise<PreparedExecutionAcquireV1> => {
     const operationId = input.value.attempt.commitId;
@@ -2044,7 +2013,8 @@ export function createIndexedDbProgramDataRepositoryV1(
     }
     if (
       input.expectation.operation === "execution_acquire" ||
-      input.expectation.operation === "translation_project_execution_acquire"
+      input.expectation.operation === "translation_workset_import_execution_acquire" ||
+      input.expectation.operation === "translation_batch_execution_acquire"
     ) {
       const acquire = input.expectation.operation === "execution_acquire"
         ? input.expectation.input
@@ -2130,51 +2100,85 @@ export function createIndexedDbProgramDataRepositoryV1(
   const loadTranslationHeadTxV1 = async (
     transaction: IDBTransaction,
     processId: string,
-  ): Promise<TranslationProjectHeadV1 | null> => {
+  ): Promise<TranslationWorksetHeadV1 | null> => {
     const row = await requestResultV1(
-      transaction.objectStore("translation_project_heads").get(processId),
+      transaction.objectStore("translation_workset_heads").get(processId),
     );
     if (row === undefined) return null;
-    const head = structuredClone(row) as TranslationProjectHeadV1;
+    const head = structuredClone(row) as TranslationWorksetHeadV1;
     if (
-      head.schemaVersion !== 1 || head.processId !== processId ||
-      !Number.isSafeInteger(head.revision) || head.revision < 1
-    ) throw createProgramDataRepositoryFailureV1("schema_invalid", "load_translation_project_head");
+      head.schemaVersion !== 2 || head.processId !== processId ||
+      !identifierV1(head.importOperationId) ||
+      !Number.isSafeInteger(head.revision) || head.revision < 1 ||
+      !Number.isSafeInteger(head.acceptedUnitCount) || head.acceptedUnitCount < 0 ||
+      head.acceptedUnitCount > head.stagedUnitCount ||
+      !Number.isSafeInteger(head.acceptedBatchCount) || head.acceptedBatchCount < 0 ||
+      (head.pendingCandidateId !== null && !identifierV1(head.pendingCandidateId))
+    ) throw createProgramDataRepositoryFailureV1("schema_invalid", "load_translation_workset_head");
     try {
-      normalizeTranslationProjectSourceBindingV1(
+      normalizeTranslationWorksetSourceBindingV1(
         head.sourceBinding,
         head.source.workspacePath,
       );
     } catch {
       throw createProgramDataRepositoryFailureV1(
         "schema_invalid",
-        "load_translation_project_head",
+        "load_translation_workset_head",
       );
     }
     return head;
   };
 
+  const loadTranslationCandidateTxV1 = async (
+    transaction: IDBTransaction,
+    processId: string,
+    candidateId: string,
+    operation: ProgramDataRepositoryOperationV1,
+  ): Promise<TranslationBatchCandidateRecordV1 | null> => {
+    const row = await requestResultV1(
+      transaction.objectStore("translation_batch_candidates").get([processId, candidateId]),
+    );
+    if (row === undefined) return null;
+    try {
+      const candidate = cloneTranslationBatchCandidateRecordV1(
+        row as TranslationBatchCandidateRecordV1,
+      );
+      if (candidate.processId !== processId || candidate.candidateId !== candidateId) {
+        throw new TypeError("candidate identity mismatch");
+      }
+      return candidate;
+    } catch {
+      throw createProgramDataRepositoryFailureV1("schema_invalid", operation);
+    }
+  };
+
   const translationReceiptTxV1 = async (
     transaction: IDBTransaction,
     expectation:
-      import("./translation/translation-project-repository.ts").TranslationProjectOperationExpectationV1,
+      import("./translation/translation-workset-repository.ts").TranslationWorksetOperationExpectationV1,
     digest: string,
-  ): Promise<TranslationProjectOperationReceiptV1 | "absent" | "mismatch"> => {
+  ): Promise<TranslationWorksetOperationReceiptV1 | "absent" | "mismatch"> => {
     const row = await requestResultV1(
-      transaction.objectStore("translation_project_operations").get([
+      transaction.objectStore("translation_workset_operations").get([
         expectation.input.processId,
         expectation.input.operationId,
       ]),
     );
     if (row === undefined) return "absent";
-    const receipt = structuredClone(row) as TranslationProjectOperationReceiptV1;
+    const stored = structuredClone(row) as TranslationWorksetOperationReceiptV1 & {
+      readonly candidateId?: string | null;
+    };
+    const receipt: TranslationWorksetOperationReceiptV1 = {
+      ...stored,
+      candidateId: stored.candidateId ?? null,
+    };
     if (
       receipt.processId !== expectation.input.processId ||
       receipt.operationId !== expectation.input.operationId
     ) {
       throw createProgramDataRepositoryFailureV1(
         "schema_invalid",
-        "query_translation_project_operation",
+        "query_translation_workset_operation",
       );
     }
     return receipt.operation === expectation.operation && receipt.operationDigest === digest
@@ -2184,24 +2188,31 @@ export function createIndexedDbProgramDataRepositoryV1(
 
   const translationReceiptV1 = (
     expectation:
-      import("./translation/translation-project-repository.ts").TranslationProjectOperationExpectationV1,
+      import("./translation/translation-workset-repository.ts").TranslationWorksetOperationExpectationV1,
     digest: string,
     revision: number,
-  ): TranslationProjectOperationReceiptV1 => ({
+    candidateId: string | null = null,
+  ): TranslationWorksetOperationReceiptV1 => ({
     processId: expectation.input.processId,
     operationId: expectation.input.operationId,
     operation: expectation.operation,
     operationDigest: digest,
-    projectRevision: revision,
+    worksetRevision: revision,
+    candidateId,
   });
 
   const translationImportLeaseIsCurrentTxV1 = async (
     transaction: IDBTransaction,
-    input: TranslationProjectOperationExpectationV1["input"],
+    input: {
+      readonly processId: string;
+      readonly lease: ProcessExecutionLeaseV1;
+      readonly updatedAt: number;
+    },
     operation:
-      | "begin_translation_project_import"
-      | "append_translation_project_import"
-      | "commit_translation_project_finalize_with_process_execution_terminal",
+      | "begin_translation_workset_import"
+      | "append_translation_workset_import"
+      | "commit_translation_workset_finalize_with_process_execution_terminal"
+      | "commit_translation_batch_candidate_with_process_execution_terminal",
   ): Promise<boolean> => {
     const [processRow, leaseRow] = await Promise.all([
       requestResultV1(transaction.objectStore("processes").get(input.processId)),
@@ -2218,12 +2229,332 @@ export function createIndexedDbProgramDataRepositoryV1(
       process.activeAttempt.generation === input.lease.generation;
   };
 
-  const prepareTranslationFinalizeV1 = async (input: {
+  const prepareTranslationCandidateV1 = async (input: {
     readonly transaction: IDBTransaction;
-    readonly value: ReturnType<typeof normalizeTranslationProjectFinalizeImportInputV1>;
+    readonly value: ReturnType<typeof normalizeTranslationBatchCandidatePublishInputV1>;
     readonly digest: string;
     readonly repositoryOperation:
-      "commit_translation_project_finalize_with_process_execution_terminal";
+      "commit_translation_batch_candidate_with_process_execution_terminal";
+  }): Promise<PreparedTranslationCandidateV1> => {
+    const expectation = { operation: "publish_candidate" as const, input: input.value };
+    const [replay, current] = await Promise.all([
+      translationReceiptTxV1(input.transaction, expectation, input.digest),
+      loadTranslationHeadTxV1(input.transaction, input.value.processId),
+    ]);
+    if (replay !== "absent") {
+      if (
+        replay === "mismatch" || current === null || replay.candidateId === null ||
+        current.revision !== replay.worksetRevision ||
+        current.pendingCandidateId !== replay.candidateId
+      ) return { kind: "conflict", current };
+      const candidate = await loadTranslationCandidateTxV1(
+        input.transaction,
+        input.value.processId,
+        replay.candidateId,
+        input.repositoryOperation,
+      );
+      if (candidate === null) {
+        throw createProgramDataRepositoryFailureV1("schema_invalid", input.repositoryOperation);
+      }
+      return { kind: "unchanged", head: current, candidate, operationReceipt: replay };
+    }
+
+    const leaseIsCurrent = await translationImportLeaseIsCurrentTxV1(
+      input.transaction,
+      input.value,
+      input.repositoryOperation,
+    );
+    const request = input.value.request;
+    if (
+      !leaseIsCurrent || current === null || current.phase !== "ready" ||
+      current.revision !== input.value.expectedWorksetRevision ||
+      current.pendingCandidateId !== null ||
+      current.acceptedUnitCount !== input.value.expectedFirstPendingOrder ||
+      request.sourceLocale !== current.sourceLocale ||
+      request.targetLocale !== current.targetLocale ||
+      request.documentPurpose !== current.documentPurpose || request.style !== current.style ||
+      request.units[0]?.order !== current.acceptedUnitCount ||
+      request.units.at(-1)!.order >= current.stagedUnitCount
+    ) return { kind: "conflict", current };
+
+    const unitStore = input.transaction.objectStore("translation_workset_units");
+    const authoritativeRows = await Promise.all(
+      request.units.map((unit) =>
+        requestResultV1(unitStore.get([input.value.processId, unit.order]))
+      ),
+    );
+    if (
+      authoritativeRows.some((row, index) =>
+        row === undefined || !exactJsonValuesEqualV1(
+          (() => {
+            const { target: _target, ...source } = cloneTranslationWorksetUnitV1(row);
+            return source;
+          })(),
+          { processId: input.value.processId, ...request.units[index]! },
+        )
+      )
+    ) return { kind: "conflict", current };
+
+    for (
+      const neighboring of [
+        request.neighboringUnits.preceding,
+        request.neighboringUnits.following,
+      ]
+    ) {
+      if (neighboring === null) continue;
+      const row = await requestResultV1(
+        unitStore.get([input.value.processId, neighboring.order]),
+      );
+      if (
+        row === undefined || !exactJsonValuesEqualV1(
+          (() => {
+            const { target: _target, ...source } = cloneTranslationWorksetUnitV1(row);
+            return source;
+          })(),
+          { processId: input.value.processId, ...neighboring },
+        )
+      ) return { kind: "conflict", current };
+    }
+
+    // The planner bound applicability to exact unit IDs before dispatch, and
+    // the checks above already proved those units against this same workset
+    // revision. Dereference only the admitted entry IDs here: this preserves
+    // exact stored-term consistency without scanning every Process term again.
+    const glossaryIndex = input.transaction.objectStore("translation_glossary_entries")
+      .index("by_process_entry_id");
+    const referencedGlossary = await Promise.all(
+      request.glossary.map((entry) =>
+        requestResultV1(glossaryIndex.get([input.value.processId, entry.entryId]))
+      ),
+    );
+    if (
+      referencedGlossary.some((row, index) => {
+        if (row === undefined) return true;
+        const stored = structuredClone(row) as TranslationWorksetGlossaryEntryV1;
+        const requested = request.glossary[index]!;
+        return stored.processId !== input.value.processId ||
+          !Number.isSafeInteger(stored.order) || stored.order < 0 ||
+          !exactJsonValuesEqualV1({
+            entryId: stored.entryId,
+            source: stored.source,
+            target: stored.target,
+            note: stored.note,
+            locked: stored.locked,
+          }, {
+            entryId: requested.entryId,
+            source: requested.source,
+            target: requested.target,
+            note: requested.note,
+            locked: requested.locked,
+          });
+      })
+    ) {
+      return { kind: "conflict", current };
+    }
+
+    const candidateId = input.value.operationId;
+    const candidate: TranslationBatchCandidateRecordV1 = {
+      schemaVersion: 1,
+      processId: input.value.processId,
+      candidateId,
+      baseWorksetRevision: input.value.expectedWorksetRevision,
+      firstOrder: input.value.expectedFirstPendingOrder,
+      unitCount: request.units.length,
+      targets: structuredClone(input.value.candidate.targets),
+      ambiguities: structuredClone(input.value.candidate.ambiguities),
+      attemptId: input.value.lease.attemptId,
+      generation: input.value.lease.generation,
+      createdAt: input.value.updatedAt,
+    };
+    const head: TranslationWorksetHeadV1 = {
+      ...current,
+      revision: current.revision + 1,
+      pendingCandidateId: candidateId,
+      updatedAt: input.value.updatedAt,
+    };
+    const receipt = translationReceiptV1(
+      expectation,
+      input.digest,
+      head.revision,
+      candidateId,
+    );
+    return {
+      kind: "committed",
+      head,
+      candidate,
+      operationReceipt: receipt,
+      write: async () => {
+        await Promise.all([
+          requestResultV1(
+            input.transaction.objectStore("translation_batch_candidates").add(candidate),
+          ),
+          requestResultV1(
+            input.transaction.objectStore("translation_workset_heads").put(head),
+          ),
+          requestResultV1(
+            input.transaction.objectStore("translation_workset_operations").add(receipt),
+          ),
+        ]);
+      },
+    };
+  };
+
+  const prepareTranslationCandidateReviewV1 = async (input: {
+    readonly transaction: IDBTransaction;
+    readonly value: TranslationBatchCandidateAcceptInputV1 | TranslationBatchCandidateRejectInputV1;
+    readonly decision: "accept_candidate" | "reject_candidate";
+    readonly digest: string;
+    readonly repositoryOperation:
+      | "accept_translation_batch_candidate"
+      | "reject_translation_batch_candidate";
+  }): Promise<PreparedTranslationCandidateReviewV1> => {
+    const expectation = input.decision === "accept_candidate"
+      ? {
+        operation: "accept_candidate" as const,
+        input: input.value as TranslationBatchCandidateAcceptInputV1,
+      }
+      : {
+        operation: "reject_candidate" as const,
+        input: input.value as TranslationBatchCandidateRejectInputV1,
+      };
+    const [replay, current] = await Promise.all([
+      translationReceiptTxV1(input.transaction, expectation, input.digest),
+      loadTranslationHeadTxV1(input.transaction, input.value.processId),
+    ]);
+    if (replay !== "absent") {
+      if (
+        replay === "mismatch" || current === null ||
+        replay.candidateId !== input.value.candidateId ||
+        current.revision !== replay.worksetRevision || current.pendingCandidateId !== null
+      ) return { kind: "conflict", current };
+      return { kind: "unchanged", head: current, operationReceipt: replay };
+    }
+    if (
+      current === null || current.phase !== "ready" ||
+      current.revision !== input.value.expectedWorksetRevision ||
+      current.pendingCandidateId !== input.value.candidateId
+    ) return { kind: "conflict", current };
+    const candidate = await loadTranslationCandidateTxV1(
+      input.transaction,
+      input.value.processId,
+      input.value.candidateId,
+      input.repositoryOperation,
+    );
+    if (candidate === null) {
+      throw createProgramDataRepositoryFailureV1("schema_invalid", input.repositoryOperation);
+    }
+    const nextAcceptedUnitCount = current.acceptedUnitCount + candidate.unitCount;
+    if (
+      candidate.baseWorksetRevision + 1 !== current.revision ||
+      candidate.firstOrder !== current.acceptedUnitCount ||
+      candidate.targets.length !== candidate.unitCount ||
+      !Number.isSafeInteger(nextAcceptedUnitCount) ||
+      nextAcceptedUnitCount > current.stagedUnitCount
+    ) throw createProgramDataRepositoryFailureV1("schema_invalid", input.repositoryOperation);
+
+    const unitStore = input.transaction.objectStore("translation_workset_units");
+    const units = await Promise.all(
+      candidate.targets.map((target, index) =>
+        requestResultV1(unitStore.get([
+          input.value.processId,
+          candidate.firstOrder + index,
+        ])).then((row) => {
+          if (row === undefined) {
+            throw createProgramDataRepositoryFailureV1(
+              "schema_invalid",
+              input.repositoryOperation,
+            );
+          }
+          const unit = cloneTranslationWorksetUnitV1(row);
+          if (
+            unit.processId !== input.value.processId ||
+            unit.order !== candidate.firstOrder + index || unit.unitId !== target.unitId ||
+            unit.target !== null
+          ) {
+            throw createProgramDataRepositoryFailureV1(
+              "schema_invalid",
+              input.repositoryOperation,
+            );
+          }
+          return unit;
+        })
+      ),
+    );
+
+    let acceptedTargets: TranslationBatchCandidateAcceptInputV1["targets"] = [];
+    if (input.decision === "accept_candidate") {
+      const value = input.value as TranslationBatchCandidateAcceptInputV1;
+      if (
+        value.targets.length !== candidate.unitCount ||
+        value.targets.some((target, index) =>
+          target.unitId !== candidate.targets[index]?.unitId ||
+          target.unitId !== units[index]?.unitId ||
+          !translationTargetPreservesProtectedStructureV1(units[index]!, target.target)
+        )
+      ) return { kind: "conflict", current };
+      acceptedTargets = value.targets;
+    }
+
+    const acceptedBatchCount = input.decision === "accept_candidate"
+      ? current.acceptedBatchCount + 1
+      : current.acceptedBatchCount;
+    if (!Number.isSafeInteger(acceptedBatchCount)) {
+      throw createProgramDataRepositoryFailureV1("schema_invalid", input.repositoryOperation);
+    }
+    const head: TranslationWorksetHeadV1 = {
+      ...current,
+      revision: current.revision + 1,
+      acceptedUnitCount: input.decision === "accept_candidate"
+        ? nextAcceptedUnitCount
+        : current.acceptedUnitCount,
+      acceptedBatchCount,
+      pendingCandidateId: null,
+      updatedAt: input.value.updatedAt,
+    };
+    const receipt = translationReceiptV1(
+      expectation,
+      input.digest,
+      head.revision,
+      input.value.candidateId,
+    );
+    return {
+      kind: "committed",
+      head,
+      operationReceipt: receipt,
+      write: async () => {
+        const writes: Promise<unknown>[] = [
+          requestResultV1(
+            input.transaction.objectStore("translation_workset_heads").put(head),
+          ),
+          requestResultV1(
+            input.transaction.objectStore("translation_workset_operations").add(receipt),
+          ),
+          requestResultV1(
+            input.transaction.objectStore("translation_batch_candidates").delete([
+              input.value.processId,
+              input.value.candidateId,
+            ]),
+          ),
+        ];
+        if (input.decision === "accept_candidate") {
+          writes.push(...units.map((unit, index) =>
+            requestResultV1(unitStore.put({
+              ...unit,
+              target: acceptedTargets[index]!.target,
+            }))
+          ));
+        }
+        await Promise.all(writes);
+      },
+    };
+  };
+
+  const prepareTranslationFinalizeV1 = async (input: {
+    readonly transaction: IDBTransaction;
+    readonly value: ReturnType<typeof normalizeTranslationWorksetFinalizeImportInputV1>;
+    readonly digest: string;
+    readonly repositoryOperation:
+      "commit_translation_workset_finalize_with_process_execution_terminal";
   }): Promise<PreparedTranslationFinalizeV1> => {
     const expectation = { operation: "finalize" as const, input: input.value };
     const [replay, current] = await Promise.all([
@@ -2233,7 +2564,7 @@ export function createIndexedDbProgramDataRepositoryV1(
     if (replay !== "absent") {
       if (
         replay === "mismatch" || current === null || current.phase !== "ready" ||
-        current.revision !== replay.projectRevision ||
+        current.revision !== replay.worksetRevision ||
         !exactJsonValuesEqualV1(current.sourceBinding, input.value.sourceBinding)
       ) return { kind: "conflict", current };
       return { kind: "unchanged", head: current, operationReceipt: replay };
@@ -2250,7 +2581,7 @@ export function createIndexedDbProgramDataRepositoryV1(
     ]);
     if (
       !leaseIsCurrent || current === null || current.phase !== "staging" ||
-      current.revision !== input.value.expectedProjectRevision ||
+      current.revision !== input.value.expectedWorksetRevision ||
       current.stagedUnitCount !== current.expectedUnitCount ||
       current.stagedGlossaryCount !== current.expectedGlossaryCount || bindingRow === undefined ||
       cloneProcessWorkspaceBindingV1(bindingRow as ProcessWorkspaceBindingV1).workspaceId !==
@@ -2259,7 +2590,7 @@ export function createIndexedDbProgramDataRepositoryV1(
       current.source.workspacePath !== input.value.sourceBinding.path
     ) return { kind: "conflict", current };
     const revision = current.revision + 1;
-    const head: TranslationProjectHeadV1 = {
+    const head: TranslationWorksetHeadV1 = {
       ...current,
       revision,
       phase: "ready",
@@ -2273,10 +2604,10 @@ export function createIndexedDbProgramDataRepositoryV1(
       write: async () => {
         await Promise.all([
           requestResultV1(
-            input.transaction.objectStore("translation_project_heads").put(head),
+            input.transaction.objectStore("translation_workset_heads").put(head),
           ),
           requestResultV1(
-            input.transaction.objectStore("translation_project_operations").add(receipt),
+            input.transaction.objectStore("translation_workset_operations").add(receipt),
           ),
         ]);
       },
@@ -2287,26 +2618,26 @@ export function createIndexedDbProgramDataRepositoryV1(
     TRow extends { readonly processId: string; readonly order: number },
   >(
     input:
-      import("./translation/translation-project-repository.ts").TranslationProjectPageRequestV1,
-    storeName: "translation_project_units" | "translation_glossary_entries",
-    operation: "load_translation_project_unit_page" | "load_translation_project_glossary_page",
+      import("./translation/translation-workset-repository.ts").TranslationWorksetPageRequestV1,
+    storeName: "translation_workset_units" | "translation_glossary_entries",
+    operation: "load_translation_workset_unit_page" | "load_translation_workset_glossary_page",
   ): Promise<
-    import("./translation/translation-project-repository.ts").TranslationProjectPageResultV1<TRow>
+    import("./translation/translation-workset-repository.ts").TranslationWorksetPageResultV1<TRow>
   > =>
     await runV1(
       operation,
-      ["translation_project_heads", storeName],
+      ["translation_workset_heads", storeName],
       "readonly",
       async (transaction) => {
         const head = await loadTranslationHeadTxV1(transaction, input.processId);
-        if (head === null || head.revision !== input.expectedProjectRevision) {
+        if (head === null || head.revision !== input.expectedWorksetRevision) {
           return { kind: "conflict" as const, current: head };
         }
         const rows: TRow[] = [];
         let byteLength = 0;
         let stopped = false;
         let expectedOrder = input.fromOrder;
-        const stagedCount = storeName === "translation_project_units"
+        const stagedCount = storeName === "translation_workset_units"
           ? head.stagedUnitCount
           : head.stagedGlossaryCount;
         const range = keyRange.bound([input.processId, input.fromOrder], [
@@ -2314,14 +2645,16 @@ export function createIndexedDbProgramDataRepositoryV1(
           Number.MAX_SAFE_INTEGER,
         ]);
         await cursorWalkV1(transaction.objectStore(storeName).openCursor(range), (cursor) => {
-          const row = structuredClone(cursor.value) as TRow;
+          const row = (storeName === "translation_workset_units"
+            ? cloneTranslationWorksetUnitV1(cursor.value)
+            : structuredClone(cursor.value)) as TRow;
           if (
             row.processId !== input.processId || !Number.isSafeInteger(row.order) ||
             row.order !== expectedOrder
           ) {
             throw createProgramDataRepositoryFailureV1("schema_invalid", operation);
           }
-          const bytes = translationProjectRowUtf8ByteLengthV1(row);
+          const bytes = translationWorksetRowUtf8ByteLengthV1(row);
           if (byteLength + bytes > input.maximumBytes) {
             stopped = true;
             return "stop";
@@ -2345,7 +2678,7 @@ export function createIndexedDbProgramDataRepositoryV1(
           kind: "page" as const,
           page: {
             processId: input.processId,
-            projectRevision: head.revision,
+            worksetRevision: head.revision,
             fromOrder: input.fromOrder,
             rows,
             byteLength,
@@ -3395,11 +3728,11 @@ export function createIndexedDbProgramDataRepositoryV1(
           });
           if (
             prepared.kind !== "conflict" &&
-            prepared.process.programDefinition.programId === builtinTranslationProgramIdV1 &&
+            prepared.process.programDefinition.programId === bundledTranslationProgramIdV1 &&
             prepared.process.programDefinition.revision === 1
           ) {
             throw new TypeError(
-              "A Translation Process must acquire execution with its Project expectation",
+              "A Translation Process must acquire execution with its workset expectation",
             );
           }
           if (prepared.kind === "committed") await prepared.write();
@@ -3421,10 +3754,10 @@ export function createIndexedDbProgramDataRepositoryV1(
       );
     },
 
-    async acquireTranslationProjectImportExecution(rawInput) {
-      const input = normalizeTranslationProjectImportExecutionAcquireInputV1(rawInput);
+    async acquireTranslationWorksetImportExecution(rawInput) {
+      const input = normalizeTranslationWorksetImportExecutionAcquireInputV1(rawInput);
       const digest = await digestV1(input);
-      const operation = "acquire_translation_project_import_execution" as const;
+      const operation = "acquire_translation_workset_import_execution" as const;
       return await runV1(
         operation,
         [
@@ -3432,19 +3765,19 @@ export function createIndexedDbProgramDataRepositoryV1(
           "transcript_entries",
           "process_commits",
           "process_execution_leases",
-          "translation_project_heads",
+          "translation_workset_heads",
         ],
         "readwrite",
-        async (transaction): Promise<TranslationProjectImportExecutionAcquireResultV1> => {
+        async (transaction): Promise<TranslationWorksetImportExecutionAcquireResultV1> => {
           const processId = input.execution.attempt.processId;
-          const [currentProject, currentProcess, currentLease, prepared] = await Promise.all([
+          const [currentWorkset, currentProcess, currentLease, prepared] = await Promise.all([
             loadTranslationHeadTxV1(transaction, processId),
             loadProcessTxV1(transaction, processId, operation),
             loadProcessExecutionLeaseTxV1(transaction, processId, operation),
             prepareExecutionAcquireV1({
               transaction,
               value: input.execution,
-              operation: "translation_project_execution_acquire",
+              operation: "translation_workset_import_execution_acquire",
               digest,
               repositoryOperation: operation,
             }),
@@ -3460,13 +3793,72 @@ export function createIndexedDbProgramDataRepositoryV1(
           }
           if (
             prepared.kind === "conflict" ||
-            prepared.process.programDefinition.programId !== builtinTranslationProgramIdV1 ||
+            prepared.process.programDefinition.programId !== bundledTranslationProgramIdV1 ||
             prepared.process.programDefinition.revision !== 1 ||
-            (input.expectedProjectRevision === null
-              ? currentProject !== null
-              : currentProject === null || currentProject.phase !== "staging" ||
-                currentProject.revision !== input.expectedProjectRevision)
-          ) return { kind: "conflict", currentProject, currentProcess, currentLease };
+            (input.expectedWorksetRevision === null
+              ? currentWorkset !== null
+              : currentWorkset === null || currentWorkset.phase !== "staging" ||
+                currentWorkset.revision !== input.expectedWorksetRevision)
+          ) return { kind: "conflict", currentWorkset, currentProcess, currentLease };
+          await prepared.write();
+          return {
+            kind: "committed",
+            process: prepared.process,
+            entries: prepared.entries,
+            lease: prepared.lease,
+            operationReceipt: prepared.operationReceipt,
+          };
+        },
+      );
+    },
+
+    async acquireTranslationBatchExecution(rawInput) {
+      const input = normalizeTranslationBatchExecutionAcquireInputV1(rawInput);
+      const digest = await digestV1(input);
+      const operation = "acquire_translation_batch_execution" as const;
+      return await runV1(
+        operation,
+        [
+          "processes",
+          "transcript_entries",
+          "process_commits",
+          "process_execution_leases",
+          "translation_workset_heads",
+        ],
+        "readwrite",
+        async (transaction): Promise<TranslationBatchExecutionAcquireResultV1> => {
+          const processId = input.execution.attempt.processId;
+          const [currentWorkset, currentProcess, currentLease, prepared] = await Promise.all([
+            loadTranslationHeadTxV1(transaction, processId),
+            loadProcessTxV1(transaction, processId, operation),
+            loadProcessExecutionLeaseTxV1(transaction, processId, operation),
+            prepareExecutionAcquireV1({
+              transaction,
+              value: input.execution,
+              operation: "translation_batch_execution_acquire",
+              digest,
+              repositoryOperation: operation,
+            }),
+          ]);
+          if (prepared.kind === "unchanged") {
+            return {
+              kind: "unchanged",
+              process: prepared.process,
+              entries: prepared.entries,
+              lease: prepared.lease,
+              operationReceipt: prepared.operationReceipt,
+            };
+          }
+          if (
+            prepared.kind === "conflict" ||
+            prepared.process.programDefinition.programId !== bundledTranslationProgramIdV1 ||
+            prepared.process.programDefinition.revision !== 1 || currentWorkset === null ||
+            currentWorkset.phase !== "ready" ||
+            currentWorkset.revision !== input.expectedWorksetRevision ||
+            currentWorkset.acceptedUnitCount !== input.expectedFirstPendingOrder ||
+            currentWorkset.pendingCandidateId !== input.expectedPendingCandidateId ||
+            currentWorkset.acceptedUnitCount >= currentWorkset.stagedUnitCount
+          ) return { kind: "conflict", currentWorkset, currentProcess, currentLease };
           await prepared.write();
           return {
             kind: "committed",
@@ -3627,7 +4019,7 @@ export function createIndexedDbProgramDataRepositoryV1(
               }
               if (definition.kind === "translation") {
                 throw new TypeError(
-                  "A Translation Process must publish a completed terminal with its Project finalize",
+                  "A Translation Process must publish a completed terminal with its workset finalize",
                 );
               }
             }
@@ -3755,13 +4147,23 @@ export function createIndexedDbProgramDataRepositoryV1(
         expectedOperation = "execution_acquire";
         expectedInput = input;
         normalizedExpectation = { operation: "execution_acquire", input };
-      } else if (expectation.operation === "translation_project_execution_acquire") {
-        const input = normalizeTranslationProjectImportExecutionAcquireInputV1(expectation.input);
+      } else if (expectation.operation === "translation_workset_import_execution_acquire") {
+        const input = normalizeTranslationWorksetImportExecutionAcquireInputV1(expectation.input);
         processId = input.execution.attempt.processId;
         operationId = input.execution.attempt.commitId;
-        expectedOperation = "translation_project_execution_acquire";
+        expectedOperation = "translation_workset_import_execution_acquire";
         expectedInput = input;
-        normalizedExpectation = { operation: "translation_project_execution_acquire", input };
+        normalizedExpectation = {
+          operation: "translation_workset_import_execution_acquire",
+          input,
+        };
+      } else if (expectation.operation === "translation_batch_execution_acquire") {
+        const input = normalizeTranslationBatchExecutionAcquireInputV1(expectation.input);
+        processId = input.execution.attempt.processId;
+        operationId = input.execution.attempt.commitId;
+        expectedOperation = "translation_batch_execution_acquire";
+        expectedInput = input;
+        normalizedExpectation = { operation: "translation_batch_execution_acquire", input };
       } else if (expectation.operation === "execution_terminal") {
         const input = normalizeProcessExecutionTerminalInputV1(expectation.input);
         processId = input.transcript.processId;
@@ -3882,18 +4284,18 @@ export function createIndexedDbProgramDataRepositoryV1(
       );
     },
 
-    async beginTranslationProjectImport(rawInput) {
-      const input = normalizeTranslationProjectBeginImportInputV1(rawInput);
+    async beginTranslationWorksetImport(rawInput) {
+      const input = normalizeTranslationWorksetBeginImportInputV1(rawInput);
       const expectation = { operation: "begin" as const, input };
       const digest = await digestV1(expectation);
       return await runV1(
-        "begin_translation_project_import",
+        "begin_translation_workset_import",
         [
           "processes",
           "process_execution_leases",
           "process_workspace_bindings",
-          "translation_project_heads",
-          "translation_project_operations",
+          "translation_workset_heads",
+          "translation_workset_operations",
         ],
         "readwrite",
         async (transaction) => {
@@ -3904,7 +4306,7 @@ export function createIndexedDbProgramDataRepositoryV1(
           if (replay !== "absent") {
             if (
               replay === "mismatch" || current === null ||
-              current.revision !== replay.projectRevision
+              current.revision !== replay.worksetRevision
             ) return { kind: "conflict" as const, current };
             return { kind: "unchanged" as const, head: current, operationReceipt: replay };
           }
@@ -3913,7 +4315,7 @@ export function createIndexedDbProgramDataRepositoryV1(
             translationImportLeaseIsCurrentTxV1(
               transaction,
               input,
-              "begin_translation_project_import",
+              "begin_translation_workset_import",
             ),
             requestResultV1(transaction.objectStore("processes").get(input.processId)),
             requestResultV1(
@@ -3923,13 +4325,13 @@ export function createIndexedDbProgramDataRepositoryV1(
           if (!leaseIsCurrent || process === undefined || binding === undefined) {
             return { kind: "conflict" as const, current: null };
           }
-          const processHead = storedProcessV1(process, "begin_translation_project_import");
+          const processHead = storedProcessV1(process, "begin_translation_workset_import");
           const workspace = cloneProcessWorkspaceBindingV1(
             binding as ProcessWorkspaceBindingV1,
           );
           const checkpoint = processHead.checkpoint;
           if (
-            processHead.programDefinition.programId !== builtinTranslationProgramIdV1 ||
+            processHead.programDefinition.programId !== bundledTranslationProgramIdV1 ||
             processHead.programDefinition.revision !== 1 ||
             processHead.subjectProgramId === null || workspace.processId !== input.processId ||
             checkpoint === null || checkpoint.workspaceId !== workspace.workspaceId ||
@@ -3937,10 +4339,10 @@ export function createIndexedDbProgramDataRepositoryV1(
             input.sourceBinding.volumeId !== workspace.volumeId ||
             input.sourceBinding.workspaceFormat !== workspace.workspaceFormat
           ) return { kind: "conflict" as const, current: null };
-          const head: TranslationProjectHeadV1 = {
-            schemaVersion: 1,
+          const head: TranslationWorksetHeadV1 = {
+            schemaVersion: 2,
             processId: input.processId,
-            projectId: input.projectId,
+            importOperationId: input.operationId,
             revision: 1,
             phase: "staging",
             title: input.title,
@@ -3955,13 +4357,16 @@ export function createIndexedDbProgramDataRepositoryV1(
             stagedUnitCount: 0,
             expectedGlossaryCount: input.expectedGlossaryCount,
             stagedGlossaryCount: 0,
+            acceptedUnitCount: 0,
+            acceptedBatchCount: 0,
+            pendingCandidateId: null,
             createdAt: input.updatedAt,
             updatedAt: input.updatedAt,
           };
           const receipt = translationReceiptV1(expectation, digest, 1);
           await Promise.all([
-            requestResultV1(transaction.objectStore("translation_project_heads").add(head)),
-            requestResultV1(transaction.objectStore("translation_project_operations").add(receipt)),
+            requestResultV1(transaction.objectStore("translation_workset_heads").add(head)),
+            requestResultV1(transaction.objectStore("translation_workset_operations").add(receipt)),
           ]);
           return {
             kind: "committed" as const,
@@ -3972,19 +4377,19 @@ export function createIndexedDbProgramDataRepositoryV1(
       );
     },
 
-    async appendTranslationProjectImport(rawInput) {
-      const input = normalizeTranslationProjectAppendImportInputV1(rawInput);
+    async appendTranslationWorksetImport(rawInput) {
+      const input = normalizeTranslationWorksetAppendImportInputV1(rawInput);
       const expectation = { operation: "append" as const, input };
       const digest = await digestV1(expectation);
       return await runV1(
-        "append_translation_project_import",
+        "append_translation_workset_import",
         [
           "processes",
           "process_execution_leases",
-          "translation_project_heads",
-          "translation_project_units",
+          "translation_workset_heads",
+          "translation_workset_units",
           "translation_glossary_entries",
-          "translation_project_operations",
+          "translation_workset_operations",
         ],
         "readwrite",
         async (transaction) => {
@@ -3995,19 +4400,19 @@ export function createIndexedDbProgramDataRepositoryV1(
           if (replay !== "absent") {
             if (
               replay === "mismatch" || current === null ||
-              current.revision !== replay.projectRevision
+              current.revision !== replay.worksetRevision
             ) return { kind: "conflict" as const, current };
             return { kind: "unchanged" as const, head: current, operationReceipt: replay };
           }
           const leaseIsCurrent = await translationImportLeaseIsCurrentTxV1(
             transaction,
             input,
-            "append_translation_project_import",
+            "append_translation_workset_import",
           );
           if (
             !leaseIsCurrent ||
             current === null || current.phase !== "staging" ||
-            current.revision !== input.expectedProjectRevision
+            current.revision !== input.expectedWorksetRevision
           ) return { kind: "conflict" as const, current };
           const orderedUnits = input.units.toSorted((left, right) => left.order - right.order);
           const orderedGlossary = input.glossaryEntries.toSorted((left, right) =>
@@ -4022,7 +4427,7 @@ export function createIndexedDbProgramDataRepositoryV1(
             current.stagedGlossaryCount + orderedGlossary.length > current.expectedGlossaryCount
           ) return { kind: "conflict" as const, current };
           const revision = current.revision + 1;
-          const head: TranslationProjectHeadV1 = {
+          const head: TranslationWorksetHeadV1 = {
             ...current,
             revision,
             stagedUnitCount: current.stagedUnitCount + orderedUnits.length,
@@ -4030,17 +4435,17 @@ export function createIndexedDbProgramDataRepositoryV1(
             updatedAt: input.updatedAt,
           };
           const receipt = translationReceiptV1(expectation, digest, revision);
-          const unitStore = transaction.objectStore("translation_project_units");
+          const unitStore = transaction.objectStore("translation_workset_units");
           const glossaryStore = transaction.objectStore("translation_glossary_entries");
           await Promise.all([
             ...orderedUnits.map((row) =>
-              requestResultV1(unitStore.add({ processId: input.processId, ...row }))
+              requestResultV1(unitStore.add({ processId: input.processId, ...row, target: null }))
             ),
             ...orderedGlossary.map((row) =>
               requestResultV1(glossaryStore.add({ processId: input.processId, ...row }))
             ),
-            requestResultV1(transaction.objectStore("translation_project_heads").put(head)),
-            requestResultV1(transaction.objectStore("translation_project_operations").add(receipt)),
+            requestResultV1(transaction.objectStore("translation_workset_heads").put(head)),
+            requestResultV1(transaction.objectStore("translation_workset_operations").add(receipt)),
           ]);
           return {
             kind: "committed" as const,
@@ -4051,15 +4456,15 @@ export function createIndexedDbProgramDataRepositoryV1(
       );
     },
 
-    async commitTranslationProjectFinalizeWithProcessExecutionTerminal(rawInput) {
-      const input = normalizeTranslationProjectFinalizeExecutionBundleInputV1(rawInput);
-      const projectExpectation = { operation: "finalize" as const, input: input.project };
-      const [projectDigest, processDigest] = await Promise.all([
-        digestV1(projectExpectation),
+    async commitTranslationWorksetFinalizeWithProcessExecutionTerminal(rawInput) {
+      const input = normalizeTranslationWorksetFinalizeExecutionBundleInputV1(rawInput);
+      const worksetExpectation = { operation: "finalize" as const, input: input.workset };
+      const [worksetDigest, processDigest] = await Promise.all([
+        digestV1(worksetExpectation),
         digestV1(input.terminal),
       ]);
       const operation =
-        "commit_translation_project_finalize_with_process_execution_terminal" as const;
+        "commit_translation_workset_finalize_with_process_execution_terminal" as const;
       return await runV1(
         operation,
         [
@@ -4068,22 +4473,22 @@ export function createIndexedDbProgramDataRepositoryV1(
           "process_commits",
           "process_execution_leases",
           "process_workspace_bindings",
-          "translation_project_heads",
-          "translation_project_operations",
+          "translation_workset_heads",
+          "translation_workset_operations",
         ],
         "readwrite",
         async (
           transaction,
-        ): Promise<TranslationProjectFinalizeExecutionCompositeCommitResultV1> => {
-          const [currentProject, currentProcess, currentLease, project, terminal] = await Promise
+        ): Promise<TranslationWorksetFinalizeExecutionCompositeCommitResultV1> => {
+          const [currentWorkset, currentProcess, currentLease, workset, terminal] = await Promise
             .all([
-              loadTranslationHeadTxV1(transaction, input.project.processId),
-              loadProcessTxV1(transaction, input.project.processId, operation),
-              loadProcessExecutionLeaseTxV1(transaction, input.project.processId, operation),
+              loadTranslationHeadTxV1(transaction, input.workset.processId),
+              loadProcessTxV1(transaction, input.workset.processId, operation),
+              loadProcessExecutionLeaseTxV1(transaction, input.workset.processId, operation),
               prepareTranslationFinalizeV1({
                 transaction,
-                value: input.project,
-                digest: projectDigest,
+                value: input.workset,
+                digest: worksetDigest,
                 repositoryOperation: operation,
               }),
               prepareExecutionTerminalV1({
@@ -4095,20 +4500,20 @@ export function createIndexedDbProgramDataRepositoryV1(
               }),
             ]);
           if (
-            project.kind === "conflict" || terminal.kind === "conflict" ||
-            project.kind !== terminal.kind ||
-            terminal.process.programDefinition.programId !== builtinTranslationProgramIdV1 ||
+            workset.kind === "conflict" || terminal.kind === "conflict" ||
+            workset.kind !== terminal.kind ||
+            terminal.process.programDefinition.programId !== bundledTranslationProgramIdV1 ||
             terminal.process.programDefinition.revision !== 1
           ) {
-            return { kind: "conflict", currentProject, currentProcess, currentLease };
+            return { kind: "conflict", currentWorkset, currentProcess, currentLease };
           }
-          if (project.kind === "committed" && terminal.kind === "committed") {
-            await Promise.all([project.write(), terminal.write()]);
+          if (workset.kind === "committed" && terminal.kind === "committed") {
+            await Promise.all([workset.write(), terminal.write()]);
           }
           return {
-            kind: project.kind,
-            head: structuredClone(project.head),
-            projectOperationReceipt: project.operationReceipt,
+            kind: workset.kind,
+            head: structuredClone(workset.head),
+            worksetOperationReceipt: workset.operationReceipt,
             process: terminal.process,
             entries: terminal.entries,
             processOperationReceipt: terminal.operationReceipt,
@@ -4117,54 +4522,207 @@ export function createIndexedDbProgramDataRepositoryV1(
       );
     },
 
-    async loadTranslationProjectHead(rawProcessId) {
+    async commitTranslationBatchCandidateWithProcessExecutionTerminal(rawInput) {
+      const input = normalizeTranslationBatchCandidateExecutionBundleInputV1(rawInput);
+      const worksetExpectation = {
+        operation: "publish_candidate" as const,
+        input: input.workset,
+      };
+      const [worksetDigest, processDigest] = await Promise.all([
+        digestV1(worksetExpectation),
+        digestV1(input.terminal),
+      ]);
+      const operation =
+        "commit_translation_batch_candidate_with_process_execution_terminal" as const;
+      return await runV1(
+        operation,
+        [
+          "processes",
+          "transcript_entries",
+          "process_commits",
+          "process_execution_leases",
+          "translation_workset_heads",
+          "translation_workset_operations",
+          "translation_workset_units",
+          "translation_glossary_entries",
+          "translation_batch_candidates",
+        ],
+        "readwrite",
+        async (
+          transaction,
+        ): Promise<TranslationBatchCandidateExecutionCompositeCommitResultV1> => {
+          const [currentWorkset, currentProcess, currentLease, workset, terminal] = await Promise
+            .all([
+              loadTranslationHeadTxV1(transaction, input.workset.processId),
+              loadProcessTxV1(transaction, input.workset.processId, operation),
+              loadProcessExecutionLeaseTxV1(transaction, input.workset.processId, operation),
+              prepareTranslationCandidateV1({
+                transaction,
+                value: input.workset,
+                digest: worksetDigest,
+                repositoryOperation: operation,
+              }),
+              prepareExecutionTerminalV1({
+                transaction,
+                value: input.terminal,
+                digest: processDigest,
+                operation: "execution_terminal",
+                repositoryOperation: operation,
+              }),
+            ]);
+          if (
+            workset.kind === "conflict" || terminal.kind === "conflict" ||
+            workset.kind !== terminal.kind ||
+            terminal.process.programDefinition.programId !== bundledTranslationProgramIdV1 ||
+            terminal.process.programDefinition.revision !== 1
+          ) return { kind: "conflict", currentWorkset, currentProcess, currentLease };
+          if (workset.kind === "committed" && terminal.kind === "committed") {
+            await Promise.all([workset.write(), terminal.write()]);
+          }
+          return {
+            kind: workset.kind,
+            head: structuredClone(workset.head),
+            candidate: cloneTranslationBatchCandidateRecordV1(workset.candidate),
+            worksetOperationReceipt: workset.operationReceipt,
+            process: terminal.process,
+            entries: terminal.entries,
+            processOperationReceipt: terminal.operationReceipt,
+          };
+        },
+      );
+    },
+
+    async loadTranslationWorksetHead(rawProcessId) {
       const processId = normalizeProcessIdV1(rawProcessId);
       return await runV1(
-        "load_translation_project_head",
-        ["translation_project_heads"],
+        "load_translation_workset_head",
+        ["translation_workset_heads"],
         "readonly",
         (transaction) => loadTranslationHeadTxV1(transaction, processId),
       );
     },
 
-    async loadTranslationProjectUnitPage(rawInput) {
-      const input = normalizeTranslationProjectPageRequestV1(rawInput);
-      return await loadTranslationPageV1<TranslationProjectUnitV1>(
-        input,
-        "translation_project_units",
-        "load_translation_project_unit_page",
+    async loadTranslationBatchCandidate(rawProcessId, rawCandidateId) {
+      const processId = normalizeProcessIdV1(rawProcessId);
+      if (typeof rawCandidateId !== "string" || !identifierV1(rawCandidateId)) {
+        throw new TypeError("invalid Translation candidate id");
+      }
+      return await runV1(
+        "load_translation_batch_candidate",
+        ["translation_batch_candidates"],
+        "readonly",
+        (transaction) =>
+          loadTranslationCandidateTxV1(
+            transaction,
+            processId,
+            rawCandidateId,
+            "load_translation_batch_candidate",
+          ),
       );
     },
 
-    async loadTranslationProjectGlossaryPage(rawInput) {
-      const input = normalizeTranslationProjectPageRequestV1(rawInput);
-      return await loadTranslationPageV1<TranslationProjectGlossaryEntryV1>(
-        input,
-        "translation_glossary_entries",
-        "load_translation_project_glossary_page",
-      );
-    },
-
-    async queryTranslationProjectOperation(rawExpectation) {
-      const expectation = normalizeTranslationProjectOperationExpectationV1(rawExpectation);
+    async acceptTranslationBatchCandidate(rawInput) {
+      const input = normalizeTranslationBatchCandidateAcceptInputV1(rawInput);
+      const expectation = { operation: "accept_candidate" as const, input };
       const digest = await digestV1(expectation);
       return await runV1(
-        "query_translation_project_operation",
-        ["translation_project_operations"],
+        "accept_translation_batch_candidate",
+        [
+          "translation_workset_heads",
+          "translation_workset_operations",
+          "translation_workset_units",
+          "translation_batch_candidates",
+        ],
+        "readwrite",
+        async (transaction) => {
+          const prepared = await prepareTranslationCandidateReviewV1({
+            transaction,
+            value: input,
+            decision: "accept_candidate",
+            digest,
+            repositoryOperation: "accept_translation_batch_candidate",
+          });
+          if (prepared.kind === "conflict") return prepared;
+          if (prepared.kind === "committed") await prepared.write();
+          return {
+            kind: prepared.kind,
+            head: structuredClone(prepared.head),
+            operationReceipt: structuredClone(prepared.operationReceipt),
+          };
+        },
+      );
+    },
+
+    async rejectTranslationBatchCandidate(rawInput) {
+      const input = normalizeTranslationBatchCandidateRejectInputV1(rawInput);
+      const expectation = { operation: "reject_candidate" as const, input };
+      const digest = await digestV1(expectation);
+      return await runV1(
+        "reject_translation_batch_candidate",
+        [
+          "translation_workset_heads",
+          "translation_workset_operations",
+          "translation_workset_units",
+          "translation_batch_candidates",
+        ],
+        "readwrite",
+        async (transaction) => {
+          const prepared = await prepareTranslationCandidateReviewV1({
+            transaction,
+            value: input,
+            decision: "reject_candidate",
+            digest,
+            repositoryOperation: "reject_translation_batch_candidate",
+          });
+          if (prepared.kind === "conflict") return prepared;
+          if (prepared.kind === "committed") await prepared.write();
+          return {
+            kind: prepared.kind,
+            head: structuredClone(prepared.head),
+            operationReceipt: structuredClone(prepared.operationReceipt),
+          };
+        },
+      );
+    },
+
+    async loadTranslationWorksetUnitPage(rawInput) {
+      const input = normalizeTranslationWorksetPageRequestV1(rawInput);
+      return await loadTranslationPageV1<TranslationWorksetUnitRecordV1>(
+        input,
+        "translation_workset_units",
+        "load_translation_workset_unit_page",
+      );
+    },
+
+    async loadTranslationWorksetGlossaryPage(rawInput) {
+      const input = normalizeTranslationWorksetPageRequestV1(rawInput);
+      return await loadTranslationPageV1<TranslationWorksetGlossaryEntryV1>(
+        input,
+        "translation_glossary_entries",
+        "load_translation_workset_glossary_page",
+      );
+    },
+
+    async queryTranslationWorksetOperation(rawExpectation) {
+      const expectation = normalizeTranslationWorksetOperationExpectationV1(rawExpectation);
+      const digest = await digestV1(expectation);
+      return await runV1(
+        "query_translation_workset_operation",
+        ["translation_workset_operations"],
         "readonly",
         async (transaction) => {
           const result = await translationReceiptTxV1(transaction, expectation, digest);
           if (result === "absent") return { kind: "absent" as const };
           if (result === "mismatch") {
             const row = await requestResultV1(
-              transaction.objectStore("translation_project_operations").get([
+              transaction.objectStore("translation_workset_operations").get([
                 expectation.input.processId,
                 expectation.input.operationId,
               ]),
             );
             return {
               kind: "mismatch" as const,
-              receipt: structuredClone(row) as TranslationProjectOperationReceiptV1,
+              receipt: structuredClone(row) as TranslationWorksetOperationReceiptV1,
             };
           }
           return { kind: "committed" as const, receipt: result };

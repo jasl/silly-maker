@@ -2473,7 +2473,7 @@ test("Creator Home persists and reopens an exact accepted Program", async ({ dur
   ).toBeVisible();
 });
 
-test("an accepted Translation Program imports and cold-reopens one durable Process Project", async ({ durableProgramPage: page }) => {
+test("an accepted Translation Program imports and cold-reopens one durable Process-owned workset", async ({ durableProgramPage: page }) => {
   const creatorWorkspace = await openTranslationWorkspaceV1(page);
   const programId = await readProgramIdV1(creatorWorkspace);
   await page.getByRole("button", { name: "Accept program" }).click();
@@ -2515,6 +2515,18 @@ test("an accepted Translation Program imports and cold-reopens one durable Proce
     name: /^2 Second line with ⟦SM:\d+⟧\. — Pending$/u,
   })).toBeVisible();
 
+  await page.getByRole("button", { name: "Start translation" }).click();
+  await expect(page.getByRole("heading", { name: "Review this batch" })).toBeVisible();
+  const targetEditor = page.getByRole("textbox", { name: "Target" });
+  await expect(targetEditor).toHaveValue("[deterministic] 第一句：保持原意。");
+  await targetEditor.fill("First line: preserve the original meaning.");
+  await page.getByRole("button", { name: "Accept batch" }).click();
+  await expect(page.getByText("2 / 2 translated", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Review this batch" })).toHaveCount(0);
+  await expect(page.getByRole("button", {
+    name: /^1 第一句：保持原意。 First line: preserve the original meaning\. Committed$/u,
+  })).toBeVisible();
+
   await page.reload();
   await expectProgramStorageReadyV1(page);
   await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
@@ -2526,7 +2538,7 @@ test("an accepted Translation Program imports and cold-reopens one durable Proce
   await expect(reopened).toHaveAttribute("data-process-id", processId!);
   await expect(page.getByRole("heading", { name: "sound-check.srt" })).toBeVisible();
   await expect(page.getByRole("button", {
-    name: /^1 第一句：保持原意。 — Pending$/u,
+    name: /^1 第一句：保持原意。 First line: preserve the original meaning\. Committed$/u,
   })).toBeVisible();
 });
 

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 /** Compatibility generation, not a Program Definition content revision. */
-export const builtinCreatorProgramCompatibilityReferenceV1 = "sillyos.builtin.creator@1" as const;
-export const builtinCreatorProgramIdV1 = "sillyos.builtin.creator" as const;
+export const bundledCreatorProgramCompatibilityReferenceV1 = "sillyos.builtin.creator@1" as const;
+/** Stable persisted compatibility value; its historical spelling grants no privilege. */
+export const bundledCreatorProgramIdV1 = "sillyos.builtin.creator" as const;
 
 /**
  * Product-side work budget for one admitted structured payload. It keeps one
@@ -409,15 +410,15 @@ function requireAdmittedV1<T>(result: ProgramProcessAdmissionResultV1<T>, label:
   return result.value;
 }
 
-export function createBuiltinCreatorProgramDefinitionRevisionV1(): ProgramDefinitionRevisionV1 {
+export function createBundledCreatorProgramDefinitionRevisionV1(): ProgramDefinitionRevisionV1 {
   return {
     schemaVersion: 1,
-    programId: builtinCreatorProgramIdV1,
+    programId: bundledCreatorProgramIdV1,
     revision: 1,
     kind: "creator",
     name: "Creator",
     purpose: "Create and revise reusable SillyOS Programs with explicit human review.",
-    harnessReference: builtinCreatorProgramCompatibilityReferenceV1,
+    harnessReference: bundledCreatorProgramCompatibilityReferenceV1,
     capabilityIds: [],
   };
 }

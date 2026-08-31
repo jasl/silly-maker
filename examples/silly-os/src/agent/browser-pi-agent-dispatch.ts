@@ -2,14 +2,14 @@
 
 import { admitCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
 import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
-import { builtinCreatorProgramCompatibilityReferenceV1 } from "../product/program-process-repository.ts";
+import { bundledCreatorProgramCompatibilityReferenceV1 } from "../product/program-process-repository.ts";
 import {
   admitTranslationBatchRequestV1,
   type TranslationBatchRequestV1,
 } from "../product/translation/translation-batch-protocol.ts";
 import { translationProgramHarnessReferenceV1 } from "../product/translation/translation-program-definition.ts";
 
-export const creatorProgramHarnessReferenceV1 = builtinCreatorProgramCompatibilityReferenceV1;
+export const creatorProgramHarnessReferenceV1 = bundledCreatorProgramCompatibilityReferenceV1;
 
 export interface BrowserPiCreatorAgentDispatchV1 {
   readonly revision: 1;
@@ -22,6 +22,8 @@ export interface BrowserPiTranslationAgentDispatchV1 {
   readonly revision: 1;
   readonly harnessReference: typeof translationProgramHarnessReferenceV1;
   readonly programId: string;
+  /** Exact completion envelope selected while the immutable batch was planned. */
+  readonly requestedOutputTokens: number;
   readonly request: TranslationBatchRequestV1;
 }
 
@@ -60,6 +62,7 @@ export function admitBrowserPiAgentDispatchV1(
     "revision",
     "harnessReference",
     "programId",
+    "requestedOutputTokens",
     "request",
   ]);
   if (
@@ -86,6 +89,11 @@ export function admitBrowserPiAgentDispatchV1(
   if (discriminator.harnessReference !== translationProgramHarnessReferenceV1) {
     return { kind: "rejected" };
   }
+  if (
+    typeof discriminator.requestedOutputTokens !== "number" ||
+    !Number.isSafeInteger(discriminator.requestedOutputTokens) ||
+    discriminator.requestedOutputTokens <= 0
+  ) return { kind: "rejected" };
   const admittedRequest = admitTranslationBatchRequestV1(discriminator.request);
   if (admittedRequest.kind === "rejected") return { kind: "rejected" };
   return {
@@ -94,6 +102,7 @@ export function admitBrowserPiAgentDispatchV1(
       revision: 1,
       harnessReference: translationProgramHarnessReferenceV1,
       programId: discriminator.programId,
+      requestedOutputTokens: discriminator.requestedOutputTokens,
       request: admittedRequest.request,
     },
   };
@@ -134,6 +143,7 @@ export function serializeBrowserPiCreatorAgentDispatchV1(input: {
 export function serializeBrowserPiTranslationAgentDispatchV1(input: {
   readonly executionCompatibilityReference: string;
   readonly programId: string;
+  readonly requestedOutputTokens: number;
   readonly request: TranslationBatchRequestV1;
 }): string {
   return serializeDispatchV1({
@@ -141,6 +151,7 @@ export function serializeBrowserPiTranslationAgentDispatchV1(input: {
     harnessReference: input
       .executionCompatibilityReference as typeof translationProgramHarnessReferenceV1,
     programId: input.programId,
+    requestedOutputTokens: input.requestedOutputTokens,
     request: input.request,
   });
 }

@@ -10,9 +10,23 @@ import {
 export { translationProgramHarnessReferenceV1 } from "./translation-program-definition.ts";
 
 export interface TranslationGlossaryEntryV1 {
+  readonly entryId: string;
   readonly source: string;
   readonly target: string;
   readonly note: string | null;
+  readonly locked: boolean;
+  /** Exact batch units whose admitted source contains this term. */
+  readonly appliesToUnitIds: readonly string[];
+}
+
+export interface TranslationConfirmedMeaningFactV1 {
+  readonly factId: string;
+  readonly statement: string;
+}
+
+export interface TranslationNeighboringUnitsV1 {
+  readonly preceding: TranslationSourceUnitV1 | null;
+  readonly following: TranslationSourceUnitV1 | null;
 }
 
 export interface TranslationBatchRequestV1 {
@@ -21,6 +35,8 @@ export interface TranslationBatchRequestV1 {
   readonly documentPurpose: string;
   readonly style: string;
   readonly glossary: readonly TranslationGlossaryEntryV1[];
+  readonly confirmedMeaningFacts: readonly TranslationConfirmedMeaningFactV1[];
+  readonly neighboringUnits: TranslationNeighboringUnitsV1;
   readonly units: readonly TranslationSourceUnitV1[];
 }
 
@@ -50,7 +66,8 @@ export type TranslationBatchAdmissionResultV1 =
       | "missing_unit"
       | "unit_order_changed"
       | "empty_target"
-      | "protected_content_changed";
+      | "protected_content_changed"
+      | "locked_glossary_changed";
     readonly unitId: string | null;
   };
 
@@ -181,30 +198,103 @@ export function admitTranslationBatchRequestV1(
     "documentPurpose",
     "style",
     "glossary",
+    "confirmedMeaningFacts",
+    "neighboringUnits",
     "units",
   ]);
   if (
     request === null || !trimmedNonEmptyStringV1(request.sourceLocale) ||
     !trimmedNonEmptyStringV1(request.targetLocale) ||
     !trimmedNonEmptyStringV1(request.documentPurpose) ||
-    !trimmedNonEmptyStringV1(request.style) || !Array.isArray(request.glossary)
+    !trimmedNonEmptyStringV1(request.style) || !Array.isArray(request.glossary) ||
+    !Array.isArray(request.confirmedMeaningFacts)
   ) return { kind: "rejected" };
   const glossary: TranslationGlossaryEntryV1[] = [];
+  const glossaryEntryIds = new Set<string>();
   for (const rawEntry of request.glossary) {
-    const entry = exactRecordV1(rawEntry, ["source", "target", "note"]);
+    const entry = exactRecordV1(rawEntry, [
+      "entryId",
+      "source",
+      "target",
+      "note",
+      "locked",
+      "appliesToUnitIds",
+    ]);
     if (
-      entry === null || !nonEmptyStringV1(entry.source) ||
+      entry === null || typeof entry.entryId !== "string" ||
+      !translationUnitIdentifierPatternV1.test(entry.entryId) ||
+      glossaryEntryIds.has(entry.entryId) || !nonEmptyStringV1(entry.source) ||
       !nonEmptyStringV1(entry.target) ||
-      (entry.note !== null && typeof entry.note !== "string")
+      (entry.note !== null && typeof entry.note !== "string") ||
+      typeof entry.locked !== "boolean" || !Array.isArray(entry.appliesToUnitIds) ||
+      entry.appliesToUnitIds.length === 0
     ) return { kind: "rejected" };
+    const appliesToUnitIds = entry.appliesToUnitIds as readonly unknown[];
+    const boundUnitIds = new Set<string>();
+    for (const unitId of appliesToUnitIds) {
+      if (
+        typeof unitId !== "string" || !translationUnitIdentifierPatternV1.test(unitId) ||
+        boundUnitIds.has(unitId)
+      ) return { kind: "rejected" };
+      boundUnitIds.add(unitId);
+    }
+    glossaryEntryIds.add(entry.entryId);
     glossary.push({
+      entryId: entry.entryId,
       source: entry.source,
       target: entry.target,
       note: entry.note as string | null,
+      locked: entry.locked,
+      appliesToUnitIds: [...boundUnitIds],
     });
+  }
+  const confirmedMeaningFacts: TranslationConfirmedMeaningFactV1[] = [];
+  const factIds = new Set<string>();
+  for (const rawFact of request.confirmedMeaningFacts) {
+    const fact = exactRecordV1(rawFact, ["factId", "statement"]);
+    if (
+      fact === null || typeof fact.factId !== "string" ||
+      !translationUnitIdentifierPatternV1.test(fact.factId) || factIds.has(fact.factId) ||
+      !trimmedNonEmptyStringV1(fact.statement)
+    ) return { kind: "rejected" };
+    factIds.add(fact.factId);
+    confirmedMeaningFacts.push({ factId: fact.factId, statement: fact.statement });
   }
   const units = admitSourceUnitsV1(request.units);
   if (units === null) return { kind: "rejected" };
+  const unitsById = new Map(units.map((unit) => [unit.unitId, unit]));
+  if (
+    glossary.some((entry) => {
+      let previousOrder = -1;
+      return entry.appliesToUnitIds.some((unitId) => {
+        const unit = unitsById.get(unitId);
+        if (
+          unit === undefined || unit.order <= previousOrder ||
+          !unit.source.includes(entry.source)
+        ) return true;
+        previousOrder = unit.order;
+        return false;
+      });
+    })
+  ) return { kind: "rejected" };
+  const neighboring = exactRecordV1(request.neighboringUnits, ["preceding", "following"]);
+  if (neighboring === null) return { kind: "rejected" };
+  const preceding = neighboring.preceding === null
+    ? null
+    : admitSourceUnitsV1([neighboring.preceding])?.[0] ?? null;
+  const following = neighboring.following === null
+    ? null
+    : admitSourceUnitsV1([neighboring.following])?.[0] ?? null;
+  const first = units[0]!;
+  const last = units.at(-1)!;
+  if (
+    (neighboring.preceding !== null &&
+      (preceding === null || preceding.order + 1 !== first.order ||
+        units.some((unit) => unit.unitId === preceding.unitId))) ||
+    (neighboring.following !== null &&
+      (following === null || following.order !== last.order + 1 ||
+        units.some((unit) => unit.unitId === following.unitId)))
+  ) return { kind: "rejected" };
   return {
     kind: "admitted",
     request: {
@@ -213,6 +303,8 @@ export function admitTranslationBatchRequestV1(
       documentPurpose: request.documentPurpose,
       style: request.style,
       glossary,
+      confirmedMeaningFacts,
+      neighboringUnits: { preceding, following },
       units,
     },
   };
@@ -233,6 +325,14 @@ export function admitTranslationBatchCandidateV1(
   }
 
   const unitsById = new Map(request.units.map((unit) => [unit.unitId, unit]));
+  const glossaryEntriesByUnitId = new Map<string, TranslationGlossaryEntryV1[]>();
+  for (const entry of request.glossary) {
+    for (const unitId of entry.appliesToUnitIds) {
+      const entries = glossaryEntriesByUnitId.get(unitId) ?? [];
+      entries.push(entry);
+      glossaryEntriesByUnitId.set(unitId, entries);
+    }
+  }
   const targets: TranslationTargetUnitV1[] = [];
   const seen = new Set<string>();
   for (const [index, rawTarget] of row.targets.entries()) {
@@ -250,14 +350,19 @@ export function admitTranslationBatchCandidateV1(
     if (request.units[index]?.unitId !== target.unitId) {
       return { kind: "rejected", reason: "unit_order_changed", unitId: target.unitId };
     }
-    if (target.target.trim().length === 0) {
+    const targetText = target.target;
+    if (targetText.trim().length === 0) {
       return { kind: "rejected", reason: "empty_target", unitId: target.unitId };
     }
-    if (!translationTargetPreservesProtectedStructureV1(sourceUnit, target.target)) {
+    if (!translationTargetPreservesProtectedStructureV1(sourceUnit, targetText)) {
       return { kind: "rejected", reason: "protected_content_changed", unitId: target.unitId };
     }
+    const applicableGlossary = glossaryEntriesByUnitId.get(target.unitId) ?? [];
+    if (applicableGlossary.some((entry) => entry.locked && !targetText.includes(entry.target))) {
+      return { kind: "rejected", reason: "locked_glossary_changed", unitId: target.unitId };
+    }
     seen.add(target.unitId);
-    targets.push({ unitId: target.unitId, target: target.target });
+    targets.push({ unitId: target.unitId, target: targetText });
   }
   const missing = request.units.find((unit) => !seen.has(unit.unitId));
   if (missing !== undefined) {

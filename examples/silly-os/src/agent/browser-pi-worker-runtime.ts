@@ -22,11 +22,11 @@ import {
   resolveBrowserPiReasoningEffortV1,
 } from "./browser-pi-provider-runtime-bridge.js";
 import { createDeterministicPiAgentV1 } from "./browser-pi-runtime-bridge.js";
-import { loadBrowserBuiltinProgramPackageV1 } from "./browser-builtin-program-package-loader.ts";
+import { loadBrowserBundledProgramPackageV1 } from "./browser-bundled-program-package-loader.ts";
 import type {
-  BrowserBuiltinProgramHarnessToolIdV1,
-  BrowserBuiltinProgramPackageV1,
-} from "./browser-builtin-program-package.ts";
+  BrowserBundledProgramHarnessToolIdV1,
+  BrowserBundledProgramPackageV1,
+} from "./browser-bundled-program-package.ts";
 import {
   admitBrowserPiWorkerSessionRequestV1,
   admitBrowserPiWorkerInboundMessageV1,
@@ -94,7 +94,7 @@ interface ActivePiRunV1 {
   sequence: number;
   draft: string;
   readonly dispatch: BrowserPiAgentDispatchV1;
-  readonly programPackage: BrowserBuiltinProgramPackageV1;
+  readonly programPackage: BrowserBundledProgramPackageV1;
   candidate: object | null;
   candidateFailure:
     | "candidate_invalid"
@@ -165,15 +165,15 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   readonly providerFetch: BrowserPiProviderFetchV1;
   readonly probeProviderSelection?: typeof probeBrowserPiProviderSelectionV1;
   readonly createProviderAgent?: typeof createBrowserPiProviderAgentV1;
-  readonly loadBuiltinProgramPackage?: typeof loadBrowserBuiltinProgramPackageV1;
+  readonly loadBundledProgramPackage?: typeof loadBrowserBundledProgramPackageV1;
   readonly downloadOuterDeadlineMilliseconds?: number;
   readonly credentialHandoffDeadlineMilliseconds?: number;
 }): BrowserPiWorkerRuntimePortV1 {
   const probeProviderSelection = input.probeProviderSelection ??
     probeBrowserPiProviderSelectionV1;
   const createProviderAgent = input.createProviderAgent ?? createBrowserPiProviderAgentV1;
-  const loadBuiltinProgramPackage = input.loadBuiltinProgramPackage ??
-    loadBrowserBuiltinProgramPackageV1;
+  const loadBundledProgramPackage = input.loadBundledProgramPackage ??
+    loadBrowserBundledProgramPackageV1;
   const downloadOuterDeadlineMilliseconds = input.downloadOuterDeadlineMilliseconds ??
     browserPiDownloadOuterDeadlineMillisecondsV1;
   const credentialHandoffDeadlineMilliseconds = input.credentialHandoffDeadlineMilliseconds ??
@@ -515,7 +515,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   };
 
   const createRun = async (
-    programPackage: BrowserBuiltinProgramPackageV1,
+    programPackage: BrowserBundledProgramPackageV1,
     dispatch: BrowserPiAgentDispatchV1,
     execution: BrowserPiWorkerExecutionBindingV1,
     sessionId: string,
@@ -541,7 +541,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     if (begun.kind !== "started") return null;
     const workspaceRun = begun.run;
     let run!: ActivePiRunV1;
-    const createWorkspaceToolV1 = (toolId: BrowserBuiltinProgramHarnessToolIdV1) => {
+    const createWorkspaceToolV1 = (toolId: BrowserBundledProgramHarnessToolIdV1) => {
       switch (toolId) {
         case "read":
           return bindPiWorkspaceReadToolV1(createReadTool(), workspaceRun);
@@ -606,12 +606,8 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     try {
       const runNumber = Number(runId.slice(runId.lastIndexOf(".") + 1));
       if (runtime === "deterministic_test") {
-        if (!("submit" in dispatch)) {
-          workspaceRun.finish();
-          return null;
-        }
         agent = createDeterministicPiAgentV1({
-          submit: dispatch.submit,
+          dispatch,
           programPackage,
           workspaceTools: agentInput.workspaceTools,
           reasoningEffort: agentInput.reasoningEffort,
@@ -713,9 +709,9 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         ...execution,
         expectedGeneration: descriptorAfterDrain.generation,
       });
-    let programPackage: BrowserBuiltinProgramPackageV1 | null;
+    let programPackage: BrowserBundledProgramPackageV1 | null;
     try {
-      programPackage = await loadBuiltinProgramPackage(dispatch.harnessReference);
+      programPackage = await loadBundledProgramPackage(dispatch.harnessReference);
     } catch {
       respondRpcFailure(requestId, "program_package_unavailable");
       return;

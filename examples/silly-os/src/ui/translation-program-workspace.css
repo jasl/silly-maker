@@ -143,11 +143,42 @@
 
 .translation-workbench {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
   block-size: 100%;
   min-block-size: 0;
   overflow: hidden;
   background: var(--sos-bg);
+}
+
+.translation-candidate-review {
+  display: grid;
+  grid-row: 4;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-block-size: 54px;
+  padding: 8px 16px;
+  gap: 16px;
+  border-block-end: 1px solid var(--sos-line);
+  background: var(--sos-warning-soft);
+}
+
+.translation-candidate-review h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.translation-candidate-review p {
+  margin: 3px 0 0;
+  color: var(--sos-ink-soft);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.translation-candidate-review__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .translation-workbench__summary {
@@ -237,12 +268,14 @@
 
 .translation-workbench__body {
   display: grid;
+  grid-row: 5;
   grid-template-columns: minmax(0, 1fr) clamp(260px, 27vw, 380px);
   min-block-size: 0;
   overflow: hidden;
 }
 
 .translation-workbench__empty {
+  grid-row: 5;
   place-self: center;
   color: var(--sos-ink-muted);
 }
@@ -354,6 +387,10 @@
   color: var(--sos-ink-muted);
 }
 
+.translation-unit-table__text[data-candidate="true"] {
+  color: var(--sos-warning);
+}
+
 .translation-unit-table__row .sos-badge {
   justify-self: start;
 }
@@ -431,8 +468,21 @@
   resize: vertical;
 }
 
-.translation-unit-detail > .sos-button {
-  align-self: start;
+.translation-unit-detail section.translation-unit-detail__ambiguity {
+  border-color: color-mix(in srgb, var(--sos-warning) 45%, var(--sos-line));
+  background: var(--sos-warning-soft);
+}
+
+.translation-unit-detail section.translation-unit-detail__ambiguity h3,
+.translation-unit-detail section.translation-unit-detail__ambiguity p {
+  color: var(--sos-warning);
+}
+
+.translation-unit-detail__readonly-note {
+  margin: -6px 0 0;
+  color: var(--sos-ink-muted);
+  font-size: 10px;
+  line-height: 1.45;
 }
 
 .translation-unit-detail__protected {
@@ -492,6 +542,20 @@
 
   .translation-workbench__progress > span:nth-of-type(n + 2) {
     display: none;
+  }
+
+  .translation-candidate-review {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 8px 12px;
+    gap: 7px;
+  }
+
+  .translation-candidate-review p {
+    display: none;
+  }
+
+  .translation-candidate-review__actions {
+    justify-content: flex-end;
   }
 
   .translation-workbench__body {

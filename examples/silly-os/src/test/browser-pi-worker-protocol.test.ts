@@ -476,12 +476,15 @@ describe("Browser Pi Worker protocol", () => {
         text: serializeBrowserPiTranslationAgentDispatchV1({
           executionCompatibilityReference: translationProgramHarnessReferenceV1,
           programId: programIdV1,
+          requestedOutputTokens: 4_608,
           request: {
             sourceLocale: "zh-CN",
             targetLocale: "en",
             documentPurpose: "Fictional dialogue.",
             style: "Natural.",
             glossary: [],
+            confirmedMeaningFacts: [],
+            neighboringUnits: { preceding: null, following: null },
             units: [{
               unitId: "translation.unit.000001",
               order: 0,

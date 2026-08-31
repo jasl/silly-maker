@@ -5,7 +5,7 @@ import { Type } from "@earendil-works/pi-ai";
 import { admitCreatorProgramRevisionCandidateV1 } from "../../product/creator-agent-admission.ts";
 import { creatorAgentTextMaximumCharactersV1 } from "../../product/contracts.ts";
 import { creatorProgramHarnessReferenceV1 } from "../browser-pi-agent-dispatch.ts";
-import type { BrowserBuiltinProgramPackageV1 } from "../browser-builtin-program-package.ts";
+import type { BrowserBundledProgramPackageV1 } from "../browser-bundled-program-package.ts";
 
 export const creatorProgramRevisionToolNameV1 = "sillyos_propose_program_revision" as const;
 
@@ -24,7 +24,7 @@ const creatorProgramRevisionToolSchemaV1 = Type.Object(
   { additionalProperties: false },
 );
 
-export const creatorBuiltinProgramPackageV1: BrowserBuiltinProgramPackageV1 = {
+export const creatorBundledProgramPackageV1: BrowserBundledProgramPackageV1 = {
   reference: creatorProgramHarnessReferenceV1,
   instructions: creatorSystemPromptV1,
   harnessToolIds: [
@@ -40,19 +40,19 @@ export const creatorBuiltinProgramPackageV1: BrowserBuiltinProgramPackageV1 = {
   publishTextDeltas: true,
   requestedOutputTokens(dispatch) {
     if (dispatch.harnessReference !== creatorProgramHarnessReferenceV1) {
-      throw new TypeError("Creator built-in Program package received another dispatch");
+      throw new TypeError("Creator bundled Program package received another dispatch");
     }
     return 2_048;
   },
   createUserPrompt(dispatch) {
     if (dispatch.harnessReference !== creatorProgramHarnessReferenceV1) {
-      throw new TypeError("Creator built-in Program package received another dispatch");
+      throw new TypeError("Creator bundled Program package received another dispatch");
     }
     return dispatch.submit.text;
   },
   createCompletionTool(input) {
     if (input.dispatch.harnessReference !== creatorProgramHarnessReferenceV1) {
-      throw new TypeError("Creator built-in Program package received another dispatch");
+      throw new TypeError("Creator bundled Program package received another dispatch");
     }
     const submit = input.dispatch.submit;
     return {
