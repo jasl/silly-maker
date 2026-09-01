@@ -352,11 +352,12 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
     );
   });
 
-  it("selects the Translation prompt/tool without inheriting Creator completion behavior", () => {
+  it("keeps the Translation instructions unchanged when the package has no overlays", () => {
     const dispatch = translationDispatchV1();
     createBrowserPiProviderAgentV1({
       apiKey: "translation-test-key",
       instructions: "Translate the admitted batch faithfully.",
+      modelPromptOverlays: [],
       runtimeProfile: translationProgramRuntimeProfileImplementationV1,
       harnessToolIds: translationProgramRuntimeProfileImplementationV1.harnessToolIds,
       fetch,
@@ -394,6 +395,134 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
       expect.anything(),
       expect.objectContaining({ toolChoice: "none" }),
     );
+  });
+
+  it("resolves model overlays for each new run after the model selection changes", () => {
+    const dispatch = creatorDispatchV1({
+      proposalId: "proposal.overlay-switch.1",
+      programId: "program.overlay-switch.1",
+      baseProgramRevision: 1,
+      text: "Resolve the overlay against this run's model.",
+    });
+    const invocation = invocationV1(creatorProgramRuntimeProfileImplementationV1, dispatch);
+    const modelPromptOverlays = [{
+      modelPattern: "gpt-4.1-nano",
+      path: "prompts/models/nano.md",
+      instructions: "Use the nano-specific completion convention.",
+    }, {
+      modelPattern: "gpt-4.1-mini",
+      path: "prompts/models/mini.md",
+      instructions: "Use the mini-specific completion convention.",
+    }];
+    const commonInput = {
+      apiKey: "overlay-switch-key",
+      instructions: "Create the requested Program.",
+      modelPromptOverlays,
+      runtimeProfile: creatorProgramRuntimeProfileImplementationV1,
+      harnessToolIds: creatorProgramRuntimeProfileImplementationV1.harnessToolIds,
+      fetch,
+      invocation,
+      workspaceTools: Object.freeze([]),
+      reasoningEffort: "medium" as const,
+      onCandidate: vi.fn(),
+      onTextDelta: vi.fn(),
+    };
+
+    createBrowserPiProviderAgentV1({
+      ...commonInput,
+      selection: {
+        kind: "builtin",
+        providerId: "openai",
+        modelId: "gpt-4.1-nano",
+        ...openAISelectionRouteV1,
+      },
+    });
+    createBrowserPiProviderAgentV1({
+      ...commonInput,
+      selection: {
+        kind: "builtin",
+        providerId: "openai",
+        modelId: "gpt-4.1-mini",
+        ...openAISelectionRouteV1,
+      },
+    });
+
+    const [nanoInput, miniInput] = harnessV1.createdInputs as CapturedAgentInputV1[];
+    expect(nanoInput?.instructions).toBe(
+      "Create the requested Program.\n\nUse the nano-specific completion convention.",
+    );
+    expect(miniInput?.instructions).toBe(
+      "Create the requested Program.\n\nUse the mini-specific completion convention.",
+    );
+    expect(nanoInput?.completionTool.name).toBe("sillyos_propose_program_revision");
+    expect(miniInput?.completionTool.name).toBe("sillyos_propose_program_revision");
+    expect(nanoInput?.model).toMatchObject({ id: "gpt-4.1-nano", maxTokens: 2_048 });
+    expect(miniInput?.model).toMatchObject({ id: "gpt-4.1-mini", maxTokens: 2_048 });
+  });
+
+  it("matches a custom model only by its resolved model ID", () => {
+    const dispatch = creatorDispatchV1({
+      proposalId: "proposal.custom-overlay.1",
+      programId: "program.custom-overlay.1",
+      baseProgramRevision: 1,
+      text: "Use one overlay across custom routes with the same model ID.",
+    });
+    const invocation = invocationV1(creatorProgramRuntimeProfileImplementationV1, dispatch);
+    const commonInput = {
+      apiKey: "custom-overlay-key",
+      instructions: "Create the requested Program.",
+      modelPromptOverlays: [{
+        modelPattern: "private-shared-model",
+        path: "prompts/models/private-shared.md",
+        instructions: "Use the private model's stable tool convention.",
+      }],
+      runtimeProfile: creatorProgramRuntimeProfileImplementationV1,
+      harnessToolIds: creatorProgramRuntimeProfileImplementationV1.harnessToolIds,
+      fetch,
+      invocation,
+      workspaceTools: Object.freeze([]),
+      reasoningEffort: "high" as const,
+      onCandidate: vi.fn(),
+      onTextDelta: vi.fn(),
+    };
+    for (
+      const [profileId, api, baseUrl] of [
+        ["custom.route-a", "openai-completions", "https://a.example.test/v1"],
+        ["custom.route-b", "anthropic-messages", "https://b.example.test/v1"],
+      ] as const
+    ) {
+      createBrowserPiProviderAgentV1({
+        ...commonInput,
+        selection: {
+          kind: "custom",
+          profile: {
+            profileId,
+            displayName: profileId,
+            api,
+            baseUrl,
+            modelId: "private-shared-model",
+            contextWindow: 32_768,
+            maxTokens: 4_096,
+          },
+        },
+      });
+    }
+
+    const [routeAInput, routeBInput] = harnessV1.createdInputs as CapturedAgentInputV1[];
+    const expectedInstructions =
+      "Create the requested Program.\n\nUse the private model's stable tool convention.";
+    expect(routeAInput?.instructions).toBe(expectedInstructions);
+    expect(routeBInput?.instructions).toBe(expectedInstructions);
+    expect(routeAInput?.model).toMatchObject({
+      id: "private-shared-model",
+      provider: "custom.route-a",
+      api: "openai-completions",
+    });
+    expect(routeBInput?.model).toMatchObject({
+      id: "private-shared-model",
+      provider: "custom.route-b",
+      api: "anthropic-messages",
+    });
   });
 
   it("accepts a built-in probe only after Pi reports stop or length", async () => {

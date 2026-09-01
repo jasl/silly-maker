@@ -12,7 +12,7 @@ export const translationProgramPackageSourceV1: BundledProgramPackageSourceV1 = 
     reference: {
       programId: translationProgramIdV1,
       packageVersion: "1.0.0",
-      contentDigest: "f758d1a81abfe7cff288b769746ff0f9e57a0e7f782393c80f4f106b40722aa7",
+      contentDigest: "fe94b8b54515fbf56a2bf6725eafa42daeb0667a1036f5a652ecc86c214c4e79",
     },
     manifest: programManifestV1 as ProgramPackageManifestV1,
     byteLength: 12_355,

@@ -449,6 +449,7 @@ const loadTestProgramExecutionV1: NonNullable<
       instructions: dispatch.runtimeProfile === creatorProgramRuntimeProfileV1
         ? "Create the requested Program."
         : "Translate the admitted batch faithfully.",
+      modelPromptOverlays: [],
       packageResources: dispatch.runtimeProfile === translationProgramRuntimeProfileV1
         ? [{
           path: "skills/translate/SKILL.md",
@@ -462,6 +463,12 @@ const loadTestProgramExecutionV1: NonNullable<
     },
   );
 };
+
+const testClaudePromptOverlaysV1 = [{
+  modelPattern: "claude-*",
+  path: "prompts/models/claude.md",
+  instructions: "Use the package's Claude completion convention.",
+}] as const;
 
 function serializeCreatorAgentSubmitV1(submit: CreatorAgentSubmitV1): string {
   return serializeBrowserPiCreatorAgentDispatchV1({
@@ -2449,12 +2456,24 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       readonly apiKey: string;
       readonly selection: BrowserPiModelSelectionV1;
       readonly reasoningEffort: string;
+      readonly instructions: string;
+      readonly modelPromptOverlays: readonly {
+        readonly modelPattern: string;
+        readonly path: string;
+        readonly instructions: string;
+      }[];
       readonly workspaceTools: readonly string[];
     }[] = [];
     let settlePrompt: ((value: { readonly stopReason: "aborted" }) => void) | null = null;
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
+      loadProgramExecution: async (dispatch) => {
+        const execution = await loadTestProgramExecutionV1(dispatch);
+        return execution === null
+          ? null
+          : { ...execution, modelPromptOverlays: testClaudePromptOverlaysV1 };
+      },
       probeProviderSelection: async (input) => {
         probeInputs.push({ apiKey: input.apiKey, selection: structuredClone(input.selection) });
         return true;
@@ -2464,6 +2483,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
           apiKey: input.apiKey,
           selection: structuredClone(input.selection),
           reasoningEffort: input.reasoningEffort,
+          instructions: input.instructions,
+          modelPromptOverlays: structuredClone(input.modelPromptOverlays ?? []),
           workspaceTools: input.workspaceTools.map((tool) => tool.name),
         });
         return {
@@ -2575,6 +2596,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         copilotCompletionsSelectionV1,
         "max",
       ),
+      instructions: "Create the requested Program.",
+      modelPromptOverlays: testClaudePromptOverlaysV1,
       workspaceTools: ["read", "write", "edit", "bash", "grep", "fetch_url", "download"],
     }]);
 
@@ -2648,6 +2671,26 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     expect(probeInputs.at(-1)).toEqual({
       apiKey: "route-sentinel-key",
       selection: copilotAnthropicSelectionV1,
+    });
+    runtime.receive(rpcRequestV1(11, {
+      revision: 1,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1(submitV1),
+      },
+    }, execution));
+    await waitUntilV1(() => agentInputs.length === 2);
+    expect(agentInputs.at(-1)).toEqual({
+      apiKey: "route-sentinel-key",
+      selection: copilotAnthropicSelectionV1,
+      reasoningEffort: resolveBrowserPiReasoningEffortV1(
+        copilotAnthropicSelectionV1,
+        "max",
+      ),
+      instructions: "Create the requested Program.",
+      modelPromptOverlays: testClaudePromptOverlaysV1,
+      workspaceTools: ["read", "write", "edit", "bash", "grep", "fetch_url", "download"],
     });
     expect(JSON.stringify(messages)).not.toContain("route-sentinel-key");
     runtime.dispose();
@@ -4509,12 +4552,15 @@ describe("SillyOS Browser Pi Worker runtime", () => {
 });
 
 describe("SillyOS Browser Pi transport and product port", () => {
-  it("runs Translation through the same credential-bearing Worker without requiring text output", async () => {
+  it("records only completed Translation runs without requiring text output", async () => {
     const workspaceAuthority = testWorkspaceAuthorityV1();
     let workerFactoryCalls = 0;
+    let promptCalls = 0;
+    const onRunCompleted = vi.fn();
     const ports = createTestProgramAgentPortsV1({
       runtime: "pi_provider",
       selection: availableSelectionV1,
+      onRunCompleted,
       workspaceAuthority,
       openNetworkBroker: openTestNetworkBrokerV1,
       workerFactory: () => {
@@ -4522,6 +4568,8 @@ describe("SillyOS Browser Pi transport and product port", () => {
         return new InMemoryBrowserPiWorkerV1({
           createProviderAgent: (input) => ({
             async prompt() {
+              promptCalls += 1;
+              if (promptCalls === 2) throw new Error("synthetic provider failure");
               expect(input.runtimeProfile.runtimeProfile).toBe(
                 translationProgramRuntimeProfileV1,
               );
@@ -4582,10 +4630,32 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(JSON.stringify(ports.translation.getSnapshot())).not.toContain(
       "non-product explanation",
     );
+    expect(onRunCompleted).toHaveBeenCalledOnce();
+    expect(onRunCompleted).toHaveBeenCalledWith(availableSelectionV1);
     await expect(ports.translation.acknowledgeTerminal(run.agentRunId)).resolves.toEqual({
       kind: "acknowledged",
     });
     expect(ports.translation.getSnapshot()).toMatchObject({ phase: "ready", terminalRuns: [] });
+    const failedRun = translationAgentRunV1({
+      agentRunId: "agent.run.translation.failed",
+      processAttemptGeneration: 2,
+    });
+    await expect(ports.translation.submit(failedRun)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: failedRun.agentRunId,
+    });
+    await waitUntilV1(() => ports.translation.getSnapshot().terminalRuns.length === 1);
+    expect(ports.translation.getSnapshot()).toMatchObject({
+      phase: "failed",
+      terminalRuns: [{
+        run: { agentRunId: failedRun.agentRunId },
+        outcome: "failed",
+      }],
+    });
+    expect(onRunCompleted).toHaveBeenCalledOnce();
+    await expect(ports.translation.acknowledgeTerminal(failedRun.agentRunId)).resolves.toEqual({
+      kind: "acknowledged",
+    });
     await ports.creator.dispose();
     expect(ports.creator.getSnapshot().phase).toBe("disposed");
     expect(ports.translation.getSnapshot().phase).toBe("ready");

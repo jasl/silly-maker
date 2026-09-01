@@ -22,13 +22,18 @@ import {
 } from "../application/preferences/browser-agent-preferences-repository.ts";
 import { recommendedBrowserProviderBuiltinModelRefsV1 } from "../application/preferences/browser-provider-model-recommendations.ts";
 import {
-  browserProviderSettingsRevisionV2,
+  browserProviderSettingsRevisionV3,
   createBrowserProviderSettingsRepositoryV1,
   type BrowserProviderBuiltinModelRefV1,
-  type BrowserProviderPreferredModelRefV1,
+  type BrowserProviderLastSuccessfulModelRefV1,
   type BrowserProviderSettingsRepositoryV1,
   type BrowserProviderSettingsSnapshotV1,
 } from "../application/preferences/browser-provider-settings-repository.ts";
+import {
+  isProgramModelManualSelectionCurrentV1,
+  type ProgramModelManualSelectionV1,
+  resolveProgramModelDefaultV1,
+} from "../application/preferences/program-model-default.ts";
 import type { BrowserProgramWorkspaceAuthorityV1 } from "../application/workspace/browser-program-workspace-authority.ts";
 import {
   createBrowserDataResetCoordinatorV1,
@@ -46,10 +51,7 @@ import {
   credentialVaultBindingForSelectionV2,
   type CredentialVaultConnectionIdentityV2,
 } from "../credential/provider-credential-binding.ts";
-import {
-  activeAgentUsesAnyCredentialBindingV1,
-  shouldRevokeAgentAfterBuiltinModelVisibilityChangeV1,
-} from "../credential/provider-credential-currentness.ts";
+import { activeAgentUsesAnyCredentialBindingV1 } from "../credential/provider-credential-currentness.ts";
 import type {
   ProgramSurfaceActiveModelV1,
   ProgramSurfaceAgentReadinessV1,
@@ -88,16 +90,13 @@ type BrowserCredentialVaultPortV1 = ReturnType<
 
 type ProgramAgentSetupStatusV1 =
   | "loading"
-  | "available"
   | "saving"
-  | "credential_saved"
-  | "testing"
   | "ready"
-  | "test_failed"
   | "failed";
 
 interface ProgramProviderModelChoiceV1 {
   readonly value: string;
+  readonly modelId: string;
   readonly modelName: string;
   readonly providerName: string;
   readonly contextWindow: number;
@@ -105,7 +104,7 @@ interface ProgramProviderModelChoiceV1 {
   readonly supportedReasoningEfforts: readonly BrowserPiReasoningEffortV1[];
   readonly defaultReasoningEffort: BrowserPiReasoningEffortV1;
   readonly selection: BrowserPiModelSelectionV1;
-  readonly preference: BrowserProviderPreferredModelRefV1;
+  readonly modelRef: BrowserProviderLastSuccessfulModelRefV1;
 }
 
 function requestedBrowserPiRuntimeV1(): BrowserPiWorkerRuntimeV1 {
@@ -147,10 +146,10 @@ function createDataResetCoordinatorV1(): BrowserDataResetCoordinatorV1 | null {
 
 function emptyProviderSettingsSnapshotV1(): BrowserProviderSettingsSnapshotV1 {
   return Object.freeze({
-    revision: browserProviderSettingsRevisionV2,
+    revision: browserProviderSettingsRevisionV3,
     customProfiles: Object.freeze([]),
     enabledBuiltinModels: Object.freeze([]),
-    preferredModel: null,
+    lastSuccessfulModel: null,
   });
 }
 
@@ -233,9 +232,9 @@ export function selectionsShareCredentialScopeV1(
   return sameProviderSelectionV1(active, candidate);
 }
 
-function providerPreferenceFromSelectionV1(
+function modelRefFromSelectionV1(
   selection: BrowserPiModelSelectionV1,
-): BrowserProviderPreferredModelRefV1 {
+): BrowserProviderLastSuccessfulModelRefV1 {
   return selection.kind === "builtin"
     ? { kind: "builtin", providerId: selection.providerId, modelId: selection.modelId }
     : { kind: "custom", profileId: selection.profile.profileId };
@@ -251,17 +250,18 @@ function programProviderModelChoicesV1(
     ? catalog.providers.flatMap((provider) =>
       provider.models.flatMap((model): readonly ProgramProviderModelChoiceV1[] => {
         const api = browserPiCustomModelApiV1(model.api);
-        const preference: BrowserProviderPreferredModelRefV1 = {
+        const modelRef: BrowserProviderLastSuccessfulModelRefV1 = {
           kind: "builtin",
           providerId: provider.providerId,
           modelId: model.modelId,
         };
         if (
           model.availability.status !== "available" || api === null ||
-          !enabled.has(builtinModelRefKeyV1(preference))
+          !enabled.has(builtinModelRefKeyV1(modelRef))
         ) return [];
         return [{
-          value: builtinModelRefKeyV1(preference),
+          value: builtinModelRefKeyV1(modelRef),
+          modelId: model.modelId,
           modelName: model.name,
           providerName: provider.name,
           contextWindow: model.contextWindow,
@@ -275,7 +275,7 @@ function programProviderModelChoicesV1(
             api,
             baseUrl: model.baseUrl,
           },
-          preference,
+          modelRef,
         }];
       })
     )
@@ -284,6 +284,7 @@ function programProviderModelChoicesV1(
     ...builtinChoices,
     ...customProfiles.map((profile): ProgramProviderModelChoiceV1 => ({
       value: customModelRefKeyV1(profile.profileId),
+      modelId: profile.modelId,
       modelName: profile.modelId,
       providerName: profile.displayName,
       contextWindow: profile.contextWindow,
@@ -291,20 +292,9 @@ function programProviderModelChoicesV1(
       supportedReasoningEfforts: Object.freeze(["off"]),
       defaultReasoningEffort: "off",
       selection: { kind: "custom", profile },
-      preference: { kind: "custom", profileId: profile.profileId },
+      modelRef: { kind: "custom", profileId: profile.profileId },
     })),
   ];
-}
-
-function preferredModelValueV1(
-  preferred: BrowserProviderPreferredModelRefV1 | null,
-  choices: readonly ProgramProviderModelChoiceV1[],
-): string | null {
-  if (preferred === null) return null;
-  const key = preferred.kind === "builtin"
-    ? builtinModelRefKeyV1(preferred)
-    : customModelRefKeyV1(preferred.profileId);
-  return choices.some((choice) => choice.value === key) ? key : null;
 }
 
 function providerSettingsVaultFromListV1(snapshot: CredentialVaultListV2): ProviderSettingsVaultV1 {
@@ -368,6 +358,7 @@ function controlStorageEstimateV1(value: StorageEstimate): ProviderSettingsStora
 
 const credentialSaveReceiptMillisecondsV1 = 2_400;
 const resolvedVoidPromiseV1 = Promise.resolve();
+const noRecommendedModelPatternsV1: readonly string[] = [];
 
 export interface ProgramAgentProviderOwnerV1 {
   readonly runtime: BrowserPiWorkerRuntimeV1;
@@ -419,17 +410,25 @@ export function createProgramAgentHostRetirementOwnerV1(): ProgramAgentHostRetir
 export function useProgramAgentProviderOwnerV1(input: {
   readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
   readonly programPackages: ProgramPackageServiceV1;
+  readonly programModelSelectionContext: {
+    readonly scopeKey: string;
+    readonly recommendedModelPatterns: readonly string[];
+  } | null;
   readonly agentDrainRegistry: ProgramAgentDrainRegistryV1;
   readonly resetProductPreferences: () => void;
   readonly reportFailure: (code: string, error: unknown) => void;
 }): ProgramAgentProviderOwnerV1 {
   const {
     agentDrainRegistry,
+    programModelSelectionContext,
     programPackages,
     reportFailure,
     resetProductPreferences,
     workspaceAuthority,
   } = input;
+  const modelSelectionScopeKey = programModelSelectionContext?.scopeKey ?? "sillyos.default";
+  const recommendedModelPatterns = programModelSelectionContext?.recommendedModelPatterns ??
+    noRecommendedModelPatternsV1;
   const [runtime] = useState(requestedBrowserPiRuntimeV1);
   const deterministicAgent = runtime === "deterministic_test";
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -480,7 +479,11 @@ export function useProgramAgentProviderOwnerV1(input: {
   });
   const [clearAll, setClearAll] = useState<ProviderSettingsClearAllV1>({ phase: "idle" });
   const [setupStatus, setSetupStatus] = useState<ProgramAgentSetupStatusV1>("loading");
+  const failedModelTargetKeyRef = useRef<string | null>(null);
   const [activeSelection, setActiveSelection] = useState<BrowserPiModelSelectionV1 | null>(null);
+  const [manualSelection, setManualSelection] = useState<ProgramModelManualSelectionV1 | null>(
+    null,
+  );
   const [effectiveReasoningEffort, setEffectiveReasoningEffort] = useState<
     BrowserPiReasoningEffortV1 | null
   >(null);
@@ -500,6 +503,7 @@ export function useProgramAgentProviderOwnerV1(input: {
   const vaultOperationEpochRef = useRef(0);
   const vaultSettlementRef = useRef<Promise<void>>(resolvedVoidPromiseV1);
   const hostRef = useRef<BrowserProgramAgentHostV1 | null>(null);
+  const hostFailureTargetKeyRef = useRef<string | null>(null);
   const agentForgetSettlementRef = useRef<Promise<boolean> | null>(null);
   const controlPortRef = useRef<BrowserProgramAgentControlPortV1 | null>(null);
   const activeSelectionRef = useRef<BrowserPiModelSelectionV1 | null>(null);
@@ -561,6 +565,7 @@ export function useProgramAgentProviderOwnerV1(input: {
     const host = hostRef.current;
     const control = controlPortRef.current;
     hostRef.current = null;
+    hostFailureTargetKeyRef.current = null;
     controlPortRef.current = null;
     activeSelectionRef.current = null;
     setAgentHost(null);
@@ -634,13 +639,13 @@ export function useProgramAgentProviderOwnerV1(input: {
         return;
       }
       setProviderCatalog({ phase: "failed", diagnosticCode: result.code });
-      reportFailure("silly_os.browser_pi_catalog_unavailable", result.code);
+      reportFailureRef.current("silly_os.browser_pi_catalog_unavailable", result.code);
     }, (error: unknown) => {
       if (providerCatalogEpochRef.current !== epoch || !agentDrainRegistry.isAccepting()) return;
       setProviderCatalog({ phase: "failed", diagnosticCode: "worker_failed" });
-      reportFailure("silly_os.browser_pi_catalog_unavailable", error);
+      reportFailureRef.current("silly_os.browser_pi_catalog_unavailable", error);
     });
-  }, [agentDrainRegistry, deterministicAgent, reportFailure]);
+  }, [agentDrainRegistry, deterministicAgent]);
 
   useEffect(() => {
     loadProviderCatalogV1();
@@ -667,12 +672,8 @@ export function useProgramAgentProviderOwnerV1(input: {
       const missing = initialization.snapshot.enabledBuiltinModels.filter((model) =>
         !availableBuiltinModelKeys.has(builtinModelRefKeyV1(model))
       );
-      const preferred = initialization.snapshot.preferredModel;
-      const preferredMissing = preferred?.kind === "builtin" &&
-        !availableBuiltinModelKeys.has(builtinModelRefKeyV1(preferred));
       for (const model of missing) providerSettingsRepository.setBuiltinModelEnabled(model, false);
-      if (preferredMissing) providerSettingsRepository.setPreferredModel(null);
-      if (!initialization.initialized && missing.length === 0 && !preferredMissing) return;
+      if (!initialization.initialized && missing.length === 0) return;
       setProviderSettingsSnapshot(providerSettingsRepository.read());
     } catch (error) {
       reportFailure("silly_os.provider_settings_save_failed", error);
@@ -731,10 +732,10 @@ export function useProgramAgentProviderOwnerV1(input: {
     };
   }, [agentDrainRegistry, deterministicAgent]);
 
-  const persistProviderPreferenceV1 = useCallback((selection: BrowserPiModelSelectionV1): void => {
+  const recordSuccessfulModelV1 = useCallback((selection: BrowserPiModelSelectionV1): void => {
     if (providerSettingsRepository === null) return;
     try {
-      providerSettingsRepository.setPreferredModel(providerPreferenceFromSelectionV1(selection));
+      providerSettingsRepository.setLastSuccessfulModel(modelRefFromSelectionV1(selection));
       setProviderSettingsSnapshot(providerSettingsRepository.read());
     } catch (error) {
       reportFailure("silly_os.provider_settings_save_failed", error);
@@ -781,7 +782,7 @@ export function useProgramAgentProviderOwnerV1(input: {
     configure: (control: BrowserProgramAgentControlPortV1) => ReturnType<
       BrowserProgramAgentControlPortV1["configureCredential"]
     >,
-    persistPreference: boolean,
+    failureTargetKey: string | null,
   ): Promise<boolean> => {
     if (
       !agentDrainRegistry.isAccepting() ||
@@ -805,6 +806,8 @@ export function useProgramAgentProviderOwnerV1(input: {
         if (setupEpochRef.current !== epoch || !agentDrainRegistry.isAccepting()) return false;
         const onConnectionLost = (): void => {
           if (hostRef.current !== candidateHost) return;
+          const failedTargetKey = hostFailureTargetKeyRef.current;
+          if (failedTargetKey !== null) failedModelTargetKeyRef.current = failedTargetKey;
           void retireHostV1("disposed");
           setSetupStatus("failed");
           reportFailureRef.current("silly_os.browser_pi_connection_lost", {
@@ -818,6 +821,7 @@ export function useProgramAgentProviderOwnerV1(input: {
             workspaceAuthority,
             openNetworkBroker: () => networkModule.createBrowserNetworkBrokerFrameTransportV1(),
             onConnectionLost,
+            onRunCompleted: recordSuccessfulModelV1,
           })
           : agentModule.createBrowserProgramAgentHostV1({
             runtime: "pi_provider",
@@ -826,6 +830,7 @@ export function useProgramAgentProviderOwnerV1(input: {
             workspaceAuthority,
             openNetworkBroker: () => networkModule.createBrowserNetworkBrokerFrameTransportV1(),
             onConnectionLost,
+            onRunCompleted: recordSuccessfulModelV1,
           });
         const candidateControl = candidateHost.createControlPort();
         const configured = await configure(candidateControl);
@@ -842,14 +847,14 @@ export function useProgramAgentProviderOwnerV1(input: {
         }
         const predecessor = hostRef.current;
         hostRef.current = candidateHost;
+        hostFailureTargetKeyRef.current = failureTargetKey;
         controlPortRef.current = candidateControl;
         activeSelectionRef.current = runtime === "pi_provider" ? selection : null;
         setAgentHost(candidateHost);
         setControlPort(candidateControl);
         setActiveSelection(activeSelectionRef.current);
         setEffectiveReasoningEffort(configured.effectiveReasoningEffort);
-        setSetupStatus("credential_saved");
-        if (selection !== null && persistPreference) persistProviderPreferenceV1(selection);
+        setSetupStatus("ready");
         if (predecessor !== null && predecessor !== candidateHost) {
           await hostRetirementOwner.track(predecessor.forget());
         }
@@ -873,7 +878,7 @@ export function useProgramAgentProviderOwnerV1(input: {
     agentDrainRegistry,
     agentPreferencesSnapshot.preferredReasoningEffort,
     hostRetirementOwner,
-    persistProviderPreferenceV1,
+    recordSuccessfulModelV1,
     reportFailure,
     retireHostV1,
     runtime,
@@ -882,7 +887,7 @@ export function useProgramAgentProviderOwnerV1(input: {
 
   const activateVaultSelectionV1 = useCallback((
     selection: BrowserPiModelSelectionV1,
-    persistPreference: boolean,
+    failureTargetKey: string | null,
   ): Promise<boolean> => {
     const vaultPort = vaultPortRef.current;
     let binding: CredentialVaultBindingV2;
@@ -913,12 +918,15 @@ export function useProgramAgentProviderOwnerV1(input: {
             operationEpoch,
           ),
         }),
-      persistPreference,
+      failureTargetKey,
     );
   }, [configureHostV1, createCredentialVaultHandoffV1, reportFailure]);
 
   useEffect(() => {
-    if (!deterministicAgent || hostRef.current !== null || !agentDrainRegistry.isAccepting()) {
+    if (
+      !deterministicAgent || hostRef.current !== null || setupStatus === "failed" ||
+      agentForgetSettlementRef.current !== null || !agentDrainRegistry.isAccepting()
+    ) {
       return undefined;
     }
     let current = true;
@@ -944,11 +952,14 @@ export function useProgramAgentProviderOwnerV1(input: {
       controlPortRef.current = control;
       setAgentHost(candidate);
       setControlPort(control);
-      setSetupStatus("available");
-    }, (error: unknown) => {
+      setSetupStatus("ready");
+    }).catch((error: unknown) => {
+      if (candidate !== null && candidate !== hostRef.current) {
+        void hostRetirementOwner.track(candidate.dispose());
+      }
       if (!current) return;
       setSetupStatus("failed");
-      reportFailure("silly_os.browser_pi_adapter_unavailable", error);
+      reportFailureRef.current("silly_os.browser_pi_adapter_unavailable", error);
     });
     return () => {
       current = false;
@@ -958,8 +969,9 @@ export function useProgramAgentProviderOwnerV1(input: {
     agentPreferencesSnapshot.preferredReasoningEffort,
     deterministicHostGeneration,
     deterministicAgent,
-    reportFailure,
+    hostRetirementOwner,
     retireHostV1,
+    setupStatus,
     workspaceAuthority,
   ]);
 
@@ -980,42 +992,83 @@ export function useProgramAgentProviderOwnerV1(input: {
       ),
     [credentialVault, modelChoices],
   );
-  const selectedModelValue = preferredModelValueV1(
-    providerSettingsSnapshot.preferredModel,
-    usableModelChoices,
-  ) ?? usableModelChoices[0]?.value ?? null;
-  const preferredChoice = usableModelChoices.find(({ value }) => value === selectedModelValue) ??
-    null;
   const activeChoice = activeSelection === null
     ? null
-    : modelChoices.find((choice) => sameProviderSelectionV1(choice.selection, activeSelection)) ??
+    : usableModelChoices.find((choice) =>
+      sameProviderSelectionV1(choice.selection, activeSelection)
+    ) ??
       null;
-  const preferredIsActive = preferredChoice !== null &&
-    sameProviderSelectionV1(activeSelection, preferredChoice.selection) &&
+  useEffect(() => {
+    if (
+      deterministicAgent || providerCatalog.phase !== "ready" || activeSelection === null ||
+      activeChoice !== null
+    ) return;
+    void retireHostV1("forgotten");
+  }, [activeChoice, activeSelection, deterministicAgent, providerCatalog.phase, retireHostV1]);
+  const automaticChoice = useMemo(() =>
+    resolveProgramModelDefaultV1({
+      recommendedModelPatterns,
+      choices: usableModelChoices,
+      lastSuccessfulModel: providerSettingsSnapshot.lastSuccessfulModel,
+    }), [
+    providerSettingsSnapshot.lastSuccessfulModel,
+    recommendedModelPatterns,
+    usableModelChoices,
+  ]);
+  const manualSelectionCurrent = isProgramModelManualSelectionCurrentV1(
+    manualSelection,
+    modelSelectionScopeKey,
+    activeChoice?.value ?? null,
+  );
+  const selectedChoice = manualSelectionCurrent ? activeChoice : automaticChoice;
+  const automaticTargetKey = automaticChoice === null
+    ? `${modelSelectionScopeKey}\0manual`
+    : `${modelSelectionScopeKey}\0${automaticChoice.value}`;
+  const selectedTargetKey = selectedChoice === null
+    ? `${modelSelectionScopeKey}\0manual`
+    : `${modelSelectionScopeKey}\0${selectedChoice.value}`;
+  useLayoutEffect(() => {
+    if (
+      selectedChoice !== null && controlPortRef.current !== null &&
+      sameProviderSelectionV1(activeSelection, selectedChoice.selection)
+    ) {
+      hostFailureTargetKeyRef.current = selectedTargetKey;
+    }
+  }, [activeSelection, selectedChoice, selectedTargetKey]);
+  const selectedModelValue = selectedChoice?.value ?? null;
+  const selectedIsActive = selectedChoice !== null &&
+    sameProviderSelectionV1(activeSelection, selectedChoice.selection) &&
     (controlSnapshot?.phase === "ready" || controlSnapshot?.phase === "completed" ||
       controlSnapshot?.phase === "failed");
-  const reasoningOptions = preferredChoice?.supportedReasoningEfforts ??
+  const reasoningOptions = selectedChoice?.supportedReasoningEfforts ??
     Object.freeze(["off"] as const);
   const reasoningValue = effectiveReasoningEffort !== null &&
       reasoningOptions.includes(effectiveReasoningEffort)
     ? effectiveReasoningEffort
-    : preferredChoice?.defaultReasoningEffort ?? "off";
-  const modelStatus = usableModelChoices.length === 0
+    : selectedChoice?.defaultReasoningEffort ?? "off";
+  const setupFailureCurrent = failedModelTargetKeyRef.current === selectedTargetKey ||
+    (setupStatus === "failed" && failedModelTargetKeyRef.current === null);
+  const modelStatus = selectedChoice === null
     ? "required" as const
     : modelSelectionPending || setupPendingRef.current
     ? "initializing" as const
-    : preferredIsActive
+    : selectedIsActive
     ? "ready" as const
-    : setupStatus === "failed"
+    : setupFailureCurrent
     ? "failed" as const
     : "initializing" as const;
   const readiness: ProgramSurfaceAgentReadinessV1 = deterministicAgent
-    ? { status: "ready", recoveryTarget: null }
+    ? setupStatus === "failed"
+      ? { status: "agent_failed", recoveryTarget: null }
+      : agentHost === null
+      ? { status: "agent_initializing", recoveryTarget: null }
+      : { status: "ready", recoveryTarget: null }
     : projectAgentReadinessV1({
       catalogStatus: providerCatalog.phase,
       vaultStatus: projectCredentialVaultStatusV1(credentialVault),
       hasEnabledConfiguredModel: modelChoices.length > 0,
       hasModelWithCredentialedProvider: usableModelChoices.length > 0,
+      hasSelectedModel: selectedChoice !== null,
       agentStatus: modelStatus === "failed"
         ? "failed"
         : modelStatus === "ready"
@@ -1025,7 +1078,7 @@ export function useProgramAgentProviderOwnerV1(input: {
 
   const selectConfiguredModelV1 = useCallback((
     choice: ProgramProviderModelChoiceV1,
-    persistPreference: boolean,
+    failureTargetKey: string,
   ): Promise<boolean> => {
     const control = controlPortRef.current;
     const active = activeSelectionRef.current;
@@ -1034,7 +1087,7 @@ export function useProgramAgentProviderOwnerV1(input: {
       !selectionsShareCredentialScopeV1(active, choice.selection)
     ) return Promise.resolve(false);
     if (sameProviderSelectionV1(active, choice.selection)) {
-      if (persistPreference) persistProviderPreferenceV1(choice.selection);
+      hostFailureTargetKeyRef.current = failureTargetKey;
       return Promise.resolve(true);
     }
     const epoch = ++modelEpochRef.current;
@@ -1047,16 +1100,19 @@ export function useProgramAgentProviderOwnerV1(input: {
           !agentDrainRegistry.isAccepting()
         ) return false;
         if (selected.kind !== "selected") {
+          setSetupStatus("failed");
           reportFailure("silly_os.browser_pi_model_select_failed", selected.diagnostic);
           return false;
         }
         activeSelectionRef.current = selected.selection;
+        hostFailureTargetKeyRef.current = failureTargetKey;
         setActiveSelection(selected.selection);
         setEffectiveReasoningEffort(selected.effectiveReasoningEffort);
-        if (persistPreference) persistProviderPreferenceV1(selected.selection);
+        setSetupStatus("ready");
         return true;
       } catch (error) {
         if (modelEpochRef.current === epoch) {
+          setSetupStatus("failed");
           reportFailure("silly_os.browser_pi_model_select_failed", error);
         }
         return false;
@@ -1066,7 +1122,7 @@ export function useProgramAgentProviderOwnerV1(input: {
     })();
     modelSettlementRef.current = settlement.then(() => undefined);
     return settlement;
-  }, [agentDrainRegistry, persistProviderPreferenceV1, reportFailure]);
+  }, [agentDrainRegistry, reportFailure]);
 
   const selectModelChoiceV1 = useCallback((choice: ProgramProviderModelChoiceV1): void => {
     if (
@@ -1075,17 +1131,50 @@ export function useProgramAgentProviderOwnerV1(input: {
       !credentialVaultCanHandoffProviderCredentialV1(vaultRef.current)
     ) return;
     const active = activeSelectionRef.current;
+    const nextManualSelection = {
+      scopeKey: modelSelectionScopeKey,
+      choiceValue: choice.value,
+    };
+    setManualSelection(nextManualSelection);
+    let settlement: Promise<boolean>;
     if (
       controlPortRef.current !== null && active !== null &&
       selectionsShareCredentialScopeV1(active, choice.selection)
     ) {
-      void selectConfiguredModelV1(choice, true);
-      return;
+      settlement = selectConfiguredModelV1(
+        choice,
+        `${nextManualSelection.scopeKey}\0${nextManualSelection.choiceValue}`,
+      );
+    } else {
+      settlement = activateVaultSelectionV1(
+        choice.selection,
+        `${nextManualSelection.scopeKey}\0${nextManualSelection.choiceValue}`,
+      );
     }
-    void activateVaultSelectionV1(choice.selection, true);
+    void settlement.then((selected) => {
+      if (selected) {
+        if (
+          hostRef.current !== null &&
+          hostFailureTargetKeyRef.current ===
+            `${nextManualSelection.scopeKey}\0${nextManualSelection.choiceValue}`
+        ) {
+          failedModelTargetKeyRef.current = null;
+        }
+        return;
+      }
+      failedModelTargetKeyRef.current =
+        `${nextManualSelection.scopeKey}\0${nextManualSelection.choiceValue}`;
+      setManualSelection((current) =>
+        current?.scopeKey === nextManualSelection.scopeKey &&
+          current.choiceValue === nextManualSelection.choiceValue
+          ? null
+          : current
+      );
+    });
   }, [
     activateVaultSelectionV1,
     deterministicAgent,
+    modelSelectionScopeKey,
     modelSelectionPending,
     reasoningSelectionPending,
     selectConfiguredModelV1,
@@ -1137,35 +1226,72 @@ export function useProgramAgentProviderOwnerV1(input: {
 
   useEffect(() => {
     if (
-      deterministicAgent || preferredChoice === null ||
+      deterministicAgent || manualSelectionCurrent ||
       agentForgetSettlementRef.current !== null ||
       !credentialVaultCanHandoffProviderCredentialV1(credentialVault) ||
       credentialOperation.phase !== "idle" || connectionTest.phase === "testing" ||
-      setupStatus === "failed" || setupPendingRef.current || modelSelectionPending ||
+      (settingsOpen && connectionTest.phase !== "disconnected") ||
+      failedModelTargetKeyRef.current === automaticTargetKey || setupPendingRef.current ||
+      modelSelectionPending ||
       reasoningSelectionPending || !agentDrainRegistry.isAccepting()
     ) return;
     const active = activeSelectionRef.current;
+    if (selectedChoice === null) {
+      if (providerCatalog.phase !== "ready") return;
+      failedModelTargetKeyRef.current = null;
+      if (active !== null) void retireHostV1("disposed");
+      return;
+    }
     if (controlPortRef.current !== null && active !== null) {
-      if (sameProviderSelectionV1(active, preferredChoice.selection)) return;
-      if (selectionsShareCredentialScopeV1(active, preferredChoice.selection)) {
-        void selectConfiguredModelV1(preferredChoice, false);
+      if (sameProviderSelectionV1(active, selectedChoice.selection)) {
+        hostFailureTargetKeyRef.current = automaticTargetKey;
+        failedModelTargetKeyRef.current = null;
+        return;
+      }
+      if (selectionsShareCredentialScopeV1(active, selectedChoice.selection)) {
+        void selectConfiguredModelV1(selectedChoice, automaticTargetKey).then((selected) => {
+          if (selected) {
+            if (
+              hostRef.current !== null &&
+              hostFailureTargetKeyRef.current === automaticTargetKey
+            ) {
+              failedModelTargetKeyRef.current = null;
+            }
+            return;
+          }
+          failedModelTargetKeyRef.current = automaticTargetKey;
+        });
         return;
       }
     }
-    void activateVaultSelectionV1(preferredChoice.selection, false);
+    void activateVaultSelectionV1(selectedChoice.selection, automaticTargetKey).then((selected) => {
+      if (selected) {
+        if (
+          hostRef.current !== null && hostFailureTargetKeyRef.current === automaticTargetKey
+        ) {
+          failedModelTargetKeyRef.current = null;
+        }
+        return;
+      }
+      failedModelTargetKeyRef.current = automaticTargetKey;
+    });
   }, [
     activateVaultSelectionV1,
     agentDrainRegistry,
+    automaticTargetKey,
     connectionTest.phase,
     credentialOperation.phase,
     credentialVault,
     deterministicAgent,
+    manualSelectionCurrent,
     modelSelectionPending,
-    preferredChoice,
+    providerCatalog.phase,
     providerHostGeneration,
     reasoningSelectionPending,
+    retireHostV1,
+    selectedChoice,
     selectConfiguredModelV1,
-    setupStatus,
+    settingsOpen,
   ]);
 
   const openSettings = useCallback((openInput?: {
@@ -1182,6 +1308,10 @@ export function useProgramAgentProviderOwnerV1(input: {
 
   const closeSettings = useCallback((): void => {
     setCredentialReceipt(null);
+    if (connectionTest.phase === "testing") {
+      connectionTestEpochRef.current += 1;
+      setConnectionTest({ phase: "disconnected", active: null });
+    }
     setSettingsOpen(false);
     const surface = settingsReturnSurfaceRef.current;
     const returnTarget = settingsReturnTargetRef.current;
@@ -1195,7 +1325,7 @@ export function useProgramAgentProviderOwnerV1(input: {
         element?.focus();
       });
     });
-  }, []);
+  }, [connectionTest.phase]);
 
   const providerModel = useCallback(
     (surface: "home" | "workspace"): ProgramSurfaceModelControlV1 => ({
@@ -1379,7 +1509,7 @@ export function useProgramAgentProviderOwnerV1(input: {
         controlPortRef.current === null || active === null ||
         !selectionsShareCredentialScopeV1(active, piSelection)
       ) {
-        if (!await activateVaultSelectionV1(piSelection, false)) {
+        if (!await activateVaultSelectionV1(piSelection, null)) {
           if (connectionTestEpochRef.current === epoch) {
             setConnectionTest({
               phase: "failed",
@@ -1466,16 +1596,10 @@ export function useProgramAgentProviderOwnerV1(input: {
         const next = providerSettingsVaultFromListV1(snapshot);
         vaultRef.current = next;
         setCredentialVault(next);
+        failedModelTargetKeyRef.current = null;
+        setSetupStatus((current) => current === "failed" ? "loading" : current);
         setCredentialOperation({ phase: "idle", target: null });
         setCredentialReceipt({ kind: "saved", target });
-        const choices = programProviderModelChoicesV1(
-          providerCatalog,
-          providerSettingsSnapshot.customProfiles,
-          providerSettingsSnapshot.enabledBuiltinModels,
-        ).filter((choice) => credentialVaultHasProviderCredentialV1(next, choice.selection));
-        const preferred = preferredModelValueV1(providerSettingsSnapshot.preferredModel, choices);
-        const choice = choices.find(({ value }) => value === preferred) ?? choices[0];
-        if (choice !== undefined) void activateVaultSelectionV1(choice.selection, false);
       } catch (error) {
         if (
           vaultPortRef.current === vaultPort && vaultEpochRef.current === workerEpoch &&
@@ -1494,12 +1618,7 @@ export function useProgramAgentProviderOwnerV1(input: {
     })();
     vaultSettlementRef.current = settlement;
   }, [
-    activateVaultSelectionV1,
     agentDrainRegistry,
-    providerCatalog,
-    providerSettingsSnapshot.customProfiles,
-    providerSettingsSnapshot.enabledBuiltinModels,
-    providerSettingsSnapshot.preferredModel,
     reportFailure,
     retireHostV1,
   ]);
@@ -1590,33 +1709,15 @@ export function useProgramAgentProviderOwnerV1(input: {
         !enabled && active?.kind === "builtin" && active.providerId === model.providerId &&
         active.modelId === model.modelId
       ) {
-        const replacement = programProviderModelChoicesV1(
-          providerCatalog,
-          next.customProfiles,
-          next.enabledBuiltinModels,
-        ).find((choice) => selectionsShareCredentialScopeV1(active, choice.selection));
-        if (replacement !== undefined) {
-          void selectConfiguredModelV1(replacement, true);
-        } else if (
-          shouldRevokeAgentAfterBuiltinModelVisibilityChangeV1({
-            activeSelection: active,
-            changedModel: model,
-            enabled,
-            sameCredentialScopeReplacementAvailable: false,
-          })
-        ) {
-          void retireHostV1("forgotten");
-        }
+        void retireHostV1("forgotten");
       }
     } catch (error) {
       reportFailure("silly_os.provider_settings_save_failed", error);
     }
   }, [
-    providerCatalog,
     providerSettingsRepository,
     reportFailure,
     retireHostV1,
-    selectConfiguredModelV1,
   ]);
 
   const createCustomProviderProfileV1 = useCallback((
@@ -1791,8 +1892,8 @@ export function useProgramAgentProviderOwnerV1(input: {
     catalog: providerCatalog,
     customProfiles: providerSettingsSnapshot.customProfiles,
     enabledBuiltinModels: providerSettingsSnapshot.enabledBuiltinModels,
-    preferredBuiltinModel: providerSettingsSnapshot.preferredModel?.kind === "builtin"
-      ? providerSettingsSnapshot.preferredModel
+    lastSuccessfulBuiltinModel: providerSettingsSnapshot.lastSuccessfulModel?.kind === "builtin"
+      ? providerSettingsSnapshot.lastSuccessfulModel
       : null,
     connectionTest,
     credentialOperation,

@@ -186,7 +186,26 @@ describe("Program package service V1", () => {
   });
 
   it("converges bundled archive and external ZIP acquisition on one exact installed package", async () => {
-    const archive = archiveV1("1.0.0", "Translate faithfully.");
+    const baseline = archiveV1("1.0.0", "Translate faithfully.");
+    const archive: ProgramPackageArchiveV1 = {
+      ...baseline,
+      manifest: {
+        ...baseline.manifest,
+        modelPromptOverlays: [{
+          modelPattern: "*glm-5.3-flash*",
+          path: "prompts/models/glm.md",
+        }],
+        recommendedModelPatterns: [
+          "*glm-5.3-flash*",
+          "deepseek/deepseek-v4-flash*",
+        ],
+      },
+      files: [...baseline.files, {
+        path: "prompts/models/glm.md",
+        mediaType: "text/markdown",
+        bytes: bytesV1("Complete the typed candidate without narration."),
+      }],
+    };
     const service = createProgramPackageServiceV1({
       repository: memoryRepositoryV1(),
       bundledSources: [await bundledSourceV1(archive)],
@@ -199,10 +218,10 @@ describe("Program package service V1", () => {
       throw new Error("expected bundled package to be ready");
     }
     const external = await service.installZip(
-      zipSync({
-        "program.json": new TextEncoder().encode(JSON.stringify(archive.manifest)),
-        "PROGRAM.md": new TextEncoder().encode("Translate faithfully."),
-      }),
+      zipSync(Object.fromEntries([
+        ["program.json", new TextEncoder().encode(JSON.stringify(archive.manifest))],
+        ...archive.files.map((file) => [file.path, new Uint8Array(file.bytes)] as const),
+      ])),
       {
         budgets: {
           maximumCompressedBytes: 65_536,
@@ -219,7 +238,15 @@ describe("Program package service V1", () => {
     });
     await expect(service.loadExact(external.reference)).resolves.toMatchObject({
       kind: "ready",
-      package: { reference: bundled.package.reference },
+      package: {
+        reference: bundled.package.reference,
+        manifest: {
+          recommendedModelPatterns: [
+            "*glm-5.3-flash*",
+            "deepseek/deepseek-v4-flash*",
+          ],
+        },
+      },
     });
     const installed = await service.listLibrary();
     expect(installed).toHaveLength(1);

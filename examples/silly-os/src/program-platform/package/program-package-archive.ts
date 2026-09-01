@@ -24,6 +24,11 @@ export interface ProgramPackageScriptV1 {
   readonly runtime: "quickjs" | "python";
 }
 
+export interface ProgramModelPromptOverlayV1 {
+  readonly modelPattern: string;
+  readonly path: string;
+}
+
 export interface ProgramPackageManifestV1 {
   readonly schemaVersion: 1;
   readonly programId: string;
@@ -35,6 +40,20 @@ export interface ProgramPackageManifestV1 {
   readonly name: string;
   readonly summary: string;
   readonly instructionsPath: string;
+  /**
+   * Optional ordered compatibility prompts selected from the resolved model id.
+   * Matching is case-insensitive. Only `*` is interpreted by the fixed harness;
+   * every other pattern character is literal.
+   * Missing and an explicit empty array are the same admitted package contract.
+   */
+  readonly modelPromptOverlays?: readonly ProgramModelPromptOverlayV1[];
+  /**
+   * Optional soft preference order over resolved model-id patterns.
+   * Patterns use the same full-id, `*`-only matching contract as prompt overlays.
+   * Availability and final model selection remain SillyOS-owned runtime concerns.
+   * Missing and an explicit empty array are the same admitted package contract.
+   */
+  readonly recommendedModelPatterns?: readonly string[];
   readonly settingsSchemaPath: string | null;
   /** Complete package defaults. Missing or invalid user overrides fall back to this document. */
   readonly settingsDefaultsPath: string | null;
@@ -99,6 +118,7 @@ export type ProgramPackageAdmissionFailureCodeV1 =
   | "package_too_large"
   | "path_invalid"
   | "referenced_file_missing"
+  | "referenced_text_invalid"
   | "too_many_files";
 
 export class ProgramPackageAdmissionErrorV1 extends Error {
@@ -128,6 +148,10 @@ function exactKeysV1(
 
 function positiveSafeIntegerV1(value: unknown): value is number {
   return Number.isSafeInteger(value) && typeof value === "number" && value > 0;
+}
+
+function compareCodeUnitsV1(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function admitLimitsV1(value: ProgramPackageAdmissionLimitsV1): ProgramPackageAdmissionLimitsV1 {
@@ -207,6 +231,30 @@ function admitScriptV1(
   };
 }
 
+function admitModelPromptOverlayV1(
+  value: unknown,
+  limits: ProgramPackageAdmissionLimitsV1,
+): ProgramModelPromptOverlayV1 {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new ProgramPackageAdmissionErrorV1("manifest_invalid");
+  }
+  const record = value as Readonly<Record<string, unknown>>;
+  if (
+    !exactKeysV1(record, ["modelPattern", "path"])
+  ) throw new ProgramPackageAdmissionErrorV1("manifest_invalid");
+  return {
+    modelPattern: admitModelPatternV1(record.modelPattern),
+    path: exactPackagePathV1(record.path, limits),
+  };
+}
+
+function admitModelPatternV1(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new ProgramPackageAdmissionErrorV1("manifest_invalid");
+  }
+  return value;
+}
+
 function admitManifestV1(
   value: unknown,
   limits: ProgramPackageAdmissionLimitsV1,
@@ -215,22 +263,32 @@ function admitManifestV1(
     throw new ProgramPackageAdmissionErrorV1("manifest_invalid");
   }
   const record = value as Readonly<Record<string, unknown>>;
+  const manifestKeysV1 = [
+    "capabilityIds",
+    "initialUiPath",
+    "instructionsPath",
+    "harnessCompatibility",
+    "name",
+    "packageVersion",
+    "programId",
+    "runtimeProfile",
+    "schemaVersion",
+    "scripts",
+    "settingsDefaultsPath",
+    "settingsSchemaPath",
+    "summary",
+  ] as const;
+  const hasModelPromptOverlays = Object.hasOwn(record, "modelPromptOverlays");
+  const hasRecommendedModelPatterns = Object.hasOwn(record, "recommendedModelPatterns");
+  const optionalManifestKeysV1 = [
+    ...(hasModelPromptOverlays ? ["modelPromptOverlays"] : []),
+    ...(hasRecommendedModelPatterns ? ["recommendedModelPatterns"] : []),
+  ];
   if (
-    !exactKeysV1(record, [
-      "capabilityIds",
-      "initialUiPath",
-      "instructionsPath",
-      "harnessCompatibility",
-      "name",
-      "packageVersion",
-      "programId",
-      "runtimeProfile",
-      "schemaVersion",
-      "scripts",
-      "settingsDefaultsPath",
-      "settingsSchemaPath",
-      "summary",
-    ]) ||
+    !exactKeysV1(
+      record,
+      [...manifestKeysV1, ...optionalManifestKeysV1],
+    ) ||
     record.schemaVersion !== programPackageArchiveSchemaVersionV1 ||
     !nonEmptyTrimmedTextV1(record.programId) ||
     !exactProgramIdPatternV1.test(record.programId) ||
@@ -241,7 +299,9 @@ function admitManifestV1(
     !exactCapabilityIdPatternV1.test(record.runtimeProfile) ||
     !nonEmptyTrimmedTextV1(record.name) ||
     typeof record.summary !== "string" || record.summary.trim() !== record.summary ||
-    !Array.isArray(record.scripts) || !Array.isArray(record.capabilityIds)
+    !Array.isArray(record.scripts) || !Array.isArray(record.capabilityIds) ||
+    (hasModelPromptOverlays && !Array.isArray(record.modelPromptOverlays)) ||
+    (hasRecommendedModelPatterns && !Array.isArray(record.recommendedModelPatterns))
   ) throw new ProgramPackageAdmissionErrorV1("manifest_invalid");
 
   const scripts = record.scripts.map((script) => admitScriptV1(script, limits));
@@ -258,6 +318,14 @@ function admitManifestV1(
   if (new Set(capabilityIds).size !== capabilityIds.length) {
     throw new ProgramPackageAdmissionErrorV1("manifest_invalid");
   }
+  const modelPromptOverlays = hasModelPromptOverlays
+    ? (record.modelPromptOverlays as readonly unknown[]).map((overlay) =>
+      admitModelPromptOverlayV1(overlay, limits)
+    )
+    : [];
+  const recommendedModelPatterns = hasRecommendedModelPatterns
+    ? (record.recommendedModelPatterns as readonly unknown[]).map(admitModelPatternV1)
+    : [];
 
   const nullablePathV1 = (path: unknown): string | null =>
     path === null ? null : exactPackagePathV1(path, limits);
@@ -270,6 +338,8 @@ function admitManifestV1(
     name: record.name,
     summary: record.summary,
     instructionsPath: exactPackagePathV1(record.instructionsPath, limits),
+    ...(modelPromptOverlays.length === 0 ? {} : { modelPromptOverlays }),
+    ...(recommendedModelPatterns.length === 0 ? {} : { recommendedModelPatterns }),
     settingsSchemaPath: nullablePathV1(record.settingsSchemaPath),
     settingsDefaultsPath: nullablePathV1(record.settingsDefaultsPath),
     initialUiPath: nullablePathV1(record.initialUiPath),
@@ -331,6 +401,7 @@ function referencedPathsV1(manifest: ProgramPackageManifestV1): readonly string[
     ...(manifest.settingsDefaultsPath === null ? [] : [manifest.settingsDefaultsPath]),
     ...(manifest.initialUiPath === null ? [] : [manifest.initialUiPath]),
     ...manifest.scripts.map((script) => script.path),
+    ...(manifest.modelPromptOverlays ?? []).map((overlay) => overlay.path),
   ];
 }
 
@@ -387,7 +458,7 @@ export async function admitProgramPackageArchiveV1(
       throw new ProgramPackageAdmissionErrorV1("file_too_large", path);
     }
     return { path, mediaType: file.mediaType, bytes };
-  }).toSorted((left, right) => left.path.localeCompare(right.path));
+  }).toSorted((left, right) => compareCodeUnitsV1(left.path, right.path));
 
   const filePaths = new Set<string>();
   for (const file of files) {
@@ -399,6 +470,11 @@ export async function admitProgramPackageArchiveV1(
   for (const path of referencedPathsV1(manifest)) {
     if (!filePaths.has(path)) {
       throw new ProgramPackageAdmissionErrorV1("referenced_file_missing", path);
+    }
+  }
+  for (const overlay of manifest.modelPromptOverlays ?? []) {
+    if (readProgramPackageTextFileV1({ files }, overlay.path) === null) {
+      throw new ProgramPackageAdmissionErrorV1("referenced_text_invalid", overlay.path);
     }
   }
 
@@ -473,6 +549,14 @@ export function cloneProgramPackageArchiveV1(
   return {
     manifest: {
       ...value.manifest,
+      ...(value.manifest.modelPromptOverlays === undefined ? {} : {
+        modelPromptOverlays: value.manifest.modelPromptOverlays.map((overlay) => ({
+          ...overlay,
+        })),
+      }),
+      ...(value.manifest.recommendedModelPatterns === undefined
+        ? {}
+        : { recommendedModelPatterns: [...value.manifest.recommendedModelPatterns] }),
       scripts: value.manifest.scripts.map((script) => ({ ...script })),
       capabilityIds: [...value.manifest.capabilityIds],
     },
@@ -489,6 +573,12 @@ export function cloneProgramPackageManifestV1(
 ): ProgramPackageManifestV1 {
   return {
     ...value,
+    ...(value.modelPromptOverlays === undefined
+      ? {}
+      : { modelPromptOverlays: value.modelPromptOverlays.map((overlay) => ({ ...overlay })) }),
+    ...(value.recommendedModelPatterns === undefined
+      ? {}
+      : { recommendedModelPatterns: [...value.recommendedModelPatterns] }),
     scripts: value.scripts.map((script) => ({ ...script })),
     capabilityIds: [...value.capabilityIds],
   };

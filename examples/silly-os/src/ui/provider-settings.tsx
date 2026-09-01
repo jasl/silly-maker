@@ -273,7 +273,7 @@ export interface ProviderSettingsPropsV1 {
   readonly catalog: ProviderSettingsCatalogV1;
   readonly customProfiles: readonly ProviderSettingsCustomProfileV1[];
   readonly enabledBuiltinModels: readonly ProviderSettingsBuiltinModelRefV1[];
-  readonly preferredBuiltinModel: ProviderSettingsBuiltinModelRefV1 | null;
+  readonly lastSuccessfulBuiltinModel: ProviderSettingsBuiltinModelRefV1 | null;
   readonly connectionTest: ProviderSettingsConnectionTestV1;
   readonly credentialOperation: ProviderSettingsCredentialOperationV1;
   readonly credentialReceipt: ProviderSettingsCredentialReceiptV1 | null;
@@ -1740,7 +1740,7 @@ export function ProviderSettingsV1({
   catalog,
   customProfiles,
   enabledBuiltinModels,
-  preferredBuiltinModel,
+  lastSuccessfulBuiltinModel,
   connectionTest,
   credentialOperation,
   credentialReceipt,
@@ -1842,12 +1842,12 @@ export function ProviderSettingsV1({
         testModels.some((model) => model.modelId === activeSelection.modelId)
       ) return activeSelection.modelId;
       if (
-        preferredBuiltinModel?.providerId === inspectedProvider.providerId &&
-        testModels.some((model) => model.modelId === preferredBuiltinModel.modelId)
-      ) return preferredBuiltinModel.modelId;
+        lastSuccessfulBuiltinModel?.providerId === inspectedProvider.providerId &&
+        testModels.some((model) => model.modelId === lastSuccessfulBuiltinModel.modelId)
+      ) return lastSuccessfulBuiltinModel.modelId;
       return testModels[0]?.modelId ?? null;
     });
-  }, [connectionTest.active, inspectedProvider, preferredBuiltinModel]);
+  }, [connectionTest.active, inspectedProvider, lastSuccessfulBuiltinModel]);
 
   useEffect(() => {
     setModelQuery("");

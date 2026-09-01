@@ -23,7 +23,7 @@ export type ProgramSurfaceAgentReadinessV1 =
   | { readonly status: "model_required"; readonly recoveryTarget: "providers" }
   | { readonly status: "credential_required"; readonly recoveryTarget: "providers" }
   | { readonly status: "agent_initializing"; readonly recoveryTarget: null }
-  | { readonly status: "agent_failed"; readonly recoveryTarget: "providers" }
+  | { readonly status: "agent_failed"; readonly recoveryTarget: "providers" | null }
   | { readonly status: "ready"; readonly recoveryTarget: null };
 
 export interface ProgramSurfaceModelControlV1 {

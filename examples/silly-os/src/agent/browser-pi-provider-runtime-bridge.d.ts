@@ -11,6 +11,7 @@ import type {
   BrowserProgramRuntimeInvocationV1,
   BrowserProgramRuntimeProfileV1,
 } from "./browser-program-runtime-profile.ts";
+import type { LoadedProgramModelPromptOverlayV1 } from "../program-platform/package/program-model-prompt-overlays.ts";
 
 export function projectBrowserPiProviderCatalogV1(): BrowserPiProviderCatalogWireV1;
 
@@ -49,5 +50,6 @@ export function createBrowserPiProviderAgentV1(
     readonly selection: BrowserPiModelSelectionV1;
     readonly reasoningEffort: BrowserPiReasoningEffortV1;
     readonly fetch: BrowserPiProviderFetchV1;
+    readonly modelPromptOverlays?: readonly LoadedProgramModelPromptOverlayV1[];
   },
 ): PiAgentPortV1;

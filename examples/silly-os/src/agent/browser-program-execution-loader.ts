@@ -17,6 +17,7 @@ import {
 import type { BrowserProgramExecutionV1 } from "./browser-program-runtime-profile.ts";
 import type { BrowserProgramRuntimeProfileV1 } from "./browser-program-runtime-profile.ts";
 import { checkProgramPackageRuntimeProfileCompatibilityV1 } from "../program-platform/package/program-runtime-profile-descriptor.ts";
+import type { LoadedProgramModelPromptOverlayV1 } from "../program-platform/package/program-model-prompt-overlays.ts";
 
 export interface BrowserProgramExecutionLoaderV1 {
   load(dispatch: BrowserPiAgentDispatchV1): Promise<BrowserProgramExecutionV1 | null>;
@@ -48,6 +49,18 @@ function findInstructionsV1(
     installedPackage.manifest.instructionsPath,
   );
   return instructions === null || instructions.trim().length === 0 ? null : instructions;
+}
+
+function findModelPromptOverlaysV1(
+  installedPackage: AdmittedProgramPackageArchiveV1,
+): readonly LoadedProgramModelPromptOverlayV1[] | null {
+  const overlays: LoadedProgramModelPromptOverlayV1[] = [];
+  for (const declaration of installedPackage.manifest.modelPromptOverlays ?? []) {
+    const instructions = readProgramPackageTextFileV1(installedPackage, declaration.path);
+    if (instructions === null) return null;
+    overlays.push({ ...declaration, instructions });
+  }
+  return overlays;
 }
 
 function findWorkspaceScriptsV1(
@@ -86,6 +99,7 @@ function findPackageResourcesV1(
 
 interface CachedProgramExecutionPackageV1 {
   readonly instructions: string;
+  readonly modelPromptOverlays: BrowserProgramExecutionV1["modelPromptOverlays"];
   readonly packageResources: BrowserProgramExecutionV1["packageResources"];
   readonly workspaceScripts: BrowserProgramExecutionV1["workspaceScripts"];
   readonly runtimeProfile: BrowserProgramRuntimeProfileV1;
@@ -149,11 +163,13 @@ export function createBrowserProgramExecutionLoaderV1(
           installedPackage.manifest.harnessCompatibility !== sillyOsProgramHarnessCompatibilityV1
         ) return null;
         const instructions = findInstructionsV1(installedPackage);
+        const modelPromptOverlays = findModelPromptOverlaysV1(installedPackage);
         const packageResources = findPackageResourcesV1(installedPackage);
         const workspaceScripts = findWorkspaceScriptsV1(installedPackage);
         const runtimeProfile = await loadRuntimeProfile(installedPackage.manifest.runtimeProfile);
         if (
-          runtimeProfile === null || instructions === null || workspaceScripts === null ||
+          runtimeProfile === null || instructions === null || modelPromptOverlays === null ||
+          workspaceScripts === null ||
           runtimeProfile.runtimeProfile !== installedPackage.manifest.runtimeProfile ||
           runtimeProfile.packageDescriptor.runtimeProfile !==
             installedPackage.manifest.runtimeProfile ||
@@ -162,7 +178,13 @@ export function createBrowserProgramExecutionLoaderV1(
               runtimeProfile.packageDescriptor,
             ).kind === "incompatible"
         ) return null;
-        return { instructions, packageResources, workspaceScripts, runtimeProfile };
+        return {
+          instructions,
+          modelPromptOverlays,
+          packageResources,
+          workspaceScripts,
+          runtimeProfile,
+        };
       })(),
     };
     cachedPackage = candidate;

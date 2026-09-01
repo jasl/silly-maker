@@ -602,6 +602,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     );
     const agentInput = {
       instructions: programExecution.instructions,
+      modelPromptOverlays: programExecution.modelPromptOverlays,
       runtimeProfile,
       invocation,
       harnessToolIds: runtimeProfile.harnessToolIds,

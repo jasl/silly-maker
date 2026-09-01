@@ -603,11 +603,11 @@ export function CreatorProgramSurfaceV1({
                       theme={host.theme}
                       onThemeChange={host.onThemeChange}
                       onOpenSettings={() => host.onOpenSettings("workspace")}
+                      programAgentReadiness={host.agentReadiness}
                       homeDisabled={snapshot.durability.phase === "saving" ||
                         workspaceExport.pending}
                       {...(host.deterministicAgent ? {} : {
                         providerModel: host.providerModel("workspace"),
-                        programAgentReadiness: host.agentReadiness,
                         onOpenCreatorSettings: (target: "providers" | "credential_vault") =>
                           host.onOpenAgentSettings("workspace", target),
                       })}
@@ -637,7 +637,11 @@ export function CreatorProgramSurfaceV1({
                         if (proposal !== undefined) void controller.rejectProposal(proposal);
                       }}
                       onSend={async (text) => {
+                        if (host.agentReadiness.status !== "ready") return false;
                         if (await submitAgentRunV1(text)) return true;
+                        if (host.deterministicAgent || host.agentReadiness.status !== "ready") {
+                          return false;
+                        }
                         const result = await controller.sendFollowUp(text);
                         return result.kind === "completed" && result.value.kind === "sent";
                       }}

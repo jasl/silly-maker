@@ -62,7 +62,7 @@ describe("Translation Program package", () => {
       ...projectProgramPackageRuntimeProfileV1(admitted),
     });
     expect(admitted.files.map((file) => file.path)).toEqual(
-      packageFilesV1.map(([path]) => path).toSorted((left, right) => left.localeCompare(right)),
+      packageFilesV1.map(([path]) => path).toSorted(),
     );
     expect(admitted.files.every((file) => !/(?:^|\/)(?:test|notes)(?:\/|$)/u.test(file.path)))
       .toBe(true);

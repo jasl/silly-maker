@@ -44,6 +44,7 @@ export interface ChatPanePropsV1 {
   readonly providerModel?: ComposerModelControlV1;
   readonly statusNotice?: ReactNode;
   readonly interactionReady?: boolean;
+  readonly modelSelectionAvailable?: boolean;
   readonly agentInteractionPending?: boolean;
   readonly networkAccess?: {
     readonly enabled: boolean;
@@ -264,6 +265,7 @@ export function ChatPaneV1({
   providerModel,
   statusNotice,
   interactionReady = true,
+  modelSelectionAvailable = interactionReady,
   agentInteractionPending = false,
   networkAccess,
   piAgentRun,
@@ -665,7 +667,7 @@ export function ChatPaneV1({
           />
           <div className="chat-composer__actions">
             <div className="chat-composer__primary-actions">
-              {interactionReady && providerModel !== undefined && (
+              {modelSelectionAvailable && providerModel !== undefined && (
                 <ComposerModelPickerV1
                   copy={copy}
                   surface="workspace"

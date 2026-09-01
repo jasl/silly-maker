@@ -266,6 +266,29 @@ immutable package files; a Process may persist one admitted override, and each
 Agent attempt captures the exact override present when it begins. Invalid or
 missing input falls back without blocking the Process and never replaces the
 last admitted override. There is no mutable Program-default preference owner.
+An optional ordered `recommendedModelPatterns` list is a soft package preference
+using the same case-insensitive, full-`model.id`, `*`-only matcher as prompt
+overlays. SillyOS considers the first pattern with usable matches; an exact
+saved last-successful model reference may disambiguate it against the current
+catalog and custom-profile set.
+One remaining match is selected directly, while unresolved multiple snapshots
+or Provider routes require a manual choice. With no match, only that exact saved
+model reference is a fallback; if it no longer resolves, the user must choose.
+The package cannot make a model available or inspect Provider configuration,
+credentials or catalog state. Missing and empty lists share the existing
+property-omitted canonical manifest, and SillyOS ships no global or bundled
+default recommendation.
+An optional package-owned model prompt overlay is a narrower compatibility
+hint: after Pi resolves a Run's `model.id`, the fixed harness appends matching
+immutable UTF-8 files after the unchanged base Program instructions. Matching
+is a case-insensitive full-ID glob with only `*`, declaration order is the sole
+ordering authority, and repeated paths are inserted once. It cannot inspect or
+change Provider/API routing, credentials, reasoning, budgets, retries, tools or
+candidate admission. Within the current canonical contract, missing and explicit
+empty declarations normalize identically and add no hint bytes. This revision's
+code-unit file-ordering correction may rotate affected pre-release package
+digests; preview storage clean-resets rather than migrating them. SillyOS
+provides the mechanism but ships no global or bundled default overlay.
 
 Conversation identity and transcript persistence do not depend on the exact
 package or its services remaining available. If the package, compatible runtime
@@ -366,14 +389,15 @@ behavior and resolves like any ordinary URL.
 
 Settings persists only bounded non-secret model references. Each Built-in model
 row is a checkbox whose state decides whether the exact `(providerId, modelId)`
-appears in Agent Creator. A separate preferred model is the current default;
-checkboxes never double as a hidden radio group. On first install only, SillyOS
+appears in Agent Creator. Program recommendations and the exact model route from
+the last completed Agent Run determine the automatic default; checkboxes never
+double as a hidden radio group. On first install only, SillyOS
 seeds only that checked set from its small product-owned recommendation list
 after intersecting it with the current product-pinned Pi catalog. It deliberately
-leaves the preferred reference unset until an explicit user/model-selection
-path chooses one. This seed is not a copied catalog, capability declaration,
-quality ranking, or later automatic replacement policy. Empty preferences
-remain valid.
+leaves the last-successful reference unset until an admitted Agent Run completes.
+Selecting/configuring/testing a model or a failed/cancelled Run does not change
+it. This seed is not a copied catalog, capability declaration, quality ranking,
+or later automatic replacement policy. Empty preferences remain valid.
 
 One shared Agent Creator composer picker appears on Creator Home and in the
 Program workspace follow-up composer. It renders the checked references that
@@ -398,8 +422,9 @@ real call; a custom profile retains its exact endpoint binding and reports any
 required missing credential at Connection or call time. A model preference never
 creates or replaces a credential. Forget leaves the independent non-secret model
 preferences intact, while the configured-credential state changes immediately.
-Disabling the preferred model selects a remaining checked reference through the
-typed Agent path or leaves the picker empty and required. While a model switch
+Disabling the last-successful model clears that fallback; the current Program's
+recommendation may still resolve, otherwise the picker becomes empty and
+required. While a model switch
 settles, the picker retains the old selection when still valid and exposes an
 initializing state. Stable Provider/credential status remains in Settings rather
 than chat; only transient execution feedback and cancellation may enter the
@@ -430,7 +455,8 @@ The separate **Test connection** action is an optional, repeatable,
 potentially billable point-in-time diagnostic. Its selector contains every
 technically callable model for that Provider, independent of the visible-model
 checkboxes, and each invocation exercises exactly one selected model through
-Pi. Success and failure change neither checked/preferred models,
+Pi. Success and failure change neither checked models nor the last-successful
+Agent model,
 Provider labels, credential persistence, nor Agent-use eligibility. Invalid
 keys, models, endpoints, account permissions, CORS paths, and network conditions
 may instead surface through this diagnostic or the next ordinary Agent request.
@@ -920,10 +946,10 @@ product facts:
   scope set and revokes an active matching Agent. Credential Vault inventory
   remains the lower-level surface for forgetting one exact binding at a time.
 - **Available models** owns the user's checked model set. The reusable Agent
-  Creator composer picker owns the separate preferred/current model choice from
-  that set; Settings does not turn checkboxes into a hidden preferred-model
-  control. Neither fact creates a credential or changes Provider technical
-  availability.
+  Creator composer picker owns explicit current-scope selection, while Program
+  patterns and the last completed Run supply automatic defaults. Settings does
+  not turn checkboxes into a hidden radio/default control. None of these facts
+  creates a credential or changes Provider technical availability.
 - **Reasoning effort** is one ordinary device-local preference, default
   `medium`, shared by the Home and Program-workspace composer controls. The UI
   name maps directly to Pi `thinkingLevel`; Pi supplies the current built-in
@@ -951,7 +977,7 @@ product facts:
   corresponding exact Vault binding; orchestration may use the one-time direct
   handoff but receives no generic credential read. Results are bounded
   point-in-time diagnostics only: they do not check/uncheck models, change the
-  preferred model, change Provider labels, or create a qualification/allowlist
+  last-successful Agent model, change Provider labels, or create a qualification/allowlist
   record.
 
 ### Browser defense in depth
@@ -1924,7 +1950,8 @@ Settings is a product surface with three first-level categories:
    Forget, and the optional exact technical-model Test selector; that selector
    is diagnostic only and is not a model preference control. Available models
    contains only the independent checked set; the reusable composer picker owns
-   the preferred/current choice.
+   explicit current-scope choice while Program patterns and last-success history
+   supply automatic defaults.
 3. **Credential Vault** owns automatic/password mode, mode changes, password-
    mode Lock/Unlock, and non-secret binding inventory. The full Vault lifecycle
    is not repeated inside every Provider detail; Connection may link to the Vault

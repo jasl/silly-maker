@@ -3,6 +3,7 @@
 import type { AgentTool } from "./pi-workspace-runtime-bridge.js";
 import type { BrowserPiAgentDispatchV1 } from "./browser-pi-agent-dispatch.ts";
 import type { ProgramRuntimeProfileDescriptorV1 } from "../program-platform/package/program-runtime-profile-descriptor.ts";
+import type { LoadedProgramModelPromptOverlayV1 } from "../program-platform/package/program-model-prompt-overlays.ts";
 
 export type BrowserProgramHarnessToolIdV1 =
   | "program_resource"
@@ -80,6 +81,8 @@ export interface BrowserProgramPackageResourceV1 {
 /** The exact immutable package paired with one admitted fixed runtime invocation. */
 export interface BrowserProgramExecutionV1 {
   readonly instructions: string;
+  /** Exact package text; matching is deferred until the Provider resolves the model ID. */
+  readonly modelPromptOverlays: readonly LoadedProgramModelPromptOverlayV1[];
   /** Read-only package bytes available only through the fixed Program-resource tool. */
   readonly packageResources: readonly BrowserProgramPackageResourceV1[];
   /** Package scripts staged into this Process VFS before the Agent receives control. */

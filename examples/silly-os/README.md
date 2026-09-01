@@ -27,15 +27,16 @@ Project 身份、列表、路由或生命周期。完整合同见
 其目录模型就可以供用户勾选。这只是 Browser 技术兼容边界，不声称 SillyOS 逐个调用、评测或
 批准过每个模型。
 
-模型行是多选 checkbox，用于指定哪些模型出现在 Agent Creator；另一个 preferred model 是当前
-默认执行目标。全新非秘密设置会从产品维护的推荐 model family 与当前 Pi 目录的精确交集初始化
+模型行是多选 checkbox，用于指定哪些模型出现在 Agent Creator。Program 可以按完整 `model.id`
+pattern 给出软推荐；如果没有可用推荐，SillyOS 只回退到最近一次成功完成 Agent Run 时保存的精确模型引用，
+该引用无法在当前目录或 custom profile 中解析时要求用户手选。全新非秘密设置会从产品维护的推荐 model family 与当前 Pi 目录的精确交集初始化
 一组 checked models，用户可以随时增删；推荐不构成质量准入。Program Library 中 Creator 与
 Process Workspace 的输入框复用同一个模型选择组件。可用选项是 checked models 与**已解锁 Vault 中精确
 Provider/Endpoint binding** 的交集，不再依赖某个 Agent Worker 此刻是否已持有 Key。没有可用
-选项时 Creator 只显示 warning；有可用选项时只显示模型选择器，并按 preferred 或首个可用模型向
+选项时 Creator 只显示 warning；有可用选项时只显示模型选择器，并按 Program 推荐或上次成功模型引用向
 新 Agent Worker 懒交付对应 Key。同一 credential scope 内切换模型复用当前 Worker；跨
-Provider/Endpoint scope 则从 Vault 做新的精确 typed handoff。只有用户模型切换成功后才更新
-preferred；保存 Key 与连接测试都不会修改 checked/preferred 模型。
+Provider/Endpoint scope 则从 Vault 做新的精确 typed handoff。只有真实 Agent Run 成功完成后才更新
+last-successful 模型引用；选择模型、保存 Key、连接测试以及失败/取消的 Run 都不会修改它。
 
 可用 built-in 的详情会在 Connection 区域只读展示产品目录给出的一个或多个固定 Endpoint
 scope；同一 Provider 的 **Save** 会把所给 Key 分别绑定到这些完整 normalized scopes。
@@ -51,7 +52,7 @@ Connection 的删除图标会删除对应 exact binding，并在它正被 Agent 
 Key 会一直保存到用户 Forget 或清除此站点数据。
 
 独立的 **Test connection** 只是可选、可重复的时间点诊断。用户可以从该 Provider 所有技术上
-可调用的模型中选择测试目标；这不受 checked models 限制，也不会改变 preferred 或可用性。
+可调用的模型中选择测试目标；这不受 checked models 限制，也不会改变 last-successful 或可用性。
 测试会发出一次很小但可能计费的真实请求；错误的 Key、模型名、Endpoint 或网络条件会在测试
 或后续真实 Agent 调用中如实失败，测试成功也不认证其他模型。
 保存成功后可以体验：
@@ -567,8 +568,8 @@ Providers 后在 **Available models** 勾选希望出现在 Creator 选择器中
 fresh 设置会先勾选产品维护的推荐 family 与实际 Pi 目录的精确交集，但这只是可编辑的初始值。
 在 Connection 中选择可选的测试模型、确认只读 endpoint scopes，输入该 Provider 的 key，再点击
 **Save**。Fresh Vault 已处于 Automatic unlocked；Save 会把 Key 加密保存到每个展示的 exact
-scope，但不会请求 Provider，也不会改变 checked/preferred。按 preferred 或首个可用模型完成
-Vault-to-Agent handoff 后，Agent Creator 的 Provider/proposal 路线和当前 Process-bound Workspace
+scope，但不会请求 Provider，也不会改变 checked 或 last-successful。按当前 Program 推荐或
+最近一次成功模型引用完成 Vault-to-Agent handoff 后，Agent Creator 的 Provider/proposal 路线和当前 Process-bound Workspace
 工具立即可用，Home warning 消失。网页不会读取开发机 `.env`；Key 输入会立即清空，完整 Key
 不会回显。
 
@@ -579,9 +580,9 @@ effective level。切换模型不会改写全局偏好，custom endpoint 在显�
 但尚没有 public live-Provider reasoning 资格回执。
 
 **Test connection** 是独立、可选、可重复的时间点诊断；只有点击它才会针对“Test with model”
-当前选择发出一次很小但可能计费的请求，成功或失败都不会改变 Key、checked/preferred 或可用性。
+当前选择发出一次很小但可能计费的请求，成功或失败都不会改变 Key、checked、last-successful 或可用性。
 失败后仍可继续实际调用、重新测试或 **Update**；实际调用若遇到无效 Key、模型、Endpoint
-或网络错误，会通过正常 Agent 失败路径报告。模型偏好和加密 Key 都能跨刷新保留，测试结果不
+或网络错误，会通过正常 Agent 失败路径报告。checked models、last-successful 模型引用和加密 Key 都能跨刷新保留，测试结果不
 保留。需要显式 locked-at-rest 行为时，进入独立 **Credential Vault** 设置切换到 Password 模式；
 之后可以 Lock/Unlock、修改密码或切回 Automatic。Connection 的删除图标会删除精确 binding，并终止
 正在使用它的 Agent Worker。Save 与 Test connection 始终是两个独立按钮。

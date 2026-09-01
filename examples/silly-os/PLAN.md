@@ -4998,6 +4998,26 @@ advertises `agent.text`, `translation.batch`, and the read-only immutable
 `program.resource.read`; its runtime profile authorizes the corresponding
 package-resource reader but no mutable Workspace tools, `bash`, or `qjs`.
 
+The package contract now also provides two optional, origin-neutral model
+hints. Ordered `modelPromptOverlays` append immutable Program instructions for
+every matching resolved `model.id`. Ordered `recommendedModelPatterns` provide
+soft selection tiers. Both use one case-insensitive, full-ID matcher in which
+only `*` is a wildcard; neither can inspect or choose a Provider, endpoint,
+credential, effort, budget, retry or tool. SillyOS selects the first tier with
+usable routes, uses only the exact saved last-successful model reference to
+resolve a multi-route tier against the current catalog/profile set, and
+otherwise requires manual selection. With no matching tier it falls back only
+to that exact saved reference. A Run captures its exact model at
+submit, and only an admitted completed terminal updates this device-local
+fallback. Selection, configuration, connection tests, failed/cancelled Runs and
+response-model text never update it. Bundled and ZIP packages share the same
+contract; current bundled Programs declare neither hint. This current contract
+supersedes the historical S3-R1 preferred/current-model wording below, which is
+retained only as a dated delivery receipt. Missing and explicit-empty hint
+declarations add no identity bytes, while this revision's code-unit canonical
+file-ordering correction intentionally rotates affected pre-release package
+digests; preview storage clean-resets rather than migrating them.
+
 P5-B through P5-D remain incomplete. Import, bounded Agent batching, stale-safe
 candidate publication, editable human accept/reject, accepted-target
 persistence, cold reopen, non-blocking mechanical QA, explicit successor

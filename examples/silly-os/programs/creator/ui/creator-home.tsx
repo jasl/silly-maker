@@ -91,6 +91,9 @@ export function CreatorHomeV1({
   const piAgentKeyRef = useRef<HTMLInputElement>(null);
   const creatorReady = programAgentReadiness === undefined ||
     programAgentReadiness.status === "ready";
+  const modelSelectionAvailable = creatorReady ||
+    programAgentReadiness?.status === "model_required" ||
+    programAgentReadiness?.status === "agent_failed";
 
   const programKindLabelV1 = (kind: PreviewProgramKindV1): string => {
     switch (kind) {
@@ -233,7 +236,7 @@ export function CreatorHomeV1({
             />
             <div className="program-agent-composer__actions">
               <div className="program-agent-composer__primary-actions">
-                {creatorReady && providerModel !== undefined
+                {modelSelectionAvailable && providerModel !== undefined
                   ? <ComposerModelPickerV1 copy={copy} surface="home" {...providerModel} />
                   : null}
                 <Button

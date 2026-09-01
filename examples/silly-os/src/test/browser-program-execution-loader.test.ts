@@ -67,6 +67,11 @@ function installedPackageV1(
     readonly capabilityIds?: readonly string[];
     readonly scriptRuntime?: "python" | "quickjs" | null;
     readonly initialUiSurface?: string | null;
+    readonly modelPromptOverlays?: readonly {
+      readonly modelPattern: string;
+      readonly path: string;
+      readonly instructions: string;
+    }[];
   } = {},
 ): AdmittedProgramPackageArchiveV1 {
   const instructionsPath = input.instructionsPath ?? "PROGRAM.md";
@@ -74,6 +79,7 @@ function installedPackageV1(
   const instructions = input.instructions ?? textEncoderV1.encode("Follow exact instructions.\n");
   const scriptRuntime = input.scriptRuntime ?? null;
   const initialUiSurface = input.initialUiSurface ?? null;
+  const modelPromptOverlays = input.modelPromptOverlays ?? [];
   const extraFiles = [
     ...(scriptRuntime === null ? [] : [{
       path: "scripts/prepare.js",
@@ -85,6 +91,11 @@ function installedPackageV1(
       mediaType: "application/json",
       bytes: textEncoderV1.encode(JSON.stringify({ surface: initialUiSurface })).buffer,
     }]),
+    ...modelPromptOverlays.map((overlay) => ({
+      path: overlay.path,
+      mediaType: "text/markdown",
+      bytes: textEncoderV1.encode(overlay.instructions).buffer,
+    })),
   ];
   return {
     reference,
@@ -98,6 +109,12 @@ function installedPackageV1(
       name: "Creator",
       summary: "Create a Program.",
       instructionsPath,
+      ...(modelPromptOverlays.length === 0 ? {} : {
+        modelPromptOverlays: modelPromptOverlays.map(({ modelPattern, path }) => ({
+          modelPattern,
+          path,
+        })),
+      }),
       settingsSchemaPath: null,
       settingsDefaultsPath: null,
       initialUiPath: initialUiSurface === null ? null : "initial-ui.json",
@@ -157,6 +174,7 @@ describe("Browser Program execution loader", () => {
 
     await expect(loader.load(dispatchV1)).resolves.toEqual({
       instructions: "Follow exact instructions.\n",
+      modelPromptOverlays: [],
       packageResources: [{
         path: "PROGRAM.md",
         mediaType: "text/markdown",
@@ -172,6 +190,39 @@ describe("Browser Program execution loader", () => {
     expect(repository.initialize).toHaveBeenCalledTimes(1);
     await loader.dispose();
     expect(repository.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("preloads declared overlays from the exact package without choosing a model", async () => {
+    const loader = createBrowserProgramExecutionLoaderV1({
+      repository: repositoryV1(vi.fn(async () =>
+        installedPackageV1({
+          modelPromptOverlays: [{
+            modelPattern: "gpt-*",
+            path: "prompts/models/gpt.md",
+            instructions: "Prefer the exact completion tool.",
+          }, {
+            modelPattern: "claude-*",
+            path: "prompts/models/claude.md",
+            instructions: "Keep the tool call compact.",
+          }],
+        })
+      )),
+      loadRuntimeProfile: vi.fn(async () => runtimeProfileV1),
+    });
+
+    await expect(loader.load(dispatchV1)).resolves.toMatchObject({
+      instructions: "Follow exact instructions.\n",
+      modelPromptOverlays: [{
+        modelPattern: "gpt-*",
+        path: "prompts/models/gpt.md",
+        instructions: "Prefer the exact completion tool.",
+      }, {
+        modelPattern: "claude-*",
+        path: "prompts/models/claude.md",
+        instructions: "Keep the tool call compact.",
+      }],
+    });
+    await loader.dispose();
   });
 
   it("caches only the current exact package and replaces it when the reference changes", async () => {

@@ -72,6 +72,7 @@ import type {
 interface TrackedProgramAgentRunV1 {
   readonly facade: ProgramAgentFacadeV1;
   readonly prepared: BrowserProgramAgentPreparedRunV1;
+  readonly modelSelection: BrowserPiModelSelectionV1 | null;
   readonly sessionId: string;
   readonly ordinal: number;
   piRunId: string | null;
@@ -223,6 +224,7 @@ function mapAgentFailureToWorkspaceV1(
 export type BrowserProgramAgentPortInputV1 =
   & {
     readonly onConnectionLost?: () => void;
+    readonly onRunCompleted?: (selection: BrowserPiModelSelectionV1) => void;
     readonly workerFactory?: BrowserPiWorkerFactoryV1;
     readonly createCredentialHandoffId?: () => string;
     readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
@@ -238,9 +240,17 @@ export type BrowserProgramAgentPortInputV1 =
 export function createBrowserProgramAgentHostV1(
   input: BrowserProgramAgentPortInputV1,
 ): BrowserProgramAgentHostV1 {
-  const { onConnectionLost: notifyConnectionLost, workspaceAuthority, ...connectorInput } = input;
+  const {
+    onConnectionLost: notifyConnectionLost,
+    onRunCompleted: notifyRunCompleted,
+    workspaceAuthority,
+    ...connectorInput
+  } = input;
   let providerCredentialConfigured = false;
   let configuredEffectiveReasoningEffort: BrowserPiReasoningEffortV1 | null = null;
+  let configuredModelSelection: BrowserPiModelSelectionV1 | null = input.runtime === "pi_provider"
+    ? input.selection
+    : null;
   let credentialRevoked = false;
   const connector = createBrowserPiWorkerConnectorV1({
     ...connectorInput,
@@ -715,6 +725,16 @@ export function createBrowserProgramAgentHostV1(
     tracked.facade.diagnostic = terminalRun.diagnostic;
     refreshFacadeV1();
     publish();
+    if (
+      terminalRun.outcome === "completed" && tracked.modelSelection !== null &&
+      notifyRunCompleted !== undefined
+    ) {
+      try {
+        notifyRunCompleted(tracked.modelSelection);
+      } catch {
+        // Product preferences cannot alter the completed Agent terminal.
+      }
+    }
     removeTrackedRunV1(tracked);
   };
 
@@ -1113,6 +1133,7 @@ export function createBrowserProgramAgentHostV1(
       };
     }
     if (result.kind === "selected") {
+      configuredModelSelection = result.selection;
       configuredEffectiveReasoningEffort = result.effectiveReasoningEffort;
       return {
         kind: "selected",
@@ -1585,6 +1606,7 @@ export function createBrowserProgramAgentHostV1(
     const tracked: TrackedProgramAgentRunV1 = {
       facade,
       prepared,
+      modelSelection: configuredModelSelection,
       sessionId: expectedSessionId,
       ordinal: nextRunOrdinal++,
       piRunId: null,

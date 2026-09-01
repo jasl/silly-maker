@@ -97,6 +97,47 @@ does not block the Process and does not replace the last admitted override.
 Each Agent attempt captures the exact override present when it begins. There is
 no separate mutable Program-default preference authority.
 
+A package may declare an ordered `recommendedModelPatterns` array as a soft model
+preference. Each entry uses the same case-insensitive full-model-ID pattern as a
+prompt overlay: `*` is the only wildcard and every other character is literal;
+an exact ID is therefore a pattern without `*`. SillyOS considers patterns in
+declaration order and stops at the first one with usable matches. An exact
+saved last-successful model reference may disambiguate that tier against the
+current catalog and custom-profile set; one remaining match is selected
+directly. Multiple unresolved snapshots
+or Provider routes require a manual choice rather than inferred catalog, date or
+lexical ordering. If no pattern matches, SillyOS falls back only to the exact
+saved model reference; if it no longer resolves, the user must choose.
+
+The package neither makes a model available nor gains access to Provider
+configuration, credentials or catalog state through this declaration. Matching
+uses only the resolved `model.id`, never Provider/API/endpoint identity or the
+response model reported after a Run. Missing and explicit empty lists admit to
+the same property-omitted canonical manifest and add no recommendation bytes to
+the current canonical identity. SillyOS provides no global recommendation list
+and the current bundled Programs declare none.
+
+A package may also declare an ordered `modelPromptOverlays` array. Each entry
+contains only a case-insensitive `modelPattern` and a package-relative text
+`path`; the pattern is a full-model-ID glob in which `*` is the only wildcard.
+After Pi resolves the model for one Run, the fixed Program harness appends every
+matching file to the unchanged base instructions in declaration order and
+inserts a repeated path only once. The dynamic task remains the ordinary user
+prompt. Missing or empty declarations leave the base instructions byte-for-byte
+unchanged and add no overlay bytes to the current canonical identity. Canonical
+implementation corrections may still rotate a pre-release package digest; the
+current code-unit file-ordering correction intentionally does so for affected
+archives, with preview storage clean-reset rather than migration.
+
+Overlay files are admitted immutable UTF-8 package resources under the same
+path and aggregate resource budgets as other files. They cannot select or match
+a Provider, API, endpoint, credential, reasoning effort, token budget, timeout,
+retry policy, tool, or candidate admission. Selection is repeated for every Run
+from the resolved `model.id`, so switching models affects only later Runs and
+adds no Process prompt state, receipt, or provenance authority. SillyOS ships no
+global overlay and the current bundled Programs declare none; bundled and ZIP
+packages use the same optional mechanism when an author supplies one.
+
 The Program UI Container owns the outer geometry, mode switch, overlays,
 focus, and Run projection. A Program supplies admitted UI data or selects a
 supported Host surface; it does not supply arbitrary React nodes, portals, DOM
@@ -162,6 +203,8 @@ The first denominator is intentionally smaller than a general plugin system:
 - lazy package/runtime acquisition and deterministic release;
 - process-scoped Workspace and mutable domain state;
 - optional scripts only through shipped interpreters;
+- optional ordered model-ID-pattern recommendations as soft selection input;
+- optional immutable model-ID prompt overlays selected for each Run;
 - Program UI only inside the SillyOS-owned container.
 
 The current formal Creator and Translation packages both declare `scripts: []`.

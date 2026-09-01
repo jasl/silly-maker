@@ -293,7 +293,7 @@ const englishV1: SillyOsCopyV1 = {
   programAgentReadinessVaultLockedDescription: "Unlock the Vault to use its saved Provider keys.",
   programAgentReadinessModelRequiredTitle: "Choose a model",
   programAgentReadinessModelRequiredDescription:
-    "Select at least one model to make it available to Program Agent.",
+    "Choose a model for this Program; no available Program recommendation or last-successful model resolved automatically.",
   programAgentReadinessCredentialRequiredTitle: "API key required",
   programAgentReadinessCredentialRequiredDescription:
     "Save an API key for a Provider that offers one of your selected models.",
@@ -406,7 +406,7 @@ const englishV1: SillyOsCopyV1 = {
   modelsCountSuffix: "models",
   providerModelsTitle: "Available models",
   providerModelsDescription:
-    "Choose which models appear in Program Agent. The current composer choice is the preferred default; both are independent of the API key and connection diagnostics.",
+    "Choose which models appear in Program Agent. A completed Agent Run becomes the device's last-successful fallback; model visibility remains independent of API keys and connection diagnostics.",
   providerModelsEmpty: "No models are available for this Provider.",
   modelSearchLabel: "Search models",
   modelSearchPlaceholder: "Search model name or ID…",
@@ -428,7 +428,7 @@ const englishV1: SillyOsCopyV1 = {
   programAgentReasoningEffortMax: "Maximum",
   programAgentModelTitle: "Use with Program Agent",
   programAgentModelDescription:
-    "This device-local preference configures the current supervisor. The key never becomes Program or Workspace data.",
+    "A Program may recommend a model for this task. Otherwise SillyOS uses the last model that completed a Run; the key never becomes Program or Workspace data.",
   providerConnectionModelRequired:
     "Choose at least one available model before running Program Agent. Saving an API key does not change model preferences.",
   selectedModelUnavailable:
@@ -438,7 +438,7 @@ const englishV1: SillyOsCopyV1 = {
     "Store one API key for the fixed endpoint scopes below. Model visibility and connection tests are configured separately.",
   providerConnectionModelLabel: "Test with model",
   providerConnectionModelDescription:
-    "Choose any technically callable model from this Provider. This ignores visibility checkboxes and does not change your preferred model.",
+    "Choose any technically callable model from this Provider. This ignores visibility checkboxes and does not change the last-successful model.",
   providerConnectionModelEmpty: "No model is callable from this Browser build",
   providerEndpointLabel: "Endpoint",
   providerEndpointPresetDescription:
@@ -453,7 +453,7 @@ const englishV1: SillyOsCopyV1 = {
   providerTestConnection: "Test connection",
   providerTesting: "Testing…",
   providerTestResultPointInTime:
-    "A test result describes only that request. It never changes checked models, the preferred model, Provider availability, or qualification state.",
+    "A test result describes only that request. It never changes checked models, the last-successful model, Provider availability, or qualification state.",
   providerTestRequiresSavedKey: "Save an API key before testing this connection.",
   providerKeyLabel: "API key",
   providerKeyPlaceholder: "Paste the Provider API key",
@@ -559,7 +559,8 @@ const chineseV1: SillyOsCopyV1 = {
   programAgentReadinessVaultLockedTitle: "凭据保险库已锁定",
   programAgentReadinessVaultLockedDescription: "解锁保险库后才能使用已保存的 Provider Key。",
   programAgentReadinessModelRequiredTitle: "请选择模型",
-  programAgentReadinessModelRequiredDescription: "至少勾选一个希望 Program Agent 使用的模型。",
+  programAgentReadinessModelRequiredDescription:
+    "请为当前 Program 选择一个模型；没有可用的 Program 推荐或上次成功模型可自动解析。",
   programAgentReadinessCredentialRequiredTitle: "需要 API Key",
   programAgentReadinessCredentialRequiredDescription: "请为提供已选模型的 Provider 保存 API Key。",
   programAgentReadinessAgentInitializingTitle: "正在启动 Program Agent",
@@ -662,7 +663,7 @@ const chineseV1: SillyOsCopyV1 = {
   modelsCountSuffix: "个模型",
   providerModelsTitle: "可用模型",
   providerModelsDescription:
-    "勾选希望在 Program Agent 中显示的模型；当前输入框中的选择就是首选默认模型。两者都与 API Key 和连接诊断相互独立。",
+    "勾选希望在 Program Agent 中显示的模型；完成一次 Agent Run 后，该模型会成为此设备的最近成功 fallback。模型可见性仍与 API Key 和连接诊断相互独立。",
   providerModelsEmpty: "这个 Provider 当前没有可用模型。",
   modelSearchLabel: "搜索模型",
   modelSearchPlaceholder: "搜索模型名称或 ID……",
@@ -684,7 +685,7 @@ const chineseV1: SillyOsCopyV1 = {
   programAgentReasoningEffortMax: "最高",
   programAgentModelTitle: "用于 Program Agent",
   programAgentModelDescription:
-    "此设备上的模型偏好用于配置当前 supervisor；Key 永远不会成为 Program 或 Workspace 数据。",
+    "Program 可以为当前任务推荐模型；否则 SillyOS 使用最近一次成功完成 Run 的模型。Key 永远不会成为 Program 或 Workspace 数据。",
   providerConnectionModelRequired:
     "运行 Program Agent 前请至少勾选一个可用模型；保存 API Key 不会改变模型偏好。",
   selectedModelUnavailable: "当前浏览器版本无法通过这个 Provider 使用所选模型。",
@@ -693,7 +694,7 @@ const chineseV1: SillyOsCopyV1 = {
     "为下方固定的 Endpoint 范围保存一个 API Key。模型可见性与连接测试在各自区域中独立设置。",
   providerConnectionModelLabel: "使用此模型测试",
   providerConnectionModelDescription:
-    "可选择此 Provider 中任何技术上可调用的模型；这里不受可见模型勾选影响，也不会改变首选模型。",
+    "可选择此 Provider 中任何技术上可调用的模型；这里不受可见模型勾选影响，也不会改变最近成功模型。",
   providerConnectionModelEmpty: "当前浏览器版本没有可调用模型",
   providerEndpointLabel: "Endpoint",
   providerEndpointPresetDescription: "由产品随附的 Provider 目录固定提供，不可编辑。",
@@ -706,7 +707,7 @@ const chineseV1: SillyOsCopyV1 = {
   providerTestConnection: "测试连接",
   providerTesting: "正在测试……",
   providerTestResultPointInTime:
-    "测试结果只描述该次请求；不会改变模型勾选、首选模型、Provider 可用状态或准入记录。",
+    "测试结果只描述该次请求；不会改变模型勾选、最近成功模型、Provider 可用状态或准入记录。",
   providerTestRequiresSavedKey: "请先保存 API Key，再测试此连接。",
   providerKeyLabel: "API Key",
   providerKeyPlaceholder: "粘贴 Provider API key",

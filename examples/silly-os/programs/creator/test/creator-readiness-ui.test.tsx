@@ -204,7 +204,7 @@ describe("Creator readiness UI", () => {
     expect(screen.queryByText("Add resource")).toBeNull();
   });
 
-  it("renders the Home picker only when Creator is ready", () => {
+  it("renders the Home picker when Creator is ready", () => {
     render(
       <CreatorHomeV1
         copy={copyV1}
@@ -219,6 +219,37 @@ describe("Creator readiness UI", () => {
 
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.getByRole("combobox", { name: "Program Agent model" })).toBeVisible();
+  });
+
+  it.each([
+    {
+      status: "model_required" as const,
+      title: "Choose a model",
+      modelStatus: "required" as const,
+    },
+    {
+      status: "agent_failed" as const,
+      title: "Program Agent unavailable",
+      modelStatus: "failed" as const,
+    },
+  ])("keeps the Home picker available for $status", ({ status, title, modelStatus }) => {
+    render(
+      <CreatorHomeV1
+        copy={copyV1}
+        onCreate={vi.fn()}
+        onLocaleChange={vi.fn()}
+        theme="system"
+        onThemeChange={vi.fn()}
+        programAgentReadiness={{ status, recoveryTarget: "providers" }}
+        providerModel={{ ...providerModelV1, status: modelStatus }}
+      />,
+    );
+
+    expect(screen.getByRole(status === "agent_failed" ? "alert" : "status")).toHaveTextContent(
+      title,
+    );
+    expect(screen.getByRole("combobox", { name: "Program Agent model" })).toBeVisible();
+    expect(screen.getByRole("button", { name: copyV1.create })).toBeDisabled();
   });
 
   it("keeps local proposal decisions available while Workspace Agent input is blocked", () => {
@@ -278,5 +309,45 @@ describe("Creator readiness UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open Credential Vault" }));
     expect(onRecover).toHaveBeenCalledWith("credential_vault");
     expect(view.container.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it.each([
+    {
+      status: "model_required" as const,
+      title: "Choose a model",
+      modelStatus: "required" as const,
+    },
+    {
+      status: "agent_failed" as const,
+      title: "Program Agent unavailable",
+      modelStatus: "failed" as const,
+    },
+  ])("keeps the Workspace model picker available for $status", ({
+    status,
+    title,
+    modelStatus,
+  }) => {
+    render(
+      <ChatPaneV1
+        copy={copyV1}
+        agentName={copyV1.programAgentName}
+        transcript={emptyTranscriptV1}
+        onSend={vi.fn()}
+        interactionReady={false}
+        modelSelectionAvailable
+        statusNotice={
+          <CreatorReadinessNoticeV1
+            copy={copyV1}
+            readiness={{ status, recoveryTarget: "providers" }}
+            surface="workspace"
+          />
+        }
+        providerModel={{ ...providerModelV1, status: modelStatus }}
+      />,
+    );
+
+    expect(screen.getByText(title)).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Program Agent model" })).toBeVisible();
+    expect(screen.getByRole("button", { name: copyV1.send })).toBeDisabled();
   });
 });

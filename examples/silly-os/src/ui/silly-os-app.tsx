@@ -308,9 +308,22 @@ export function SillyOsAppV1({
     () => preferencesRepository?.clear(),
     [preferencesRepository],
   );
+  const programModelSelectionContext = useMemo(() => {
+    if (activeProgram === null) return null;
+    const { reference, manifest } = activeProgram.programPackage;
+    return {
+      scopeKey: JSON.stringify([
+        reference.programId,
+        reference.packageVersion,
+        reference.contentDigest,
+      ]),
+      recommendedModelPatterns: manifest.recommendedModelPatterns ?? [],
+    };
+  }, [activeProgram]);
   const agentProvider = useProgramAgentProviderOwnerV1({
     workspaceAuthority,
     programPackages,
+    programModelSelectionContext,
     agentDrainRegistry,
     resetProductPreferences: resetProductPreferencesV1,
     reportFailure,

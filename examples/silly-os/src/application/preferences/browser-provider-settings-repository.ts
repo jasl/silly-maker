@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 /// <reference lib="dom" />
 
-export const browserProviderSettingsStorageKeyV2 =
-  "sillymaker.example-silly-os.provider-settings.v2";
-export const browserProviderSettingsRevisionV2 = 2 as const;
+export const browserProviderSettingsStorageKeyV3 =
+  "sillymaker.example-silly-os.provider-settings.v3";
+export const browserProviderSettingsRevisionV3 = 3 as const;
 export const browserProviderSettingsMaximumSerializedUtf8BytesV1 = 65_536;
 export const browserProviderProfileIdMaximumUtf8BytesV1 = 64;
 export const browserProviderIdMaximumUtf8BytesV1 = 128;
@@ -40,7 +40,7 @@ export interface BrowserProviderBuiltinModelRefV1 {
   readonly modelId: string;
 }
 
-export type BrowserProviderPreferredModelRefV1 =
+export type BrowserProviderLastSuccessfulModelRefV1 =
   | {
     readonly kind: "builtin";
     readonly providerId: string;
@@ -52,10 +52,10 @@ export type BrowserProviderPreferredModelRefV1 =
   };
 
 export interface BrowserProviderSettingsSnapshotV1 {
-  readonly revision: 2;
+  readonly revision: 3;
   readonly customProfiles: readonly BrowserProviderCustomProfileV1[];
   readonly enabledBuiltinModels: readonly BrowserProviderBuiltinModelRefV1[];
-  readonly preferredModel: BrowserProviderPreferredModelRefV1 | null;
+  readonly lastSuccessfulModel: BrowserProviderLastSuccessfulModelRefV1 | null;
 }
 
 export interface BrowserProviderBuiltinModelDefaultsInitializationV1 {
@@ -75,12 +75,12 @@ export type BrowserProviderSettingsRepositoryOperationV1 =
   | "remove"
   | "initialize_builtin_model_defaults"
   | "set_builtin_model_enabled"
-  | "set_preferred_model";
+  | "set_last_successful_model";
 
 export type BrowserProviderSettingsRepositoryFailureCodeV1 =
   | "invalid_profile"
   | "invalid_model_ref"
-  | "invalid_preferred_model"
+  | "invalid_last_successful_model"
   | "profile_exists"
   | "record_too_large"
   | "schema_invalid"
@@ -111,7 +111,7 @@ export interface BrowserProviderSettingsRepositoryV1 {
   add(value: unknown): BrowserProviderCustomProfileV1;
   remove(profileId: string): boolean;
   setBuiltinModelEnabled(value: unknown, enabled: boolean): boolean;
-  setPreferredModel(value: unknown): BrowserProviderPreferredModelRefV1 | null;
+  setLastSuccessfulModel(value: unknown): BrowserProviderLastSuccessfulModelRefV1 | null;
 }
 
 interface ExactRecordV1 {
@@ -242,9 +242,9 @@ function builtinModelRefsEqualV1(
   return left.providerId === right.providerId && left.modelId === right.modelId;
 }
 
-function preferredModelRefsEqualV1(
-  left: BrowserProviderPreferredModelRefV1 | null,
-  right: BrowserProviderPreferredModelRefV1 | null,
+function lastSuccessfulModelRefsEqualV1(
+  left: BrowserProviderLastSuccessfulModelRefV1 | null,
+  right: BrowserProviderLastSuccessfulModelRefV1 | null,
 ): boolean {
   if (left === null || right === null) return left === right;
   if (left.kind !== right.kind) return false;
@@ -259,7 +259,9 @@ function normalizeBuiltinModelRefV1(value: unknown): BrowserProviderBuiltinModel
   return Object.freeze({ providerId: ref.providerId, modelId: ref.modelId });
 }
 
-function normalizePreferredModelRefV1(value: unknown): BrowserProviderPreferredModelRefV1 | null {
+function normalizeLastSuccessfulModelRefV1(
+  value: unknown,
+): BrowserProviderLastSuccessfulModelRefV1 | null {
   const discriminator = exactRecordV1(value, ["kind", "providerId", "modelId"]) ??
     exactRecordV1(value, ["kind", "profileId"]);
   if (discriminator === null) return null;
@@ -334,9 +336,9 @@ function freezeBuiltinModelRefV1(
   return Object.freeze({ ...ref });
 }
 
-function freezePreferredModelRefV1(
-  ref: BrowserProviderPreferredModelRefV1 | null,
-): BrowserProviderPreferredModelRefV1 | null {
+function freezeLastSuccessfulModelRefV1(
+  ref: BrowserProviderLastSuccessfulModelRefV1 | null,
+): BrowserProviderLastSuccessfulModelRefV1 | null {
   return ref === null ? null : Object.freeze({ ...ref });
 }
 
@@ -344,12 +346,12 @@ function freezeSettingsV1(
   settings: BrowserProviderSettingsSnapshotV1,
 ): BrowserProviderSettingsSnapshotV1 {
   return Object.freeze({
-    revision: browserProviderSettingsRevisionV2,
+    revision: browserProviderSettingsRevisionV3,
     customProfiles: Object.freeze(settings.customProfiles.map(freezeProfileV1)),
     enabledBuiltinModels: Object.freeze(
       settings.enabledBuiltinModels.map(freezeBuiltinModelRefV1),
     ),
-    preferredModel: freezePreferredModelRefV1(settings.preferredModel),
+    lastSuccessfulModel: freezeLastSuccessfulModelRefV1(settings.lastSuccessfulModel),
   });
 }
 
@@ -424,9 +426,9 @@ function admitStoredSettingsV1(value: unknown): BrowserProviderSettingsSnapshotV
     "revision",
     "customProfiles",
     "enabledBuiltinModels",
-    "preferredModel",
+    "lastSuccessfulModel",
   ]);
-  if (settings === null || settings.revision !== browserProviderSettingsRevisionV2) return null;
+  if (settings === null || settings.revision !== browserProviderSettingsRevisionV3) return null;
   const rawProfiles = exactArrayV1(settings.customProfiles);
   const rawBuiltinModels = exactArrayV1(settings.enabledBuiltinModels);
   if (rawProfiles === null || rawBuiltinModels === null) return null;
@@ -459,26 +461,30 @@ function admitStoredSettingsV1(value: unknown): BrowserProviderSettingsSnapshotV
     enabledBuiltinModels.push(admitted);
   }
 
-  let preferredModel: BrowserProviderPreferredModelRefV1 | null = null;
-  if (settings.preferredModel !== null) {
-    const admittedPreferredModel = normalizePreferredModelRefV1(settings.preferredModel);
-    if (admittedPreferredModel === null) return null;
-    preferredModel = admittedPreferredModel;
+  let lastSuccessfulModel: BrowserProviderLastSuccessfulModelRefV1 | null = null;
+  if (settings.lastSuccessfulModel !== null) {
+    const admittedLastSuccessfulModel = normalizeLastSuccessfulModelRefV1(
+      settings.lastSuccessfulModel,
+    );
+    if (admittedLastSuccessfulModel === null) return null;
+    lastSuccessfulModel = admittedLastSuccessfulModel;
     if (
-      admittedPreferredModel.kind === "builtin" &&
-      !enabledBuiltinModels.some((model) => builtinModelRefsEqualV1(model, admittedPreferredModel))
+      admittedLastSuccessfulModel.kind === "builtin" &&
+      !enabledBuiltinModels.some((model) =>
+        builtinModelRefsEqualV1(model, admittedLastSuccessfulModel)
+      )
     ) return null;
     if (
-      admittedPreferredModel.kind === "custom" &&
-      !profileIds.has(admittedPreferredModel.profileId)
+      admittedLastSuccessfulModel.kind === "custom" &&
+      !profileIds.has(admittedLastSuccessfulModel.profileId)
     ) return null;
   }
 
   return freezeSettingsV1({
-    revision: browserProviderSettingsRevisionV2,
+    revision: browserProviderSettingsRevisionV3,
     customProfiles,
     enabledBuiltinModels,
-    preferredModel,
+    lastSuccessfulModel,
   });
 }
 
@@ -490,10 +496,10 @@ function cloneProfilesV1(
 
 function emptySettingsV1(): BrowserProviderSettingsSnapshotV1 {
   return freezeSettingsV1({
-    revision: browserProviderSettingsRevisionV2,
+    revision: browserProviderSettingsRevisionV3,
     customProfiles: [],
     enabledBuiltinModels: [],
-    preferredModel: null,
+    lastSuccessfulModel: null,
   });
 }
 
@@ -507,7 +513,7 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
   readonly storage: Storage;
   readonly storageKey?: string;
 }): BrowserProviderSettingsRepositoryV1 {
-  const storageKey = input.storageKey ?? browserProviderSettingsStorageKeyV2;
+  const storageKey = input.storageKey ?? browserProviderSettingsStorageKeyV3;
 
   const decodeV1 = (
     serialized: string,
@@ -617,10 +623,10 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
         }
       }
       const snapshot = freezeSettingsV1({
-        revision: browserProviderSettingsRevisionV2,
+        revision: browserProviderSettingsRevisionV3,
         customProfiles: [],
         enabledBuiltinModels,
-        preferredModel: null,
+        lastSuccessfulModel: null,
       });
       persistV1(snapshot, operation);
       return Object.freeze({ initialized: true, snapshot });
@@ -640,10 +646,10 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
       );
       persistV1(
         {
-          revision: browserProviderSettingsRevisionV2,
+          revision: browserProviderSettingsRevisionV3,
           customProfiles,
           enabledBuiltinModels: current.enabledBuiltinModels,
-          preferredModel: current.preferredModel,
+          lastSuccessfulModel: current.lastSuccessfulModel,
         },
         "add",
       );
@@ -659,16 +665,16 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
         profile.profileId !== profileId
       );
       if (customProfiles.length === current.customProfiles.length) return false;
-      const preferredModel = current.preferredModel?.kind === "custom" &&
-          current.preferredModel.profileId === profileId
+      const lastSuccessfulModel = current.lastSuccessfulModel?.kind === "custom" &&
+          current.lastSuccessfulModel.profileId === profileId
         ? null
-        : current.preferredModel;
+        : current.lastSuccessfulModel;
       persistV1(
         {
-          revision: browserProviderSettingsRevisionV2,
+          revision: browserProviderSettingsRevisionV3,
           customProfiles,
           enabledBuiltinModels: current.enabledBuiltinModels,
-          preferredModel,
+          lastSuccessfulModel,
         },
         "remove",
       );
@@ -691,64 +697,66 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
       const enabledBuiltinModels = enabled
         ? [...current.enabledBuiltinModels, ref].sort(compareBuiltinModelRefsV1)
         : current.enabledBuiltinModels.filter((model) => !builtinModelRefsEqualV1(model, ref));
-      const preferredModel = !enabled && current.preferredModel?.kind === "builtin" &&
-          builtinModelRefsEqualV1(current.preferredModel, ref)
+      const lastSuccessfulModel = !enabled && current.lastSuccessfulModel?.kind === "builtin" &&
+          builtinModelRefsEqualV1(current.lastSuccessfulModel, ref)
         ? null
-        : current.preferredModel;
+        : current.lastSuccessfulModel;
       persistV1(
         {
-          revision: browserProviderSettingsRevisionV2,
+          revision: browserProviderSettingsRevisionV3,
           customProfiles: current.customProfiles,
           enabledBuiltinModels,
-          preferredModel,
+          lastSuccessfulModel,
         },
         "set_builtin_model_enabled",
       );
       return true;
     },
 
-    setPreferredModel(value: unknown): BrowserProviderPreferredModelRefV1 | null {
-      const preferredModel = value === null ? null : normalizePreferredModelRefV1(value);
-      if (value !== null && preferredModel === null) {
+    setLastSuccessfulModel(value: unknown): BrowserProviderLastSuccessfulModelRefV1 | null {
+      const lastSuccessfulModel = value === null ? null : normalizeLastSuccessfulModelRefV1(value);
+      if (value !== null && lastSuccessfulModel === null) {
         throw new BrowserProviderSettingsRepositoryErrorV1(
-          "invalid_preferred_model",
-          "set_preferred_model",
+          "invalid_last_successful_model",
+          "set_last_successful_model",
         );
       }
-      const current = loadV1("set_preferred_model");
+      const current = loadV1("set_last_successful_model");
       if (
-        preferredModel?.kind === "builtin" &&
+        lastSuccessfulModel?.kind === "builtin" &&
         !current.enabledBuiltinModels.some((model) =>
-          builtinModelRefsEqualV1(model, preferredModel)
+          builtinModelRefsEqualV1(model, lastSuccessfulModel)
         )
       ) {
         throw new BrowserProviderSettingsRepositoryErrorV1(
-          "invalid_preferred_model",
-          "set_preferred_model",
+          "invalid_last_successful_model",
+          "set_last_successful_model",
         );
       }
       if (
-        preferredModel?.kind === "custom" &&
-        !current.customProfiles.some(({ profileId }) => profileId === preferredModel.profileId)
+        lastSuccessfulModel?.kind === "custom" &&
+        !current.customProfiles.some(({ profileId }) => profileId === lastSuccessfulModel.profileId)
       ) {
         throw new BrowserProviderSettingsRepositoryErrorV1(
-          "invalid_preferred_model",
-          "set_preferred_model",
+          "invalid_last_successful_model",
+          "set_last_successful_model",
         );
       }
-      if (preferredModelRefsEqualV1(current.preferredModel, preferredModel)) {
-        return freezePreferredModelRefV1(preferredModel);
+      if (
+        lastSuccessfulModelRefsEqualV1(current.lastSuccessfulModel, lastSuccessfulModel)
+      ) {
+        return freezeLastSuccessfulModelRefV1(lastSuccessfulModel);
       }
       persistV1(
         {
-          revision: browserProviderSettingsRevisionV2,
+          revision: browserProviderSettingsRevisionV3,
           customProfiles: current.customProfiles,
           enabledBuiltinModels: current.enabledBuiltinModels,
-          preferredModel,
+          lastSuccessfulModel,
         },
-        "set_preferred_model",
+        "set_last_successful_model",
       );
-      return freezePreferredModelRefV1(preferredModel);
+      return freezeLastSuccessfulModelRefV1(lastSuccessfulModel);
     },
   });
 }

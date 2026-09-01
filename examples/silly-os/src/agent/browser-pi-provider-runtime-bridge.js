@@ -17,6 +17,7 @@ import {
   isBrowserPiProviderRouteConfigurableV1,
 } from "./browser-pi-browser-compatibility.ts";
 import { createPiAgentV1 } from "./browser-pi-runtime-bridge.js";
+import { composeProgramModelPromptOverlaysV1 } from "../program-platform/package/program-model-prompt-overlays.ts";
 
 let cachedProvidersV1;
 
@@ -235,6 +236,11 @@ export function createBrowserPiProviderAgentV1(input) {
       resolved.model.maxTokens,
     ),
   };
+  const instructions = composeProgramModelPromptOverlaysV1({
+    instructions: input.instructions,
+    modelId: resolved.model.id,
+    overlays: input.modelPromptOverlays ?? [],
+  });
 
   let apiKey = input.apiKey;
   const completionTool = input.invocation.createCompletionTool({
@@ -242,7 +248,7 @@ export function createBrowserPiProviderAgentV1(input) {
   });
   const completionToolName = completionTool.name;
   const agent = createPiAgentV1({
-    instructions: input.instructions,
+    instructions,
     workspaceTools: input.workspaceTools,
     completionTool,
     onTextDelta: input.onTextDelta,

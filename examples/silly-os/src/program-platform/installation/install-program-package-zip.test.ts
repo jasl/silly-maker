@@ -4,9 +4,10 @@ import { zipSync } from "fflate";
 import { IDBFactory } from "fake-indexeddb";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type {
-  ProgramPackageAdmissionLimitsV1,
-  ProgramPackageManifestV1,
+import {
+  readProgramPackageTextFileV1,
+  type ProgramPackageAdmissionLimitsV1,
+  type ProgramPackageManifestV1,
 } from "../package/program-package-archive.ts";
 import type { ProgramPackageZipBudgetsV1 } from "../package/program-package-zip.ts";
 import {
@@ -72,6 +73,52 @@ describe("external Program package installation V1", () => {
     await expect(repository.current(manifestV1.programId)).resolves.toEqual(installed.reference);
     const loaded = await repository.load(installed.reference);
     expect(loaded?.manifest).toEqual(manifestV1);
+    expect(loaded?.manifest).not.toHaveProperty("modelPromptOverlays");
     expect(new TextDecoder().decode(loaded?.files[0]?.bytes)).toBe("Translate faithfully.");
+  });
+
+  it("retains model prompt overlays from an external ZIP through ordinary installation", async () => {
+    const repository = createIndexedDbProgramPackageInstallationRepositoryV1({
+      indexedDB: new IDBFactory(),
+      databaseName: "program-package.external-zip-model-overlays",
+      limits: archiveLimitsV1,
+    });
+    repositoriesV1.push(repository);
+    const modelPromptOverlays = [{
+      modelPattern: "*glm-5.3-flash*",
+      path: "prompts/models/glm-5.3-flash.md",
+    }] as const;
+    const recommendedModelPatterns = [
+      "*glm-5.3-flash*",
+      "deepseek/deepseek-v4-flash*",
+    ] as const;
+    const overlayInstructions = "Translate every admitted unit, then call the completion tool.";
+    const zipBytes = zipSync({
+      "downloaded/program.json": textEncoderV1.encode(JSON.stringify({
+        ...manifestV1,
+        modelPromptOverlays,
+        recommendedModelPatterns,
+      })),
+      "downloaded/instructions/SKILL.md": textEncoderV1.encode("Translate faithfully."),
+      "downloaded/prompts/models/glm-5.3-flash.md": textEncoderV1.encode(
+        overlayInstructions,
+      ),
+    });
+
+    const installed = await installProgramPackageZipV1(zipBytes, {
+      repository,
+      selectCurrent: true,
+      budgets: budgetsV1,
+      archiveLimits: archiveLimitsV1,
+    });
+    const loaded = await repository.load(installed.reference);
+
+    expect(loaded?.manifest.modelPromptOverlays).toEqual(modelPromptOverlays);
+    expect(loaded?.manifest.recommendedModelPatterns).toEqual(recommendedModelPatterns);
+    expect(
+      loaded === null
+        ? null
+        : readProgramPackageTextFileV1(loaded, "prompts/models/glm-5.3-flash.md"),
+    ).toBe(overlayInstructions);
   });
 });

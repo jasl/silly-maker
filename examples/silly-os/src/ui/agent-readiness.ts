@@ -19,7 +19,7 @@ export type AgentReadinessV1 =
   | { readonly status: "model_required"; readonly recoveryTarget: "providers" }
   | { readonly status: "credential_required"; readonly recoveryTarget: "providers" }
   | { readonly status: "agent_initializing"; readonly recoveryTarget: null }
-  | { readonly status: "agent_failed"; readonly recoveryTarget: "providers" }
+  | { readonly status: "agent_failed"; readonly recoveryTarget: "providers" | null }
   | { readonly status: "ready"; readonly recoveryTarget: null };
 
 export interface AgentReadinessInputV1 {
@@ -27,6 +27,7 @@ export interface AgentReadinessInputV1 {
   readonly vaultStatus: "loading" | "unavailable" | "locked" | "unlocked";
   readonly hasEnabledConfiguredModel: boolean;
   readonly hasModelWithCredentialedProvider: boolean;
+  readonly hasSelectedModel: boolean;
   readonly agentStatus: "initializing" | "failed" | "ready";
 }
 
@@ -102,6 +103,9 @@ export function projectAgentReadinessV1(
   }
   if (!input.hasModelWithCredentialedProvider) {
     return { status: "credential_required", recoveryTarget: "providers" };
+  }
+  if (!input.hasSelectedModel) {
+    return { status: "model_required", recoveryTarget: "providers" };
   }
   if (input.agentStatus === "initializing") {
     return { status: "agent_initializing", recoveryTarget: null };

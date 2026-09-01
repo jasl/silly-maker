@@ -469,6 +469,10 @@ function ProgramWorkspaceReadyV1({
             {...(providerModel === undefined ? {} : { providerModel })}
             interactionReady={programAgentReadiness === undefined ||
               programAgentReadiness.status === "ready"}
+            modelSelectionAvailable={programAgentReadiness === undefined ||
+              programAgentReadiness.status === "ready" ||
+              programAgentReadiness.status === "model_required" ||
+              programAgentReadiness.status === "agent_failed"}
             statusNotice={programAgentReadiness === undefined
               ? undefined
               : (

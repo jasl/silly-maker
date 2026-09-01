@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 
 import type { BrowserPiModelSelectionV1 } from "../agent/browser-pi-worker-protocol.ts";
-import type { BrowserProviderBuiltinModelRefV1 } from "../application/preferences/browser-provider-settings-repository.ts";
 import {
   credentialVaultBindingsEqualV2,
   type CredentialVaultBindingV2,
@@ -20,16 +19,4 @@ export function activeAgentUsesAnyCredentialBindingV1(
   } catch {
     return true;
   }
-}
-
-export function shouldRevokeAgentAfterBuiltinModelVisibilityChangeV1(input: {
-  readonly activeSelection: BrowserPiModelSelectionV1 | null;
-  readonly changedModel: BrowserProviderBuiltinModelRefV1;
-  readonly enabled: boolean;
-  readonly sameCredentialScopeReplacementAvailable: boolean;
-}): boolean {
-  const active = input.activeSelection;
-  return !input.enabled && !input.sameCredentialScopeReplacementAvailable &&
-    active?.kind === "builtin" && active.providerId === input.changedModel.providerId &&
-    active.modelId === input.changedModel.modelId;
 }

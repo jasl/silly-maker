@@ -16,6 +16,7 @@ const readyInputV1: CreatorReadinessInputV1 = Object.freeze({
   vaultStatus: "unlocked",
   hasEnabledConfiguredModel: true,
   hasModelWithCredentialedProvider: true,
+  hasSelectedModel: true,
   agentStatus: "ready",
 });
 
@@ -51,6 +52,10 @@ describe("Creator readiness projection", () => {
         { status: "credential_required", recoveryTarget: "providers" },
       ],
       [
+        { ...readyInputV1, hasSelectedModel: false },
+        { status: "model_required", recoveryTarget: "providers" },
+      ],
+      [
         { ...readyInputV1, agentStatus: "initializing" as const },
         { status: "agent_initializing", recoveryTarget: null },
       ],
@@ -68,6 +73,7 @@ describe("Creator readiness projection", () => {
     const downstreamBlockedV1 = Object.freeze({
       hasEnabledConfiguredModel: false,
       hasModelWithCredentialedProvider: false,
+      hasSelectedModel: false,
       agentStatus: "failed" as const,
     });
 

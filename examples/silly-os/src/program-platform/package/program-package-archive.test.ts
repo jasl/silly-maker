@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   admitProgramPackageArchiveV1,
+  cloneProgramPackageArchiveV1,
+  cloneProgramPackageManifestV1,
   ProgramPackageAdmissionErrorV1,
   type ProgramPackageAdmissionLimitsV1,
   type ProgramPackageArchiveV1,
@@ -85,6 +87,29 @@ describe("Program package archive V1", () => {
     expect(new TextDecoder().decode(first.files[0]!.bytes)).not.toContain("\0");
   });
 
+  it("uses locale-independent code-unit path order for package identity", async () => {
+    const source = archiveV1();
+    const unicodeFiles = [
+      ...source.files,
+      { path: "资料/é.txt", mediaType: "text/plain", bytes: bytesV1("nfc") },
+      { path: "资料/e\u0301.txt", mediaType: "text/plain", bytes: bytesV1("nfd") },
+    ];
+    const first = await admitProgramPackageArchiveV1(
+      { ...source, files: unicodeFiles },
+      { limits: limitsV1 },
+    );
+    const second = await admitProgramPackageArchiveV1(
+      { ...source, files: unicodeFiles.toReversed() },
+      { limits: limitsV1 },
+    );
+
+    expect(first.files.map((file) => file.path).slice(-2)).toEqual([
+      "资料/e\u0301.txt",
+      "资料/é.txt",
+    ]);
+    expect(second.reference).toEqual(first.reference);
+  });
+
   it("uses the digest rather than the human package version as exact identity", async () => {
     const first = await admitProgramPackageArchiveV1(archiveV1(), { limits: limitsV1 });
     const changed = archiveV1();
@@ -100,6 +125,184 @@ describe("Program package archive V1", () => {
 
     expect(second.reference.packageVersion).toBe(first.reference.packageVersion);
     expect(second.reference.contentDigest).not.toBe(first.reference.contentDigest);
+  });
+
+  it("treats a missing and explicit empty model overlay list as the same package", async () => {
+    const missing = archiveV1();
+    const explicitEmpty = archiveV1({
+      manifest: { ...missing.manifest, modelPromptOverlays: [] },
+    });
+
+    const first = await admitProgramPackageArchiveV1(missing, { limits: limitsV1 });
+    const second = await admitProgramPackageArchiveV1(explicitEmpty, { limits: limitsV1 });
+
+    expect(first.manifest).not.toHaveProperty("modelPromptOverlays");
+    expect(second.manifest).not.toHaveProperty("modelPromptOverlays");
+    expect(second.reference).toEqual(first.reference);
+  });
+
+  it("treats a missing and explicit empty recommended-model list as the same package", async () => {
+    const missing = archiveV1();
+    const explicitEmpty = archiveV1({
+      manifest: { ...missing.manifest, recommendedModelPatterns: [] },
+    });
+
+    const first = await admitProgramPackageArchiveV1(missing, { limits: limitsV1 });
+    const second = await admitProgramPackageArchiveV1(explicitEmpty, { limits: limitsV1 });
+
+    expect(first.manifest).not.toHaveProperty("recommendedModelPatterns");
+    expect(second.manifest).not.toHaveProperty("recommendedModelPatterns");
+    expect(first.reference.contentDigest).toBe(
+      "adee74b752b763a6144e2b1974cdc313877818731ca8955ec2ae856630e37e32",
+    );
+    expect(second.reference).toEqual(first.reference);
+  });
+
+  it("preserves ordered recommended model patterns in admission, identity and clones", async () => {
+    const source = archiveV1();
+    const recommendedModelPatterns = [
+      "*glm-5.3-flash*",
+      "*glm-5.3-flash*",
+      "deepseek/deepseek-v4-flash*",
+    ] as const;
+    const admitted = await admitProgramPackageArchiveV1({
+      ...source,
+      manifest: { ...source.manifest, recommendedModelPatterns },
+    }, { limits: limitsV1 });
+    const reversed = await admitProgramPackageArchiveV1({
+      ...source,
+      manifest: {
+        ...source.manifest,
+        recommendedModelPatterns: recommendedModelPatterns.toReversed(),
+      },
+    }, { limits: limitsV1 });
+
+    expect(admitted.manifest.recommendedModelPatterns).toEqual(recommendedModelPatterns);
+    expect(admitted.reference.contentDigest).not.toBe(reversed.reference.contentDigest);
+    const manifestClone = cloneProgramPackageManifestV1(admitted.manifest);
+    const archiveClone = cloneProgramPackageArchiveV1(admitted);
+    expect(manifestClone.recommendedModelPatterns).toEqual(recommendedModelPatterns);
+    expect(archiveClone.manifest.recommendedModelPatterns).toEqual(recommendedModelPatterns);
+    expect(manifestClone.recommendedModelPatterns).not.toBe(
+      admitted.manifest.recommendedModelPatterns,
+    );
+    expect(archiveClone.manifest.recommendedModelPatterns).not.toBe(
+      admitted.manifest.recommendedModelPatterns,
+    );
+  });
+
+  it.each([
+    null,
+    undefined,
+    [""],
+    [42],
+  ])("rejects an invalid recommended-model declaration %#", async (recommendedModelPatterns) => {
+    const source = archiveV1();
+    await expect(
+      admitProgramPackageArchiveV1({
+        ...source,
+        manifest: { ...source.manifest, recommendedModelPatterns },
+      }, { limits: limitsV1 }),
+    ).rejects.toMatchObject({ code: "manifest_invalid" });
+  });
+
+  it("admits ordered model overlays and clones their declaration objects", async () => {
+    const source = archiveV1();
+    const modelPromptOverlays = [
+      { modelPattern: "*glm-5.3-flash*", path: "prompts/models/glm.md" },
+      { modelPattern: "*", path: "prompts/models/common.md" },
+      { modelPattern: " literal model id ", path: "prompts/models/common.md" },
+      { modelPattern: "openrouter/*", path: "prompts/models/glm.md" },
+    ] as const;
+    const admitted = await admitProgramPackageArchiveV1({
+      ...source,
+      manifest: { ...source.manifest, modelPromptOverlays },
+      files: [
+        ...source.files,
+        {
+          path: "prompts/models/glm.md",
+          mediaType: "text/markdown",
+          bytes: bytesV1("Call the completion tool exactly once."),
+        },
+        {
+          path: "prompts/models/common.md",
+          mediaType: "text/markdown",
+          bytes: bytesV1("Return a complete typed candidate."),
+        },
+      ],
+    }, { limits: limitsV1 });
+
+    expect(admitted.manifest.modelPromptOverlays).toEqual(modelPromptOverlays);
+    const manifestClone = cloneProgramPackageManifestV1(admitted.manifest);
+    const archiveClone = cloneProgramPackageArchiveV1(admitted);
+    expect(manifestClone.modelPromptOverlays).toEqual(modelPromptOverlays);
+    expect(archiveClone.manifest.modelPromptOverlays).toEqual(modelPromptOverlays);
+    expect(manifestClone.modelPromptOverlays).not.toBe(admitted.manifest.modelPromptOverlays);
+    expect(archiveClone.manifest.modelPromptOverlays).not.toBe(
+      admitted.manifest.modelPromptOverlays,
+    );
+    expect(manifestClone.modelPromptOverlays?.[0]).not.toBe(
+      admitted.manifest.modelPromptOverlays?.[0],
+    );
+  });
+
+  it.each([
+    null,
+    undefined,
+    [{ modelPattern: "", path: "prompts/models/glm.md" }],
+    [{ modelPattern: "*glm*", path: "prompts/models/glm.md", priority: 1 }],
+  ])("rejects an invalid model overlay declaration %#", async (modelPromptOverlays) => {
+    const source = archiveV1();
+    await expect(
+      admitProgramPackageArchiveV1({
+        ...source,
+        manifest: { ...source.manifest, modelPromptOverlays },
+      }, { limits: limitsV1 }),
+    ).rejects.toMatchObject({ code: "manifest_invalid" });
+  });
+
+  it("applies package path and UTF-8 admission to model overlay files", async () => {
+    const source = archiveV1();
+    await expect(
+      admitProgramPackageArchiveV1({
+        ...source,
+        manifest: {
+          ...source.manifest,
+          modelPromptOverlays: [{ modelPattern: "*glm*", path: "../overlay.md" }],
+        },
+      }, { limits: limitsV1 }),
+    ).rejects.toMatchObject({ code: "path_invalid", path: "../overlay.md" });
+
+    await expect(
+      admitProgramPackageArchiveV1({
+        ...source,
+        manifest: {
+          ...source.manifest,
+          modelPromptOverlays: [{ modelPattern: "*glm*", path: "prompts/models/glm.md" }],
+        },
+      }, { limits: limitsV1 }),
+    ).rejects.toMatchObject({
+      code: "referenced_file_missing",
+      path: "prompts/models/glm.md",
+    });
+
+    await expect(
+      admitProgramPackageArchiveV1({
+        ...source,
+        manifest: {
+          ...source.manifest,
+          modelPromptOverlays: [{ modelPattern: "*glm*", path: "prompts/models/glm.md" }],
+        },
+        files: [...source.files, {
+          path: "prompts/models/glm.md",
+          mediaType: "text/markdown",
+          bytes: new Uint8Array([0xc3, 0x28]).buffer,
+        }],
+      }, { limits: limitsV1 }),
+    ).rejects.toMatchObject({
+      code: "referenced_text_invalid",
+      path: "prompts/models/glm.md",
+    });
   });
 
   it.each([

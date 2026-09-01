@@ -1628,7 +1628,7 @@ async function expectVisualSnapshotV1(page: Page, nameV1: string): Promise<void>
 }
 
 const openAIResponsesProbeUrlV1 = "https://api.openai.com/v1/responses";
-const browserProviderSettingsStorageKeyV2 = "sillymaker.example-silly-os.provider-settings.v2";
+const browserProviderSettingsStorageKeyV3 = "sillymaker.example-silly-os.provider-settings.v3";
 const browserProductPreferencesStorageKeyV1 = "sillymaker.example-silly-os.product-preferences.v1";
 const webkitScreenshotStyleCspErrorV1 =
   "Refused to apply a stylesheet because its hash, its nonce, or 'unsafe-inline' does not appear in the style-src directive of the Content Security Policy.";
@@ -1696,9 +1696,74 @@ function successfulOpenAIResponsesProbeSseV1(): string {
   return `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("")}data: [DONE]\n\n`;
 }
 
+function successfulCreatorProgramToolCallSseV1(): string {
+  const argumentsJson = JSON.stringify({
+    requirement: "Keep the review workflow concise.",
+  });
+  const completedCall = {
+    id: "fc_sillyos_creator_completion",
+    type: "function_call",
+    status: "completed",
+    call_id: "call_sillyos_creator_completion",
+    name: "sillyos_propose_program_revision",
+    arguments: argumentsJson,
+  };
+  const events = [
+    {
+      type: "response.created",
+      sequence_number: 0,
+      response: { id: "resp_sillyos_creator_completion", status: "in_progress" },
+    },
+    {
+      type: "response.output_item.added",
+      sequence_number: 1,
+      output_index: 0,
+      item: { ...completedCall, status: "in_progress", arguments: "" },
+    },
+    {
+      type: "response.function_call_arguments.delta",
+      sequence_number: 2,
+      item_id: completedCall.id,
+      output_index: 0,
+      delta: argumentsJson,
+    },
+    {
+      type: "response.function_call_arguments.done",
+      sequence_number: 3,
+      item_id: completedCall.id,
+      output_index: 0,
+      arguments: argumentsJson,
+    },
+    {
+      type: "response.output_item.done",
+      sequence_number: 4,
+      output_index: 0,
+      item: completedCall,
+    },
+    {
+      type: "response.completed",
+      sequence_number: 5,
+      response: {
+        id: "resp_sillyos_creator_completion",
+        status: "completed",
+        output: [completedCall],
+        usage: {
+          input_tokens: 8,
+          input_tokens_details: { cached_tokens: 0 },
+          output_tokens: 8,
+          output_tokens_details: { reasoning_tokens: 0 },
+          total_tokens: 16,
+        },
+      },
+    },
+  ];
+  return `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("")}data: [DONE]\n\n`;
+}
+
 async function routeSuccessfulOpenAIResponsesProbeV1(
   page: Page,
   probeUrl = openAIResponsesProbeUrlV1,
+  creatorCompletion = false,
 ): Promise<OpenAIResponsesProbeRequestV1[]> {
   const observed: OpenAIResponsesProbeRequestV1[] = [];
   const appOrigin = new URL(sillyOsTargetUrlV1()).origin;
@@ -1717,11 +1782,14 @@ async function routeSuccessfulOpenAIResponsesProbeV1(
       });
       return;
     }
+    const body = request.postData() ?? "";
     observed.push({
       method: request.method(),
       headers: request.headers(),
-      body: request.postData() ?? "",
+      body,
     });
+    const isConnectionProbe = body.includes("Reply with OK.");
+    const isCreatorToolContinuation = body.includes("function_call_output");
     await route.fulfill({
       status: 200,
       headers: {
@@ -1732,7 +1800,9 @@ async function routeSuccessfulOpenAIResponsesProbeV1(
         "request-id": "req_sillyos_provider_probe",
         vary: "Origin",
       },
-      body: successfulOpenAIResponsesProbeSseV1(),
+      body: creatorCompletion && !isConnectionProbe && !isCreatorToolContinuation
+        ? successfulCreatorProgramToolCallSseV1()
+        : successfulOpenAIResponsesProbeSseV1(),
     });
   });
   return observed;
@@ -2060,7 +2130,11 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   const vaultPassword = "sillyos-browser-vault-password";
   const observedNetwork: string[] = [];
   const observedConsole: string[] = [];
-  const providerProbeRequests = await routeSuccessfulOpenAIResponsesProbeV1(page);
+  const providerProbeRequests = await routeSuccessfulOpenAIResponsesProbeV1(
+    page,
+    openAIResponsesProbeUrlV1,
+    true,
+  );
   page.on("request", (request) => {
     if (request.url() === openAIResponsesProbeUrlV1) return;
     observedNetwork.push(
@@ -2291,11 +2365,14 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(credentialSaveReceipt).toHaveCount(0, { timeout: 4_000 });
   expect(providerProbeRequests).toHaveLength(0);
   await globalBack.click();
-  await expect(creatorReadiness).toHaveCount(0);
+  await expect(creatorReadiness).toHaveAttribute(
+    "data-creator-readiness",
+    "model_required",
+  );
   const homeModelSelector = homeModelControl.getByRole("combobox", {
     name: "Program Agent model",
   });
-  await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
+  await expect(homeModelControl).toHaveAttribute("data-model-state", "required");
   await homeModelSelector.click();
   await expect(homeModelSelector).toHaveAttribute("aria-expanded", "true");
   const readyModelListbox = page.getByRole("listbox", { name: "Program Agent model" });
@@ -2307,6 +2384,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(siblingModelOption).toBeVisible();
   await expect(readyModelListbox.getByRole("option", { name: /Anthropic/u })).toHaveCount(0);
   await siblingModelOption.dispatchEvent("click");
+  await expect(creatorReadiness).toHaveCount(0);
   await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
   await expect(homeModelSelector).toHaveAttribute(
     "data-selected-value",
@@ -2406,6 +2484,14 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
     }),
   ).toHaveCount(0);
   await globalBack.click();
+  await expect(creatorReadiness).toHaveAttribute(
+    "data-creator-readiness",
+    "model_required",
+  );
+  await expect(homeModelControl).toHaveAttribute("data-model-state", "required");
+  await homeModelSelector.click();
+  await expect(readyModelListbox).toBeVisible();
+  await siblingModelOption.dispatchEvent("click");
   await expect(creatorReadiness).toHaveCount(0);
   await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
   await expect(homeModelSelector).toHaveAttribute(
@@ -2599,7 +2685,65 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(workspace).toHaveAttribute("data-program-id", programId);
   await expect(workspaceSettings).toBeFocused();
 
-  await workspaceSettings.click();
+  await chatComposer.getByRole("textbox", { name: "Ask for a change…" }).fill(
+    "Keep the review workflow concise.",
+  );
+  await workspaceSendButton.click();
+  await expect.poll(() => providerProbeRequests.length).toBeGreaterThan(1);
+  await expect.poll(async () => {
+    return await page.evaluate((storageKey) => {
+      const serialized = localStorage.getItem(storageKey);
+      if (serialized === null) return null;
+      const parsed = JSON.parse(serialized) as { readonly lastSuccessfulModel?: unknown };
+      return parsed.lastSuccessfulModel ?? null;
+    }, browserProviderSettingsStorageKeyV3);
+  }).toEqual({
+    kind: "builtin",
+    providerId: "openai",
+    modelId: "gpt-4.1-nano",
+  });
+
+  await page.reload();
+  await expectProgramLibraryV1(page);
+  await launchCreatorFromLibraryV1(page);
+  await expect(creatorReadiness).toHaveAttribute("data-creator-readiness", "vault_locked");
+  await expect(homeModelControl).toHaveCount(0);
+  const homeSettings = page.locator('[data-open-settings="home"]');
+  await homeSettings.click();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await expect(page.locator('[data-settings-section="general"]')).toBeVisible();
+  await settingsVault.click();
+  await page.getByLabel("Vault password", { exact: true }).fill(vaultPassword);
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(page.locator('[data-vault-phase="unlocked"]')).toBeVisible();
+  await globalBack.click();
+  await expect(creatorReadiness).toHaveCount(0);
+  await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
+  await expect(homeModelSelector).toHaveAttribute(
+    "data-selected-value",
+    JSON.stringify(["builtin", "openai", "gpt-4.1-nano"]),
+  );
+
+  await homeSettings.click();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Providers", exact: true }).click();
+  await page.locator('[data-provider-id="openai"]').click();
+  const requestCountBeforeAlternateModelTest = providerProbeRequests.length;
+  await connectionModelSelect.selectOption("gpt-4.1-mini");
+  await testConnectionButton.click();
+  await expect(page.getByText("Last connection test passed", { exact: true })).toBeVisible();
+  await expect.poll(() => providerProbeRequests.length).toBe(
+    requestCountBeforeAlternateModelTest + 1,
+  );
+  await globalBack.click();
+  await expect(creatorReadiness).toHaveCount(0);
+  await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
+  await expect(homeModelSelector).toHaveAttribute(
+    "data-selected-value",
+    JSON.stringify(["builtin", "openai", "gpt-4.1-nano"]),
+  );
+
+  await homeSettings.click();
   await page.getByRole("menuitem", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Providers", exact: true }).click();
   await page.locator('[data-provider-id="openai"]').click();
@@ -2626,6 +2770,18 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(page.getByLabel("API key", { exact: true })).toBeVisible();
   await expect(page.locator('.provider-settings__credential-form[data-key-saved="false"]'))
     .toBeVisible();
+  await expect.poll(async () => {
+    return await page.evaluate((storageKey) => {
+      const serialized = localStorage.getItem(storageKey);
+      if (serialized === null) return null;
+      const parsed = JSON.parse(serialized) as { readonly lastSuccessfulModel?: unknown };
+      return parsed.lastSuccessfulModel ?? null;
+    }, browserProviderSettingsStorageKeyV3);
+  }).toEqual({
+    kind: "builtin",
+    providerId: "openai",
+    modelId: "gpt-4.1-nano",
+  });
   await settingsVault.click();
   await expect(page.getByText("No Provider API key is saved.", { exact: true })).toBeVisible();
   await settingsProviders.click();
@@ -2634,8 +2790,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
     "unset",
   );
   await globalBack.click();
-  await expect(workspaceSettings).toBeFocused();
-  await returnToCreatorHomeV1(page);
+  await expect(homeSettings).toBeFocused();
   await expect(creatorReadiness).toHaveAttribute(
     "data-creator-readiness",
     "credential_required",
@@ -2745,9 +2900,9 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
   const savedProfile = await page.evaluate((storageKey) => {
     const serialized = localStorage.getItem(storageKey);
     return serialized === null ? null : JSON.parse(serialized) as unknown;
-  }, browserProviderSettingsStorageKeyV2);
+  }, browserProviderSettingsStorageKeyV3);
   expect(savedProfile).toMatchObject({
-    revision: 2,
+    revision: 3,
     customProfiles: [{
       displayName: customName,
       api: "openai-responses",
@@ -2756,7 +2911,7 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
       contextWindow: 131_072,
       maxTokens: 8_192,
     }],
-    preferredModel: null,
+    lastSuccessfulModel: null,
   });
   expect(JSON.stringify(savedProfile).toLocaleLowerCase()).not.toContain("api_key");
   expect(JSON.stringify(savedProfile).toLocaleLowerCase()).not.toContain("apikey");
@@ -2766,11 +2921,21 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
   await page.reload();
   await expectProgramLibraryV1(page);
   await launchCreatorFromLibraryV1(page);
-  await expect(creatorReadiness).toHaveCount(0);
-  await expect(page.locator('[data-program-agent-model-selector="true"]')).toHaveAttribute(
-    "data-model-state",
-    "ready",
+  await expect(creatorReadiness).toHaveAttribute(
+    "data-creator-readiness",
+    "model_required",
   );
+  const customModelControl = page.locator('[data-program-agent-model-selector="true"]');
+  await expect(customModelControl).toHaveAttribute("data-model-state", "required");
+  const customModelSelector = customModelControl.getByRole("combobox", {
+    name: "Program Agent model",
+  });
+  await customModelSelector.click();
+  await page.getByRole("listbox", { name: "Program Agent model" }).getByRole("option", {
+    name: new RegExp(customModel, "u"),
+  }).dispatchEvent("click");
+  await expect(creatorReadiness).toHaveCount(0);
+  await expect(customModelControl).toHaveAttribute("data-model-state", "ready");
   await page.locator('[data-open-settings="home"]').click();
   await page.getByRole("menuitem", { name: "Settings" }).click();
   await expect(page.locator('[data-settings-section="general"]')).toBeVisible();
@@ -2818,13 +2983,13 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
     JSON.parse(
       await page.evaluate(
         (storageKey) => localStorage.getItem(storageKey) ?? "null",
-        browserProviderSettingsStorageKeyV2,
+        browserProviderSettingsStorageKeyV3,
       ),
     ),
   ).toMatchObject({
-    revision: 2,
+    revision: 3,
     customProfiles: [],
-    preferredModel: null,
+    lastSuccessfulModel: null,
   });
 
   await page.reload();
@@ -2876,7 +3041,7 @@ test("Creator Home persists and reopens an exact accepted Program", async ({ dur
   expect(
     await page.evaluate(
       (storageKey) => localStorage.getItem(storageKey),
-      browserProviderSettingsStorageKeyV2,
+      browserProviderSettingsStorageKeyV3,
     ),
   ).toBeNull();
   await page.goto(sillyOsTargetUrlV1("?locale=en"));
