@@ -243,27 +243,29 @@ export function createBrowserPiProviderAgentV1(input) {
   });
 
   let apiKey = input.apiKey;
-  const completionTool = input.invocation.createCompletionTool({
-    onCandidate: input.onCandidate,
-  });
-  const completionToolName = completionTool.name;
+  const completionTool = input.invocation.completion.kind === "candidate"
+    ? input.invocation.completion.createTool({ onCandidate: input.onCandidate })
+    : null;
+  const completionToolName = completionTool?.name ?? null;
   const agent = createPiAgentV1({
     instructions,
     workspaceTools: input.workspaceTools,
     completionTool,
     onTextDelta: input.onTextDelta,
     streamFn: (selectedModel, context, options) => {
-      const proposed = context.messages.some((message) =>
-        message.role === "toolResult" &&
-        message.toolName === completionToolName
-      );
+      const proposed = completionToolName !== null &&
+        context.messages.some((message) =>
+          message.role === "toolResult" && message.toolName === completionToolName
+        );
       return resolved.provider.streamSimple(selectedModel, context, {
         ...options,
         maxRetries: 0,
         timeoutMs: browserPiAgentProviderTimeoutMillisecondsV1(
           input.runtimeProfile,
         ),
-        toolChoice: browserPiCompletionToolChoiceV1(proposed),
+        ...(completionToolName === null
+          ? {}
+          : { toolChoice: browserPiCompletionToolChoiceV1(proposed) }),
         transport: "sse",
         fetch: input.fetch,
       });

@@ -206,6 +206,13 @@ export type BrowserWorkspaceHostControlRequestRecordV1 =
     readonly bytes: Uint8Array;
   }
   | {
+    readonly method: "read_file";
+    readonly workspaceSessionId: string;
+    readonly expectedCheckpointId: string;
+    readonly expectedGeneration: number;
+    readonly path: string;
+  }
+  | {
     readonly method: "start_export";
     readonly exportId: string;
     readonly workspaceSessionId: string;
@@ -324,6 +331,11 @@ export interface BrowserWorkspaceHostControlSuccessResponseV1 {
     | {
       readonly method: "import_file";
       readonly changed: boolean;
+      readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
+    }
+    | {
+      readonly method: "read_file";
+      readonly bytes: Uint8Array;
       readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
     }
     | { readonly method: "discard_candidate"; readonly volumeId: string };
@@ -817,6 +829,33 @@ export function admitBrowserWorkspaceHostControlRequestV1(
         expectedGeneration: importedFile.expectedGeneration,
         path: importedFile.path,
         bytes: importedFile.bytes,
+      },
+    };
+  }
+  const readFile = exactRecordV1(envelope.record, [
+    "method",
+    "workspaceSessionId",
+    "expectedCheckpointId",
+    "expectedGeneration",
+    "path",
+  ]);
+  if (
+    readFile !== null && readFile.method === "read_file" &&
+    identifierV1(readFile.workspaceSessionId) &&
+    identifierV1(readFile.expectedCheckpointId) &&
+    positiveSafeIntegerV1(readFile.expectedGeneration) &&
+    isBrowserWorkspaceHostNormalizedPathV1(readFile.path)
+  ) {
+    return {
+      revision: 1,
+      kind: "control_request",
+      requestId: envelope.requestId,
+      record: {
+        method: "read_file",
+        workspaceSessionId: readFile.workspaceSessionId,
+        expectedCheckpointId: readFile.expectedCheckpointId,
+        expectedGeneration: readFile.expectedGeneration,
+        path: readFile.path,
       },
     };
   }
@@ -1502,6 +1541,28 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
           method: "import_file",
           changed: importedFile.changed,
           snapshot: importedSnapshot,
+        },
+      };
+    }
+    const readFile = exactRecordV1(success.response, [
+      "method",
+      "bytes",
+      "snapshot",
+    ]);
+    const readSnapshot = readFile === null ? null : admitSnapshotV1(readFile.snapshot);
+    if (
+      readFile !== null && readFile.method === "read_file" &&
+      readFile.bytes instanceof Uint8Array && readSnapshot !== null
+    ) {
+      return {
+        revision: 1,
+        kind: "control_response",
+        requestId: success.requestId,
+        ok: true,
+        response: {
+          method: "read_file",
+          bytes: readFile.bytes,
+          snapshot: readSnapshot,
         },
       };
     }

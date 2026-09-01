@@ -170,6 +170,51 @@ describe("SillyOS Browser Workspace Host protocol", () => {
     ).toMatchObject({ record: { method: "attach_environment" } });
   });
 
+  it("admits one exact control-plane file read and its owned bytes", () => {
+    const record = {
+      method: "read_file",
+      workspaceSessionId: descriptorV1.workspaceSessionId,
+      expectedCheckpointId: "checkpoint.preview.1",
+      expectedGeneration: descriptorV1.generation,
+      path: "imports/source.txt",
+    } as const;
+    expect(
+      admitBrowserWorkspaceHostControlRequestV1(controlRequestV1(record)),
+    ).toMatchObject({ record });
+    expect(
+      admitBrowserWorkspaceHostControlRequestV1(
+        controlRequestV1({ ...record, path: "../source.txt" }),
+      ),
+    ).toBeNull();
+    expect(
+      admitBrowserWorkspaceHostControlRequestV1(
+        controlRequestV1({ ...record, extra: true }),
+      ),
+    ).toBeNull();
+
+    const bytes = new Uint8Array([1, 2, 3]);
+    expect(admitBrowserWorkspaceHostControlOutboundMessageV1({
+      revision: 1,
+      kind: "control_response",
+      requestId: 1,
+      ok: true,
+      response: {
+        method: "read_file",
+        bytes,
+        snapshot: {
+          revision: 1,
+          phase: "open",
+          volumeId: anchorV1.volumeId,
+          checkpointId: "checkpoint.preview.1",
+          descriptor: descriptorV1,
+          anchor: anchorV1,
+        },
+      },
+    })).toMatchObject({
+      response: { method: "read_file", bytes },
+    });
+  });
+
   it("rejects null, generation-bearing, extra, and accessor control input without invoking it", () => {
     expect(
       admitBrowserWorkspaceHostControlRequestV1(

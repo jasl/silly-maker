@@ -24,6 +24,7 @@ import {
 import { TextareaV1 } from "../../../src/ui/design-system/textarea.tsx";
 import {
   ChatPaneV1,
+  type ChatPanePropsV1,
   type ConversationViewStateV1,
   createDefaultConversationViewStateV1,
 } from "../../../src/ui/chat-pane.tsx";
@@ -50,6 +51,7 @@ export interface TranslationProcessWorkspacePropsV1 {
   readonly sourceImport: TranslationSourceImportStateV1;
   readonly onLoadTranslationRowWindow: TranslationProcessControllerV1["loadTranslationRowWindow"];
   readonly agentRun?: ProgramRunProjectionV1 | null;
+  readonly piAgentRun?: ChatPanePropsV1["piAgentRun"];
   readonly onSubmitInstruction?: (text: string) => boolean | void | Promise<boolean | void>;
   readonly onLoadOlderTranscript?: () => boolean | void | Promise<boolean | void>;
   readonly onReloadLatestTranscript?: () => boolean | void | Promise<boolean | void>;
@@ -59,6 +61,7 @@ export interface TranslationProcessWorkspacePropsV1 {
   readonly onAcceptCandidate?: TranslationProgramWorkspacePropsV1["onAcceptCandidate"];
   readonly onRejectCandidate?: TranslationProgramWorkspacePropsV1["onRejectCandidate"];
   readonly onRetranslateCandidate?: TranslationProgramWorkspacePropsV1["onRetranslateCandidate"];
+  readonly onExport?: TranslationProgramWorkspacePropsV1["onExport"];
   readonly onOperationError?: (error: unknown) => void;
 }
 
@@ -157,6 +160,7 @@ export function TranslationProcessWorkspaceV1({
   sourceImport,
   onLoadTranslationRowWindow,
   agentRun = null,
+  piAgentRun,
   onSubmitInstruction,
   onLoadOlderTranscript,
   onReloadLatestTranscript,
@@ -166,6 +170,7 @@ export function TranslationProcessWorkspaceV1({
   onAcceptCandidate,
   onRejectCandidate,
   onRetranslateCandidate,
+  onExport,
   onOperationError,
 }: TranslationProcessWorkspacePropsV1): ReactNode {
   const initialViewStateRef = useRef(
@@ -510,6 +515,7 @@ export function TranslationProcessWorkspaceV1({
         {...(onAcceptCandidate === undefined ? {} : { onAcceptCandidate })}
         {...(onRejectCandidate === undefined ? {} : { onRejectCandidate })}
         {...(onRetranslateCandidate === undefined ? {} : { onRetranslateCandidate })}
+        {...(onExport === undefined ? {} : { onExport })}
         {...(onOperationError === undefined ? {} : { onOperationError })}
         conversationSurface={
           <ChatPaneV1
@@ -525,6 +531,7 @@ export function TranslationProcessWorkspaceV1({
             onConversationViewStateChange={(conversation) => publishViewStateV1({ conversation })}
             interactionReady={conversationSendV1 !== undefined && translationSource !== null}
             agentInteractionPending={agentInteractionPending}
+            {...(piAgentRun === undefined ? {} : { piAgentRun })}
           />
         }
       />

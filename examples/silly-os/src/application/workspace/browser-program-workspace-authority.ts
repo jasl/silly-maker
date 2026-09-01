@@ -94,6 +94,11 @@ export interface BrowserProcessWorkspaceImportFileResultV1 {
   readonly source: BrowserProcessWorkspaceFileSourceBindingV1;
 }
 
+export interface BrowserProcessWorkspaceReadFileResultV1 {
+  readonly bytes: Uint8Array;
+  readonly source: BrowserProcessWorkspaceFileSourceBindingV1;
+}
+
 /** Product-neutral Process/VFS/Workspace authority consumed by every Program. */
 export interface BrowserProgramWorkspaceAuthorityV1 {
   initialize(): Promise<void>;
@@ -118,6 +123,11 @@ export interface BrowserProgramWorkspaceAuthorityV1 {
     readonly path: string;
     readonly bytes: Uint8Array;
   }): Promise<BrowserProcessWorkspaceImportFileResultV1>;
+  readProcessWorkspaceFile(input: {
+    readonly processId: string;
+    readonly workspaceId: string;
+    readonly path: string;
+  }): Promise<BrowserProcessWorkspaceReadFileResultV1>;
   openProcessWorkspace(input: {
     readonly processId: string;
     readonly workspaceId: string;
@@ -837,6 +847,50 @@ export function createBrowserProgramWorkspaceAuthorityV1(
         await closeV1();
         await requireLeaseV1(input.lease, input.observedAt);
         return result;
+      });
+    },
+
+    readProcessWorkspaceFile(input) {
+      return serializeV1(async () => {
+        const pair = await requirePairV1(input.processId, input.workspaceId);
+        const predecessorSessionId = matchingSessionV1(pair);
+        const sessionId = predecessorSessionId ?? await ensureSessionV1(pair);
+        try {
+          const initial = validateSnapshotV1(
+            await host.queryWorkspace(sessionId),
+            pair,
+            sessionId,
+          );
+          const read = await host.readFile({
+            workspaceSessionId: sessionId,
+            expectedCheckpointId: initial.checkpointId,
+            expectedGeneration: initial.descriptor.generation,
+            path: input.path,
+          });
+          const snapshot = validateSnapshotV1(read.snapshot, pair, sessionId);
+          if (
+            snapshot.checkpointId !== initial.checkpointId ||
+            snapshot.descriptor.generation !== initial.descriptor.generation
+          ) throw authorityErrorV1("workspace_snapshot_mismatch");
+          return {
+            bytes: read.bytes,
+            source: {
+              revision: 1,
+              processId: pair.process.processId,
+              workspaceId: pair.workspace.workspaceId,
+              volumeId: pair.workspace.volumeId,
+              workspaceFormat: pair.workspace.workspaceFormat,
+              path: input.path,
+              checkpointId: snapshot.checkpointId,
+              generation: snapshot.descriptor.generation,
+            },
+          };
+        } finally {
+          if (predecessorSessionId === null) {
+            await host.closeWorkspace(sessionId);
+            if (active?.workspaceSessionId === sessionId) active = null;
+          }
+        }
       });
     },
 

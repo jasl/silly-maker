@@ -78,8 +78,12 @@ API-key 表单，也不会显示可用的 Test connection。
   Process 永久阻塞。Workset ready 与 completed Process terminal/checkpoint 在同一个 IndexedDB
   transaction 发布，避免出现已完成 workset 配上失败 Conversation 的双重事实。这里没有独立
   Project 身份、列表、路由或生命周期；持久化 Process 直接拥有 source rows、glossary、candidate
-  与 review 状态。当前还提供 bounded Agent batch、可编辑候选的整批接受/拒绝和接受后 cold
-  reopen，但仍缺格式保持 exporter 与完整 QA，所以还不是可完成翻译的普通用户旅程。
+  与 review 状态。当前普通 Browser V1 旅程提供按模型 envelope 划分的多批 Agent 执行、可编辑候选的
+  整批接受/拒绝、批间 cold reopen、最终导出，以及完成后在同一 Process 中继续自由对话。TXT、
+  Markdown、SRT、VTT、ASS 和闭合 Translation JSON 保留已准入的文档结构；PDF 只导出带分页边界的
+  纯文本，不承诺 PDF round-trip。若 guided Program UI 在 React render/lifecycle 阶段失败，通用
+  Program UI Container 会切回同一 Conversation，并允许从 Guided 标签显式重试。这闭合的是确定性
+  产品流程，不代表语义 QA、真实 Provider 翻译质量或完整 Browser/Desktop 资格已经通过。
 
 固定 Pi 提供窄 `fetch_url({ url })` 与 `download({ url, destination, overwrite? })` 工具。每个
 Process 只有一个 **允许网络访问** 复选框，默认关闭；关闭时工具在 Network Broker 收到请求前
@@ -446,16 +450,17 @@ reload。单独的 Chromium/WebKit qualification 各 3/3
 防截断和视觉验收矩阵见 [DESIGN.md](./DESIGN.md)。从真实 Pi typed RPC、产品数据库、
 Pi 工具到 workspace runtime 的转发、Pi 能力组合、OpenUI 到 SillyMaker 组件映射，
 再到翻译/写作/角色扮演产品的分阶段路径见 [PLAN.md](./PLAN.md)。Translation P5-A
-完成了四格式确定性 round-trip laboratory 和双路线 model-protocol smoke；后续正式基础已经
+完成了六格式确定性 round-trip laboratory 和双路线 model-protocol smoke；后续正式基础已经
 加入真实 Translation Process 路由、独立 Process Workspace、同一 Authority 的原件导入、V16
-Process-owned workset head/分页 rows、cold reopen，以及按需加载的文字型 PDF text-reflow。它们仍不代表
-Translation Program 已可用或任一路线已通过资格。当前正式路径已经把所选模型的 context/output
+Process-owned workset head/分页 rows、cold reopen，以及按需加载的文字型 PDF text-reflow。它们不代表
+任一模型路线已经通过质量资格。当前正式路径已经把所选模型的 context/output
 envelope 转成无隐藏条数上限的 bounded batch，经共享的单一 Agent Worker/Session 产生一个
 Process-owned pending candidate；候选可逐条编辑并以 exact workset revision/candidate ID 整批接受或
-拒绝，接受后译文与进度持久化，浏览器刷新后仍可读取。Chromium/WebKit 的 deterministic product
-journey 已覆盖 import → Agent → review edit → accept → cold reopen。尚未完成的是更完整的结构化
-QA、格式保持 exporter、OpenUI、Conversation 自由 follow-up 与真实 Provider 产品资格；因此这仍是
-执行/审查闭环，而不是完成的 Translation Program。
+拒绝，接受后译文与进度持久化，浏览器刷新后仍可读取。确定性产品旅程已覆盖 import → 多批 Agent
+→ review/edit/accept → cold reopen → 格式保持 export → 完成后的 bounded free Conversation；
+package-authored OpenUI 与 guided 失败后的通用 Conversation fallback 也已进入正式路径。尚未完成的
+是结构化术语/人物关系/confirmed-fact planning、Agent semantic QA、Agent-generated OpenUI、真实
+Provider 质量资格，以及完整 Desktop/accessibility/packaging 资格。
 当前 Browser workspace 已交付独立 origin 的单一工作卷、受限 shell/QJS，以及
 `mkdir`/`touch`/`cp`/`mv`/`rm` 文件操作；更广的执行 profile 仍是研究门。每个变更 entry
 独立推进 generation，复合命令是保留已完成前缀的 best-effort 操作而非原子事务；空目录可冷重开，

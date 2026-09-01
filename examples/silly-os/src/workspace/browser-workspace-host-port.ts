@@ -90,6 +90,11 @@ export interface BrowserWorkspaceHostImportFileResultV1 {
   readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
 }
 
+export interface BrowserWorkspaceHostReadFileResultV1 {
+  readonly bytes: Uint8Array;
+  readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
+}
+
 export type BrowserWorkspaceHostExportResultV1 =
   | ({
     readonly kind: "released";
@@ -121,6 +126,12 @@ export interface BrowserWorkspaceHostPagePortV1 {
     readonly path: string;
     readonly bytes: Uint8Array;
   }): Promise<BrowserWorkspaceHostImportFileResultV1>;
+  readFile(input: {
+    readonly workspaceSessionId: string;
+    readonly expectedCheckpointId: string;
+    readonly expectedGeneration: number;
+    readonly path: string;
+  }): Promise<BrowserWorkspaceHostReadFileResultV1>;
   queryWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1>;
   attachEnvironment(input: {
     readonly workspaceSessionId: string;
@@ -209,7 +220,7 @@ export function createBrowserWorkspaceHostPagePortV1(
   const mutationOutcomeCanBeUnknown = (
     method: BrowserWorkspaceHostControlRequestRecordV1["method"],
   ): boolean =>
-    method !== "inspect_storage" && method !== "query_workspace" &&
+    method !== "inspect_storage" && method !== "query_workspace" && method !== "read_file" &&
     method !== "query_snapshot_candidate" &&
     method !== "query_retained_snapshot" && method !== "capture_stable_head";
 
@@ -452,6 +463,27 @@ export function createBrowserWorkspaceHostPagePortV1(
         );
       }
       return { changed: response.changed, snapshot: response.snapshot };
+    },
+
+    async readFile(input) {
+      const response = await request({ method: "read_file", ...input });
+      if (response.method !== "read_file") {
+        throw new BrowserWorkspaceHostControlErrorV1(
+          "invalid_response",
+          "Workspace Host omitted its file contents",
+        );
+      }
+      const exactSnapshot = response.snapshot.phase === "open" &&
+        response.snapshot.descriptor.workspaceSessionId === input.workspaceSessionId &&
+        response.snapshot.checkpointId === input.expectedCheckpointId &&
+        response.snapshot.descriptor.generation === input.expectedGeneration;
+      if (!exactSnapshot) {
+        throw new BrowserWorkspaceHostControlErrorV1(
+          "invalid_response",
+          "Workspace Host returned file contents from an inexact head",
+        );
+      }
+      return { bytes: response.bytes, snapshot: response.snapshot };
     },
 
     queryWorkspace(workspaceSessionId) {

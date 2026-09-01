@@ -8,7 +8,10 @@ import {
   classifyTranslationBatchCandidateRejectionV1,
   type TranslationBatchRequestV1,
 } from "../runtime/translation-batch-protocol.ts";
-import { createTranslationAgentUserPromptV1 } from "../runtime/translation-agent-prompt.ts";
+import {
+  createTranslationAgentUserPromptV1,
+  createTranslationFollowUpUserPromptV1,
+} from "../runtime/translation-agent-prompt.ts";
 export { createTranslationBatchUserPromptV1 } from "../runtime/translation-agent-prompt.ts";
 import type {
   TranslationBatchBudgetV1,
@@ -20,7 +23,12 @@ import {
 } from "../../../src/agent/browser-pi-agent-dispatch.ts";
 import type { BrowserProgramRuntimeProfileV1 } from "../../../src/agent/browser-program-runtime-profile.ts";
 import type { InstalledProgramPackageReferenceV1 } from "../../../src/program-platform/package/program-package-archive.ts";
-import { translationAgentInstructionMaximumCharactersV1 } from "../runtime/translation-agent-contracts.ts";
+import {
+  admitTranslationFollowUpContextV1,
+  translationAgentFollowUpReplyMaximumCharactersV1,
+  translationAgentInstructionMaximumCharactersV1,
+  type TranslationFollowUpContextV1,
+} from "../runtime/translation-agent-contracts.ts";
 import {
   translationProgramRuntimeProfileDescriptorV1,
   translationProgramRuntimeProfileV1,
@@ -109,11 +117,13 @@ export const translationProgramRuntimeProfileImplementationV1: BrowserProgramRun
     const payload = dispatch.payload;
     if (
       payload === null || typeof payload !== "object" || Array.isArray(payload) ||
-      Object.keys(payload).length !== 3 ||
+      Object.keys(payload).length !== 4 ||
+      !Object.hasOwn(payload, "kind") ||
       !Object.hasOwn(payload, "requestedOutputTokens") ||
-      !Object.hasOwn(payload, "instruction") || !Object.hasOwn(payload, "request")
+      !Object.hasOwn(payload, "instruction")
     ) return { kind: "rejected" };
     const payloadRecord = payload as Readonly<Record<string, unknown>>;
+    const kind = payloadRecord.kind;
     const requestedOutputTokens = payloadRecord.requestedOutputTokens;
     const instruction = payloadRecord.instruction;
     if (
@@ -123,6 +133,29 @@ export const translationProgramRuntimeProfileImplementationV1: BrowserProgramRun
       instruction.length > translationAgentInstructionMaximumCharactersV1 ||
       instruction !== instruction.trim()
     ) return { kind: "rejected" };
+    if (kind === "follow_up") {
+      if (!Object.hasOwn(payload, "context")) return { kind: "rejected" };
+      const context = admitTranslationFollowUpContextV1(payloadRecord.context);
+      if (context === null) return { kind: "rejected" };
+      return {
+        kind: "admitted",
+        invocation: {
+          requestedOutputTokens,
+          userPrompt: createTranslationFollowUpUserPromptV1({ instruction, context }),
+          textOutput: {
+            kind: "publish",
+            maximumCharacters: translationAgentFollowUpReplyMaximumCharactersV1,
+          },
+          deterministicTest: {
+            finalReply: "The translation is complete. How else can I help with this Process?",
+          },
+          completion: { kind: "text" },
+        },
+      };
+    }
+    if (kind !== "batch" || !Object.hasOwn(payload, "request")) {
+      return { kind: "rejected" };
+    }
     const admittedRequest = admitTranslationBatchRequestV1(payloadRecord.request);
     if (admittedRequest.kind === "rejected") return { kind: "rejected" };
     const request = admittedRequest.request;
@@ -133,51 +166,54 @@ export const translationProgramRuntimeProfileImplementationV1: BrowserProgramRun
         userPrompt: createTranslationAgentUserPromptV1({ instruction, request }),
         textOutput: { kind: "discard" },
         deterministicTest: {
-          completionArguments: {
+          finalReply: "Deterministic completion candidate ready.",
+        },
+        completion: {
+          kind: "candidate",
+          deterministicArguments: {
             targets: request.units.map((unit) => ({
               unitId: unit.unitId,
               target: `[deterministic] ${unit.source}`,
             })),
             ambiguities: [],
           },
-          finalReply: "Deterministic completion candidate ready.",
-        },
-        createCompletionTool(input) {
-          return {
-            ...translationToolDefinitionV1,
-            execute: async (_toolCallId, params, signal) => {
-              if (signal?.aborted) throw new Error("Translation run was cancelled");
-              const candidate = params as {
-                readonly targets: readonly { readonly unitId: string; readonly target: string }[];
-                readonly ambiguities: readonly {
-                  readonly unitId: string;
-                  readonly question: string;
-                }[];
-              };
-              await input.onCandidate(candidate);
-              return {
-                content: [{ type: "text", text: "Translation batch candidate recorded." }],
-                details: candidate,
-              };
-            },
-          };
-        },
-        admitCandidate(value) {
-          const admitted = admitTranslationBatchCandidateV1(value, request);
-          if (admitted.kind === "admitted") {
-            return { kind: "admitted", candidate: admitted.candidate };
-          }
-          // Shape/coverage failures describe a malformed completion envelope.
-          // Content failures are a well-shaped candidate that does not satisfy
-          // the exact admitted batch. Keep them distinct for truthful Product
-          // diagnostics without repairing or publishing either rejected form.
-          return {
-            kind: "rejected",
-            failure: classifyTranslationBatchCandidateRejectionV1(admitted) ===
-                "content_constraint"
-              ? "candidate_context_mismatch"
-              : "candidate_invalid",
-          };
+          createTool(input) {
+            return {
+              ...translationToolDefinitionV1,
+              execute: async (_toolCallId, params, signal) => {
+                if (signal?.aborted) throw new Error("Translation run was cancelled");
+                const candidate = params as {
+                  readonly targets: readonly { readonly unitId: string; readonly target: string }[];
+                  readonly ambiguities: readonly {
+                    readonly unitId: string;
+                    readonly question: string;
+                  }[];
+                };
+                await input.onCandidate(candidate);
+                return {
+                  content: [{ type: "text", text: "Translation batch candidate recorded." }],
+                  details: candidate,
+                };
+              },
+            };
+          },
+          admitCandidate(value) {
+            const admitted = admitTranslationBatchCandidateV1(value, request);
+            if (admitted.kind === "admitted") {
+              return { kind: "admitted", candidate: admitted.candidate };
+            }
+            // Shape/coverage failures describe a malformed completion envelope.
+            // Content failures are a well-shaped candidate that does not satisfy
+            // the exact admitted batch. Keep them distinct for truthful Product
+            // diagnostics without repairing or publishing either rejected form.
+            return {
+              kind: "rejected",
+              failure: classifyTranslationBatchCandidateRejectionV1(admitted) ===
+                  "content_constraint"
+                ? "candidate_context_mismatch"
+                : "candidate_invalid",
+            };
+          },
         },
       },
     };
@@ -198,9 +234,33 @@ export function serializeBrowserPiTranslationAgentDispatchV1(input: {
       programPackage: input.programPackage,
       workspaceProgramId: input.programId,
       payload: {
+        kind: "batch",
         requestedOutputTokens: input.requestedOutputTokens,
         instruction: input.instruction,
         request: input.request,
+      },
+    } satisfies BrowserPiAgentDispatchV1,
+  );
+}
+
+export function serializeBrowserPiTranslationFollowUpDispatchV1(input: {
+  readonly programPackage: InstalledProgramPackageReferenceV1;
+  readonly programId: string;
+  readonly requestedOutputTokens: number;
+  readonly instruction: string;
+  readonly context: TranslationFollowUpContextV1;
+}): string {
+  return serializeBrowserPiAgentDispatchV1(
+    {
+      revision: 1,
+      runtimeProfile: translationProgramRuntimeProfileV1,
+      programPackage: input.programPackage,
+      workspaceProgramId: input.programId,
+      payload: {
+        kind: "follow_up",
+        requestedOutputTokens: input.requestedOutputTokens,
+        instruction: input.instruction,
+        context: input.context,
       },
     } satisfies BrowserPiAgentDispatchV1,
   );

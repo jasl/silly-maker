@@ -5,6 +5,7 @@ import type { AgentSessionDiagnosticV1 } from "@sillymaker/agent/session";
 import type {
   BrowserProgramAgentAdapterV1,
   BrowserProgramAgentPreparedRunV1,
+  BrowserProgramAgentStreamTransitionV1,
   BrowserProgramAgentTerminalProjectionV1,
 } from "../../../src/agent/browser-program-agent-adapter.ts";
 import type { BrowserProgramAgentDiagnosticV1 } from "../../../src/agent/browser-program-agent-port-contracts.ts";
@@ -14,7 +15,11 @@ import type {
   TranslationAgentTerminalDiagnosticCodeV1,
   TranslationAgentTerminalRunV1,
 } from "../runtime/translation-agent-contracts.ts";
-import { translationAgentInstructionMaximumCharactersV1 } from "../runtime/translation-agent-contracts.ts";
+import {
+  admitTranslationFollowUpContextV1,
+  translationAgentFollowUpReplyMaximumCharactersV1,
+  translationAgentInstructionMaximumCharactersV1,
+} from "../runtime/translation-agent-contracts.ts";
 import {
   admitTranslationBatchCandidateV1,
   admitTranslationBatchRequestV1,
@@ -23,12 +28,25 @@ import {
   type TranslationBatchRequestV1,
 } from "../runtime/translation-batch-protocol.ts";
 import type { TranslationAgentSnapshotV1 } from "./browser-translation-agent-port.ts";
-import { serializeBrowserPiTranslationAgentDispatchV1 } from "./translation-runtime-profile.ts";
+import {
+  serializeBrowserPiTranslationAgentDispatchV1,
+  serializeBrowserPiTranslationFollowUpDispatchV1,
+} from "./translation-runtime-profile.ts";
 
-interface TranslationRunProjectionV1 {
+interface TranslationBatchRunProjectionV1 {
+  readonly kind: "batch";
   readonly request: TranslationBatchRequestV1;
   readonly candidate: TranslationBatchCandidateV1 | null;
 }
+
+interface TranslationFollowUpRunProjectionV1 {
+  readonly kind: "follow_up";
+  readonly draft: string;
+}
+
+type TranslationRunProjectionV1 =
+  | TranslationBatchRunProjectionV1
+  | TranslationFollowUpRunProjectionV1;
 
 const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u;
 
@@ -68,7 +86,10 @@ function exactRecordV1(
 }
 
 function prepareTranslationRunV1(value: unknown): BrowserProgramAgentPreparedRunV1 | null {
-  const record = exactRecordV1(value, [
+  const raw = value as Readonly<Record<string, unknown>> | null;
+  const kind = raw?.kind;
+  const commonKeys = [
+    "kind",
     "agentRunId",
     "programPackage",
     "processId",
@@ -77,13 +98,20 @@ function prepareTranslationRunV1(value: unknown): BrowserProgramAgentPreparedRun
     "workspaceGeneration",
     "programId",
     "expectedWorksetRevision",
-    "replacesCandidateId",
     "requestedOutputTokens",
     "instruction",
-    "batch",
-  ]);
+  ] as const;
+  const record = exactRecordV1(
+    value,
+    kind === "batch"
+      ? [...commonKeys, "replacesCandidateId", "batch"]
+      : kind === "follow_up"
+      ? [...commonKeys, "context"]
+      : commonKeys,
+  );
   if (
-    record === null || typeof record.agentRunId !== "string" ||
+    record === null || (kind !== "batch" && kind !== "follow_up") ||
+    typeof record.agentRunId !== "string" ||
     !identifierPatternV1.test(record.agentRunId) ||
     typeof record.processId !== "string" || !identifierPatternV1.test(record.processId) ||
     typeof record.processAttemptGeneration !== "number" ||
@@ -96,24 +124,19 @@ function prepareTranslationRunV1(value: unknown): BrowserProgramAgentPreparedRun
     typeof record.programId !== "string" || !identifierPatternV1.test(record.programId) ||
     typeof record.expectedWorksetRevision !== "number" ||
     !Number.isSafeInteger(record.expectedWorksetRevision) || record.expectedWorksetRevision <= 0 ||
-    (record.replacesCandidateId !== null &&
-      (typeof record.replacesCandidateId !== "string" ||
-        !identifierPatternV1.test(record.replacesCandidateId))) ||
     typeof record.requestedOutputTokens !== "number" ||
     !Number.isSafeInteger(record.requestedOutputTokens) || record.requestedOutputTokens <= 0 ||
     typeof record.instruction !== "string" || record.instruction.length === 0 ||
     record.instruction.length > translationAgentInstructionMaximumCharactersV1 ||
     record.instruction !== record.instruction.trim()
   ) return null;
-  const admitted = admitTranslationBatchRequestV1(record.batch);
-  if (admitted.kind === "rejected") return null;
   let programPackage;
   try {
     programPackage = admitInstalledProgramPackageReferenceV1(record.programPackage);
   } catch {
     return null;
   }
-  const run: TranslationAgentRunRequestV1 = Object.freeze({
+  const common = {
     agentRunId: record.agentRunId,
     programPackage,
     processId: record.processId,
@@ -122,9 +145,41 @@ function prepareTranslationRunV1(value: unknown): BrowserProgramAgentPreparedRun
     workspaceGeneration: record.workspaceGeneration,
     programId: record.programId,
     expectedWorksetRevision: record.expectedWorksetRevision,
-    replacesCandidateId: record.replacesCandidateId,
     requestedOutputTokens: record.requestedOutputTokens,
     instruction: record.instruction,
+  } as const;
+  if (kind === "follow_up") {
+    const context = admitTranslationFollowUpContextV1(record.context);
+    if (context === null || context.worksetRevision !== record.expectedWorksetRevision) return null;
+    const run: TranslationAgentRunRequestV1 = Object.freeze({
+      kind: "follow_up",
+      ...common,
+      context,
+    });
+    return Object.freeze({
+      run,
+      serializedSubmit: serializeBrowserPiTranslationFollowUpDispatchV1({
+        programPackage,
+        programId: run.programId,
+        requestedOutputTokens: run.requestedOutputTokens,
+        instruction: run.instruction,
+        context,
+      }),
+      requireWorkspaceGeneration: true,
+      state: Object.freeze({ kind: "follow_up", draft: "" }),
+    });
+  }
+  if (
+    record.replacesCandidateId !== null &&
+    (typeof record.replacesCandidateId !== "string" ||
+      !identifierPatternV1.test(record.replacesCandidateId))
+  ) return null;
+  const admitted = admitTranslationBatchRequestV1(record.batch);
+  if (admitted.kind === "rejected") return null;
+  const run: TranslationAgentRunRequestV1 = Object.freeze({
+    kind: "batch",
+    ...common,
+    replacesCandidateId: record.replacesCandidateId,
     batch: admitted.request,
   });
   return Object.freeze({
@@ -137,7 +192,7 @@ function prepareTranslationRunV1(value: unknown): BrowserProgramAgentPreparedRun
       request: admitted.request,
     }),
     requireWorkspaceGeneration: true,
-    state: Object.freeze({ request: admitted.request, candidate: null }),
+    state: Object.freeze({ kind: "batch", request: admitted.request, candidate: null }),
   });
 }
 
@@ -186,6 +241,21 @@ function remoteFailureV1(
   );
 }
 
+function protocolFailureV1(
+  run: TranslationAgentRunRequestV1,
+  path: string,
+  cancelRemote: boolean,
+): BrowserProgramAgentStreamTransitionV1 {
+  return {
+    kind: "terminal",
+    terminal: terminalV1(
+      Object.freeze({ run, outcome: "failed", diagnosticCode: "protocol_invalid" }),
+      diagnosticV1("protocol_invalid", path),
+    ),
+    cancelRemote,
+  };
+}
+
 const translationProgramAgentAdapterImplementationV1: BrowserProgramAgentAdapterV1 = {
   prepareRun(input) {
     try {
@@ -200,14 +270,39 @@ const translationProgramAgentAdapterImplementationV1: BrowserProgramAgentAdapter
   projectStream({ prepared, state, event }) {
     const run = translationRunV1(prepared);
     const current = translationStateV1(state);
+    const correlated = run.kind === "batch"
+      ? current.kind === "batch" ? { kind: "batch" as const, run, state: current } : null
+      : current.kind === "follow_up"
+      ? { kind: "follow_up" as const, run, state: current }
+      : null;
+    if (correlated === null) {
+      return protocolFailureV1(run, "/run", event.kind !== "run_completed");
+    }
     switch (event.kind) {
       case "output_text_delta":
-        return { kind: "ignored" };
+        if (correlated.kind === "batch") return { kind: "ignored" };
+        if (
+          correlated.state.draft.length + event.text.length >
+            translationAgentFollowUpReplyMaximumCharactersV1
+        ) return protocolFailureV1(run, "/output_text_delta", true);
+        return {
+          kind: "active",
+          state: Object.freeze({
+            kind: "follow_up",
+            draft: correlated.state.draft + event.text,
+          }),
+        };
       case "output_data": {
-        const admitted = admitTranslationBatchCandidateV1(event.value, current.request);
-        if (admitted.kind === "rejected" || current.candidate !== null) {
+        if (correlated.kind === "follow_up") {
+          return protocolFailureV1(run, "/candidate", true);
+        }
+        const admitted = admitTranslationBatchCandidateV1(
+          event.value,
+          correlated.state.request,
+        );
+        if (admitted.kind === "rejected" || correlated.state.candidate !== null) {
           const diagnosticCode: TranslationAgentTerminalDiagnosticCodeV1 =
-            current.candidate !== null || admitted.kind === "rejected" &&
+            correlated.state.candidate !== null || admitted.kind === "rejected" &&
                 classifyTranslationBatchCandidateRejectionV1(admitted) === "structure"
               ? "candidate_structure_invalid"
               : "candidate_invalid";
@@ -223,27 +318,33 @@ const translationProgramAgentAdapterImplementationV1: BrowserProgramAgentAdapter
         return {
           kind: "active",
           state: Object.freeze({
-            request: current.request,
+            kind: "batch",
+            request: correlated.state.request,
             candidate: Object.freeze(admitted.candidate),
           }),
         };
       }
       case "run_completed":
-        return current.candidate === null
-          ? {
+        if (correlated.kind === "follow_up") {
+          const assistantReply = correlated.state.draft.trim();
+          return assistantReply.length === 0 ? protocolFailureV1(run, "/run_completed", false) : {
             kind: "terminal",
-            terminal: terminalV1(
-              Object.freeze({ run, outcome: "failed", diagnosticCode: "protocol_invalid" }),
-              diagnosticV1("protocol_invalid", "/run_completed"),
-            ),
+            terminal: terminalV1(Object.freeze({
+              run: correlated.run,
+              outcome: "completed",
+              assistantReply,
+            })),
             cancelRemote: false,
-          }
+          };
+        }
+        return correlated.state.candidate === null
+          ? protocolFailureV1(run, "/run_completed", false)
           : {
             kind: "terminal",
             terminal: terminalV1(Object.freeze({
-              run,
+              run: correlated.run,
               outcome: "completed",
-              candidate: current.candidate,
+              candidate: correlated.state.candidate,
             })),
             cancelRemote: false,
           };
@@ -268,7 +369,8 @@ const translationProgramAgentAdapterImplementationV1: BrowserProgramAgentAdapter
       phase: input.phase,
       distribution: input.distribution,
       activeRunId: input.activeRunId,
-      candidate: active?.candidate ?? null,
+      candidate: active?.kind === "batch" ? active.candidate : null,
+      draft: active?.kind === "follow_up" ? active.draft : "",
       terminalRuns: Object.freeze([
         ...input.terminalRuns,
       ]) as readonly TranslationAgentTerminalRunV1[],

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { ChevronDown, ChevronUp, LoaderCircle, MessageCircle, PanelsTopLeft } from "lucide-react";
-import { type ReactNode, useEffect, useId, useState } from "react";
+import { Component, type ReactNode, useEffect, useId, useState } from "react";
 
 import { ButtonV1 as Button, IconButtonV1 } from "../../ui/design-system/button.tsx";
 import { ProgressV1 as Progress } from "../../ui/design-system/progress.tsx";
@@ -176,6 +176,12 @@ export interface ProgramUiContainerModesPropsV1 extends ProgramUiContainerBasePr
   readonly conversationSurface: ReactNode;
   readonly guidedLabel?: string;
   readonly conversationLabel?: string;
+  readonly onGuidedSurfaceFailure?: (failure: ProgramGuidedSurfaceFailureV1) => void;
+}
+
+export interface ProgramGuidedSurfaceFailureV1 {
+  readonly processId: string;
+  readonly error: unknown;
 }
 
 export interface ProgramUiContainerIntegratedPropsV1 extends ProgramUiContainerBasePropsV1 {
@@ -206,15 +212,47 @@ export type ProgramUiContainerPropsV1 =
  * OpenUI; Conversation remains the pageable natural-language projection of
  * that same work, with the user free to switch whenever structure is useful.
  */
-export function ProgramUiContainerV1(props: ProgramUiContainerPropsV1): ReactNode {
+interface ProgramGuidedSurfaceBoundaryPropsV1 {
+  readonly children: ReactNode;
+  readonly onFailure: (error: unknown) => void;
+}
+
+class ProgramGuidedSurfaceBoundaryV1 extends Component<
+  ProgramGuidedSurfaceBoundaryPropsV1,
+  Readonly<{ failed: boolean }>
+> {
+  state = { failed: false };
+  #reported = false;
+
+  static getDerivedStateFromError(): Readonly<{ failed: boolean }> {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown): void {
+    if (this.#reported) return;
+    this.#reported = true;
+    this.props.onFailure(error);
+  }
+
+  render(): ReactNode {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+function ProgramUiContainerPresentationV1(props: ProgramUiContainerPropsV1): ReactNode {
   const guidedPanelId = useId();
   const guidedTabId = useId();
   const conversationPanelId = useId();
   const conversationTabId = useId();
   const integrated = props.presentation === "integrated";
-  const activeConversationProcessId = !integrated && props.mode === "conversation"
-    ? props.processId
-    : null;
+  const [guidedSurfaceFailed, setGuidedSurfaceFailed] = useState(false);
+  const [guidedSurfaceAttempt, setGuidedSurfaceAttempt] = useState(0);
+  const effectiveMode = props.presentation === "integrated"
+    ? "integrated"
+    : guidedSurfaceFailed
+    ? "conversation"
+    : props.mode;
+  const activeConversationProcessId = effectiveMode === "conversation" ? props.processId : null;
   // A Process Conversation mounts on first activation and then stays mounted
   // while hidden so drafts and scroll position survive mode switches.
   const [activatedConversationProcessId, setActivatedConversationProcessId] = useState<
@@ -228,14 +266,19 @@ export function ProgramUiContainerV1(props: ProgramUiContainerPropsV1): ReactNod
       className={`program-ui-container${toolbarVisible ? "" : " is-toolbarless"}`}
       data-program-ui-container=""
       data-program-ui-process-id={props.processId ?? undefined}
-      data-program-ui-mode={integrated ? "integrated" : props.mode}
+      data-program-ui-mode={effectiveMode}
       data-program-ui-presentation={integrated ? "integrated" : "modes"}
+      data-program-ui-guided-status={integrated
+        ? undefined
+        : guidedSurfaceFailed
+        ? "failed"
+        : "ready"}
     >
       {toolbarVisible && (
         <header className="program-ui-container__toolbar">
           {integrated ? null : (
             <Tabs
-              value={props.mode}
+              value={effectiveMode}
               tabs={[
                 {
                   value: "guided",
@@ -265,6 +308,10 @@ export function ProgramUiContainerV1(props: ProgramUiContainerPropsV1): ReactNod
                   if (value === "conversation" && props.processId !== null) {
                     setActivatedConversationProcessId(props.processId);
                   }
+                  if (value === "guided" && guidedSurfaceFailed) {
+                    setGuidedSurfaceFailed(false);
+                    setGuidedSurfaceAttempt((current) => current + 1);
+                  }
                   props.onModeChange(value);
                 }
               }}
@@ -290,18 +337,29 @@ export function ProgramUiContainerV1(props: ProgramUiContainerPropsV1): ReactNod
               id={guidedPanelId}
               role="tabpanel"
               aria-labelledby={guidedTabId}
-              hidden={props.mode !== "guided"}
+              hidden={effectiveMode !== "guided"}
             >
-              {props.guidedSurface}
+              <ProgramGuidedSurfaceBoundaryV1
+                key={guidedSurfaceAttempt}
+                onFailure={(error) => {
+                  setGuidedSurfaceFailed(true);
+                  setActivatedConversationProcessId(props.processId);
+                  props.onGuidedSurfaceFailure?.({ processId: props.processId, error });
+                  if (props.mode !== "conversation") props.onModeChange("conversation");
+                }}
+              >
+                {props.guidedSurface}
+              </ProgramGuidedSurfaceBoundaryV1>
             </div>
             <div
               className="program-ui-container__surface"
               id={conversationPanelId}
               role="tabpanel"
               aria-labelledby={conversationTabId}
-              hidden={props.mode !== "conversation"}
+              hidden={effectiveMode !== "conversation"}
             >
-              {props.mode === "conversation" || activatedConversationProcessId === props.processId
+              {effectiveMode === "conversation" ||
+                  activatedConversationProcessId === props.processId
                 ? props.conversationSurface
                 : null}
             </div>
@@ -317,4 +375,8 @@ export function ProgramUiContainerV1(props: ProgramUiContainerPropsV1): ReactNod
       {props.run === null ? null : <ProgramRunStripV1 run={props.run} locale={props.locale} />}
     </section>
   );
+}
+
+export function ProgramUiContainerV1(props: ProgramUiContainerPropsV1): ReactNode {
+  return <ProgramUiContainerPresentationV1 key={props.processId} {...props} />;
 }

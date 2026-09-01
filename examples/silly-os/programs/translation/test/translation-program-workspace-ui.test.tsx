@@ -453,6 +453,7 @@ function renderReadyTranslationProcessWorkspaceV1(input: {
   readonly onViewStateChange?: ComponentProps<
     typeof TranslationProcessWorkspaceV1
   >["onViewStateChange"];
+  readonly piAgentRun?: ComponentProps<typeof TranslationProcessWorkspaceV1>["piAgentRun"];
 }) {
   const activeProcess = input.activeProcess ??
     (input.pendingCandidate ? readyActiveProcessWithPendingCandidateV1() : readyActiveProcessV1());
@@ -506,6 +507,7 @@ function renderReadyTranslationProcessWorkspaceV1(input: {
         })
       )}
       onSubmitInstruction={input.onSubmitInstruction}
+      {...(input.piAgentRun === undefined ? {} : { piAgentRun: input.piAgentRun })}
       {...(input.onRetranslateCandidate === undefined
         ? {}
         : { onRetranslateCandidate: input.onRetranslateCandidate })}
@@ -617,6 +619,25 @@ describe("SillyOS Translation Program workspace", () => {
     expect(onSubmitChineseInstruction).toHaveBeenCalledWith(
       "请按照当前设置翻译下一批内容，并在提交候选前检查术语、人物关系、否定和指代。",
     );
+  });
+
+  it("projects a live follow-up draft in the same Process Conversation", () => {
+    renderReadyTranslationProcessWorkspaceV1({
+      locale: "en",
+      mode: "conversation",
+      onSubmitInstruction: vi.fn(() => true),
+      piAgentRun: {
+        runtime: "pi_provider",
+        status: "running",
+        draft: "Reviewing the completed translation…",
+        diagnosticPath: null,
+        onCancel: vi.fn(),
+        onForget: vi.fn(),
+      },
+    });
+
+    expect(screen.getByText("Reviewing the completed translation…")).toBeVisible();
+    expect(document.querySelector("[data-pi-agent-run-status='running']")).not.toBeNull();
   });
 
   it("keeps Conversation available for an explicit instruction while the same Process has a candidate", async () => {

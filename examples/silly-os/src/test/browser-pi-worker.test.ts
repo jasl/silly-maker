@@ -84,7 +84,9 @@ import type {
   CreatorAgentRunRequestV1,
   CreatorAgentSubmitV1,
 } from "../../programs/creator/runtime/contracts.ts";
-import type { TranslationAgentRunRequestV1 } from "../../programs/translation/runtime/translation-agent-contracts.ts";
+import type {
+  TranslationBatchAgentRunRequestV1,
+} from "../../programs/translation/runtime/translation-agent-contracts.ts";
 import {
   applyProcessNetworkAccessMutationV1,
   cloneProcessNetworkAccessV1,
@@ -497,9 +499,10 @@ function productRunV1(
 }
 
 function translationAgentRunV1(
-  overrides: Partial<TranslationAgentRunRequestV1> = {},
-): TranslationAgentRunRequestV1 {
+  overrides: Partial<TranslationBatchAgentRunRequestV1> = {},
+): TranslationBatchAgentRunRequestV1 {
   return {
+    kind: "batch",
     agentRunId: "agent.run.translation.1",
     programPackage: programPackageV1(submitV1.programId, "d"),
     processId: "process.translation.agent-port.1",
@@ -1103,6 +1106,10 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
 
   async importProcessWorkspaceFile(): Promise<never> {
     throw new Error("test Process Workspace import is unavailable");
+  }
+
+  async readProcessWorkspaceFile(): Promise<never> {
+    throw new Error("test Process Workspace read is unavailable");
   }
 
   get readFileRangeRequests(): TestBrowserWorkspaceVolumeStateV1["readFileRangeRequests"] {
@@ -4981,6 +4988,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
         inspectProcessWorkspace: () => Promise.resolve(null),
         probeProcessWorkspace: () => Promise.resolve(true),
         importProcessWorkspaceFile: repositoryUnavailable,
+        readProcessWorkspaceFile: repositoryUnavailable,
         openProcessWorkspace: () =>
           Promise.reject(
             new BrowserWorkspaceHostControlErrorV1(hostCode, `synthetic ${hostCode}`),

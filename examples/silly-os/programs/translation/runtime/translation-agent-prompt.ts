@@ -5,7 +5,10 @@ import type {
   TranslationSourceUnitV1,
   TranslationTargetUnitV1,
 } from "./translation-document-codec.ts";
-import { translationAgentInstructionMaximumCharactersV1 } from "./translation-agent-contracts.ts";
+import {
+  translationAgentInstructionMaximumCharactersV1,
+  type TranslationFollowUpContextV1,
+} from "./translation-agent-contracts.ts";
 import type { TranslationMechanicalQaFindingV1 } from "./translation-mechanical-qa.ts";
 
 const textEncoderV1 = new TextEncoder();
@@ -75,6 +78,23 @@ export function createTranslationAgentUserPromptV1(input: {
   }${translationAgentPromptBatchSeparatorV1}${
     createTranslationBatchUserPromptV1(input.request)
   }${translationAgentPromptSuffixV1}`;
+}
+
+/**
+ * Dynamic prompt for free Conversation after every imported unit has been
+ * accepted. The context contains a compact Process summary plus only the
+ * newest durable Conversation turns that fit the current request budget; it
+ * never replays document rows.
+ */
+export function createTranslationFollowUpUserPromptV1(input: {
+  readonly instruction: string;
+  readonly context: TranslationFollowUpContextV1;
+}): string {
+  return JSON.stringify({
+    schema: "sillyos.translation-follow-up.v1",
+    instruction: input.instruction,
+    processSummary: input.context,
+  });
 }
 
 /** Exact bytes added around the planner-owned batch prompt. */

@@ -64,53 +64,56 @@ export const creatorProgramRuntimeProfileImplementationV1: BrowserProgramRuntime
           maximumCharacters: creatorAgentFinalReplyMaximumCharactersV1,
         },
         deterministicTest: {
-          completionArguments: { requirement: submit.text },
           finalReply: "Deterministic test proposal ready.",
         },
-        createCompletionTool(input) {
-          return {
-            name: creatorProgramRevisionToolNameV1,
-            label: "Propose Program revision",
-            description:
-              "Propose one concise Program requirement. SillyOS binds it to the current reviewed revision.",
-            parameters: creatorProgramRevisionToolSchemaV1,
-            execute: async (_toolCallId, params, signal) => {
-              if (signal?.aborted) throw new Error("Creator run was cancelled");
-              const requirement = (params as { readonly requirement: string }).requirement;
-              const candidate = {
-                revision: 1,
-                proposalId: submit.proposalId,
-                programId: submit.programId,
-                baseProgramRevision: submit.baseProgramRevision,
-                text: submit.text,
-                requirement,
-              };
-              await input.onCandidate(candidate);
-              return {
-                content: [{
-                  type: "text",
-                  text: "Program revision candidate recorded for review.",
-                }],
-                details: candidate,
-              };
-            },
-          };
-        },
-        admitCandidate(value) {
-          const admitted = admitCreatorProgramRevisionCandidateV1(value);
-          if (admitted.kind === "rejected") {
-            return { kind: "rejected", failure: "candidate_invalid" };
-          }
-          if (
-            admitted.value.revision !== submit.revision ||
-            admitted.value.proposalId !== submit.proposalId ||
-            admitted.value.programId !== submit.programId ||
-            admitted.value.baseProgramRevision !== submit.baseProgramRevision ||
-            admitted.value.text !== submit.text
-          ) {
-            return { kind: "rejected", failure: "candidate_context_mismatch" };
-          }
-          return { kind: "admitted", candidate: admitted.value };
+        completion: {
+          kind: "candidate",
+          deterministicArguments: { requirement: submit.text },
+          createTool(input) {
+            return {
+              name: creatorProgramRevisionToolNameV1,
+              label: "Propose Program revision",
+              description:
+                "Propose one concise Program requirement. SillyOS binds it to the current reviewed revision.",
+              parameters: creatorProgramRevisionToolSchemaV1,
+              execute: async (_toolCallId, params, signal) => {
+                if (signal?.aborted) throw new Error("Creator run was cancelled");
+                const requirement = (params as { readonly requirement: string }).requirement;
+                const candidate = {
+                  revision: 1,
+                  proposalId: submit.proposalId,
+                  programId: submit.programId,
+                  baseProgramRevision: submit.baseProgramRevision,
+                  text: submit.text,
+                  requirement,
+                };
+                await input.onCandidate(candidate);
+                return {
+                  content: [{
+                    type: "text",
+                    text: "Program revision candidate recorded for review.",
+                  }],
+                  details: candidate,
+                };
+              },
+            };
+          },
+          admitCandidate(value) {
+            const admitted = admitCreatorProgramRevisionCandidateV1(value);
+            if (admitted.kind === "rejected") {
+              return { kind: "rejected", failure: "candidate_invalid" };
+            }
+            if (
+              admitted.value.revision !== submit.revision ||
+              admitted.value.proposalId !== submit.proposalId ||
+              admitted.value.programId !== submit.programId ||
+              admitted.value.baseProgramRevision !== submit.baseProgramRevision ||
+              admitted.value.text !== submit.text
+            ) {
+              return { kind: "rejected", failure: "candidate_context_mismatch" };
+            }
+            return { kind: "admitted", candidate: admitted.value };
+          },
         },
       },
     };

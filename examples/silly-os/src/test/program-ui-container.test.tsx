@@ -7,6 +7,7 @@ import { type ReactNode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  type ProgramGuidedSurfaceFailureV1,
   type ProgramRunProjectionV1,
   ProgramUiContainerV1,
   type ProgramUiModeV1,
@@ -87,6 +88,36 @@ function SharedProcessProjectionHarnessV1(): ReactNode {
         </section>
       }
       run={null}
+      locale="en"
+    />
+  );
+}
+
+function FailingGuidedSurfaceV1({ active }: { readonly active: boolean }): ReactNode {
+  if (active) throw new Error("guided renderer failed");
+  return <section aria-label="healthy guided surface">Guided content</section>;
+}
+
+function FailingGuidedSurfaceHarnessV1({
+  onFailure,
+}: {
+  readonly onFailure: (failure: ProgramGuidedSurfaceFailureV1) => void;
+}): ReactNode {
+  const [mode, setMode] = useState<ProgramUiModeV1>("conversation");
+  return (
+    <ProgramUiContainerV1
+      processId="process.guided.failure"
+      mode={mode}
+      onModeChange={setMode}
+      onGuidedSurfaceFailure={onFailure}
+      guidedSurface={<FailingGuidedSurfaceV1 active={mode === "guided"} />}
+      conversationSurface={<ConversationDraftV1 />}
+      run={{
+        status: "running",
+        label: "Agent is still running",
+        recentLines: [],
+      }}
+      overlaySurface={<section data-testid="failure-overlay">Review remains open</section>}
       locale="en"
     />
   );
@@ -191,6 +222,50 @@ describe("SillyOS Program UI Container", () => {
       within(screen.getByRole("region", { name: "structured Process projection" }))
         .getByText("2"),
     ).toBeVisible();
+  });
+
+  it("falls back to the same Process Conversation when the guided renderer fails", () => {
+    const onFailure = vi.fn<(failure: ProgramGuidedSurfaceFailureV1) => void>();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      render(<FailingGuidedSurfaceHarnessV1 onFailure={onFailure} />);
+      fireEvent.change(screen.getByRole("textbox", { name: "Conversation draft" }), {
+        target: { value: "keep this draft through fallback" },
+      });
+
+      fireEvent.click(screen.getByRole("tab", { name: "Guided" }));
+
+      const container = document.querySelector<HTMLElement>("[data-program-ui-container]");
+      const overlay = screen.getByTestId("failure-overlay");
+      const runStrip = screen.getByRole("complementary", { name: "Program run status" });
+      expect(container).toHaveAttribute("data-program-ui-process-id", "process.guided.failure");
+      expect(container).toHaveAttribute("data-program-ui-mode", "conversation");
+      expect(container).toHaveAttribute("data-program-ui-guided-status", "failed");
+      expect(screen.getByRole("tab", { name: "Conversation" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(screen.getByRole("region", { name: "translation conversation" })).toBeVisible();
+      expect(screen.getByRole("textbox", { name: "Conversation draft" })).toHaveValue(
+        "keep this draft through fallback",
+      );
+      expect(container).toContainElement(overlay);
+      expect(container).toContainElement(runStrip);
+      expect(onFailure).toHaveBeenCalledTimes(1);
+      expect(onFailure.mock.calls[0]?.[0]?.processId).toBe("process.guided.failure");
+      expect(onFailure.mock.calls[0]?.[0]?.error).toBeInstanceOf(Error);
+
+      // Selecting Guided is an explicit retry. A repeated renderer failure
+      // falls back again instead of leaving an empty active panel.
+      fireEvent.click(screen.getByRole("tab", { name: "Guided" }));
+      expect(onFailure).toHaveBeenCalledTimes(2);
+      expect(container).toHaveAttribute("data-program-ui-mode", "conversation");
+      expect(screen.getByRole("textbox", { name: "Conversation draft" })).toHaveValue(
+        "keep this draft through fallback",
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("keeps the run strip and Program overlay inside the SillyOS-owned container", () => {

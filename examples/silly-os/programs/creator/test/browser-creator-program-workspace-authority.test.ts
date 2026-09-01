@@ -199,6 +199,15 @@ function fakeHostV1(): FakeHostV1 {
       }
       return { changed, snapshot };
     },
+    async readFile(input) {
+      events.push("host:read");
+      const snapshot = sessions.get(input.workspaceSessionId);
+      if (snapshot === undefined) throw new Error("fake.workspace_missing");
+      const volume = volumeForSessionV1(input.workspaceSessionId);
+      const bytes = volume.files.get(input.path);
+      if (bytes === undefined) throw new Error("fake.file_missing");
+      return { bytes: bytes.slice(), snapshot };
+    },
     async queryWorkspace(workspaceSessionId) {
       events.push("host:query");
       const snapshot = sessions.get(workspaceSessionId);

@@ -58,9 +58,11 @@ describe("SillyOS Browser Pi runtime bridge", () => {
     const agent = createPiAgentV1({
       instructions: "Create the requested Program.",
       workspaceTools: [],
-      completionTool: admission.invocation.createCompletionTool({
-        onCandidate: () => {},
-      }),
+      completionTool: admission.invocation.completion.kind === "candidate"
+        ? admission.invocation.completion.createTool({
+          onCandidate: () => {},
+        })
+        : null,
       onTextDelta: () => {},
       reasoningEffort: "high",
       streamFn,
@@ -96,6 +98,7 @@ describe("SillyOS Browser Pi runtime bridge", () => {
       programPackage: translationProgramPackageV1,
       workspaceProgramId: translationProgramPackageV1.programId,
       payload: {
+        kind: "batch",
         requestedOutputTokens: 4_608,
         instruction: "Translate the admitted batch faithfully.",
         request: {
@@ -127,9 +130,11 @@ describe("SillyOS Browser Pi runtime bridge", () => {
     const agent = createPiAgentV1({
       instructions: "Translate the admitted batch faithfully.",
       workspaceTools: [],
-      completionTool: admission.invocation.createCompletionTool({
-        onCandidate,
-      }),
+      completionTool: admission.invocation.completion.kind === "candidate"
+        ? admission.invocation.completion.createTool({
+          onCandidate,
+        })
+        : null,
       onTextDelta: (delta: string) => textDeltas.push(delta),
       reasoningEffort: "off",
       streamFn: faux.provider.streamSimple,
@@ -156,6 +161,7 @@ describe("SillyOS Browser Pi runtime bridge", () => {
       programPackage: translationProgramPackageV1,
       workspaceProgramId: translationProgramPackageV1.programId,
       payload: {
+        kind: "batch",
         requestedOutputTokens: 4_608,
         instruction: "Translate the admitted batch faithfully.",
         request: {

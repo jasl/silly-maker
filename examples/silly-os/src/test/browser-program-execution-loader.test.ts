@@ -49,9 +49,13 @@ const runtimeProfileV1: BrowserProgramRuntimeProfileV1 = {
       requestedOutputTokens: 2_048,
       userPrompt: "Create a Program.",
       textOutput: { kind: "publish", maximumCharacters: 8_192 },
-      deterministicTest: { completionArguments: {}, finalReply: "Ready." },
-      createCompletionTool: () => ({}) as never,
-      admitCandidate: () => ({ kind: "rejected", failure: "candidate_invalid" }),
+      deterministicTest: { finalReply: "Ready." },
+      completion: {
+        kind: "candidate",
+        deterministicArguments: {},
+        createTool: () => ({}) as never,
+        admitCandidate: () => ({ kind: "rejected", failure: "candidate_invalid" }),
+      },
     },
   }),
 };

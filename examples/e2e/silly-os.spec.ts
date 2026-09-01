@@ -3072,71 +3072,120 @@ test("Creator Home persists and reopens an exact accepted Program", async ({ dur
   ).toBeVisible();
 });
 
-test("the bundled Translation Program imports and cold-reopens one durable Process-owned workset from the Library", async ({ durableProgramPage: page }) => {
-  await page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
-  await expectProgramLibraryV1(page);
-  await launchCreatorFromLibraryV1(page);
-  await initializePiTestV1(page, "sillyos-translation-workset-key");
-  await returnToProgramLibraryV1(page);
-  await launchProgramFromLibraryV1(page, "Translation");
+test(
+  "the bundled Translation Program imports, exports, and continues one durable Process Conversation",
+  async ({ durableProgramPage: page }, testInfo) => {
+    await page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
+    await expectProgramLibraryV1(page);
+    await launchCreatorFromLibraryV1(page);
+    await initializePiTestV1(page, "sillyos-translation-workset-key");
+    await returnToProgramLibraryV1(page);
+    await launchProgramFromLibraryV1(page, "Translation");
 
-  const processWorkspace = page.locator('[data-silly-os-view="translation-workspace"]');
-  await expect(processWorkspace).toBeVisible();
-  await expect(processWorkspace).toHaveAttribute("data-program-id", "sillyos.translation");
-  const processId = await processWorkspace.getAttribute("data-process-id");
-  expect(processId).not.toBeNull();
+    const processWorkspace = page.locator('[data-silly-os-view="translation-workspace"]');
+    await expect(processWorkspace).toBeVisible();
+    await expect(processWorkspace).toHaveAttribute("data-program-id", "sillyos.translation");
+    const processId = await processWorkspace.getAttribute("data-process-id");
+    expect(processId).not.toBeNull();
 
-  await processWorkspace.locator('input[type="file"]').setInputFiles({
-    name: "sound-check.srt",
-    mimeType: "application/x-subrip",
-    buffer: Buffer.from([
+    await processWorkspace.locator('input[type="file"]').setInputFiles({
+      name: "sound-check.srt",
+      mimeType: "application/x-subrip",
+      buffer: Buffer.from([
+        "1",
+        "00:00:00,000 --> 00:00:01,500",
+        "第一句，保持原意。",
+        "",
+        "2",
+        "00:00:02,000 --> 00:00:04,000",
+        "Second line with {name}.",
+        "",
+      ].join("\n")),
+    });
+    await expect(page.getByRole("heading", { name: "sound-check.srt" })).toBeVisible();
+    await expect(page.getByRole("button", {
+      name: /^1 第一句，保持原意。 — Pending$/u,
+    })).toBeVisible();
+    await expect(page.getByRole("button", {
+      name: /^2 Second line with ⟦SM:\d+⟧\. — Pending$/u,
+    })).toBeVisible();
+
+    await page.getByRole("button", { name: "Translate next batch" }).click();
+    await expect(page.getByRole("heading", { name: "Review this batch" })).toBeVisible();
+    const targetEditor = page.getByRole("textbox", { name: "Target" });
+    await expect(targetEditor).toHaveValue("[deterministic] 第一句，保持原意。");
+    await targetEditor.fill("First line, preserve the original meaning.");
+    await page.getByRole("button", { name: "Accept batch" }).click();
+    await expect(page.getByText("2 / 2 translated", { exact: false })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Review this batch" })).toHaveCount(0);
+    await expect(page.getByRole("button", {
+      name: /^1 第一句，保持原意。 First line, preserve the original meaning\. Committed$/u,
+    })).toBeVisible();
+
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export" }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe("sound-check.en.srt");
+    const exportPath = testInfo.outputPath("sound-check.en.srt");
+    await download.saveAs(exportPath);
+    expect(await download.failure()).toBeNull();
+    expect(await readFile(exportPath, "utf8")).toBe([
       "1",
       "00:00:00,000 --> 00:00:01,500",
-      "第一句，保持原意。",
+      "First line, preserve the original meaning.",
       "",
       "2",
       "00:00:02,000 --> 00:00:04,000",
-      "Second line with {name}.",
+      "[deterministic] Second line with {name}.",
       "",
-    ].join("\n")),
-  });
-  await expect(page.getByRole("heading", { name: "sound-check.srt" })).toBeVisible();
-  await expect(page.getByRole("button", {
-    name: /^1 第一句，保持原意。 — Pending$/u,
-  })).toBeVisible();
-  await expect(page.getByRole("button", {
-    name: /^2 Second line with ⟦SM:\d+⟧\. — Pending$/u,
-  })).toBeVisible();
+    ].join("\n"));
 
-  await page.getByRole("button", { name: "Translate next batch" }).click();
-  await expect(page.getByRole("heading", { name: "Review this batch" })).toBeVisible();
-  const targetEditor = page.getByRole("textbox", { name: "Target" });
-  await expect(targetEditor).toHaveValue("[deterministic] 第一句，保持原意。");
-  await targetEditor.fill("First line, preserve the original meaning.");
-  await page.getByRole("button", { name: "Accept batch" }).click();
-  await expect(page.getByText("2 / 2 translated", { exact: false })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Review this batch" })).toHaveCount(0);
-  await expect(page.getByRole("button", {
-    name: /^1 第一句，保持原意。 First line, preserve the original meaning\. Committed$/u,
-  })).toBeVisible();
+    await page.getByRole("tab", { name: "Conversation" }).click();
+    const followUp = "Summarize the completion status for this Process.";
+    await page.getByRole("textbox", { name: "Ask for a change…" }).fill(followUp);
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(
+      page.locator('[data-chat-role="user"]').getByText(followUp, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-chat-role="assistant"]').getByText(
+        "The translation is complete. How else can I help with this Process?",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(processWorkspace).toHaveAttribute("data-process-id", processId!);
 
-  await page.reload();
-  await expectProgramLibraryV1(page);
-  const library = await expectProgramLibraryV1(page);
-  const recentConversation = library.locator(".program-library__process").filter({
-    has: page.getByText(processId!, { exact: true }),
-  });
-  await expect(recentConversation).toHaveCount(1);
-  await expect(recentConversation.getByRole("heading", { name: "sillyos.translation" }))
-    .toBeVisible();
-  await recentConversation.getByRole("button", { name: "View Conversation" }).click();
-  const reopened = page.locator('[data-silly-os-view="translation-workspace"]');
-  await expect(reopened).toHaveAttribute("data-process-id", processId!);
-  await expect(page.getByRole("heading", { name: "sound-check.srt" })).toBeVisible();
-  await expect(page.getByRole("button", {
-    name: /^1 第一句，保持原意。 First line, preserve the original meaning\. Committed$/u,
-  })).toBeVisible();
-});
+    await page.getByRole("tab", { name: "Simple" }).click();
+    await expect(page.getByText("2 / 2 translated", { exact: false })).toBeVisible();
+
+    await page.reload();
+    await expectProgramLibraryV1(page);
+    const library = await expectProgramLibraryV1(page);
+    const recentConversation = library.locator(".program-library__process").filter({
+      has: page.getByText(processId!, { exact: true }),
+    });
+    await expect(recentConversation).toHaveCount(1);
+    await expect(recentConversation.getByRole("heading", { name: "sillyos.translation" }))
+      .toBeVisible();
+    await recentConversation.getByRole("button", { name: "View Conversation" }).click();
+    const reopened = page.locator('[data-silly-os-view="translation-workspace"]');
+    await expect(reopened).toHaveAttribute("data-process-id", processId!);
+    await expect(page.getByRole("heading", { name: "sound-check.srt" })).toBeVisible();
+    await expect(page.getByRole("button", {
+      name: /^1 第一句，保持原意。 First line, preserve the original meaning\. Committed$/u,
+    })).toBeVisible();
+    await page.getByRole("tab", { name: "Conversation" }).click();
+    await expect(
+      page.locator('[data-chat-role="user"]').getByText(followUp, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-chat-role="assistant"]').getByText(
+        "The translation is complete. How else can I help with this Process?",
+        { exact: true },
+      ),
+    ).toBeVisible();
+  },
+);
 
 test("a pending Program remains locally reviewable without a Provider credential", async ({ durableProgramPage: page }) => {
   const initialWorkspace = await openTranslationWorkspaceV1(page);

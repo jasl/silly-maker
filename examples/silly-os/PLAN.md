@@ -4900,7 +4900,10 @@ request backed by the real consumer, not permission to create a second runtime.
 
 ### P5 — translation Program
 
-**Current status (2026-09-01):** P5 remains active in P5-A through P5-D order.
+**Current status (2026-09-02):** the first ordinary Browser Translation V1
+journey is closed; P5 remains active for semantic planning/QA, Agent-generated
+OpenUI, Provider-quality evidence, broader format coverage, and final target
+qualification.
 P5-A used LinguaGacha, AiNiee and ainiee-translate-skill as prior art to settle
 the deterministic codec, prompt, Skill and review-assisted workflow contracts.
 Its one-off Provider runner, evaluation corpora and fixed-script experiment
@@ -4970,6 +4973,11 @@ journey proves import → deterministic Agent → edit → accept → reload. Th
 mechanical/product-flow evidence, not real-Provider translation-quality
 qualification.
 
+A separate multi-batch contract continues from global orders greater than zero,
+cold-reopens between accepted batches, exports the completed artifact, and then
+continues the same Process as a bounded ordinary Conversation. It preserves the
+same lease/generation fences and leaves the accepted workset unchanged.
+
 One source-aware mechanical signal now locates obvious English/Chinese target
 text that resembles model refusal rather than translation. It is non-blocking,
 suppresses the same explicit refusal when that meaning exists in the source,
@@ -5018,14 +5026,21 @@ declarations add no identity bytes, while this revision's code-unit canonical
 file-ordering correction intentionally rotates affected pre-release package
 digests; preview storage clean-resets rather than migrating them.
 
-P5-B through P5-D remain incomplete. Import, bounded Agent batching, stale-safe
-candidate publication, editable human accept/reject, accepted-target
-persistence, cold reopen, non-blocking mechanical QA, explicit successor
-retranslation, a minimal admitted OpenUI renderer/action, and Conversation-mode
-free follow-up now form one real execution/review loop. There is still no
-model-assisted semantic QA, confirmed Planning/meaning-fact workbench, final
-format-preserving exporter, complete multi-batch recovery, repeated
-product-scale Provider qualification, Python, or Translation CodeAct path. See
+The first ordinary Browser V1 path now closes import, bounded multi-batch Agent
+execution, stale-safe candidate publication, editable human accept/reject,
+accepted-target persistence, cold reopen, non-blocking mechanical QA, explicit
+successor retranslation, package-authored OpenUI, exact structure-preserving
+export, and post-completion free Conversation. Guided-surface React failures
+fall back generically to the same Process Conversation and the Guided tab may
+retry; neither behavior is Translation-specific. TXT, Markdown, SRT, VTT, ASS,
+and the closed Translation JSON format round-trip through the exporter. PDF
+exports deterministic page-aware plain text and does not claim PDF round-trip.
+
+P5 remains open for model-assisted semantic QA, a confirmed
+Planning/meaning-fact workbench, Agent-generated OpenUI, repeated product-scale
+Provider qualification, full Browser/Desktop/accessibility/packaging evidence,
+OCR/multimodal routing, broader formats, Python, and a concrete Translation
+CodeAct path. See
 [Translation Program decisions](./programs/translation/notes/TRANSLATION-PROGRAM-RESEARCH.md).
 
 Make translation the first complete product consumer. Its denominator is one
@@ -5042,8 +5057,11 @@ parse/extract, stable unit identity, relevant-profile selection, batching,
 checkpoint/write-back, structural QA, and export. The model proposes terminology
 and relationships, translates the current admitted batch, diagnoses semantic
 problems, and discusses human revisions. The model never receives the entire
-attachment, Process translation profile, Workspace, or Process transcript merely
-because it exists. P5 first proves this concrete package; it does not begin by defining a
+attachment, Process translation profile, Workspace, or transcript merely
+because it exists. Batch turns receive only their bounded translation context.
+Post-completion Conversation turns receive only the newest durable
+user/assistant turns that fit the selected model's admitted request envelope.
+P5 first proves this concrete package; it does not begin by defining a
 generic skill manifest, workflow DSL, retrieval framework, or Program SDK.
 
 Only shared boundaries reproduced by this product may graduate into the P4 Pi

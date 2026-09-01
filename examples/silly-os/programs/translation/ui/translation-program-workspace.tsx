@@ -1323,6 +1323,9 @@ export function TranslationProgramWorkspaceV1({
       locale={locale}
       guidedLabel={copy.guided}
       conversationLabel={copy.conversation}
+      {...(onOperationError === undefined
+        ? {}
+        : { onGuidedSurfaceFailure: ({ error }) => onOperationError(error) })}
       guidedSurface={translationSource === null
         ? (
           <TranslationIntakeV1

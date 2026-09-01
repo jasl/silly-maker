@@ -503,6 +503,7 @@ export function createBrowserCreatorProgramWorkspaceAuthorityV1(
     createProcessWorkspace: (input) => hostAuthority.createProcessWorkspace(input),
     probeProcessWorkspace: (processId) => hostAuthority.probeProcessWorkspace(processId),
     importProcessWorkspaceFile: (input) => hostAuthority.importProcessWorkspaceFile(input),
+    readProcessWorkspaceFile: (input) => hostAuthority.readProcessWorkspaceFile(input),
     queryWorkspace: (sessionId) => hostAuthority.queryWorkspace(sessionId),
     exportWorkspace: (input) => hostAuthority.exportWorkspace(input),
     detachWorkspaceEnvironment: (sessionId) => hostAuthority.detachWorkspaceEnvironment(sessionId),

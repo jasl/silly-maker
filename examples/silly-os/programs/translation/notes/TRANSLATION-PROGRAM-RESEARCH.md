@@ -1,8 +1,10 @@
 # Translation Program decisions
 
-Status: **active product work**. The first end-to-end execution and Review
-foundation is implemented; final export, complete long-project recovery and
-quality-oriented planning remain incomplete.
+Status: **active product work**. The first ordinary Browser Translation V1
+journey is closed from import through multi-batch Review, cold recovery, exact
+export, and post-completion Conversation. Quality-oriented planning, semantic
+QA, Agent-generated OpenUI, and complete target qualification remain future
+work.
 
 This document retains product decisions that should survive the initial
 experiments. It is not an LLM benchmark log. Provider output is nondeterministic,
@@ -69,14 +71,17 @@ The deterministic codec currently supports round-trip editing for:
 - UTF-8 plain text;
 - Markdown with inert code and link destinations;
 - SubRip subtitles with stable cue timing;
+- WebVTT subtitles with stable timing and cue settings;
+- ASS subtitles with stable event fields and override tags;
 - the closed `sillyos.translation-document.v1` JSON format.
 
 Born-digital PDF is supported as a lazy `pdf_text_reflow` import projection. The
 original bytes remain in the Process Workspace, while page-aware logical units
-and source-map rows drive Review. It intentionally does not promise OCR,
-password handling, reading-order repair, layout-preserving write-back or PDF
-round-trip export. Missing font glyphs, page furniture and cross-page fragments
-remain visible input defects rather than guessed repairs.
+and source-map rows drive Review. It exports deterministic page-aware plain text
+with form-feed page boundaries. It intentionally does not promise OCR, password
+handling, reading-order repair, layout-preserving write-back or PDF round-trip
+export. Missing font glyphs, page furniture and cross-page fragments remain
+visible input defects rather than guessed repairs.
 
 The maintained codec fixtures live under `test/fixtures/corpus/`; the browser
 PDF harness uses a generated local fixture. Neither depends on downloaded public
@@ -183,7 +188,15 @@ Program surface. Translation supplies:
 - a virtualized unit Review table;
 - editable targets, findings, accept/reject and explicit retranslation;
 - a bounded live Agent activity strip;
-- pageable Conversation rendering.
+- pageable Conversation rendering;
+- structure-preserving completed-artifact export;
+- post-completion bounded multi-turn Conversation over the newest durable
+  user/assistant turns.
+
+If the guided React surface fails while rendering or during a lifecycle
+callback, the generic Program UI Container presents the same Process
+Conversation and leaves Guided available as an explicit retry. The Translation
+runtime does not own a separate fallback path.
 
 The 10,000-unit UI contract keeps only a small visible window mounted. Product
 records remain pageable and are not reconstructed from the DOM or transcript.
@@ -209,19 +222,16 @@ correctness, Provider policy behavior or deterministic LLM reproduction.
 
 ## Remaining product work
 
-The next slices should complete the ordinary user journey rather than add
+The next slices should improve meaning and target qualification rather than add
 another research framework:
 
-1. format-preserving export for the four round-trip formats, with a clear PDF
-   text-export limitation;
-2. complete multi-batch continuation and cold-reopen recovery through final
-   acceptance;
-3. structured terminology, entity/relationship and confirmed-fact planning;
-4. Agent-assisted semantic diagnosis presented in the same Review workbench;
-5. settings UI for orthogonal defaults and per-Process overrides;
-6. representative Browser/Desktop product qualification and accessibility;
-7. additional formats, OCR/multimodal routing and CodeAct only after a concrete
-   product need demonstrates the boundary.
+1. structured terminology, entity/relationship and confirmed-fact planning;
+2. Agent-assisted semantic diagnosis presented in the same Review workbench;
+3. currentness-fenced Agent-generated OpenUI publication;
+4. repeated real-Provider quality evidence plus representative
+   Browser/Desktop/accessibility/packaging qualification;
+5. additional formats, OCR/multimodal routing, Python and CodeAct only after a
+   concrete product need demonstrates the boundary.
 
 Metrics should focus on final Review effort, accepted-result quality, recovery
 and token return on investment—not weak-model one-shot pass rate.

@@ -211,4 +211,110 @@ describe("Browser Program Workspace authority", () => {
     ]);
     await authority.dispose();
   });
+
+  it("reads one exact Process Workspace file without attaching an execution environment", async () => {
+    const input = createInputV1(3);
+    const workspace: ProcessWorkspaceBindingV1 = {
+      revision: 1,
+      processId: input.process.processId,
+      workspaceId: input.workspaceId,
+      volumeId: "volume.external.read",
+      workspaceFormat: 1,
+    };
+    const process: ProcessHeadV1 = {
+      schemaVersion: 1,
+      processId: input.process.processId,
+      revision: 2,
+      programPackage: input.process.programPackage,
+      subjectProgramId: input.process.subjectProgramId,
+      status: "active",
+      transcriptFrontier: input.transcript.checkpoint.throughSequence,
+      activeAttempt: null,
+      lastTerminalAttempt: null,
+      checkpoint: {
+        ...input.transcript.checkpoint,
+        workspaceId: workspace.workspaceId,
+        workspaceCheckpointId: "checkpoint.external.read",
+        workspaceGeneration: 4,
+      },
+      createdAt: input.process.createdAt,
+      updatedAt: input.transcript.updatedAt,
+    };
+    const repository = {
+      async initialize() {},
+      async loadProcess(processId: string) {
+        return processId === process.processId ? process : null;
+      },
+      async loadProcessWorkspaceBinding(processId: string) {
+        return processId === process.processId ? workspace : null;
+      },
+      async dispose() {},
+    } as unknown as ProgramDataRepositoryV1;
+    const anchor = {
+      revision: 1,
+      programId: process.programPackage.programId,
+      workspaceId: workspace.workspaceId,
+      volumeId: workspace.volumeId,
+      workspaceFormat: 1,
+    } as const;
+    const candidate: BrowserWorkspaceVolumeCandidateWireV1 = {
+      revision: 1,
+      anchor,
+      checkpointId: "checkpoint.external.read",
+      generation: 4,
+    };
+    const events: string[] = [];
+    const sessionId = "session.external.read";
+    const host = {
+      subscribeFatal: () => () => {},
+      async withBootstrapLease<T>(request: { readonly operation: () => Promise<T> }) {
+        return await request.operation();
+      },
+      async openWorkspace() {
+        events.push("open");
+        return snapshotV1(candidate, sessionId, "open");
+      },
+      async queryWorkspace() {
+        events.push("query");
+        return snapshotV1(candidate, sessionId, "open");
+      },
+      async readFile(request: { readonly path: string }) {
+        events.push(`read:${request.path}`);
+        return {
+          bytes: new Uint8Array([7, 8, 9]),
+          snapshot: snapshotV1(candidate, sessionId, "open"),
+        };
+      },
+      async closeWorkspace() {
+        events.push("close");
+        return snapshotV1(candidate, sessionId, "closed");
+      },
+      dispose() {},
+    } as unknown as BrowserWorkspaceHostPagePortV1;
+    const authority = createBrowserProgramWorkspaceAuthorityV1({
+      repository,
+      host,
+      operationFence: { run: (_mode, operation) => operation() },
+    });
+
+    await expect(authority.readProcessWorkspaceFile({
+      processId: process.processId,
+      workspaceId: workspace.workspaceId,
+      path: "translation/source.md",
+    })).resolves.toEqual({
+      bytes: new Uint8Array([7, 8, 9]),
+      source: {
+        revision: 1,
+        processId: process.processId,
+        workspaceId: workspace.workspaceId,
+        volumeId: workspace.volumeId,
+        workspaceFormat: 1,
+        path: "translation/source.md",
+        checkpointId: candidate.checkpointId,
+        generation: candidate.generation,
+      },
+    });
+    expect(events).toEqual(["open", "query", "read:translation/source.md", "close"]);
+    await authority.dispose();
+  });
 });

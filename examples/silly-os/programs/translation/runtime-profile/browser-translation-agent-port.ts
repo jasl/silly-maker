@@ -22,6 +22,8 @@ export interface TranslationAgentSnapshotV1 {
   /** Product-owned identity. Pi session and run identities remain private to the Host facade. */
   readonly activeRunId: string | null;
   readonly candidate: TranslationBatchCandidateV1 | null;
+  /** Live assistant text for a completed-workset follow-up run. */
+  readonly draft: string;
   readonly terminalRuns: readonly TranslationAgentTerminalRunV1[];
   readonly diagnostic: BrowserProgramAgentDiagnosticV1 | null;
   readonly workspace: BrowserProgramAgentWorkspaceSnapshotV1;
@@ -46,6 +48,7 @@ export function createTranslationProgramAgentPortV1(
         distribution: input.distribution,
         activeRunId: null,
         candidate: null,
+        draft: "",
         terminalRuns: Object.freeze([]),
         diagnostic: input.diagnostic,
         workspace: input.workspace,

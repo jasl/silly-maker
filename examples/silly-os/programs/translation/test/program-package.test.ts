@@ -76,7 +76,7 @@ describe("Translation Program package", () => {
     );
     expect(instructions).toMatch(/sillyos_read_program_resource/u);
     expect(instructions).toMatch(/skills\/translate\/SKILL\.md/u);
-    expect(instructions).toMatch(/exact immutable Program package pinned by this Process/u);
+    expect(instructions).toMatch(/exact immutable\s+Program package pinned by this Process/u);
 
     const readTextV1 = (path: string): string => {
       const file = admitted.files.find((candidate) => candidate.path === path);

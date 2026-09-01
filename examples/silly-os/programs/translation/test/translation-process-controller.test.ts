@@ -7,12 +7,16 @@ import type {
   BrowserProcessWorkspaceCreateInputV1,
   BrowserProcessWorkspaceImportFileResultV1,
   BrowserProcessWorkspaceInspectionV1,
+  BrowserProcessWorkspaceReadFileResultV1,
 } from "../../../src/application/workspace/browser-program-workspace-authority.ts";
 import {
   createProgramDataRepositoryFailureV1,
   type ProcessWorkspaceCreateCompositeCommitResultV1,
 } from "../../../src/application/persistence/program-data-repository.ts";
-import type { TranslationAgentRunRequestV1 } from "../runtime/translation-agent-contracts.ts";
+import type {
+  TranslationAgentRunRequestV1,
+  TranslationBatchAgentRunRequestV1,
+} from "../runtime/translation-agent-contracts.ts";
 import type { TranslationBatchBudgetV1 } from "../runtime/translation-batch-planner.ts";
 import {
   createTranslationProcessControllerV1 as createTranslationProcessControllerImplementationV1,
@@ -141,6 +145,12 @@ function createWorkspacePortV1(
       >[0],
       commit: () => Promise<BrowserProcessWorkspaceImportFileResultV1>,
     ) => Promise<BrowserProcessWorkspaceImportFileResultV1>;
+    readonly readFile?: (
+      input: Parameters<
+        TranslationProcessControllerWorkspacePortV1["readProcessWorkspaceFile"]
+      >[0],
+      read: () => Promise<BrowserProcessWorkspaceReadFileResultV1>,
+    ) => Promise<BrowserProcessWorkspaceReadFileResultV1>;
   } = {},
 ): TranslationProcessControllerWorkspacePortV1 & {
   readonly createCalls: string[];
@@ -153,6 +163,7 @@ function createWorkspacePortV1(
     TranslationProcessControllerWorkspacePortV1["importProcessWorkspaceFile"]
   >[0][] = [];
   const importedByPath = new Map<string, BrowserProcessWorkspaceImportFileResultV1>();
+  const importedBytesByPath = new Map<string, Uint8Array>();
   const port: TranslationProcessControllerWorkspacePortV1 & {
     readonly createCalls: string[];
     readonly importCalls: readonly Parameters<
@@ -237,11 +248,32 @@ function createWorkspacePortV1(
           },
         };
         importedByPath.set(input.path, result);
+        importedBytesByPath.set(input.path, new Uint8Array(input.bytes));
         return result;
       };
       return options.importFile === undefined
         ? await commit()
         : await options.importFile(input, commit);
+    },
+    async readProcessWorkspaceFile(input) {
+      const read = async (): Promise<BrowserProcessWorkspaceReadFileResultV1> => {
+        const binding = await repository.loadProcessWorkspaceBinding(input.processId);
+        const imported = importedByPath.get(input.path);
+        const bytes = importedBytesByPath.get(input.path);
+        if (
+          binding === null || binding.workspaceId !== input.workspaceId || imported === undefined ||
+          bytes === undefined
+        ) throw new Error("missing imported Process Workspace file");
+        return {
+          bytes: new Uint8Array(bytes),
+          source: {
+            ...imported.source,
+            checkpointId: `read-checkpoint.${input.workspaceId}`,
+            generation: imported.source.generation + 1,
+          },
+        };
+      };
+      return options.readFile === undefined ? await read() : await options.readFile(input, read);
     },
   };
   return port;
@@ -310,6 +342,7 @@ async function sha256HexV1(bytes: Uint8Array): Promise<string> {
 }
 
 function candidateForRunV1(run: TranslationAgentRunRequestV1) {
+  if (run.kind !== "batch") throw new TypeError("expected Translation batch run");
   return {
     targets: run.batch.units.map((unit) => ({
       unitId: unit.unitId,
@@ -317,6 +350,13 @@ function candidateForRunV1(run: TranslationAgentRunRequestV1) {
     })),
     ambiguities: [],
   };
+}
+
+function requireTranslationBatchRunV1(
+  run: TranslationAgentRunRequestV1,
+): TranslationBatchAgentRunRequestV1 {
+  if (run.kind !== "batch") throw new TypeError("expected Translation batch run");
+  return run;
 }
 
 function translationBatchBudgetV1(): TranslationBatchBudgetV1 {
@@ -1057,6 +1097,7 @@ describe("Translation Process Controller", () => {
       throw new Error(`expected prepared Translation Agent batch: ${JSON.stringify(prepared)}`);
     }
     const { run } = prepared.value;
+    if (run.kind !== "batch") throw new Error("expected Translation batch run");
     expect(run.programPackage).toEqual(translationProgramPackageReferenceV1);
     expect(run.programId).toBe(translationProgramPackageReferenceV1.programId);
     expect(run.replacesCandidateId).toBeNull();
@@ -1219,11 +1260,197 @@ describe("Translation Process Controller", () => {
       expect.objectContaining({ order: 0, target: editedTargets[0]!.target }),
       expect.objectContaining({ order: 1, target: editedTargets[1]!.target }),
     ]);
-    expect(
-      await cold.prepareAgentBatch(translationBatchBudgetV1(), translationInstructionV1),
-    ).toEqual({
+    const worksetBeforeFollowUp = await repository.loadTranslationWorksetHead(processId);
+    const followUp = await cold.prepareAgentBatch(
+      translationBatchBudgetV1(),
+      "Summarize the completed Translation Process.",
+    );
+    expect(followUp).toMatchObject({
       kind: "completed",
-      value: { kind: "complete" },
+      value: { kind: "prepared", run: { kind: "follow_up" } },
+    });
+    if (
+      followUp.kind !== "completed" || followUp.value.kind !== "prepared" ||
+      followUp.value.run.kind !== "follow_up"
+    ) throw new Error("expected completed Translation Process follow-up");
+    expect(followUp.value.run.context).toMatchObject({
+      worksetRevision: worksetBeforeFollowUp?.revision,
+      sourceFileName: "candidate.srt",
+      documentFormat: "subrip",
+      sourceLocale: "ja",
+      targetLocale: "en",
+      translatedUnitCount: 2,
+      acceptedBatchCount: 1,
+    });
+    expect(followUp.value.run.context).not.toHaveProperty("units");
+    expect(followUp.value.run.context).not.toHaveProperty("transcript");
+    expect(cold.getSnapshot().activeProcess?.transcript.entries.at(-1)).toMatchObject({
+      role: "user",
+      parts: [{
+        kind: "text_markdown",
+        markdown: "Summarize the completed Translation Process.",
+      }],
+    });
+    expect(
+      await cold.recordAgentRunTerminal({
+        run: followUp.value.run,
+        outcome: "completed",
+        assistantReply: "The translation is complete and ready to discuss.",
+      }),
+    ).toMatchObject({ kind: "completed", value: { kind: "persisted", candidateId: null } });
+    expect(await repository.loadTranslationWorksetHead(processId)).toEqual(worksetBeforeFollowUp);
+    expect(cold.getSnapshot().activeProcess?.transcript.entries.at(-1)).toMatchObject({
+      role: "assistant",
+      parts: [{
+        kind: "text_markdown",
+        markdown: "The translation is complete and ready to discuss.",
+      }],
+    });
+    const secondFollowUp = await cold.prepareAgentBatch(
+      translationBatchBudgetV1(),
+      "What did I ask you previously?",
+    );
+    if (
+      secondFollowUp.kind !== "completed" || secondFollowUp.value.kind !== "prepared" ||
+      secondFollowUp.value.run.kind !== "follow_up"
+    ) throw new Error("expected a second conversational Translation follow-up");
+    expect(
+      secondFollowUp.value.run.context.recentConversation.slice(-2).map((turn) => ({
+        role: turn.role,
+        markdown: turn.markdown,
+      })),
+    ).toEqual([
+      { role: "user", markdown: "Summarize the completed Translation Process." },
+      { role: "assistant", markdown: "The translation is complete and ready to discuss." },
+    ]);
+    expect(
+      await cold.recordAgentRunTerminal({
+        run: secondFollowUp.value.run,
+        outcome: "cancelled",
+      }),
+    ).toMatchObject({ kind: "completed", value: { kind: "persisted" } });
+  });
+
+  it("cold-reopens after the first accepted batch and completes non-zero global orders before export", async () => {
+    const repository = createRepositoryV1();
+    const workspace = createWorkspacePortV1(repository);
+    const sourceBytes = textEncoderV1.encode(subtitleDocumentV1(4));
+    const singleUnitBudget: TranslationBatchBudgetV1 = {
+      maximumRequestBytes: 64 * 1_024,
+      maximumOutputTokens: 220,
+      outputEnvelope: {
+        fixedCandidateReserveTokens: 128,
+        perUnitCandidateReserveTokens: 64,
+        targetTokensPerSourceCodePoint: { numerator: 2, denominator: 1 },
+      },
+    };
+    const first = createTranslationProcessControllerV1({
+      repository,
+      workspace,
+      createId: deterministicIdsV1("multi-batch-first"),
+      now: () => 30,
+    });
+    await first.initialize();
+    await first.createProcess();
+    const processId = first.getSnapshot().activeProcess!.process.processId;
+    expect(
+      await first.importSource({
+        source: {
+          kind: "bytes",
+          fileName: "multi-batch.srt",
+          mediaType: "application/x-subrip",
+          bytes: sourceBytes,
+        },
+        sourceLocale: "ja",
+        targetLocale: "en",
+      }),
+    ).toMatchObject({ kind: "completed", value: { expectedUnitCount: 4 } });
+
+    const acceptedOrders: number[][] = [];
+    const completeOneBatchV1 = async (
+      controller: ReturnType<typeof createTranslationProcessControllerV1>,
+    ): Promise<void> => {
+      const prepared = await controller.prepareAgentBatch(
+        singleUnitBudget,
+        translationInstructionV1,
+      );
+      if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+        throw new Error(`expected prepared Translation Agent batch: ${JSON.stringify(prepared)}`);
+      }
+      const { run } = prepared.value;
+      if (run.kind !== "batch") throw new Error("expected Translation batch before completion");
+      acceptedOrders.push(run.batch.units.map((unit) => unit.order));
+      const terminal = await controller.recordAgentRunTerminal({
+        run,
+        outcome: "completed",
+        candidate: candidateForRunV1(run),
+      });
+      if (
+        terminal.kind !== "completed" || terminal.value.kind !== "persisted" ||
+        terminal.value.candidateId === null
+      ) throw new Error(`expected durable pending candidate: ${JSON.stringify(terminal)}`);
+      const active = controller.getSnapshot().activeProcess!;
+      expect(
+        await controller.acceptPendingCandidate({
+          expectedWorksetRevision: active.workset!.revision,
+          candidateId: terminal.value.candidateId,
+          targets: candidateForRunV1(run).targets,
+        }),
+      ).toMatchObject({ kind: "completed", value: { kind: "accepted" } });
+    };
+
+    await completeOneBatchV1(first);
+    expect(first.getSnapshot().activeProcess?.workset).toMatchObject({
+      acceptedUnitCount: 1,
+      acceptedBatchCount: 1,
+      pendingCandidateId: null,
+    });
+    first.dispose();
+
+    const cold = createTranslationProcessControllerV1({
+      repository,
+      workspace,
+      createId: deterministicIdsV1("multi-batch-cold"),
+      now: () => 31,
+    });
+    await cold.initialize();
+    expect(await cold.openProcess(processId)).toEqual({ kind: "completed", value: true });
+    expect(cold.getSnapshot().activeProcess?.workset).toMatchObject({
+      acceptedUnitCount: 1,
+      acceptedBatchCount: 1,
+    });
+
+    await completeOneBatchV1(cold);
+    await completeOneBatchV1(cold);
+    await completeOneBatchV1(cold);
+    expect(acceptedOrders).toEqual([[0], [1], [2], [3]]);
+    const active = cold.getSnapshot().activeProcess!;
+    expect(active.workset).toMatchObject({
+      acceptedUnitCount: 4,
+      acceptedBatchCount: 4,
+      pendingCandidateId: null,
+    });
+    const rows = await cold.loadTranslationRowWindow({
+      processId,
+      expectedWorksetRevision: active.workset!.revision,
+      offset: 0,
+      limit: 4,
+    });
+    expect(rows.rows.map((row) => row.order)).toEqual([0, 1, 2, 3]);
+    expect(rows.rows.every((row) => row.target !== null)).toBe(true);
+    const exportResult = await cold.exportCompletedTranslation();
+    if (exportResult.kind !== "completed" || exportResult.value.kind !== "exported") {
+      throw new Error(`expected completed Translation export: ${JSON.stringify(exportResult)}`);
+    }
+    const exported = exportResult.value;
+    expect(exported.artifact.fileName).toBe("multi-batch.en.srt");
+    expect(new TextDecoder().decode(exported.artifact.bytes)).toContain(
+      "Translated: 字幕 4，保持原意。",
+    );
+    const followUp = await cold.prepareAgentBatch(singleUnitBudget, translationInstructionV1);
+    expect(followUp).toMatchObject({
+      kind: "completed",
+      value: { kind: "prepared", run: { kind: "follow_up" } },
     });
   });
 
@@ -1259,7 +1486,7 @@ describe("Translation Process Controller", () => {
     if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
       throw new Error("expected initial Translation Agent batch");
     }
-    const initialRun = prepared.value.run;
+    const initialRun = requireTranslationBatchRunV1(prepared.value.run);
     expect(initialRun.replacesCandidateId).toBeNull();
     const mechanicallyWrongCandidate = {
       targets: candidateForRunV1(initialRun).targets.map((target) => ({
@@ -1324,6 +1551,9 @@ describe("Translation Process Controller", () => {
       );
       if (next.kind !== "completed" || next.value.kind !== "prepared") {
         throw new Error(`expected candidate successor attempt: ${JSON.stringify(next)}`);
+      }
+      if (next.value.run.kind !== "batch") {
+        throw new Error("expected Translation batch successor");
       }
       return next.value.run;
     };
@@ -1454,7 +1684,7 @@ describe("Translation Process Controller", () => {
     if (expiring.kind !== "completed" || expiring.value.kind !== "prepared") {
       throw new Error("expected expiring replacement attempt");
     }
-    const expiredRun = expiring.value.run;
+    const expiredRun = requireTranslationBatchRunV1(expiring.value.run);
     expect(expiredRun.instruction).toContain("Human edit 999.");
     const expiredTrigger = (await repository.loadProcess(processId))?.activeAttempt;
     if (expiredTrigger === null || expiredTrigger === undefined) {
@@ -1556,10 +1786,11 @@ describe("Translation Process Controller", () => {
     if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
       throw new Error("expected prepared Translation Agent batch");
     }
+    const batchRun = requireTranslationBatchRunV1(prepared.value.run);
     const persisted = await controller.recordAgentRunTerminal({
-      run: prepared.value.run,
+      run: batchRun,
       outcome: "completed",
-      candidate: candidateForRunV1(prepared.value.run),
+      candidate: candidateForRunV1(batchRun),
     });
     if (
       persisted.kind !== "completed" || persisted.value.kind !== "persisted" ||
@@ -1769,7 +2000,7 @@ describe("Translation Process Controller", () => {
         `expected predecessor Translation Agent batch: ${JSON.stringify(firstPrepared)}`,
       );
     }
-    const firstRun = firstPrepared.value.run;
+    const firstRun = requireTranslationBatchRunV1(firstPrepared.value.run);
     const frontierBeforeRecovery = (await repository.loadProcess(firstRun.processId))!
       .transcriptFrontier;
 

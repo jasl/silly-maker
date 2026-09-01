@@ -65,7 +65,7 @@ export type PiStreamFnV1 = (
 export interface PiAgentRuntimeInputV1 {
   readonly instructions: string;
   readonly workspaceTools: readonly AgentTool[];
-  readonly completionTool: AgentTool;
+  readonly completionTool: AgentTool | null;
   readonly onTextDelta: (delta: string) => void;
   readonly reasoningEffort: BrowserPiReasoningEffortV1;
   readonly streamFn: PiStreamFnV1;

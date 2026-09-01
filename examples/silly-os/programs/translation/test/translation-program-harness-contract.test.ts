@@ -49,6 +49,7 @@ describe("SillyOS Translation Program fixed-harness contract", () => {
       programPackage: translationProgramPackageSourceV1.metadata.reference,
       workspaceProgramId: translationProgramIdV1,
       payload: {
+        kind: "batch",
         requestedOutputTokens: 1_024,
         instruction: "Translate the admitted batch faithfully.",
         request: {
@@ -66,18 +67,21 @@ describe("SillyOS Translation Program fixed-harness contract", () => {
     const admitted = translationProgramRuntimeProfileImplementationV1.admitDispatch(dispatch);
     if (admitted.kind === "rejected") throw new Error("Translation dispatch was rejected");
 
-    expect(admitted.invocation.admitCandidate({
+    if (admitted.invocation.completion.kind !== "candidate") {
+      throw new Error("Translation batch completion protocol was not selected");
+    }
+    expect(admitted.invocation.completion.admitCandidate({
       targets: JSON.stringify([{ unitId: unit.unitId, target: "保持 ⟦SM:1⟧ 不变。" }]),
       ambiguities: [],
     })).toEqual({ kind: "rejected", failure: "candidate_invalid" });
-    expect(admitted.invocation.admitCandidate({
+    expect(admitted.invocation.completion.admitCandidate({
       targets: [
         { unitId: unit.unitId, target: "保持 ⟦SM:1⟧ 不变。" },
         { unitId: unit.unitId, target: "保持 ⟦SM:1⟧ 不变。" },
       ],
       ambiguities: [],
     })).toEqual({ kind: "rejected", failure: "candidate_invalid" });
-    expect(admitted.invocation.admitCandidate({
+    expect(admitted.invocation.completion.admitCandidate({
       targets: [{ unitId: unit.unitId, target: "不要更改名字。" }],
       ambiguities: [],
     })).toEqual({ kind: "rejected", failure: "candidate_context_mismatch" });
@@ -85,6 +89,7 @@ describe("SillyOS Translation Program fixed-harness contract", () => {
 
   it("projects typed-envelope rejection separately from content-constraint rejection", async () => {
     const run = {
+      kind: "batch",
       agentRunId: "translation.run.classification",
       programPackage: translationProgramPackageSourceV1.metadata.reference,
       processId: "process.translation.classification",
@@ -179,6 +184,111 @@ describe("SillyOS Translation Program fixed-harness contract", () => {
       terminal: {
         outcome: "failed",
         value: { outcome: "failed", diagnosticCode: "candidate_invalid" },
+      },
+    });
+  });
+
+  it("publishes a bounded text draft for completed-workset follow-up", async () => {
+    const context = {
+      worksetRevision: 9,
+      title: "A completed translation",
+      sourceFileName: "story.srt",
+      documentFormat: "srt",
+      sourceLocale: "en",
+      targetLocale: "zh-CN",
+      documentPurpose: "A fictional dialogue.",
+      style: "Natural.",
+      translatedUnitCount: 128,
+      acceptedBatchCount: 4,
+      recentConversation: [],
+    } as const;
+    const dispatch = {
+      revision: 1,
+      runtimeProfile: translationProgramRuntimeProfileV1,
+      programPackage: translationProgramPackageSourceV1.metadata.reference,
+      workspaceProgramId: translationProgramIdV1,
+      payload: {
+        kind: "follow_up",
+        requestedOutputTokens: 1_024,
+        instruction: "Summarize what was completed.",
+        context,
+      },
+    } as const;
+    const admitted = translationProgramRuntimeProfileImplementationV1.admitDispatch(dispatch);
+    if (admitted.kind === "rejected") throw new Error("Follow-up dispatch was rejected");
+    expect(admitted.invocation.completion).toEqual({ kind: "text" });
+    expect(admitted.invocation.textOutput).toMatchObject({ kind: "publish" });
+    expect(JSON.parse(admitted.invocation.userPrompt)).toEqual({
+      schema: "sillyos.translation-follow-up.v1",
+      instruction: "Summarize what was completed.",
+      processSummary: context,
+    });
+
+    const run = {
+      kind: "follow_up",
+      agentRunId: "translation.run.follow-up",
+      programPackage: translationProgramPackageSourceV1.metadata.reference,
+      processId: "process.translation.follow-up",
+      processAttemptGeneration: 2,
+      workspaceCheckpointId: "checkpoint.translation.follow-up",
+      workspaceGeneration: 1,
+      programId: translationProgramIdV1,
+      expectedWorksetRevision: context.worksetRevision,
+      requestedOutputTokens: 1_024,
+      instruction: "Summarize what was completed.",
+      context,
+    } as const;
+    const prepared = await translationProgramAgentAdapterV1.prepareRun(run);
+    if (prepared.kind === "rejected") throw new Error("Follow-up run was rejected");
+    const active = translationProgramAgentAdapterV1.projectStream({
+      prepared: prepared.prepared,
+      state: prepared.prepared.state,
+      event: {
+        kind: "output_text_delta",
+        sessionId: "session.translation.follow-up",
+        runId: "remote.translation.follow-up",
+        sequence: 1,
+        text: "All 128 units were translated ",
+      },
+    });
+    if (active.kind !== "active") throw new Error("Follow-up draft was not projected");
+    expect(active.state).toMatchObject({
+      kind: "follow_up",
+      draft: "All 128 units were translated ",
+    });
+    const continued = translationProgramAgentAdapterV1.projectStream({
+      prepared: prepared.prepared,
+      state: active.state,
+      event: {
+        kind: "output_text_delta",
+        sessionId: "session.translation.follow-up",
+        runId: "remote.translation.follow-up",
+        sequence: 2,
+        text: "and accepted.",
+      },
+    });
+    expect(continued).toMatchObject({
+      kind: "active",
+      state: { draft: "All 128 units were translated and accepted." },
+    });
+    if (continued.kind !== "active") throw new Error("Follow-up draft did not remain active");
+    expect(translationProgramAgentAdapterV1.projectStream({
+      prepared: prepared.prepared,
+      state: continued.state,
+      event: {
+        kind: "run_completed",
+        sessionId: "session.translation.follow-up",
+        runId: "remote.translation.follow-up",
+        sequence: 3,
+      },
+    })).toMatchObject({
+      kind: "terminal",
+      terminal: {
+        outcome: "completed",
+        value: {
+          outcome: "completed",
+          assistantReply: "All 128 units were translated and accepted.",
+        },
       },
     });
   });

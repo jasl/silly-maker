@@ -366,12 +366,17 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       failure = "pi_failed";
     }
     if (failure === null && outcome?.stopReason === "aborted") failure = "cancelled";
-    if (failure === null && run.candidate === null) failure = "candidate_missing";
+    if (
+      failure === null && run.programExecution.invocation.completion.kind === "candidate" &&
+      run.candidate === null
+    ) failure = "candidate_missing";
 
     if (failure !== null) {
       emitRecord(run, { kind: "run_failed", code: failure });
     } else {
-      emitRecord(run, { kind: "output_data", value: run.candidate });
+      if (run.programExecution.invocation.completion.kind === "candidate") {
+        emitRecord(run, { kind: "output_data", value: run.candidate });
+      }
       emitRecord(run, { kind: "run_completed" });
     }
     run.terminal = true;
@@ -612,11 +617,15 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         if (activeRun !== run || run.terminal || run.requestedFailure !== null) {
           throw new Error("Agent run was cancelled");
         }
+        if (invocation.completion.kind !== "candidate") {
+          run.candidateFailure = "candidate_invalid";
+          throw new TypeError("This Agent run does not accept a completion candidate");
+        }
         if (run.candidate !== null) {
           run.candidateFailure = "candidate_duplicate";
           throw new Error("Only one Agent completion candidate is allowed");
         }
-        const admitted = invocation.admitCandidate(value);
+        const admitted = invocation.completion.admitCandidate(value);
         if (admitted.kind === "rejected") {
           run.candidateFailure = admitted.failure;
           throw new TypeError(`Invalid Agent completion candidate: ${admitted.failure}`);

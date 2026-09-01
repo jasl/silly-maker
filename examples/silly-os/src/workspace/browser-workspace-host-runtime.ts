@@ -286,7 +286,10 @@ export class BrowserWorkspaceHostCleanupErrorV1 extends BrowserWorkspaceHostStor
 export interface BrowserWorkspaceHostRuntimeOptionsV1 {
   readonly bootstrap: BrowserWorkspaceHostBootstrapPortV1;
   readonly storageManagement?: BrowserWorkspaceHostStorageManagementPortV1;
-  readonly postControlMessage: (message: BrowserWorkspaceHostControlOutboundMessageV1) => void;
+  readonly postControlMessage: (
+    message: BrowserWorkspaceHostControlOutboundMessageV1,
+    transfer?: readonly Transferable[],
+  ) => void;
   /**
    * Sandbox-owned executable shell adapter. The neutral Host runtime never
    * imports an execution implementation into a control-plane graph.
@@ -362,6 +365,7 @@ interface SessionStateV1 {
   environment: EnvironmentAttachmentV1 | null;
   exportOperation: ExportOperationV1 | null;
   importOperation: boolean;
+  readOperation: boolean;
   snapshotOperation: boolean;
   publicationFence: WorkspaceImmutableSnapshotReceiptV1 | null;
   closeDrain: Promise<void> | null;
@@ -617,8 +621,11 @@ export function createBrowserWorkspaceHostRuntimeV1(
     throw new TypeError("Workspace export ready timeout must be a positive safe integer");
   }
 
-  const postControl = (message: BrowserWorkspaceHostControlOutboundMessageV1): void => {
-    if (!disposed) options.postControlMessage(message);
+  const postControl = (
+    message: BrowserWorkspaceHostControlOutboundMessageV1,
+    transfer?: readonly Transferable[],
+  ): void => {
+    if (!disposed) options.postControlMessage(message, transfer);
   };
 
   const controlFailure = (
@@ -2399,7 +2406,8 @@ export function createBrowserWorkspaceHostRuntimeV1(
       }
       if (
         session.activeRun !== null || session.exportOperation !== null ||
-        session.importOperation || session.snapshotOperation || session.publicationFence !== null
+        session.importOperation || session.readOperation || session.snapshotOperation ||
+        session.publicationFence !== null
       ) {
         environmentFailure(session, request.requestId, "run_busy");
         return;
@@ -2827,6 +2835,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         session.activeRun = null;
         session.reservedReceiptSlots = 0;
         session.importOperation = false;
+        session.readOperation = false;
         session.snapshotOperation = false;
         session.publicationFence = null;
         sessions.delete(session.workspaceSessionId);
@@ -3033,6 +3042,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
           environment: null,
           exportOperation: null,
           importOperation: false,
+          readOperation: false,
           snapshotOperation: false,
           publicationFence: null,
           closeDrain: null,
@@ -3056,6 +3066,85 @@ export function createBrowserWorkspaceHostRuntimeV1(
     if (session === undefined) {
       closeTransferredPorts(transferredPorts);
       controlFailure(requestId, "workspace_mismatch");
+      return;
+    }
+    if (record.method === "read_file") {
+      if (
+        session.phase !== "open" || !session.accepting || session.lease === null ||
+        session.activeRun !== null || session.exportOperation !== null ||
+        session.importOperation || session.readOperation || session.snapshotOperation ||
+        session.publicationFence !== null
+      ) {
+        controlFailure(requestId, "workspace_busy");
+        return;
+      }
+      if (
+        record.expectedCheckpointId !== session.head.checkpointId ||
+        record.expectedGeneration !== session.head.generation
+      ) {
+        controlFailure(requestId, "workspace_mismatch");
+        return;
+      }
+      const path = normalizedPathV1(record.path);
+      if (isFileErrorV1(path) || path.relative.length === 0) {
+        controlFailure(requestId, "invalid_request");
+        return;
+      }
+      session.readOperation = true;
+      try {
+        const metadata = await session.lease.stat(path.relative);
+        if (metadata.kind !== "file") {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            metadata.kind === "directory"
+              ? "Workspace read target is a directory"
+              : "Workspace read target is missing",
+          );
+        }
+        if (!Number.isSafeInteger(metadata.size) || metadata.size < 0) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "volume_corrupt",
+            "Workspace read target has an invalid size",
+          );
+        }
+        const bytes = new Uint8Array(metadata.size);
+        const signal = new AbortController().signal;
+        for (let offset = 0; offset < metadata.size;) {
+          const length = Math.min(
+            workspaceReadRangeChunkMaximumBytesV1,
+            metadata.size - offset,
+          );
+          const chunk = await session.lease.readFileRange({
+            path: path.relative,
+            offset,
+            length,
+            signal,
+          });
+          if (chunk.byteLength !== length) {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "volume_corrupt",
+              "Workspace read returned an incomplete file range",
+            );
+          }
+          bytes.set(chunk, offset);
+          offset += length;
+        }
+        postControl({
+          revision: 1,
+          kind: "control_response",
+          requestId,
+          ok: true,
+          response: {
+            method: "read_file",
+            bytes,
+            snapshot: snapshot(session),
+          },
+        }, [bytes.buffer]);
+      } catch (error) {
+        controlFailure(requestId, storageFailureCodeV1(error));
+      } finally {
+        session.readOperation = false;
+      }
       return;
     }
     if (record.method === "import_file") {

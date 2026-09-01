@@ -6,6 +6,7 @@ import { translationAgentInstructionMaximumCharactersV1 } from "../runtime/trans
 import {
   createTranslationAgentUserPromptV1,
   createTranslationCandidateRetranslationInstructionV1,
+  createTranslationFollowUpUserPromptV1,
 } from "../runtime/translation-agent-prompt.ts";
 import type { TranslationBatchRequestV1 } from "../runtime/translation-batch-protocol.ts";
 
@@ -79,6 +80,52 @@ describe("SillyOS Translation Agent prompt", () => {
     expect(instruction.length).toBeLessThanOrEqual(
       translationAgentInstructionMaximumCharactersV1,
     );
+  });
+
+  it("uses the current instruction, bounded workset summary, and recent Conversation", () => {
+    const prompt = createTranslationFollowUpUserPromptV1({
+      instruction: "What can I do next?",
+      context: {
+        worksetRevision: 12,
+        title: "Story subtitles",
+        sourceFileName: "story.srt",
+        documentFormat: "srt",
+        sourceLocale: "en",
+        targetLocale: "zh-CN",
+        documentPurpose: "A fictional dialogue.",
+        style: "Natural.",
+        translatedUnitCount: 2_000,
+        acceptedBatchCount: 20,
+        recentConversation: [{
+          sequence: 41,
+          role: "assistant",
+          markdown: "The translation has been accepted.",
+        }],
+      },
+    });
+
+    expect(JSON.parse(prompt)).toEqual({
+      schema: "sillyos.translation-follow-up.v1",
+      instruction: "What can I do next?",
+      processSummary: {
+        worksetRevision: 12,
+        title: "Story subtitles",
+        sourceFileName: "story.srt",
+        documentFormat: "srt",
+        sourceLocale: "en",
+        targetLocale: "zh-CN",
+        documentPurpose: "A fictional dialogue.",
+        style: "Natural.",
+        translatedUnitCount: 2_000,
+        acceptedBatchCount: 20,
+        recentConversation: [{
+          sequence: 41,
+          role: "assistant",
+          markdown: "The translation has been accepted.",
+        }],
+      },
+    });
+    expect(prompt).not.toContain("units");
   });
 
   it("bounds large review evidence without silently dropping the user direction", () => {

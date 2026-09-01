@@ -131,6 +131,8 @@ class FakeWorkerV1 {
           descriptor: { ...descriptor, generation: 2 },
         },
       }
+      : method === "read_file"
+      ? { method, bytes: new Uint8Array([4, 5, 6]), snapshot }
       : method === "prepare_snapshot"
       ? { method, receipt: this.preparedSnapshot }
       : method === "query_snapshot_candidate"
@@ -413,6 +415,37 @@ describe("SillyOS Browser Workspace Host page port", () => {
     });
     lostWorker.fail("messageerror");
     await expect(lost).rejects.toMatchObject({ code: "outcome_unknown" });
+  });
+
+  it("reads one file from an exact immutable Workspace head", async () => {
+    const worker = new FakeWorkerV1();
+    const port = createBrowserWorkspaceHostPagePortV1({ transport: worker });
+    await expect(port.readFile({
+      workspaceSessionId: "workspace-session.preview.1",
+      expectedCheckpointId: "checkpoint.preview.1",
+      expectedGeneration: 1,
+      path: "imports/source.txt",
+    })).resolves.toMatchObject({
+      bytes: new Uint8Array([4, 5, 6]),
+      snapshot: {
+        checkpointId: "checkpoint.preview.1",
+        descriptor: { generation: 1 },
+      },
+    });
+    expect(worker.methods).toContain("read_file");
+    port.dispose();
+
+    const lostWorker = new FakeWorkerV1();
+    lostWorker.dropMethods.add("read_file");
+    const lostPort = createBrowserWorkspaceHostPagePortV1({ transport: lostWorker });
+    const lost = lostPort.readFile({
+      workspaceSessionId: "workspace-session.preview.1",
+      expectedCheckpointId: "checkpoint.preview.1",
+      expectedGeneration: 1,
+      path: "imports/source.txt",
+    });
+    lostWorker.fail("messageerror");
+    await expect(lost).rejects.toMatchObject({ code: "unavailable" });
   });
 
   it("bounds lost mutation outcomes and distinguishes a lost query without deleting a candidate", async () => {

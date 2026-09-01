@@ -93,6 +93,7 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
         programPackage: translationProgramPackageV1,
         workspaceProgramId: translationProgramPackageV1.programId,
         payload: {
+          kind: "batch",
           requestedOutputTokens: 4_608,
           instruction: "Translate the admitted batch faithfully.",
           request: translationRequestV1,

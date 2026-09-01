@@ -50,7 +50,9 @@ function createPiAgentV1(input) {
       systemPrompt: input.instructions,
       model: input.model,
       thinkingLevel: input.reasoningEffort,
-      tools: [...input.workspaceTools, input.completionTool],
+      tools: input.completionTool === null
+        ? [...input.workspaceTools]
+        : [...input.workspaceTools, input.completionTool],
     },
     toolExecution: "sequential",
   });
@@ -93,18 +95,32 @@ function createPiAgentV1(input) {
  */
 export function createDeterministicPiAgentV1(input) {
   const invocation = input.invocation;
-  const completionTool = invocation.createCompletionTool({
-    onCandidate: input.onCandidate,
-  });
   const faux = fauxProvider({
     tokenSize: { min: 64, max: 64 },
     tokensPerSecond: 0,
   });
 
+  if (invocation.completion.kind === "text") {
+    faux.setResponses([fauxAssistantMessage(invocation.deterministicTest.finalReply)]);
+    return createPiAgentV1({
+      instructions: input.instructions,
+      workspaceTools: input.workspaceTools,
+      completionTool: null,
+      onTextDelta: input.onTextDelta,
+      reasoningEffort: input.reasoningEffort,
+      streamFn: faux.provider.streamSimple,
+      model: faux.getModel(),
+    });
+  }
+
+  const completionTool = invocation.completion.createTool({
+    onCandidate: input.onCandidate,
+  });
+
   if (!input.harnessToolIds.includes("write")) {
     faux.setResponses([
       fauxAssistantMessage(
-        fauxToolCall(completionTool.name, invocation.deterministicTest.completionArguments, {
+        fauxToolCall(completionTool.name, invocation.completion.deterministicArguments, {
           id: `sillyos-completion-${input.runNumber}`,
         }),
         { stopReason: "toolUse" },
@@ -152,7 +168,7 @@ export function createDeterministicPiAgentV1(input) {
     { stopReason: "toolUse" },
   );
   const proposalResponse = fauxAssistantMessage(
-    fauxToolCall(completionTool.name, invocation.deterministicTest.completionArguments, {
+    fauxToolCall(completionTool.name, invocation.completion.deterministicArguments, {
       id: `sillyos-tool-${input.runNumber}`,
     }),
     { stopReason: "toolUse" },

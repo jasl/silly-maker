@@ -813,7 +813,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     const anchor = created.response.candidate.anchor;
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
 
-    const bytes = new Uint8Array(256 * 1024 + 1);
+    const bytes = new Uint8Array(1024 * 1024 + 1);
     bytes[0] = 17;
     bytes[bytes.byteLength - 1] = 23;
     await runtime.receiveControl(controlRequestV1(3, {
@@ -863,6 +863,34 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     });
 
     await runtime.receiveControl(controlRequestV1(5, {
+      method: "read_file",
+      workspaceSessionId: "workspace-session.import.1",
+      expectedCheckpointId: "checkpoint.import.2",
+      expectedGeneration: 2,
+      path: "imports/source.bin",
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      ok: true,
+      response: {
+        method: "read_file",
+        bytes,
+        snapshot: {
+          checkpointId: "checkpoint.import.2",
+          descriptor: { generation: 2 },
+        },
+      },
+    });
+
+    await runtime.receiveControl(controlRequestV1(6, {
+      method: "read_file",
+      workspaceSessionId: "workspace-session.import.1",
+      expectedCheckpointId: "checkpoint.1",
+      expectedGeneration: 1,
+      path: "imports/source.bin",
+    }));
+    expect(lastV1(controls)).toMatchObject({ ok: false, code: "workspace_mismatch" });
+
+    await runtime.receiveControl(controlRequestV1(7, {
       method: "import_file",
       workspaceSessionId: "workspace-session.import.1",
       expectedCheckpointId: "checkpoint.1",
@@ -873,7 +901,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     expect(lastV1(controls)).toMatchObject({ ok: false, code: "workspace_mismatch" });
     expect(volume?.files.has("imports/stale.bin")).toBe(false);
 
-    await runtime.receiveControl(controlRequestV1(6, {
+    await runtime.receiveControl(controlRequestV1(8, {
       method: "import_file",
       workspaceSessionId: "workspace-session.import.1",
       expectedCheckpointId: "checkpoint.import.2",

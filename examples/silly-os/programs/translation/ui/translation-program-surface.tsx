@@ -22,6 +22,7 @@ import { createTranslationProgramAgentPortV1 } from "../runtime-profile/browser-
 import { createTranslationBatchBudgetForModelV1 } from "../runtime-profile/translation-runtime-profile.ts";
 import { translationProgramRuntimeProfileV1 } from "../runtime-profile/translation-runtime-profile-descriptor.ts";
 import type { TranslationAgentRunRequestV1 } from "../runtime/translation-agent-contracts.ts";
+import type { TranslationProcessExportArtifactV1 } from "../runtime/translation-process-export.ts";
 import type { TranslationProcessControllerV1 } from "../runtime/translation-process-controller.ts";
 import {
   TranslationProcessWorkspaceV1,
@@ -29,6 +30,24 @@ import {
 } from "./translation-process-workspace.tsx";
 
 const translationWorkspaceViewStateSessionKeyPrefixV1 = "translation.workspace-view-state.v1:";
+
+function downloadTranslationArtifactV1(artifact: TranslationProcessExportArtifactV1): void {
+  const bytes = new Uint8Array(artifact.bytes.byteLength);
+  bytes.set(artifact.bytes);
+  const url = URL.createObjectURL(new Blob([bytes], { type: artifact.mediaType }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = artifact.fileName;
+  anchor.rel = "noopener";
+  anchor.hidden = true;
+  document.body.append(anchor);
+  try {
+    anchor.click();
+  } finally {
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+}
 
 type TranslationBatchBudgetV1 = Parameters<
   TranslationProcessControllerV1["prepareAgentBatch"]
@@ -269,9 +288,7 @@ export function TranslationProgramSurfaceV1({
     const prepared = await prepare(budget);
     if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
       await port.closeWorkspace(opened.descriptor.workspaceSessionId);
-      if (prepared.kind !== "completed" || prepared.value.kind !== "complete") {
-        host.reportFailure(prepareFailureCode, prepared);
-      }
+      host.reportFailure(prepareFailureCode, prepared);
       return false;
     }
     const run = prepared.value.run;
@@ -347,7 +364,31 @@ export function TranslationProgramSurfaceV1({
           onOpenSettings={() => host.onOpenSettings("workspace")}
           sourceImport={snapshot.sourceImport}
           agentRun={run}
+          {...(agentSnapshot === null ? {} : {
+            piAgentRun: {
+              runtime: host.deterministicAgent
+                ? "deterministic_test" as const
+                : "pi_provider" as const,
+              status: agentSnapshot.phase === "running"
+                ? "running" as const
+                : agentSnapshot.phase === "failed"
+                ? "failed" as const
+                : "ready" as const,
+              draft: agentSnapshot.draft,
+              diagnosticPath: agentSnapshot.diagnostic?.path ?? null,
+              onCancel: () => void port?.cancel(agentSnapshot.activeRunId ?? undefined),
+              onForget: host.forgetAgent,
+            },
+          })}
           onLoadTranslationRowWindow={controller.loadTranslationRowWindow}
+          onExport={async () => {
+            const result = await controller.exportCompletedTranslation();
+            if (result.kind !== "completed" || result.value.kind !== "exported") {
+              host.reportFailure("silly_os.translation_export_failed", result);
+              return;
+            }
+            downloadTranslationArtifactV1(result.value.artifact);
+          }}
           onLoadOlderTranscript={async () => {
             const result = await controller.loadOlderTranscript();
             if (result.kind === "completed") return result.value;

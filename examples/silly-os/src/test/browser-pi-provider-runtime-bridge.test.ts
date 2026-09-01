@@ -163,6 +163,7 @@ function translationDispatchV1() {
     },
     workspaceProgramId: "sillyos.translation",
     payload: {
+      kind: "batch",
       requestedOutputTokens: 4_608,
       instruction: "Translate the admitted batch faithfully.",
       request: {

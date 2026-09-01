@@ -29,19 +29,25 @@ export type BrowserProgramTextOutputPolicyV1 =
     readonly maximumCharacters: number;
   };
 
+export type BrowserProgramCompletionProtocolV1 =
+  | {
+    readonly kind: "candidate";
+    readonly deterministicArguments: Readonly<Record<string, unknown>>;
+    createTool(input: {
+      readonly onCandidate: (candidate: unknown) => void | Promise<void>;
+    }): AgentTool;
+    admitCandidate(value: unknown): BrowserProgramCandidateAdmissionV1;
+  }
+  | { readonly kind: "text" };
+
 /** One profile-admitted execution plan. No generic Agent code interprets its payload. */
 export interface BrowserProgramRuntimeInvocationV1 {
   readonly requestedOutputTokens: number;
   readonly userPrompt: string;
   readonly textOutput: BrowserProgramTextOutputPolicyV1;
-  readonly deterministicTest: {
-    readonly completionArguments: Readonly<Record<string, unknown>>;
-    readonly finalReply: string;
-  };
-  createCompletionTool(input: {
-    readonly onCandidate: (candidate: unknown) => void | Promise<void>;
-  }): AgentTool;
-  admitCandidate(value: unknown): BrowserProgramCandidateAdmissionV1;
+  readonly deterministicTest: { readonly finalReply: string };
+  /** Candidate workflows publish one admitted object; conversational runs finish with text only. */
+  readonly completion: BrowserProgramCompletionProtocolV1;
 }
 
 export type BrowserProgramRuntimeInvocationAdmissionV1 =

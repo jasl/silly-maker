@@ -126,10 +126,9 @@ workerScope.addEventListener("message", (event) => {
     storageManagement: workspaceStorage,
     loadShellRuntime: loadWorkspaceSandboxShellRuntimeV1,
     startDownload: createWorkspaceSandboxDownloadBrokerV1(downloadPort),
-    postControlMessage(message) {
+    postControlMessage(message, transfer = []) {
       // MessagePort.postMessage has no targetOrigin parameter.
-      // oxlint-disable-next-line unicorn/require-post-message-target-origin
-      controlPort.postMessage(message);
+      controlPort.postMessage(message, [...transfer]);
     },
   });
 
