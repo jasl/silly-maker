@@ -5,33 +5,32 @@ import { describe, expect, it } from "vitest";
 import {
   createMemoryProgramProcessRepositoryBackingV1,
   createMemoryProgramProcessRepositoryV1,
-} from "../product/memory-program-process-repository.ts";
+} from "../program-platform/process/memory-program-process-repository.ts";
 import {
   admitProcessHeadV1,
-  bundledCreatorProgramCompatibilityReferenceV1,
-  createBundledCreatorProgramDefinitionRevisionV1,
   processSummaryUtf8ByteLengthV1,
   transcriptEntryUtf8ByteLengthV1,
   type ProcessAttemptBeginInputV1,
   type ProcessCheckpointV1,
   type ProcessHeadV1,
   type ProcessTranscriptAppendInputV1,
-  type ProgramDefinitionRevisionV1,
   type ProgramProcessRepositoryV1,
   type TranscriptEntryV1,
   type TranscriptPartV1,
-} from "../product/program-process-repository.ts";
+} from "../program-platform/process/program-process-repository.ts";
+import type {
+  InstalledProgramPackageReferenceV1,
+} from "../program-platform/package/program-package-archive.ts";
 
-function programRevisionV1(
-  revision: number,
-  purpose = `Creator definition revision ${String(revision)}.`,
-  harnessReference = bundledCreatorProgramCompatibilityReferenceV1,
-): ProgramDefinitionRevisionV1 {
+function programPackageReferenceV1(
+  packageVersion = "1.0.0",
+  digestDigit = "1",
+  programId = "sillyos.creator",
+): InstalledProgramPackageReferenceV1 {
   return {
-    ...createBundledCreatorProgramDefinitionRevisionV1(),
-    revision,
-    purpose,
-    harnessReference,
+    programId,
+    packageVersion,
+    contentDigest: digestDigit.repeat(64),
   };
 }
 
@@ -61,16 +60,13 @@ function entryV1(input: {
 async function createProcessV1(input: {
   readonly repository: ProgramProcessRepositoryV1;
   readonly processId: string;
-  readonly definitionRevision?: number;
+  readonly programPackage?: InstalledProgramPackageReferenceV1;
   readonly subjectProgramId?: string | null;
   readonly createdAt?: number;
 }) {
   const result = await input.repository.createProcess({
     processId: input.processId,
-    programDefinition: {
-      programId: "sillyos.builtin.creator",
-      revision: input.definitionRevision ?? 1,
-    },
+    programPackage: input.programPackage ?? programPackageReferenceV1(),
     subjectProgramId: input.subjectProgramId ?? null,
     createdAt: input.createdAt ?? 1,
   });
@@ -98,38 +94,166 @@ async function appendV1(
 }
 
 describe("Memory Program/Process repository conformance", () => {
-  it("pins a Process to Creator revision 1 when revision 2 is later published", async () => {
+  it("admits long syntax-valid identities without an arbitrary product length ceiling", async () => {
     const repository = createMemoryProgramProcessRepositoryV1();
-    await repository.publishProgramDefinitionRevision(programRevisionV1(1));
+    const processId = `process.${"long-segment.".repeat(64)}end`;
+    const process = await createProcessV1({ repository, processId });
+
+    expect(process.processId).toBe(processId);
+    expect((await repository.loadProcess(processId))?.processId).toBe(processId);
+  });
+
+  it("pins one exact package reference independently of a later package selection", async () => {
+    const repository = createMemoryProgramProcessRepositoryV1();
+    const firstPackage = programPackageReferenceV1("1.0.0", "1");
+    const secondPackage = programPackageReferenceV1("2.0.0", "2");
     const process = await createProcessV1({
       repository,
       processId: "process.creator.1",
       subjectProgramId: "program.subject",
+      programPackage: firstPackage,
     });
-    await repository.publishProgramDefinitionRevision(programRevisionV1(2));
+    expect(
+      await repository.createProcess({
+        processId: process.processId,
+        programPackage: secondPackage,
+        subjectProgramId: "program.subject",
+        createdAt: 1,
+      }),
+    ).toMatchObject({ kind: "conflict", current: { programPackage: firstPackage } });
+    const successorProcess = await createProcessV1({
+      repository,
+      processId: "process.creator.2",
+      programPackage: secondPackage,
+    });
 
-    expect((await repository.loadProcess(process.processId))?.programDefinition).toEqual({
-      programId: "sillyos.builtin.creator",
+    expect((await repository.loadProcess(process.processId))?.programPackage).toEqual(firstPackage);
+    expect((await repository.loadProcess(successorProcess.processId))?.programPackage).toEqual(
+      secondPackage,
+    );
+  });
+
+  it("persists only admitted Process settings and snapshots them per attempt", async () => {
+    const backing = createMemoryProgramProcessRepositoryBackingV1();
+    const repository = createMemoryProgramProcessRepositoryV1({ backing });
+    const process = await createProcessV1({ repository, processId: "process.settings" });
+    expect(await repository.loadProcessSettingsOverride(process.processId)).toMatchObject({
       revision: 1,
+      overrideJson: null,
     });
+
+    await expect(repository.setProcessSettingsOverride({
+      processId: process.processId,
+      expectedRevision: 1,
+      admittedOverrideJson: "{not JSON}",
+      updatedAt: 2,
+    })).rejects.toThrow("invalid Process settings override JSON");
+    expect(await repository.loadProcessSettingsOverride(process.processId)).toMatchObject({
+      revision: 1,
+      overrideJson: null,
+    });
+
     expect(
-      (await repository.loadProgramDefinitionRevision("sillyos.builtin.creator", 2))?.revision,
-    ).toBe(2);
+      await repository.setProcessSettingsOverride({
+        processId: process.processId,
+        expectedRevision: 1,
+        admittedOverrideJson: '{ "mode": "careful" }',
+        updatedAt: 2,
+      }),
+    ).toMatchObject({
+      kind: "committed",
+      settings: { revision: 2, overrideJson: '{"mode":"careful"}' },
+    });
+    const firstAttempt = await repository.beginProcessAttempt({
+      processId: process.processId,
+      expectedProcessRevision: 1,
+      expectedTranscriptFrontier: 0,
+      commitId: "commit.settings.first",
+      attemptId: "attempt.settings.first",
+      generation: 1,
+      trigger: {
+        kind: "new_entry",
+        entry: entryV1({ processId: process.processId, sequence: 1, role: "user" }),
+      },
+      startingCheckpoint: checkpointV1(1),
+      updatedAt: 3,
+    });
+    expect(firstAttempt).toMatchObject({
+      kind: "committed",
+      process: { activeAttempt: { settingsOverrideJson: '{"mode":"careful"}' } },
+    });
+
     expect(
-      (await repository.loadProgramDefinitionRevision("sillyos.builtin.creator", 1))
-        ?.harnessReference,
-    ).toBe(bundledCreatorProgramCompatibilityReferenceV1);
-    expect(
-      (await repository.loadProgramDefinitionRevision("sillyos.builtin.creator", 2))
-        ?.harnessReference,
-    ).toBe(bundledCreatorProgramCompatibilityReferenceV1);
+      await repository.setProcessSettingsOverride({
+        processId: process.processId,
+        expectedRevision: 2,
+        admittedOverrideJson: '{"mode":"fast"}',
+        updatedAt: 4,
+      }),
+    ).toMatchObject({ kind: "committed", settings: { revision: 3 } });
+    expect((await repository.loadProcess(process.processId))?.activeAttempt)
+      .toMatchObject({ settingsOverrideJson: '{"mode":"careful"}' });
+
+    const terminal = await repository.appendProcessTranscript({
+      processId: process.processId,
+      expectedProcessRevision: 2,
+      expectedTranscriptFrontier: 1,
+      commitId: "commit.settings.terminal",
+      attemptBinding: { attemptId: "attempt.settings.first", generation: 1 },
+      entries: [entryV1({ processId: process.processId, sequence: 2 })],
+      checkpoint: checkpointV1(2),
+      terminalAttemptReceipt: {
+        schemaVersion: 1,
+        processId: process.processId,
+        attemptId: "attempt.settings.first",
+        generation: 1,
+        outcome: "completed",
+        terminalSequence: 2,
+        terminalEntryId: `${process.processId}.entry.2`,
+        interruptionDisposition: null,
+      },
+      updatedAt: 5,
+    });
+    if (terminal.kind !== "committed") throw new Error("expected committed terminal");
+    const secondAttempt = await repository.beginProcessAttempt({
+      processId: process.processId,
+      expectedProcessRevision: terminal.process.revision,
+      expectedTranscriptFrontier: terminal.process.transcriptFrontier,
+      commitId: "commit.settings.second",
+      attemptId: "attempt.settings.second",
+      generation: 2,
+      trigger: {
+        kind: "new_entry",
+        entry: entryV1({ processId: process.processId, sequence: 3, role: "user" }),
+      },
+      startingCheckpoint: checkpointV1(3),
+      updatedAt: 6,
+    });
+    expect(secondAttempt).toMatchObject({
+      kind: "committed",
+      process: { activeAttempt: { settingsOverrideJson: '{"mode":"fast"}' } },
+    });
+
+    const reopened = createMemoryProgramProcessRepositoryV1({ backing });
+    expect(await reopened.loadProcessSettingsOverride(process.processId)).toMatchObject({
+      revision: 3,
+      overrideJson: '{"mode":"fast"}',
+    });
   });
 
   it("keeps two Processes and their transcript frontiers independent", async () => {
     const repository = createMemoryProgramProcessRepositoryV1();
-    await repository.publishProgramDefinitionRevision(programRevisionV1(1));
     const first = await createProcessV1({ repository, processId: "process.first" });
-    const second = await createProcessV1({ repository, processId: "process.second" });
+    const secondPackage = programPackageReferenceV1(
+      "1.0.0",
+      "2",
+      "sillyos.translation",
+    );
+    const second = await createProcessV1({
+      repository,
+      processId: "process.second",
+      programPackage: secondPackage,
+    });
     await appendV1(repository, {
       processId: first.processId,
       expectedProcessRevision: 1,
@@ -144,6 +268,7 @@ describe("Memory Program/Process repository conformance", () => {
 
     expect((await repository.loadProcess(first.processId))?.transcriptFrontier).toBe(1);
     expect((await repository.loadProcess(second.processId))?.transcriptFrontier).toBe(0);
+    expect((await repository.loadProcess(second.processId))?.programPackage).toEqual(secondPackage);
     expect(
       (await repository.loadTranscriptPage({
         processId: second.processId,
@@ -156,7 +281,6 @@ describe("Memory Program/Process repository conformance", () => {
   it("lists compact Process summaries by subject in stable reverse tuple order", async () => {
     const backing = createMemoryProgramProcessRepositoryBackingV1();
     const repository = createMemoryProgramProcessRepositoryV1({ backing });
-    await repository.publishProgramDefinitionRevision(programRevisionV1(1));
     const subjectProgramId = "program.subject";
     const alpha = await createProcessV1({
       repository,
@@ -270,9 +394,66 @@ describe("Memory Program/Process repository conformance", () => {
     });
   });
 
+  it("lists recent Processes globally without requiring a Program package or subject", async () => {
+    const repository = createMemoryProgramProcessRepositoryV1();
+    await createProcessV1({
+      repository,
+      processId: "process.creator.older",
+      subjectProgramId: "program.subject",
+      createdAt: 2,
+    });
+    await createProcessV1({
+      repository,
+      processId: "process.translation.newer",
+      programPackage: {
+        programId: "sillyos.translation",
+        packageVersion: "1.0.0",
+        contentDigest: "2".repeat(64),
+      },
+      subjectProgramId: null,
+      createdAt: 4,
+    });
+    await createProcessV1({
+      repository,
+      processId: "process.community.newest",
+      programPackage: {
+        programId: "community.removed",
+        packageVersion: "3.0.0",
+        contentDigest: "3".repeat(64),
+      },
+      subjectProgramId: "program.unavailable",
+      createdAt: 6,
+    });
+
+    const all = await repository.listRecentProcessSummaries({
+      before: null,
+      maximumBytes: 4 * 1_024 * 1_024,
+    });
+    expect(all.summaries.map((summary) => summary.processId)).toEqual([
+      "process.community.newest",
+      "process.translation.newer",
+      "process.creator.older",
+    ]);
+    const firstBudget = processSummaryUtf8ByteLengthV1(all.summaries[0]!);
+    const first = await repository.listRecentProcessSummaries({
+      before: null,
+      maximumBytes: firstBudget,
+    });
+    expect(first.summaries.map((summary) => summary.processId)).toEqual([
+      "process.community.newest",
+    ]);
+    const rest = await repository.listRecentProcessSummaries({
+      before: first.nextCursor,
+      maximumBytes: 4 * 1_024 * 1_024,
+    });
+    expect(rest.summaries.map((summary) => summary.processId)).toEqual([
+      "process.translation.newer",
+      "process.creator.older",
+    ]);
+  });
+
   it("traverses more than one byte-budgeted page without truncation or unstable IDs", async () => {
     const repository = createMemoryProgramProcessRepositoryV1();
-    await repository.publishProgramDefinitionRevision(programRevisionV1(1));
     const process = await createProcessV1({ repository, processId: "process.long" });
     const entries = Array.from(
       { length: 120 },
@@ -318,7 +499,6 @@ describe("Memory Program/Process repository conformance", () => {
 
   it("keeps an old transcript cursor stable when a newer entry is appended", async () => {
     const repository = createMemoryProgramProcessRepositoryV1();
-    await repository.publishProgramDefinitionRevision(programRevisionV1(1));
     const process = await createProcessV1({ repository, processId: "process.cursor" });
     const original = Array.from(
       { length: 4 },
@@ -370,7 +550,6 @@ describe("Memory Program/Process repository conformance", () => {
   it("reports a too-small page budget and a missing transcript row without deleting history", async () => {
     const backing = createMemoryProgramProcessRepositoryBackingV1();
     const repository = createMemoryProgramProcessRepositoryV1({ backing });
-    await repository.publishProgramDefinitionRevision(programRevisionV1(1));
     const process = await createProcessV1({ repository, processId: "process.page.failure" });
     const entry = entryV1({ processId: process.processId, sequence: 1 });
     await appendV1(repository, {
@@ -406,7 +585,6 @@ describe("Memory Program/Process repository conformance", () => {
 
   it("leaves the predecessor unchanged on stale CAS and reused entry identity", async () => {
     const repository = createMemoryProgramProcessRepositoryV1();
-    await repository.publishProgramDefinitionRevision(programRevisionV1(1));
     const process = await createProcessV1({ repository, processId: "process.conflict" });
     const first = await appendV1(repository, {
       processId: process.processId,
@@ -445,7 +623,6 @@ describe("Memory Program/Process repository conformance", () => {
   it("reconciles an exact duplicate commit and rejects a mismatched commitId reuse", async () => {
     const backing = createMemoryProgramProcessRepositoryBackingV1();
     const repository = createMemoryProgramProcessRepositoryV1({ backing });
-    await repository.publishProgramDefinitionRevision(programRevisionV1(1));
     const process = await createProcessV1({ repository, processId: "process.idempotent" });
     const mutation = {
       processId: process.processId,
@@ -499,7 +676,6 @@ describe("Memory Program/Process repository conformance", () => {
 
   it("rejects a duplicate entry identity without publishing its new sequence", async () => {
     const repository = createMemoryProgramProcessRepositoryV1();
-    await repository.publishProgramDefinitionRevision(programRevisionV1(1));
     const process = await createProcessV1({ repository, processId: "process.entry.identity" });
     const firstEntry = entryV1({ processId: process.processId, sequence: 1 });
     const first = await appendV1(repository, {
@@ -532,7 +708,6 @@ describe("Memory Program/Process repository conformance", () => {
   it("atomically admits a user attempt and settles its terminal receipt", async () => {
     const backing = createMemoryProgramProcessRepositoryBackingV1();
     const repository = createMemoryProgramProcessRepositoryV1({ backing });
-    await repository.publishProgramDefinitionRevision(programRevisionV1(1));
     const process = await createProcessV1({ repository, processId: "process.attempt" });
     const trigger = entryV1({
       processId: process.processId,
@@ -663,7 +838,6 @@ describe("Memory Program/Process repository conformance", () => {
 
   it("requires exact attempt ownership and advances nonterminal checkpoints monotonically", async () => {
     const repository = createMemoryProgramProcessRepositoryV1();
-    await repository.publishProgramDefinitionRevision(programRevisionV1(1));
     const process = await createProcessV1({ repository, processId: "process.ownership" });
     const initialCheckpoint = {
       ...checkpointV1(1),
@@ -765,7 +939,6 @@ describe("Memory Program/Process repository conformance", () => {
 
   it("retries from an existing user entry without growing transcript and fences unrecoverable Process", async () => {
     const repository = createMemoryProgramProcessRepositoryV1();
-    await repository.publishProgramDefinitionRevision(programRevisionV1(1));
     const process = await createProcessV1({ repository, processId: "process.retry" });
     const trigger = entryV1({ processId: process.processId, sequence: 1, role: "user" });
     await repository.beginProcessAttempt({
@@ -941,7 +1114,7 @@ describe("Memory Program/Process repository conformance", () => {
       schemaVersion: 1,
       processId: "process.admission",
       revision: 4,
-      programDefinition: { programId: "sillyos.builtin.creator", revision: 1 },
+      programPackage: programPackageReferenceV1(),
       subjectProgramId: null,
       status: "active",
       transcriptFrontier: 2,
@@ -951,6 +1124,7 @@ describe("Memory Program/Process repository conformance", () => {
         triggerEntryId: terminal.triggerEntryId,
         triggerSequence: terminal.triggerSequence,
         startingCheckpoint: retryCheckpoint,
+        settingsOverrideJson: null,
       },
       lastTerminalAttempt: terminal,
       checkpoint: retryCheckpoint,
@@ -1032,7 +1206,6 @@ describe("Memory Program/Process repository conformance", () => {
 
   it("does not publish trigger entry or active attempt when begin CAS conflicts", async () => {
     const repository = createMemoryProgramProcessRepositoryV1();
-    await repository.publishProgramDefinitionRevision(programRevisionV1(1));
     const process = await createProcessV1({ repository, processId: "process.begin.conflict" });
     const result = await repository.beginProcessAttempt({
       processId: process.processId,

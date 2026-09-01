@@ -74,4 +74,12 @@ describe("xorshift32-v1", () => {
       captureFailureV1(() => createTransactionalRngV1(0 as NonZeroUint32)),
     ).toMatchObject({ code: "rng.invalid_state" });
   });
+
+  it("does not impose a semantic length ceiling on an admitted RNG purpose", () => {
+    const rng = createTransactionalRngV1(parseNonZeroUint32(0x0002_3049));
+    const purpose = `check:${"long-purpose.".repeat(20)}done`;
+
+    expect(rng.nextInt({ exclusiveMax: 3, purpose })).toBeGreaterThanOrEqual(0);
+    expect(rng.attemptedDraws()[0]?.purpose).toBe(purpose);
+  });
 });

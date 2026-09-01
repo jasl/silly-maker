@@ -6,7 +6,6 @@ import {
   admitCredentialVaultBindingV2,
   admitCredentialVaultListV2,
   createCredentialVaultListV2,
-  credentialVaultMaximumBindingsV2,
   type CredentialVaultBindingV2,
 } from "../credential/credential-vault-contracts.ts";
 import {
@@ -43,7 +42,7 @@ describe("Credential Vault contracts V2", () => {
     ) expect(admitCredentialVaultBindingV2(candidate).kind).toBe("rejected");
   });
 
-  it("keeps bounded sorted multi-binding metadata without a credential field", () => {
+  it("keeps sorted multi-binding metadata without a credential field or total-count limit", () => {
     const snapshot = createCredentialVaultListV2("password", "locked", [
       { ...bindingV2, bindingId: "custom.z" },
       { ...bindingV2, bindingId: "builtin.a" },
@@ -53,17 +52,16 @@ describe("Credential Vault contracts V2", () => {
       "custom.z",
     ]);
     expect(JSON.stringify(snapshot)).not.toContain("apiKey");
-    expect(
-      admitCredentialVaultListV2({
-        revision: 2,
-        protection: "password",
-        state: "locked",
-        bindings: Array.from({ length: credentialVaultMaximumBindingsV2 + 1 }, (_, index) => ({
-          ...bindingV2,
-          bindingId: `binding.${String(index).padStart(3, "0")}`,
-        })),
-      }).kind,
-    ).toBe("rejected");
+    const longList = Array.from({ length: 257 }, (_, index) => ({
+      ...bindingV2,
+      bindingId: `binding.${String(index).padStart(3, "0")}`,
+    }));
+    expect(admitCredentialVaultListV2({
+      revision: 2,
+      protection: "password",
+      state: "locked",
+      bindings: longList,
+    })).toMatchObject({ kind: "admitted", value: { bindings: longList } });
   });
 });
 

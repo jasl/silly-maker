@@ -228,19 +228,19 @@ export function ComposerModelPickerV1({
   const reasoningLabelV1 = (effort: BrowserPiReasoningEffortV1): string => {
     switch (effort) {
       case "off":
-        return copy.creatorReasoningEffortOff;
+        return copy.programAgentReasoningEffortOff;
       case "minimal":
-        return copy.creatorReasoningEffortMinimal;
+        return copy.programAgentReasoningEffortMinimal;
       case "low":
-        return copy.creatorReasoningEffortLow;
+        return copy.programAgentReasoningEffortLow;
       case "medium":
-        return copy.creatorReasoningEffortMedium;
+        return copy.programAgentReasoningEffortMedium;
       case "high":
-        return copy.creatorReasoningEffortHigh;
+        return copy.programAgentReasoningEffortHigh;
       case "xhigh":
-        return copy.creatorReasoningEffortXHigh;
+        return copy.programAgentReasoningEffortXHigh;
       case "max":
-        return copy.creatorReasoningEffortMax;
+        return copy.programAgentReasoningEffortMax;
     }
     const exhaustive: never = effort;
     return exhaustive;
@@ -249,8 +249,8 @@ export function ComposerModelPickerV1({
   return (
     <div
       ref={rootRef}
-      className="creator-composer__model-picker"
-      data-creator-model-selector="true"
+      className="program-agent-composer__model-picker"
+      data-program-agent-model-selector="true"
       data-model-picker-surface={surface}
       data-model-state={status}
       data-reasoning-state={reasoningEffort.status}
@@ -265,13 +265,13 @@ export function ComposerModelPickerV1({
         });
       }}
     >
-      <div className="creator-composer__model-control">
+      <div className="program-agent-composer__model-control">
         <button
           ref={triggerRef}
           type="button"
           role="combobox"
-          className="creator-composer__model-selector"
-          aria-label={copy.creatorModelSelection}
+          className="program-agent-composer__model-selector"
+          aria-label={copy.programAgentModelSelection}
           aria-expanded={open}
           aria-controls={listboxId}
           aria-activedescendant={open && options.length > 0
@@ -281,9 +281,9 @@ export function ComposerModelPickerV1({
           data-selected-value={selectedValue ?? ""}
           disabled={interactionDisabled}
           title={status === "initializing"
-            ? copy.creatorModelSwitching
+            ? copy.programAgentModelSwitching
             : selectedOption === undefined
-            ? copy.creatorSelectModel
+            ? copy.programAgentSelectModel
             : `${selectedOption.modelName} · ${selectedOption.providerName}`}
           onClick={() => {
             if (open) setOpen(false);
@@ -291,26 +291,26 @@ export function ComposerModelPickerV1({
           }}
           onKeyDown={onKeyDownV1}
         >
-          <span className="creator-composer__model-mark" aria-hidden="true">
+          <span className="program-agent-composer__model-mark" aria-hidden="true">
             <Sparkles size={13} />
           </span>
-          <span className="creator-composer__model-copy">
-            <strong>{selectedOption?.modelName ?? copy.creatorSelectModel}</strong>
+          <span className="program-agent-composer__model-copy">
+            <strong>{selectedOption?.modelName ?? copy.programAgentSelectModel}</strong>
             {status === "initializing"
-              ? <small>{copy.creatorModelSwitching}</small>
+              ? <small>{copy.programAgentModelSwitching}</small>
               : selectedOption !== undefined && <small>{selectedOption.providerName}</small>}
           </span>
           {status === "initializing"
             ? (
               <LoaderCircle
-                className="creator-composer__model-chevron is-spinning"
+                className="program-agent-composer__model-chevron is-spinning"
                 size={14}
                 aria-hidden="true"
               />
             )
             : (
               <ChevronDown
-                className="creator-composer__model-chevron"
+                className="program-agent-composer__model-chevron"
                 size={14}
                 aria-hidden="true"
               />
@@ -318,13 +318,13 @@ export function ComposerModelPickerV1({
         </button>
       </div>
 
-      <div className="creator-composer__reasoning-control">
+      <div className="program-agent-composer__reasoning-control">
         <button
           ref={reasoningTriggerRef}
           type="button"
           role="combobox"
-          className="creator-composer__reasoning-selector"
-          aria-label={copy.creatorReasoningEffortSelection}
+          className="program-agent-composer__reasoning-selector"
+          aria-label={copy.programAgentReasoningEffortSelection}
           aria-expanded={reasoningOpen}
           aria-controls={reasoningListboxId}
           aria-activedescendant={reasoningOpen && reasoningEffort.options.length > 0
@@ -334,8 +334,10 @@ export function ComposerModelPickerV1({
           data-selected-value={reasoningEffort.selectedValue}
           disabled={reasoningInteractionDisabled}
           title={reasoningEffort.status === "initializing"
-            ? copy.creatorReasoningEffortSwitching
-            : `${copy.creatorReasoningEffort}: ${reasoningLabelV1(reasoningEffort.selectedValue)}`}
+            ? copy.programAgentReasoningEffortSwitching
+            : `${copy.programAgentReasoningEffort}: ${
+              reasoningLabelV1(reasoningEffort.selectedValue)
+            }`}
           onClick={() => {
             if (reasoningOpen) setReasoningOpen(false);
             else openReasoningPickerV1();
@@ -351,8 +353,8 @@ export function ComposerModelPickerV1({
       </div>
 
       {open && (
-        <div className="creator-composer__model-popover">
-          <div id={listboxId} role="listbox" aria-label={copy.creatorModelSelection}>
+        <div className="program-agent-composer__model-popover">
+          <div id={listboxId} role="listbox" aria-label={copy.programAgentModelSelection}>
             {options.map((option, index) => {
               const selected = option.value === selectedValue;
               return (
@@ -362,7 +364,7 @@ export function ComposerModelPickerV1({
                   type="button"
                   role="option"
                   tabIndex={-1}
-                  className="creator-composer__model-option"
+                  className="program-agent-composer__model-option"
                   aria-selected={selected}
                   data-active={index === activeIndex ? "true" : undefined}
                   onMouseDown={(event) => event.preventDefault()}
@@ -373,15 +375,15 @@ export function ComposerModelPickerV1({
                     triggerRef.current?.focus();
                   }}
                 >
-                  <span className="creator-composer__model-provider-mark" aria-hidden="true">
+                  <span className="program-agent-composer__model-provider-mark" aria-hidden="true">
                     {option.providerName.slice(0, 2).toLocaleUpperCase()}
                   </span>
-                  <span className="creator-composer__model-option-copy">
+                  <span className="program-agent-composer__model-option-copy">
                     <strong>{option.modelName}</strong>
                     <small>{option.providerName}</small>
                   </span>
                   <Check
-                    className="creator-composer__model-check"
+                    className="program-agent-composer__model-check"
                     size={14}
                     aria-hidden="true"
                   />
@@ -390,13 +392,15 @@ export function ComposerModelPickerV1({
             })}
           </div>
           {options.length === 0 && (
-            <p className="creator-composer__model-empty">{copy.creatorNoConnectedModels}</p>
+            <p className="program-agent-composer__model-empty">
+              {copy.programAgentNoConnectedModels}
+            </p>
           )}
-          <div className="creator-composer__model-divider" aria-hidden="true" />
+          <div className="program-agent-composer__model-divider" aria-hidden="true" />
           <button
             ref={settingsButtonRef}
             type="button"
-            className="creator-composer__model-settings"
+            className="program-agent-composer__model-settings"
             data-model-settings-action="true"
             onClick={openSettingsV1}
             onKeyDown={(event) => {
@@ -411,18 +415,18 @@ export function ComposerModelPickerV1({
             }}
           >
             <Settings size={14} aria-hidden="true" />
-            <span>{copy.creatorModelSettings}</span>
+            <span>{copy.programAgentModelSettings}</span>
             <ArrowRight size={14} aria-hidden="true" />
           </button>
         </div>
       )}
 
       {reasoningOpen && (
-        <div className="creator-composer__reasoning-popover">
+        <div className="program-agent-composer__reasoning-popover">
           <div
             id={reasoningListboxId}
             role="listbox"
-            aria-label={copy.creatorReasoningEffortSelection}
+            aria-label={copy.programAgentReasoningEffortSelection}
           >
             {reasoningEffort.options.map((effort, index) => {
               const selected = effort === reasoningEffort.selectedValue;
@@ -433,7 +437,7 @@ export function ComposerModelPickerV1({
                   type="button"
                   role="option"
                   tabIndex={-1}
-                  className="creator-composer__reasoning-option"
+                  className="program-agent-composer__reasoning-option"
                   aria-selected={selected}
                   data-active={index === activeReasoningIndex ? "true" : undefined}
                   onMouseDown={(event) => event.preventDefault()}

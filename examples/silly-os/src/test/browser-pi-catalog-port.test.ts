@@ -18,6 +18,7 @@ class CatalogRuntimeWorkerV1 implements BrowserPiWorkerLikeV1 {
   private readonly runtime = createBrowserPiWorkerRuntimeV1({
     expectedEndpointOrigin: null,
     providerFetch: fetch,
+    loadProgramExecution: () => Promise.resolve(null),
     postMessage: (message) => {
       for (const listener of [...this.messages]) {
         listener({ data: structuredClone(message) });

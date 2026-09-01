@@ -8,7 +8,7 @@ import {
   runBrowserDataResetOperationV1,
   subscribeBrowserDataResetRemoteV1,
   type BrowserDataResetStorageEventTargetV1,
-} from "../product/browser-data-reset-coordinator.ts";
+} from "../application/data-reset/browser-data-reset-coordinator.ts";
 
 class MemoryStorageV1 implements Storage {
   readonly values = new Map<string, string>();
@@ -288,7 +288,7 @@ describe("Browser data reset coordinator V1", () => {
       awaitSettledOperations: async () => {
         order.push("settled");
       },
-      resetProductWorkspace: async () => {
+      resetProgramWorkspaceData: async () => {
         order.push("product");
         order.push("workspace");
         return "product-workspace-cleared";
@@ -300,12 +300,16 @@ describe("Browser data reset coordinator V1", () => {
       resetProviderSettings: async () => {
         order.push("provider-settings");
       },
+      resetProgramPackages: async () => {
+        order.push("program-packages");
+      },
     });
 
     expect(order[0]).toBe("publish");
     expect(order.indexOf("publish")).toBeLessThan(order.indexOf("product"));
     expect(order.indexOf("publish")).toBeLessThan(order.indexOf("workspace"));
     expect(order.indexOf("publish")).toBeLessThan(order.indexOf("vault"));
+    expect(order.indexOf("publish")).toBeLessThan(order.indexOf("program-packages"));
     expect(order.slice(0, 3)).toEqual(["publish", "revoke", "settled"]);
     expect(results.every((result) => result.status === "fulfilled")).toBe(true);
   });

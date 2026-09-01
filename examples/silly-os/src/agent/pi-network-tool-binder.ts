@@ -65,7 +65,7 @@ const piDownloadSchemaV1 = Type.Object(
 
 /**
  * Product-fixed Pi AgentTool for one bounded Browser network capability.
- * Pi owns tool dispatch; the supplied handler enforces the current Program's
+ * Pi owns tool dispatch; the supplied handler enforces the current Process's
  * network setting and owns the independent Broker request.
  */
 export function createPiFetchUrlToolV1(input: {
@@ -79,7 +79,7 @@ export function createPiFetchUrlToolV1(input: {
     name: piFetchUrlToolNameV1,
     label: "Fetch URL",
     description:
-      "Fetch one HTTPS URL as bounded text when network access is enabled for the current Program. Browser CORS and the target server still decide whether the response is readable.",
+      "Fetch one HTTPS URL as bounded text when network access is enabled for the current Process. Browser CORS and the target server still decide whether the response is readable.",
     parameters: piFetchUrlSchemaV1,
     executionMode: "sequential",
     async execute(toolCallId, params, signal) {
@@ -97,7 +97,7 @@ export function createPiFetchUrlToolV1(input: {
 
 /**
  * Product-fixed Pi AgentTool for one bounded remote-to-Workspace transfer.
- * The handler enforces the current Program's network setting, binds current
+ * The handler enforces the current Process's network setting, binds current
  * run/Workspace authority, and moves the response over a private streamed
  * channel; Pi receives only the final bounded receipt.
  */
@@ -112,7 +112,7 @@ export function createPiDownloadToolV1(input: {
     name: piDownloadToolNameV1,
     label: "Download",
     description:
-      "Download one HTTPS response into the current Program workspace when network access is enabled. The complete response body is not returned to the model.",
+      "Download one HTTPS response into the current Program workspace when network access is enabled for the current Process. The complete response body is not returned to the model.",
     parameters: piDownloadSchemaV1,
     executionMode: "sequential",
     async execute(toolCallId, params, signal) {

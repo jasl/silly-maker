@@ -39,6 +39,42 @@ describe("UiArtifact admission", () => {
     expect(document).toEqual(candidateInternalV1());
   });
 
+  it("admits syntactically valid node and action IDs longer than the former arbitrary limit", () => {
+    const nodeId = `node.${"segment".repeat(24)}`;
+    const actionId = `action.${"segment".repeat(24)}`;
+    const result = admitUiArtifactCandidateInternalV1({
+      schemaRevision: 1,
+      root: {
+        kind: "action",
+        nodeId,
+        label: "Continue",
+        actionId,
+      },
+    }, [actionId]);
+    expect(result).toMatchObject({
+      kind: "admitted",
+      document: { root: { nodeId, actionId } },
+    });
+    if (result.kind !== "admitted") throw new TypeError("expected admitted artifact");
+
+    const revision = createUiArtifactRevisionInternalV1({
+      hostIdentity: 7,
+      revision: 3,
+      sessionId: `session.${"segment".repeat(24)}`,
+      runId: `run.${"segment".repeat(24)}`,
+      completedSequence: 2,
+      document: result.document,
+    });
+    expect(admitUiIntentInternalV1({
+      schemaRevision: uiIntentSchemaRevisionInternalV1,
+      kind: "ui.action.invoke",
+      hostIdentity: 7,
+      artifactRevision: 3,
+      nodeId,
+      actionId,
+    }, revision)).toMatchObject({ kind: "admitted", intent: { nodeId, actionId } });
+  });
+
   it("atomically rejects accessors, limits, unknown nodes, actions, and duplicate IDs", () => {
     let getterCalls = 0;
     const accessor = { schemaRevision: 1 } as Record<string, unknown>;

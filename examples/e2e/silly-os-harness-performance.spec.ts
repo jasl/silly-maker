@@ -518,7 +518,7 @@ test(
   "@harness-performance raw independent-Sandbox shell and control-loop characterization",
   async ({ durableProgramPage: page }, testInfo) => {
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
-    await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+    await expect(page.locator('[data-silly-os-view="program-library"]')).toBeVisible();
 
     const observedRequests: Request[] = [];
     const observeRequest = (request: Request): void => {

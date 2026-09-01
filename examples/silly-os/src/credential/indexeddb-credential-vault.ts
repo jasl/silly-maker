@@ -7,7 +7,6 @@ import {
   credentialVaultBindingStorageKeyV2,
   credentialVaultBindingsEqualV2,
   credentialVaultKdfIterationsV2,
-  credentialVaultMaximumBindingsV2,
   credentialVaultRevisionV2,
   normalizeCredentialVaultBindingV2,
   type CredentialVaultBindingV2,
@@ -36,7 +35,6 @@ export type CredentialVaultRepositoryFailureCodeV2 =
   | "already_created"
   | "binding_conflict"
   | "binding_missing"
-  | "capacity_exceeded"
   | "database_newer"
   | "quota_exceeded"
   | "request_failed"
@@ -580,9 +578,6 @@ export function createIndexedDbCredentialVaultV2(
       const operation = "replace_protection" as const;
       const expectedToken = exactGenerationTokenV2(expectedGenerationToken, operation);
       const storedHeader = exactStoredHeaderV2(header, operation);
-      if (records.length > credentialVaultMaximumBindingsV2) {
-        throw new CredentialVaultRepositoryErrorV2("capacity_exceeded", operation);
-      }
       const storedRecords = records.map((record) => exactStoredCredentialV2(record, operation));
       const storageKeys = new Set(storedRecords.map((record) => record.storageKey));
       if (storageKeys.size !== storedRecords.length) {
@@ -672,9 +667,6 @@ export function createIndexedDbCredentialVaultV2(
           throw new CredentialVaultRepositoryErrorV2("schema_invalid", operation);
         }
         if (header !== undefined) exactStoredHeaderV2(header, operation);
-        if (rows.length > credentialVaultMaximumBindingsV2) {
-          throw new CredentialVaultRepositoryErrorV2("schema_invalid", operation);
-        }
         const bindings = rows.map((row) => {
           const stored = exactStoredCredentialV2(row, operation);
           return normalizeCredentialVaultBindingV2({
@@ -740,14 +732,13 @@ export function createIndexedDbCredentialVaultV2(
         const database = await databaseForV2(operation);
         const transaction = database.transaction(credentialVaultObjectStoreNamesV2, "readwrite");
         const store = transaction.objectStore(credentialVaultCredentialObjectStoreNameV2);
-        const [header, existingValue, count] = await Promise.all([
+        const [header, existingValue] = await Promise.all([
           requestResultV2(
             transaction.objectStore(credentialVaultHeaderObjectStoreNameV2).get(
               credentialVaultHeaderIdV2,
             ),
           ),
           requestResultV2(store.get(stored.storageKey)),
-          requestResultV2(store.count()),
         ]);
         if (header === undefined) {
           transaction.abort();
@@ -763,10 +754,6 @@ export function createIndexedDbCredentialVaultV2(
         if (existing !== null && !credentialVaultBindingsEqualV2(existing, stored)) {
           transaction.abort();
           throw new CredentialVaultRepositoryErrorV2("binding_conflict", operation);
-        }
-        if (existing === null && count >= credentialVaultMaximumBindingsV2) {
-          transaction.abort();
-          throw new CredentialVaultRepositoryErrorV2("capacity_exceeded", operation);
         }
         store.put(stored);
         await transactionCompletionV2(transaction);

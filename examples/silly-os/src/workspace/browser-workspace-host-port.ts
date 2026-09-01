@@ -17,7 +17,7 @@ import {
   type BrowserWorkspaceHostLockPortV1,
   createBrowserWorkspaceHostWebLockPortV1,
 } from "./browser-workspace-host-opfs.ts";
-import type { ProgramWorkspaceSnapshotReceiptV1 } from "./contracts.ts";
+import type { WorkspaceImmutableSnapshotReceiptV1 } from "./contracts.ts";
 
 export interface BrowserWorkspaceHostControlTransportV1 {
   postMessage(message: unknown, transfer?: Transferable[]): void;
@@ -133,8 +133,8 @@ export interface BrowserWorkspaceHostPagePortV1 {
     readonly workspaceSessionId: string;
     readonly expectedCheckpointId: string;
     readonly expectedGeneration: number;
-    readonly programRevision: number;
-    readonly repositoryRevision: number;
+    readonly sourceRevision: number;
+    readonly baseRevision: number;
     readonly fileName: string;
     readonly signal: AbortSignal;
     readonly onProgress?: (progress: BrowserWorkspaceHostExportProgressWireV1) => void;
@@ -146,31 +146,31 @@ export interface BrowserWorkspaceHostPagePortV1 {
   prepareSnapshot(input: {
     readonly workspaceSessionId: string;
     readonly snapshotId: string;
-    readonly proposalId: string;
+    readonly publicationId: string;
     readonly expectedCheckpointId: string;
     readonly expectedGeneration: number;
-    readonly programRevision: number;
-    readonly baseRepositoryRevision: number;
-  }): Promise<ProgramWorkspaceSnapshotReceiptV1>;
+    readonly sourceRevision: number;
+    readonly baseRevision: number;
+  }): Promise<WorkspaceImmutableSnapshotReceiptV1>;
   querySnapshotCandidate(
     workspaceSessionId: string,
-  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null>;
+  ): Promise<WorkspaceImmutableSnapshotReceiptV1 | null>;
   queryRetainedSnapshot(input: {
     readonly workspaceSessionId: string;
-    readonly expected: ProgramWorkspaceSnapshotReceiptV1;
-  }): Promise<ProgramWorkspaceSnapshotReceiptV1 | null>;
-  captureReviewHead(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1>;
+    readonly expected: WorkspaceImmutableSnapshotReceiptV1;
+  }): Promise<WorkspaceImmutableSnapshotReceiptV1 | null>;
+  captureStableHead(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1>;
   resumeSnapshotPublication(input: {
     readonly workspaceSessionId: string;
-    readonly expected: ProgramWorkspaceSnapshotReceiptV1;
-  }): Promise<ProgramWorkspaceSnapshotReceiptV1>;
+    readonly expected: WorkspaceImmutableSnapshotReceiptV1;
+  }): Promise<WorkspaceImmutableSnapshotReceiptV1>;
   adoptSnapshot(input: {
     readonly workspaceSessionId: string;
-    readonly expected: ProgramWorkspaceSnapshotReceiptV1;
+    readonly expected: WorkspaceImmutableSnapshotReceiptV1;
   }): Promise<"adopted" | "already_retained">;
   discardSnapshot(input: {
     readonly workspaceSessionId: string;
-    readonly expected: ProgramWorkspaceSnapshotReceiptV1;
+    readonly expected: WorkspaceImmutableSnapshotReceiptV1;
   }): Promise<"discarded" | "absent" | "retained">;
   subscribeFatal(listener: (fatal: BrowserWorkspaceHostFatalV1) => void): () => void;
   dispose(): void;
@@ -211,7 +211,7 @@ export function createBrowserWorkspaceHostPagePortV1(
   ): boolean =>
     method !== "inspect_storage" && method !== "query_workspace" &&
     method !== "query_snapshot_candidate" &&
-    method !== "query_retained_snapshot" && method !== "capture_review_head";
+    method !== "query_retained_snapshot" && method !== "capture_stable_head";
 
   const lostResponseError = (request: PendingControlRequestV1): Error => {
     const outcomeUnknown = mutationOutcomeCanBeUnknown(request.method);
@@ -475,7 +475,7 @@ export function createBrowserWorkspaceHostPagePortV1(
 
     async exportWorkspace(input) {
       const exportId = createExportId();
-      if (!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u.test(exportId)) {
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u.test(exportId)) {
         throw new BrowserWorkspaceHostControlErrorV1(
           "invalid_response",
           "Workspace export identity factory returned an invalid identity",
@@ -751,8 +751,8 @@ export function createBrowserWorkspaceHostPagePortV1(
           workspaceSessionId: input.workspaceSessionId,
           expectedCheckpointId: input.expectedCheckpointId,
           expectedGeneration: input.expectedGeneration,
-          programRevision: input.programRevision,
-          repositoryRevision: input.repositoryRevision,
+          sourceRevision: input.sourceRevision,
+          baseRevision: input.baseRevision,
           fileName: input.fileName,
         }, [channel.port1]);
         if (
@@ -819,8 +819,8 @@ export function createBrowserWorkspaceHostPagePortV1(
       return response.receipt;
     },
 
-    captureReviewHead(workspaceSessionId) {
-      return snapshotResponse({ method: "capture_review_head", workspaceSessionId });
+    captureStableHead(workspaceSessionId) {
+      return snapshotResponse({ method: "capture_stable_head", workspaceSessionId });
     },
 
     async resumeSnapshotPublication(input) {

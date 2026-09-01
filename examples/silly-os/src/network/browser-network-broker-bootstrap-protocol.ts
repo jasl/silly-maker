@@ -2,7 +2,7 @@
 
 export const browserNetworkBrokerBootstrapRevisionV1 = 1 as const;
 
-const bootstrapIdentityPatternV1 = /^[A-Za-z0-9][A-Za-z0-9._:+-]{0,127}$/u;
+const bootstrapIdentityPatternV1 = /^[A-Za-z0-9][A-Za-z0-9._:+-]*$/u;
 
 export interface BrowserNetworkBrokerFrameReadyV1 {
   readonly revision: 1;

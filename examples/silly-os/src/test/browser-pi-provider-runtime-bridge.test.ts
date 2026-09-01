@@ -108,16 +108,18 @@ import {
   projectBrowserPiProviderCatalogV1,
   resolveBrowserPiReasoningEffortV1,
 } from "../agent/browser-pi-provider-runtime-bridge.js";
-import { creatorProgramHarnessReferenceV1 } from "../agent/browser-pi-agent-dispatch.ts";
-import { creatorBundledProgramPackageV1 } from "../agent/bundled-program-packages/creator-current.ts";
+import type { BrowserPiAgentDispatchV1 } from "../agent/browser-pi-agent-dispatch.ts";
+import type { BrowserProgramRuntimeProfileV1 } from "../agent/browser-program-runtime-profile.ts";
+import {
+  creatorProgramRuntimeProfileImplementationV1,
+  creatorProgramRuntimeProfileV1,
+} from "../../programs/creator/runtime-profile/creator-runtime-profile.ts";
 import {
   translationBatchToolNameV1,
-  translationBundledProgramPackageV1,
-} from "../agent/bundled-program-packages/translation-current.ts";
+  translationProgramRuntimeProfileImplementationV1,
+  translationProgramRuntimeProfileV1,
+} from "../../programs/translation/runtime-profile/translation-runtime-profile.ts";
 import type { BrowserPiProviderCatalogWireV1 } from "../agent/browser-pi-worker-protocol.ts";
-import {
-  translationProgramHarnessReferenceV1,
-} from "../product/translation/translation-batch-protocol.ts";
 
 interface CapturedAgentInputV1 {
   readonly instructions: string;
@@ -139,37 +141,58 @@ function creatorDispatchV1(input: {
 }) {
   return {
     revision: 1,
-    harnessReference: creatorProgramHarnessReferenceV1,
-    programId: input.programId,
-    submit: { revision: 1, ...input },
+    runtimeProfile: creatorProgramRuntimeProfileV1,
+    programPackage: {
+      programId: input.programId,
+      packageVersion: "1.0.0",
+      contentDigest: "c".repeat(64),
+    },
+    workspaceProgramId: input.programId,
+    payload: { revision: 1, ...input },
   } as const;
 }
 
 function translationDispatchV1() {
   return {
     revision: 1,
-    harnessReference: translationProgramHarnessReferenceV1,
-    programId: "program.translation.1",
-    requestedOutputTokens: 4_608,
-    request: {
-      sourceLocale: "zh-CN",
-      targetLocale: "en",
-      documentPurpose: "Fictional dialogue.",
-      style: "Natural.",
-      glossary: [],
-      confirmedMeaningFacts: [],
-      neighboringUnits: { preceding: null, following: null },
-      units: [{
-        unitId: "translation.unit.000001",
-        order: 0,
-        locator: "line/1",
-        context: null,
-        durationMilliseconds: null,
-        source: "你好。",
-        protectedSegments: [],
-      }],
+    runtimeProfile: translationProgramRuntimeProfileV1,
+    programPackage: {
+      programId: "sillyos.translation",
+      packageVersion: "1.0.0",
+      contentDigest: "d".repeat(64),
+    },
+    workspaceProgramId: "sillyos.translation",
+    payload: {
+      requestedOutputTokens: 4_608,
+      request: {
+        sourceLocale: "zh-CN",
+        targetLocale: "en",
+        documentPurpose: "Fictional dialogue.",
+        style: "Natural.",
+        glossary: [],
+        confirmedMeaningFacts: [],
+        neighboringUnits: { preceding: null, following: null },
+        units: [{
+          unitId: "translation.unit.000001",
+          order: 0,
+          locator: "line/1",
+          context: null,
+          durationMilliseconds: null,
+          source: "你好。",
+          protectedSegments: [],
+        }],
+      },
     },
   } as const;
+}
+
+function invocationV1(
+  runtimeProfile: BrowserProgramRuntimeProfileV1,
+  dispatch: BrowserPiAgentDispatchV1,
+) {
+  const admission = runtimeProfile.admitDispatch(dispatch);
+  if (admission.kind === "rejected") throw new Error("test dispatch was rejected");
+  return admission.invocation;
 }
 
 describe("SillyOS Browser Pi Provider runtime bridge", () => {
@@ -196,79 +219,34 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
 
   it("keeps Creator's short deadline and uses the measured Translation route envelope", () => {
     expect(browserPiAgentProviderTimeoutMillisecondsV1(
-      creatorBundledProgramPackageV1,
-      creatorDispatchV1({
-        proposalId: "proposal.timeout.1",
-        programId: "program.timeout.1",
-        baseProgramRevision: 1,
-        text: "Test the Creator timeout.",
-      }),
+      creatorProgramRuntimeProfileImplementationV1,
     )).toBe(30_000);
     expect(browserPiAgentProviderTimeoutMillisecondsV1(
-      translationBundledProgramPackageV1,
-      translationDispatchV1(),
+      translationProgramRuntimeProfileImplementationV1,
     )).toBe(180_000);
   });
 
   it("keeps Creator compact and uses Translation's planned output envelope", () => {
+    const creatorDispatch = creatorDispatchV1({
+      proposalId: "proposal.envelope.1",
+      programId: "program.envelope.1",
+      baseProgramRevision: 1,
+      text: "Test the Creator envelope.",
+    });
     expect(browserPiAgentMaximumOutputTokensV1(
-      creatorBundledProgramPackageV1,
-      creatorDispatchV1({
-        proposalId: "proposal.envelope.1",
-        programId: "program.envelope.1",
-        baseProgramRevision: 1,
-        text: "Test the Creator envelope.",
-      }),
+      invocationV1(creatorProgramRuntimeProfileImplementationV1, creatorDispatch),
       32_768,
     )).toBe(2_048);
-    expect(browserPiAgentMaximumOutputTokensV1(translationBundledProgramPackageV1, {
-      revision: 1,
-      harnessReference: translationProgramHarnessReferenceV1,
-      programId: "program.translation.1",
-      requestedOutputTokens: 8_704,
-      request: {
-        sourceLocale: "zh-CN",
-        targetLocale: "en",
-        documentPurpose: "Fictional dialogue.",
-        style: "Natural.",
-        glossary: [],
-        confirmedMeaningFacts: [],
-        neighboringUnits: { preceding: null, following: null },
-        units: Array.from({ length: 9 }, (_, index) => ({
-          unitId: `translation.unit.${String(index + 1).padStart(6, "0")}`,
-          order: index,
-          locator: `line/${String(index + 1)}`,
-          context: null,
-          durationMilliseconds: null,
-          source: `Source ${String(index + 1)}`,
-          protectedSegments: [],
-        })),
+    const translationDispatch = translationDispatchV1();
+    const translationInvocation = invocationV1(
+      translationProgramRuntimeProfileImplementationV1,
+      {
+        ...translationDispatch,
+        payload: { ...translationDispatch.payload, requestedOutputTokens: 8_704 },
       },
-    }, 32_768)).toBe(8_704);
-    expect(browserPiAgentMaximumOutputTokensV1(translationBundledProgramPackageV1, {
-      revision: 1,
-      harnessReference: translationProgramHarnessReferenceV1,
-      programId: "program.translation.1",
-      requestedOutputTokens: 8_704,
-      request: {
-        sourceLocale: "zh-CN",
-        targetLocale: "en",
-        documentPurpose: "Fictional dialogue.",
-        style: "Natural.",
-        glossary: [],
-        confirmedMeaningFacts: [],
-        neighboringUnits: { preceding: null, following: null },
-        units: [{
-          unitId: "translation.unit.000001",
-          order: 0,
-          locator: "line/1",
-          context: null,
-          durationMilliseconds: null,
-          source: "你好。",
-          protectedSegments: [],
-        }],
-      },
-    }, 3_000)).toBe(3_000);
+    );
+    expect(browserPiAgentMaximumOutputTokensV1(translationInvocation, 32_768)).toBe(8_704);
+    expect(browserPiAgentMaximumOutputTokensV1(translationInvocation, 3_000)).toBe(3_000);
   });
 
   it("projects Pi-native reasoning support and clamps one global preference per route", () => {
@@ -324,9 +302,17 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
   });
 
   it("passes the neutral choice through the actual Pi streamSimple call", () => {
+    const dispatch = creatorDispatchV1({
+      proposalId: "proposal.test.1",
+      programId: "program.test.1",
+      baseProgramRevision: 1,
+      text: "Test a neutral tool choice.",
+    });
     createBrowserPiProviderAgentV1({
       apiKey: "test-only-key",
-      programPackage: creatorBundledProgramPackageV1,
+      instructions: "Create the requested Program.",
+      runtimeProfile: creatorProgramRuntimeProfileImplementationV1,
+      harnessToolIds: creatorProgramRuntimeProfileImplementationV1.harnessToolIds,
       fetch,
       selection: {
         kind: "builtin",
@@ -334,12 +320,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
         modelId: "gpt-4.1-nano",
         ...openAISelectionRouteV1,
       },
-      dispatch: creatorDispatchV1({
-        proposalId: "proposal.test.1",
-        programId: "program.test.1",
-        baseProgramRevision: 1,
-        text: "Test a neutral tool choice.",
-      }),
+      invocation: invocationV1(creatorProgramRuntimeProfileImplementationV1, dispatch),
       workspaceTools: Object.freeze([]),
       reasoningEffort: "high",
       onCandidate: vi.fn(),
@@ -370,9 +351,12 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
   });
 
   it("selects the Translation prompt/tool without inheriting Creator completion behavior", () => {
+    const dispatch = translationDispatchV1();
     createBrowserPiProviderAgentV1({
       apiKey: "translation-test-key",
-      programPackage: translationBundledProgramPackageV1,
+      instructions: "Translate the admitted batch faithfully.",
+      runtimeProfile: translationProgramRuntimeProfileImplementationV1,
+      harnessToolIds: translationProgramRuntimeProfileImplementationV1.harnessToolIds,
       fetch,
       selection: {
         kind: "builtin",
@@ -380,30 +364,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
         modelId: "gpt-4.1-nano",
         ...openAISelectionRouteV1,
       },
-      dispatch: {
-        revision: 1,
-        harnessReference: translationProgramHarnessReferenceV1,
-        programId: "program.translation.1",
-        requestedOutputTokens: 4_608,
-        request: {
-          sourceLocale: "zh-CN",
-          targetLocale: "en",
-          documentPurpose: "Fictional dialogue.",
-          style: "Natural.",
-          glossary: [],
-          confirmedMeaningFacts: [],
-          neighboringUnits: { preceding: null, following: null },
-          units: [{
-            unitId: "translation.unit.000001",
-            order: 0,
-            locator: "line/1",
-            context: null,
-            durationMilliseconds: null,
-            source: "你好。",
-            protectedSegments: [],
-          }],
-        },
-      },
+      invocation: invocationV1(translationProgramRuntimeProfileImplementationV1, dispatch),
       workspaceTools: [],
       reasoningEffort: "low",
       onCandidate: vi.fn(),
@@ -411,7 +372,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
     });
     const input = harnessV1.createdInputs.at(-1) as CapturedAgentInputV1 | undefined;
     if (input === undefined) throw new Error("Pi Agent input was not captured");
-    expect(input.instructions).toContain(translationBatchToolNameV1);
+    expect(input.instructions).toBe("Translate the admitted batch faithfully.");
     expect(input.completionTool.name).toBe(translationBatchToolNameV1);
     expect(input.model).toMatchObject({ maxTokens: 4_096 });
 
@@ -497,17 +458,23 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
       expect.objectContaining({ apiKey: "same-route-probe-key", maxTokens: 1 }),
     );
 
+    const sameRouteDispatch = creatorDispatchV1({
+      proposalId: "proposal.same-route.1",
+      programId: "program.same-route.1",
+      baseProgramRevision: 1,
+      text: "Use another model on the same route.",
+    });
     createBrowserPiProviderAgentV1({
       apiKey: "same-route-agent-key",
-      programPackage: creatorBundledProgramPackageV1,
+      instructions: "Create the requested Program.",
+      runtimeProfile: creatorProgramRuntimeProfileImplementationV1,
+      harnessToolIds: creatorProgramRuntimeProfileImplementationV1.harnessToolIds,
       fetch,
       selection: sameRouteSelection,
-      dispatch: creatorDispatchV1({
-        proposalId: "proposal.same-route.1",
-        programId: "program.same-route.1",
-        baseProgramRevision: 1,
-        text: "Use another model on the same route.",
-      }),
+      invocation: invocationV1(
+        creatorProgramRuntimeProfileImplementationV1,
+        sameRouteDispatch,
+      ),
       workspaceTools: Object.freeze([]),
       reasoningEffort: "medium",
       onCandidate: vi.fn(),
@@ -534,18 +501,24 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
       signal: new AbortController().signal,
       fetch,
     })).resolves.toBe(false);
+    const unavailableDispatch = creatorDispatchV1({
+      proposalId: "proposal.unavailable.1",
+      programId: "program.unavailable.1",
+      baseProgramRevision: 1,
+      text: "Reject an unsupported route family.",
+    });
     expect(() =>
       createBrowserPiProviderAgentV1({
         apiKey: "unavailable-agent-key",
-        programPackage: creatorBundledProgramPackageV1,
+        instructions: "Create the requested Program.",
+        runtimeProfile: creatorProgramRuntimeProfileImplementationV1,
+        harnessToolIds: creatorProgramRuntimeProfileImplementationV1.harnessToolIds,
         fetch,
         selection: unavailableSelection,
-        dispatch: creatorDispatchV1({
-          proposalId: "proposal.unavailable.1",
-          programId: "program.unavailable.1",
-          baseProgramRevision: 1,
-          text: "Reject an unsupported route family.",
-        }),
+        invocation: invocationV1(
+          creatorProgramRuntimeProfileImplementationV1,
+          unavailableDispatch,
+        ),
         workspaceTools: Object.freeze([]),
         reasoningEffort: "medium",
         onCandidate: vi.fn(),
@@ -604,17 +577,20 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
         expect.objectContaining({ apiKey: "custom-probe-key", maxTokens: 1 }),
       );
 
+      const dispatch = creatorDispatchV1({
+        proposalId: "proposal.custom.1",
+        programId: "program.custom.1",
+        baseProgramRevision: 1,
+        text: "Use the custom endpoint.",
+      });
       createBrowserPiProviderAgentV1({
         apiKey: "custom-agent-key",
-        programPackage: creatorBundledProgramPackageV1,
+        instructions: "Create the requested Program.",
+        runtimeProfile: creatorProgramRuntimeProfileImplementationV1,
+        harnessToolIds: creatorProgramRuntimeProfileImplementationV1.harnessToolIds,
         fetch,
         selection,
-        dispatch: creatorDispatchV1({
-          proposalId: "proposal.custom.1",
-          programId: "program.custom.1",
-          baseProgramRevision: 1,
-          text: "Use the custom endpoint.",
-        }),
+        invocation: invocationV1(creatorProgramRuntimeProfileImplementationV1, dispatch),
         workspaceTools: Object.freeze([]),
         reasoningEffort: "max",
         onCandidate: vi.fn(),

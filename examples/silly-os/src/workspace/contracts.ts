@@ -13,7 +13,7 @@ export const workspaceGrepMatchTextMaximumCharactersV1 = 500;
 export const workspaceGrepResultMaximumUtf8BytesV1 = 50 * 1024;
 export const workspaceGrepDeadlineMillisecondsV1 = 5_000;
 
-const workspaceIdentifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+const workspaceIdentifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u;
 
 type ExactWorkspaceRecordV1 = Readonly<Record<string, unknown>>;
 
@@ -174,7 +174,7 @@ export function createWorkspaceGrepQueryV1(input: WorkspaceGrepInputV1): Workspa
   return query;
 }
 
-export interface CreatorAgentExecutionBindingV1 {
+export interface ProgramAgentExecutionBindingV1 {
   readonly revision: 1;
   readonly programId: string;
   readonly workspaceId: string;
@@ -190,53 +190,26 @@ export interface WorkspaceExecutionDescriptorV1 {
   readonly generation: number;
 }
 
-/** Target-neutral immutable Program workspace bytes selected for one exact proposal decision. */
-export interface ProgramWorkspaceSnapshotReceiptV1 {
+/** Immutable Workspace bytes bound to one caller-defined publication identity. */
+export interface WorkspaceImmutableSnapshotReceiptV1 {
   readonly revision: 1;
   readonly snapshotId: string;
   readonly programId: string;
   readonly workspaceId: string;
   readonly volumeId: string;
   readonly workspaceFormat: 1;
-  readonly proposalId: string;
-  readonly programRevision: number;
-  readonly baseRepositoryRevision: number;
+  readonly publicationId: string;
+  readonly sourceRevision: number;
+  readonly baseRevision: number;
   readonly checkpointId: string;
   readonly generation: number;
   readonly fileCount: number;
   readonly archiveBytes: number;
 }
 
-export type ProgramWorkspaceReviewStatusV1 = "matches" | "changed" | "unavailable";
-
-/** Target-neutral projection of durable review anchors against the observable mutable head. */
-export interface ProgramWorkspaceReviewProjectionV1 {
-  readonly revision: 1;
-  readonly latestAccepted: {
-    readonly snapshotId: string;
-    readonly programRevision: number;
-    readonly checkpointId: string;
-    readonly generation: number;
-    readonly fileCount: number;
-    readonly archiveBytes: number;
-  } | null;
-  readonly pendingReview: {
-    readonly proposalId: string;
-    readonly programRevision: number;
-    readonly checkpointId: string;
-    readonly generation: number;
-  } | null;
-  readonly mutableHead: {
-    readonly checkpointId: string;
-    readonly generation: number;
-  } | null;
-  readonly acceptedStatus: ProgramWorkspaceReviewStatusV1 | null;
-  readonly pendingStatus: ProgramWorkspaceReviewStatusV1 | null;
-}
-
-export function admitProgramWorkspaceSnapshotReceiptV1(
+export function admitWorkspaceImmutableSnapshotReceiptV1(
   value: unknown,
-): ProgramWorkspaceSnapshotReceiptV1 | null {
+): WorkspaceImmutableSnapshotReceiptV1 | null {
   const record = exactWorkspaceRecordV1(value, [
     "revision",
     "snapshotId",
@@ -244,9 +217,9 @@ export function admitProgramWorkspaceSnapshotReceiptV1(
     "workspaceId",
     "volumeId",
     "workspaceFormat",
-    "proposalId",
-    "programRevision",
-    "baseRepositoryRevision",
+    "publicationId",
+    "sourceRevision",
+    "baseRevision",
     "checkpointId",
     "generation",
     "fileCount",
@@ -256,9 +229,9 @@ export function admitProgramWorkspaceSnapshotReceiptV1(
     record === null || record.revision !== 1 || !workspaceIdentifierV1(record.snapshotId) ||
     !workspaceIdentifierV1(record.programId) || !workspaceIdentifierV1(record.workspaceId) ||
     !workspaceIdentifierV1(record.volumeId) || record.workspaceFormat !== 1 ||
-    !workspaceIdentifierV1(record.proposalId) ||
-    !positiveSafeIntegerV1(record.programRevision) ||
-    !positiveSafeIntegerV1(record.baseRepositoryRevision) ||
+    !workspaceIdentifierV1(record.publicationId) ||
+    !positiveSafeIntegerV1(record.sourceRevision) ||
+    !positiveSafeIntegerV1(record.baseRevision) ||
     !workspaceIdentifierV1(record.checkpointId) ||
     !positiveSafeIntegerV1(record.generation) ||
     !nonNegativeSafeIntegerV1(record.fileCount) ||
@@ -271,9 +244,9 @@ export function admitProgramWorkspaceSnapshotReceiptV1(
     workspaceId: record.workspaceId,
     volumeId: record.volumeId,
     workspaceFormat: 1,
-    proposalId: record.proposalId,
-    programRevision: record.programRevision,
-    baseRepositoryRevision: record.baseRepositoryRevision,
+    publicationId: record.publicationId,
+    sourceRevision: record.sourceRevision,
+    baseRevision: record.baseRevision,
     checkpointId: record.checkpointId,
     generation: record.generation,
     fileCount: record.fileCount,
@@ -281,15 +254,15 @@ export function admitProgramWorkspaceSnapshotReceiptV1(
   };
 }
 
-export function programWorkspaceSnapshotReceiptsEqualV1(
-  left: ProgramWorkspaceSnapshotReceiptV1,
-  right: ProgramWorkspaceSnapshotReceiptV1,
+export function workspaceImmutableSnapshotReceiptsEqualV1(
+  left: WorkspaceImmutableSnapshotReceiptV1,
+  right: WorkspaceImmutableSnapshotReceiptV1,
 ): boolean {
   return left.revision === right.revision && left.snapshotId === right.snapshotId &&
     left.programId === right.programId && left.workspaceId === right.workspaceId &&
     left.volumeId === right.volumeId && left.workspaceFormat === right.workspaceFormat &&
-    left.proposalId === right.proposalId && left.programRevision === right.programRevision &&
-    left.baseRepositoryRevision === right.baseRepositoryRevision &&
+    left.publicationId === right.publicationId && left.sourceRevision === right.sourceRevision &&
+    left.baseRevision === right.baseRevision &&
     left.checkpointId === right.checkpointId && left.generation === right.generation &&
     left.fileCount === right.fileCount && left.archiveBytes === right.archiveBytes;
 }

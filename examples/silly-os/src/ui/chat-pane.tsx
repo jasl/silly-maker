@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 import {
   ArrowUp,
-  CircleCheck,
-  CircleX,
   FileText,
   Globe2,
   KeyRound,
@@ -15,182 +13,36 @@ import { type FormEvent, type ReactNode, useLayoutEffect, useRef, useState } fro
 
 import type { BrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-protocol.ts";
 import type { SillyOsCopyV1 } from "../content/copy.ts";
-import type { CreatorTranscriptWindowProjectionV1 } from "../product/creator-controller.ts";
-import type { PreviewProgramV1, ProgramProposalV1 } from "../product/contracts.ts";
-import type { TranscriptEntryV1, TranscriptPartV1 } from "../product/program-process-repository.ts";
-import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
+import type {
+  TranscriptEntryV1,
+  TranscriptPartV1,
+} from "../program-platform/process/program-process-repository.ts";
 import { isComposerCompositionKeyV1 } from "./composer-keyboard.ts";
 import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
-import { CreatorReadinessNoticeV1 } from "./creator-readiness-notice.tsx";
-import type { CreatorReadinessRecoveryTargetV1, CreatorReadinessV1 } from "./creator-readiness.ts";
 import { ButtonV1 as Button, IconButtonV1 } from "./design-system/button.tsx";
 import { CheckboxV1 } from "./design-system/checkbox.tsx";
 import { TextareaV1 } from "./design-system/textarea.tsx";
 
-const pendingReviewStatusDescriptionIdV1 = "workspace-review-pending-status";
-const workspaceReviewNumberFormatsV1 = Object.freeze({
-  en: new Intl.NumberFormat("en"),
-  "zh-CN": new Intl.NumberFormat("zh-CN"),
-});
-
-function acceptedStatusCopyV1(
-  copy: SillyOsCopyV1,
-  status: ProgramWorkspaceReviewProjectionV1["acceptedStatus"],
-): string | null {
-  if (status === "matches") return copy.acceptedSnapshotMatches;
-  if (status === "changed") return copy.acceptedSnapshotChanged;
-  if (status === "unavailable") return copy.acceptedSnapshotUnavailable;
-  return null;
-}
-
-function pendingStatusCopyV1(
-  copy: SillyOsCopyV1,
-  status: ProgramWorkspaceReviewProjectionV1["pendingStatus"],
-): string | null {
-  if (status === "matches") return copy.pendingReviewMatches;
-  if (status === "changed") return copy.pendingReviewChanged;
-  if (status === "unavailable") return copy.pendingReviewUnavailable;
-  return null;
-}
-
-export function ProgramWorkspaceReviewV1({
-  copy,
-  review,
-}: {
-  readonly copy: SillyOsCopyV1;
-  readonly review: ProgramWorkspaceReviewProjectionV1 | null;
-}): ReactNode {
-  if (
-    review === null || (review.latestAccepted === null && review.pendingReview === null)
-  ) return null;
-  const acceptedStatus = acceptedStatusCopyV1(copy, review.acceptedStatus);
-  const pendingStatus = pendingStatusCopyV1(copy, review.pendingStatus);
-  const numberFormat = workspaceReviewNumberFormatsV1[copy.locale];
-
-  return (
-    <section
-      className="program-workspace-review"
-      data-workspace-review=""
-      aria-labelledby="workspace-review-heading"
-    >
-      <h3 id="workspace-review-heading">{copy.workspaceReview}</h3>
-      <dl>
-        {review.latestAccepted === null ? null : (
-          <div data-workspace-review-accepted="">
-            <dt>{copy.acceptedSnapshot}</dt>
-            <dd>
-              <span>
-                <span>{copy.snapshotId}</span>
-                <code>{review.latestAccepted.snapshotId}</code>
-              </span>
-              <span>
-                <span>{copy.programRevision}</span>
-                <strong>{`v${String(review.latestAccepted.programRevision)}`}</strong>
-              </span>
-              <span>
-                <span>{copy.acceptedHead}</span>
-                <code>{review.latestAccepted.checkpointId}</code>
-                <small>
-                  {`${copy.generation} ${String(review.latestAccepted.generation)}`}
-                </small>
-              </span>
-              <span>
-                <span>{copy.fileCount}</span>
-                <strong>{numberFormat.format(review.latestAccepted.fileCount)}</strong>
-                <span aria-hidden="true">·</span>
-                <span>{copy.archiveSize}</span>
-                <strong>{numberFormat.format(review.latestAccepted.archiveBytes)}</strong>
-              </span>
-            </dd>
-          </div>
-        )}
-        {review.pendingReview === null ? null : (
-          <div data-workspace-review-pending="">
-            <dt>{copy.pendingReview}</dt>
-            <dd>
-              <span>
-                <span>{copy.proposalId}</span>
-                <code>{review.pendingReview.proposalId}</code>
-              </span>
-              <span>
-                <span>{copy.programRevision}</span>
-                <strong>{`v${String(review.pendingReview.programRevision)}`}</strong>
-              </span>
-              <span>
-                <span>{copy.reviewedHead}</span>
-                <code>{review.pendingReview.checkpointId}</code>
-                <small>{`${copy.generation} ${String(review.pendingReview.generation)}`}</small>
-              </span>
-            </dd>
-          </div>
-        )}
-        <div data-workspace-review-mutable="">
-          <dt>{copy.mutableHead}</dt>
-          <dd>
-            {review.mutableHead === null ? <span>{copy.mutableHeadUnavailable}</span> : (
-              <span>
-                <code>{review.mutableHead.checkpointId}</code>
-                <small>{`${copy.generation} ${String(review.mutableHead.generation)}`}</small>
-              </span>
-            )}
-          </dd>
-        </div>
-      </dl>
-      <div
-        className="program-workspace-review__status"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        {acceptedStatus === null ? null : (
-          <p
-            data-workspace-review-accepted-message=""
-            data-review-status={review.acceptedStatus ?? undefined}
-          >
-            {acceptedStatus}
-          </p>
-        )}
-        {pendingStatus === null ? null : (
-          <p
-            id={pendingReviewStatusDescriptionIdV1}
-            data-workspace-review-pending-message=""
-            data-review-status={review.pendingStatus ?? undefined}
-          >
-            {pendingStatus}
-          </p>
-        )}
-      </div>
-    </section>
-  );
-}
-
 export interface ChatPanePropsV1 {
   readonly copy: SillyOsCopyV1;
-  readonly agentName?: string;
-  readonly transcript: CreatorTranscriptWindowProjectionV1;
+  readonly agentName: string;
+  readonly transcript: ConversationTranscriptWindowProjectionV1;
+  /** Removes every mutation affordance while retaining the rich pageable feed. */
+  readonly readOnly?: boolean;
   readonly onLoadOlderTranscript?: () => boolean | void | Promise<boolean | void>;
   readonly interruptedRetry?: {
     readonly pending: boolean;
     readonly onRetry: () => boolean | void | Promise<boolean | void>;
   };
-  readonly proposal: ProgramProposalV1 | null;
-  readonly program: PreviewProgramV1 | null;
-  readonly workspaceReview: ProgramWorkspaceReviewProjectionV1 | null;
-  readonly workpieceOpen: boolean;
-  readonly onAccept: () => void;
-  readonly onReject: () => void;
-  readonly onOpenWorkpiece: () => void;
+  readonly feedSupplement?: ReactNode;
   readonly onSend: (text: string) => boolean | void | Promise<boolean | void>;
   readonly initialDraft?: string;
   readonly onDraftChange?: (draft: string) => void;
   readonly initialConversationViewState?: ConversationViewStateV1;
   readonly onConversationViewStateChange?: (viewState: ConversationViewStateV1) => void;
   readonly providerModel?: ComposerModelControlV1;
-  readonly creatorReadiness?: CreatorReadinessV1;
-  readonly onOpenCreatorSettings?: (
-    target: Exclude<CreatorReadinessRecoveryTargetV1, null>,
-  ) => void;
-  readonly decisionPending?: boolean;
+  readonly statusNotice?: ReactNode;
+  readonly interactionReady?: boolean;
   readonly agentInteractionPending?: boolean;
   readonly networkAccess?: {
     readonly enabled: boolean;
@@ -208,9 +60,29 @@ export interface ChatPanePropsV1 {
       | "disposed";
     readonly draft: string;
     readonly diagnosticPath: string | null;
+    readonly presentation?: {
+      readonly title: string;
+      readonly ready: string;
+      readonly unavailable: string;
+      readonly draft: string;
+      readonly cancel: string;
+      readonly forgetCredential: string;
+    };
     readonly onCancel: () => void;
     readonly onForget: () => void;
   };
+}
+
+/**
+ * Package-neutral view contract shared by executable Program workspaces and
+ * the degraded read-only Conversation route.
+ */
+export interface ConversationTranscriptWindowProjectionV1 {
+  readonly entries: readonly TranscriptEntryV1[];
+  readonly byteLength: number;
+  readonly nextBeforeSequence: number | null;
+  readonly newerOmitted: boolean;
+  readonly phase: "loading" | "loading_older" | "ready" | "failed";
 }
 
 export type ConversationScrollAnchorV1 =
@@ -284,8 +156,9 @@ function captureConversationScrollAnchorV1(feed: HTMLElement): ConversationScrol
 function transcriptRoleLabelV1(
   copy: SillyOsCopyV1,
   role: TranscriptEntryV1["role"],
+  agentName: string,
 ): string {
-  if (role === "assistant") return copy.creatorName;
+  if (role === "assistant") return agentName;
   if (role === "system") return copy.transcriptSystem;
   if (role === "tool") return copy.transcriptTool;
   return copy.locale === "zh-CN" ? "你" : "You";
@@ -376,29 +249,23 @@ function TranscriptPartV1View({
 
 export function ChatPaneV1({
   copy,
-  agentName = copy.creatorName,
+  agentName,
   transcript,
   onLoadOlderTranscript,
   interruptedRetry,
-  proposal,
-  program,
-  workspaceReview,
-  workpieceOpen,
-  onAccept,
-  onReject,
-  onOpenWorkpiece,
+  feedSupplement,
   onSend,
   initialDraft = "",
   onDraftChange,
   initialConversationViewState = createDefaultConversationViewStateV1(),
   onConversationViewStateChange,
   providerModel,
-  creatorReadiness,
-  onOpenCreatorSettings,
-  decisionPending = false,
+  statusNotice,
+  interactionReady = true,
   agentInteractionPending = false,
   networkAccess,
   piAgentRun,
+  readOnly = false,
 }: ChatPanePropsV1): ReactNode {
   const [draft, setDraft] = useState(initialDraft);
   const draftRef = useRef(initialDraft);
@@ -417,11 +284,15 @@ export function ChatPaneV1({
   const liveAgent = piAgentRun?.runtime === "pi_provider";
   const showAgentRun = piAgentRun !== undefined &&
     (!liveAgent || piAgentRun.status === "running" || piAgentRun.status === "failed");
-  const agentTitle = liveAgent ? copy.creatorName : copy.piTestTitle;
-  const agentFailed = liveAgent ? copy.piLiveFailed : copy.piTestFailed;
-  const pendingReviewChanged = workspaceReview?.pendingStatus === "changed";
-  const creatorReady = creatorReadiness === undefined || creatorReadiness.status === "ready";
-  const providerModelUnavailable = !creatorReady ||
+  const runCopy = piAgentRun?.presentation ?? {
+    title: liveAgent ? agentName : copy.agentRunTitle,
+    ready: copy.agentRunReady,
+    unavailable: copy.agentRunUnavailable,
+    draft: copy.agentRunDraft,
+    cancel: copy.agentRunCancel,
+    forgetCredential: copy.agentRunForgetCredential,
+  };
+  const providerModelUnavailable = !interactionReady ||
     (providerModel !== undefined && providerModel.status !== "ready");
 
   const firstEntryId = transcript.entries[0]?.entryId ?? null;
@@ -563,7 +434,7 @@ export function ChatPaneV1({
         }}
       >
         <div className="chat-pane__intro">
-          <span className="chat-pane__creator-avatar" aria-hidden="true">
+          <span className="chat-pane__agent-avatar" aria-hidden="true">
             <Sparkles size={16} fill="currentColor" />
           </span>
           <div>
@@ -611,7 +482,7 @@ export function ChatPaneV1({
               {transcriptAvatarV1(copy, entry.role)}
             </span>
             <div className="chat-message__body">
-              <strong>{transcriptRoleLabelV1(copy, entry.role)}</strong>
+              <strong>{transcriptRoleLabelV1(copy, entry.role, agentName)}</strong>
               {entry.parts.map((part) => (
                 <TranscriptPartV1View copy={copy} part={part} key={part.partId} />
               ))}
@@ -650,13 +521,13 @@ export function ChatPaneV1({
                 : liveAgent
                 ? <Sparkles size={15} aria-hidden="true" />
                 : <KeyRound size={15} aria-hidden="true" />}
-              <strong>{agentTitle}</strong>
+              <strong>{runCopy.title}</strong>
               <span role="status">
                 {piAgentRun.status === "running"
-                  ? copy.piTestDraft
+                  ? runCopy.draft
                   : piAgentRun.status === "failed" || piAgentRun.status === "disposed"
-                  ? agentFailed
-                  : copy.piTestReady}
+                  ? runCopy.unavailable
+                  : runCopy.ready}
               </span>
             </div>
             {piAgentRun.status === "running" && piAgentRun.draft.length > 0 && (
@@ -674,7 +545,7 @@ export function ChatPaneV1({
                     icon={StopCircle}
                     onClick={piAgentRun.onCancel}
                   >
-                    {copy.piTestCancel}
+                    {runCopy.cancel}
                   </Button>
                 )}
                 {!liveAgent && (
@@ -686,7 +557,7 @@ export function ChatPaneV1({
                     disabled={agentInteractionPending || piAgentRun.status === "running"}
                     onClick={piAgentRun.onForget}
                   >
-                    {copy.piTestForget}
+                    {runCopy.forgetCredential}
                   </Button>
                 )}
               </div>
@@ -716,166 +587,76 @@ export function ChatPaneV1({
           </section>
         )}
 
-        {program !== null && proposal !== null && (
-          <article className="program-proposal" data-proposal-status={proposal.status}>
-            <div className="program-proposal__heading">
-              <span className="program-proposal__icon" aria-hidden="true">
-                <FileText size={17} />
-              </span>
-              <div>
-                <span>{copy.proposedProgram}</span>
-                <strong>{program.name}</strong>
-              </div>
-              <span className="program-proposal__status">
-                {`v${String(program.revision)} · ${
-                  proposal.status === "pending"
-                    ? copy.preview
-                    : proposal.status === "accepted"
-                    ? copy.accepted
-                    : copy.rejected
-                }`}
-              </span>
-            </div>
-            <p>{program.purpose}</p>
-            <ul>
-              {program.suggestedCapabilities.map((capability) => (
-                <li key={capability.capabilityId}>
-                  <CircleCheck size={15} aria-hidden="true" />
-                  <span>
-                    <strong>{capability.label}</strong>
-                    <small>{capability.description}</small>
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {proposal.status === "pending"
-              ? (
-                <div className="program-proposal__actions">
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    icon={CircleCheck}
-                    disabled={decisionPending || pendingReviewChanged}
-                    aria-describedby={pendingReviewChanged
-                      ? pendingReviewStatusDescriptionIdV1
-                      : undefined}
-                    onClick={onAccept}
-                  >
-                    {copy.accept}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    icon={CircleX}
-                    disabled={decisionPending}
-                    onClick={onReject}
-                  >
-                    {copy.reject}
-                  </Button>
-                </div>
-              )
-              : (
-                <div className={`program-proposal__decision is-${proposal.status}`}>
-                  {proposal.status === "accepted"
-                    ? <CircleCheck size={16} fill="currentColor" aria-hidden="true" />
-                    : <CircleX size={16} fill="currentColor" aria-hidden="true" />}
-                  <span>{proposal.status === "accepted" ? copy.accepted : copy.rejected}</span>
-                </div>
-              )}
-          </article>
-        )}
-
-        <ProgramWorkspaceReviewV1 copy={copy} review={workspaceReview} />
-
-        {program !== null && (
-          <button
-            type="button"
-            className="workpiece-link"
-            onClick={onOpenWorkpiece}
-            aria-expanded={workpieceOpen}
-          >
-            <span className="workpiece-link__thumbnail" aria-hidden="true">
-              <FileText size={20} />
-            </span>
-            <span>
-              <strong>{program.name}</strong>
-              <small>{workpieceOpen ? copy.previewTab : copy.openPreview}</small>
-            </span>
-            <span aria-hidden="true">↗</span>
-          </button>
-        )}
+        {feedSupplement}
         <div ref={feedEndRef} />
       </div>
 
-      {creatorReadiness === undefined ? null : (
-        <CreatorReadinessNoticeV1
-          copy={copy}
-          readiness={creatorReadiness}
-          surface="workspace"
-          {...(onOpenCreatorSettings === undefined ? {} : { onRecover: onOpenCreatorSettings })}
-        />
-      )}
+      {statusNotice === undefined
+        ? null
+        : <div className="chat-pane__status-notice">{statusNotice}</div>}
 
-      <form className="chat-composer" onSubmit={submitV1}>
-        <label className="silly-os-visually-hidden" htmlFor="workspace-follow-up">
-          {copy.sendPlaceholder}
-        </label>
-        <TextareaV1
-          ref={composerRef}
-          id="workspace-follow-up"
-          value={draft}
-          rows={3}
-          maxLength={4_000}
-          placeholder={copy.sendPlaceholder}
-          disabled={agentInteractionPending}
-          onChange={(event) => {
-            const next = event.currentTarget.value;
-            draftRef.current = next;
-            setDraft(next);
-            onDraftChange?.(next);
-            publishConversationViewStateV1({
-              ...conversationViewStateRef.current,
-              composerSelectionStart: event.currentTarget.selectionStart,
-              composerSelectionEnd: event.currentTarget.selectionEnd,
-            });
-          }}
-          onSelect={(event) => {
-            publishConversationViewStateV1({
-              ...conversationViewStateRef.current,
-              composerSelectionStart: event.currentTarget.selectionStart,
-              composerSelectionEnd: event.currentTarget.selectionEnd,
-            });
-          }}
-          onKeyDown={(event) => {
-            if (isComposerCompositionKeyV1(event.nativeEvent)) return;
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              submitV1();
-            }
-          }}
-        />
-        <div className="chat-composer__actions">
-          <div className="chat-composer__primary-actions">
-            {creatorReady && providerModel !== undefined && (
-              <ComposerModelPickerV1
-                copy={copy}
-                surface="workspace"
-                disabled={piAgentRun?.status === "running"}
-                {...providerModel}
+      {readOnly ? null : (
+        <form className="chat-composer" onSubmit={submitV1}>
+          <label className="silly-os-visually-hidden" htmlFor="workspace-follow-up">
+            {copy.sendPlaceholder}
+          </label>
+          <TextareaV1
+            ref={composerRef}
+            id="workspace-follow-up"
+            value={draft}
+            rows={3}
+            maxLength={4_000}
+            placeholder={copy.sendPlaceholder}
+            disabled={agentInteractionPending}
+            onChange={(event) => {
+              const next = event.currentTarget.value;
+              draftRef.current = next;
+              setDraft(next);
+              onDraftChange?.(next);
+              publishConversationViewStateV1({
+                ...conversationViewStateRef.current,
+                composerSelectionStart: event.currentTarget.selectionStart,
+                composerSelectionEnd: event.currentTarget.selectionEnd,
+              });
+            }}
+            onSelect={(event) => {
+              publishConversationViewStateV1({
+                ...conversationViewStateRef.current,
+                composerSelectionStart: event.currentTarget.selectionStart,
+                composerSelectionEnd: event.currentTarget.selectionEnd,
+              });
+            }}
+            onKeyDown={(event) => {
+              if (isComposerCompositionKeyV1(event.nativeEvent)) return;
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                submitV1();
+              }
+            }}
+          />
+          <div className="chat-composer__actions">
+            <div className="chat-composer__primary-actions">
+              {interactionReady && providerModel !== undefined && (
+                <ComposerModelPickerV1
+                  copy={copy}
+                  surface="workspace"
+                  disabled={piAgentRun?.status === "running"}
+                  {...providerModel}
+                />
+              )}
+              <IconButtonV1
+                type="submit"
+                variant="primary"
+                size="sm"
+                icon={ArrowUp}
+                accessibleName={copy.send}
+                disabled={agentInteractionPending || providerModelUnavailable ||
+                  draft.trim().length === 0}
               />
-            )}
-            <IconButtonV1
-              type="submit"
-              variant="primary"
-              size="sm"
-              icon={ArrowUp}
-              accessibleName={copy.send}
-              disabled={agentInteractionPending || providerModelUnavailable ||
-                draft.trim().length === 0}
-            />
+            </div>
           </div>
-        </div>
-      </form>
+        </form>
+      )}
     </section>
   );
 }

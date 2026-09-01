@@ -56,7 +56,6 @@ function mapRuntimeFailureV2(error: unknown): CredentialVaultFailureCodeV2 {
   if (error instanceof CredentialVaultRepositoryErrorV2) {
     if (error.code === "binding_conflict") return "binding_conflict";
     if (error.code === "binding_missing") return "binding_missing";
-    if (error.code === "capacity_exceeded") return "capacity_exceeded";
     if (error.code === "stale_state") return "invalid_state";
     if (error.code === "quota_exceeded") return "quota_exceeded";
     if (error.code === "schema_invalid" || error.code === "database_newer") return "schema_invalid";

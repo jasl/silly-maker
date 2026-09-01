@@ -3,6 +3,10 @@
 const buildDirectoryV1 = new URL("../dist-web/", import.meta.url);
 const htmlV1 = await Deno.readTextFile(new URL("index.html", buildDirectoryV1));
 const headersV1 = await Deno.readTextFile(new URL("_headers", buildDirectoryV1));
+const bundledProgramPackageDirectoriesV1 = [
+  new URL("../programs/creator/package/", import.meta.url),
+  new URL("../programs/translation/package/", import.meta.url),
+] as const;
 
 function failV1(message: string): never {
   throw new Error(`SillyOS Browser control-plane build rejected: ${message}`);
@@ -81,6 +85,252 @@ if (productDesignSystemCssFilesV1.length !== 1) {
     `artifact must contain exactly one scoped product design-system stylesheet, found ${productDesignSystemCssFilesV1.length}`,
   );
 }
+
+function buildPathFromReferenceV1(reference: string, from = "index.html"): string {
+  const base = new URL(from, buildDirectoryV1);
+  const resolved = new URL(reference, base);
+  if (!resolved.href.startsWith(buildDirectoryV1.href)) {
+    failV1(`${from} references an artifact outside dist-web: ${reference}`);
+  }
+  const path = decodeURIComponent(resolved.href.slice(buildDirectoryV1.href.length));
+  if (!filesV1.includes(path)) failV1(`${from} references missing artifact ${path}`);
+  return path;
+}
+
+async function collectStaticJavaScriptGraphV1(
+  entries: readonly string[],
+  collected = new Set<string>(),
+): Promise<ReadonlySet<string>> {
+  for (const entry of entries) {
+    if (collected.has(entry)) continue;
+    collected.add(entry);
+    const source = await Deno.readTextFile(new URL(entry, buildDirectoryV1));
+    const specifiers = [
+      ...source.matchAll(/\bfrom\s*["'`]([^"'`]+)["'`]/gu),
+      ...source.matchAll(/\bimport\s*["'`]([^"'`]+)["'`]/gu),
+    ].map((match) => match[1] ?? "");
+    const dependencies = specifiers
+      .filter((specifier) => specifier.startsWith("."))
+      .map((specifier) => buildPathFromReferenceV1(specifier, entry))
+      .filter((path) => path.endsWith(".js") || path.endsWith(".mjs"));
+    await collectStaticJavaScriptGraphV1(dependencies, collected);
+  }
+  return collected;
+}
+
+async function collectCompleteJavaScriptGraphV1(
+  entries: readonly string[],
+  collected = new Set<string>(),
+): Promise<ReadonlySet<string>> {
+  for (const entry of entries) {
+    if (collected.has(entry)) continue;
+    collected.add(entry);
+    const source = await Deno.readTextFile(new URL(entry, buildDirectoryV1));
+    const specifiers = [
+      ...source.matchAll(/\bfrom\s*["'`]([^"'`]+)["'`]/gu),
+      ...source.matchAll(/\bimport\s*["'`]([^"'`]+)["'`]/gu),
+      ...source.matchAll(/\bimport\s*\(\s*["'`]([^"'`]+)["'`]\s*\)/gu),
+    ].map((match) => match[1] ?? "");
+    const dependencies = specifiers
+      .filter((specifier) => specifier.startsWith("."))
+      .map((specifier) => buildPathFromReferenceV1(specifier, entry))
+      .filter((path) => path.endsWith(".js") || path.endsWith(".mjs"));
+    await collectCompleteJavaScriptGraphV1(dependencies, collected);
+  }
+  return collected;
+}
+
+const initialModuleEntriesV1 = [
+  ...htmlV1.matchAll(
+    /<script\b(?=[^>]*\btype=["']module["'])[^>]*\bsrc=["']([^"']+)["'][^>]*>/giu,
+  ),
+  ...htmlV1.matchAll(
+    /<link\b(?=[^>]*\brel=["']modulepreload["'])[^>]*\bhref=["']([^"']+)["'][^>]*>/giu,
+  ),
+].map((match) => buildPathFromReferenceV1(match[1] ?? ""));
+if (initialModuleEntriesV1.length === 0) failV1("artifact omits the initial module graph");
+const initialJavaScriptGraphV1 = await collectStaticJavaScriptGraphV1(initialModuleEntriesV1);
+const initialStyleEntriesV1 = [...htmlV1.matchAll(
+  /<link\b(?=[^>]*\brel=["']stylesheet["'])[^>]*\bhref=["']([^"']+)["'][^>]*>/giu,
+)].map((match) => buildPathFromReferenceV1(match[1] ?? ""));
+
+async function collectBundledProgramPackageBodyFilesV1(
+  directory: URL,
+  relativeDirectory = "",
+): Promise<readonly { readonly label: string; readonly bytes: Uint8Array }[]> {
+  const bodies: { label: string; bytes: Uint8Array }[] = [];
+  for await (const entry of Deno.readDir(directory)) {
+    const relativePath = `${relativeDirectory}${entry.name}`;
+    if (entry.isSymlink) failV1(`bundled Program package contains symlink ${relativePath}`);
+    if (entry.isDirectory) {
+      bodies.push(
+        ...await collectBundledProgramPackageBodyFilesV1(
+          new URL(`${encodeURIComponent(entry.name)}/`, directory),
+          `${relativePath}/`,
+        ),
+      );
+      continue;
+    }
+    if (!entry.isFile) {
+      failV1(`bundled Program package contains unsupported entry ${relativePath}`);
+    }
+    if (relativePath === "program.json") continue;
+    bodies.push({
+      label: relativePath,
+      bytes: await Deno.readFile(new URL(entry.name, directory)),
+    });
+  }
+  return bodies;
+}
+
+function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
+  return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);
+}
+
+function containsBytesV1(haystack: Uint8Array, needle: Uint8Array): boolean {
+  if (needle.byteLength === 0 || needle.byteLength > haystack.byteLength) return false;
+  const limit = haystack.byteLength - needle.byteLength;
+  for (let start = 0; start <= limit; start += 1) {
+    if (haystack[start] !== needle[0]) continue;
+    let matches = true;
+    for (let offset = 1; offset < needle.byteLength; offset += 1) {
+      if (haystack[start + offset] === needle[offset]) continue;
+      matches = false;
+      break;
+    }
+    if (matches) return true;
+  }
+  return false;
+}
+
+const initialArtifactPathsV1 = [
+  "index.html",
+  ...initialJavaScriptGraphV1,
+  ...initialStyleEntriesV1,
+];
+const initialArtifactBytesV1 = new Map(
+  await Promise.all(
+    initialArtifactPathsV1.map(async (path) =>
+      [path, await Deno.readFile(new URL(path, buildDirectoryV1))] as const
+    ),
+  ),
+);
+const buildArtifactBytesV1 = new Map(
+  await Promise.all(
+    filesV1.map(async (path) =>
+      [path, await Deno.readFile(new URL(path, buildDirectoryV1))] as const
+    ),
+  ),
+);
+for (const directory of bundledProgramPackageDirectoriesV1) {
+  const packageLabel = directory.pathname.split("/").filter(Boolean).slice(-2, -1)[0] ?? "unknown";
+  for (const body of await collectBundledProgramPackageBodyFilesV1(directory)) {
+    const base64 = body.bytes.toBase64();
+    const emittedPaths = [...buildArtifactBytesV1]
+      .filter(([, bytes]) => bytesEqualV1(bytes, body.bytes))
+      .map(([path]) => path);
+    for (const [path, bytes] of initialArtifactBytesV1) {
+      if (containsBytesV1(bytes, body.bytes)) {
+        failV1(`initial graph embeds ${packageLabel} package body ${body.label}: ${path}`);
+      }
+      const source = new TextDecoder().decode(bytes);
+      if (source.includes(base64)) {
+        failV1(`initial graph base64-inlines ${packageLabel} package body ${body.label}: ${path}`);
+      }
+      for (const emittedPath of emittedPaths) {
+        const emittedName = emittedPath.split("/").at(-1) ?? emittedPath;
+        if (source.includes(emittedName)) {
+          failV1(`initial graph references ${packageLabel} package body ${body.label}: ${path}`);
+        }
+      }
+    }
+  }
+}
+
+const programImplementationMarkersV1 = [
+  ["Creator home UI", "creator-home__hero"],
+  ["Creator workspace UI", "program-workspace__separator"],
+  ["Translation workspace UI", "translation-workbench__summary"],
+  ["Creator persistence facet", "creator_program_heads"],
+  ["Creator Agent runtime", "sillyos_propose_program_revision"],
+  ["Translation Agent runtime", "sillyos_submit_translation_batch"],
+] as const;
+async function rejectProgramImplementationsV1(
+  graphName: string,
+  paths: ReadonlySet<string> | readonly string[],
+): Promise<void> {
+  for (const path of paths) {
+    const source = await Deno.readTextFile(new URL(path, buildDirectoryV1));
+    for (const [label, marker] of programImplementationMarkersV1) {
+      if (source.includes(marker)) failV1(`${graphName} eagerly contains ${label}: ${path}`);
+    }
+  }
+}
+await rejectProgramImplementationsV1("Program Library module graph", initialJavaScriptGraphV1);
+await rejectProgramImplementationsV1("Program Library stylesheet graph", initialStyleEntriesV1);
+
+const agentCompositionFilesV1 = filesV1.filter((file) =>
+  /(?:^|\/)program-agent-composition-[A-Za-z0-9_-]+\.js$/u.test(file)
+);
+if (agentCompositionFilesV1.length !== 1) {
+  failV1(
+    `artifact must contain exactly one lazy Program Agent composition, found ${agentCompositionFilesV1.length}`,
+  );
+}
+const agentCompositionGraphV1 = await collectStaticJavaScriptGraphV1(agentCompositionFilesV1);
+await rejectProgramImplementationsV1("shared Program Agent composition", agentCompositionGraphV1);
+
+const agentWorkerFilesV1 = filesV1.filter((file) =>
+  /(?:^|\/)browser-pi\.worker-[A-Za-z0-9_-]+\.js$/u.test(file)
+);
+if (agentWorkerFilesV1.length !== 1) {
+  failV1(
+    `artifact must contain exactly one Agent Worker entry, found ${agentWorkerFilesV1.length}`,
+  );
+}
+await rejectProgramImplementationsV1("Agent Worker entry", agentWorkerFilesV1);
+const workerProgramCompositionFilesV1 = filesV1.filter((file) =>
+  /(?:^|\/)program-agent-runtime-composition-[A-Za-z0-9_-]+\.js$/u.test(file)
+);
+if (workerProgramCompositionFilesV1.length !== 1) {
+  failV1(
+    `artifact must contain exactly one lazy Worker Program composition, found ${workerProgramCompositionFilesV1.length}`,
+  );
+}
+const workerProgramCompositionGraphV1 = await collectStaticJavaScriptGraphV1(
+  workerProgramCompositionFilesV1,
+);
+await rejectProgramImplementationsV1(
+  "Worker Program composition",
+  workerProgramCompositionGraphV1,
+);
+const completeAgentWorkerGraphV1 = await collectCompleteJavaScriptGraphV1(agentWorkerFilesV1);
+for (const path of completeAgentWorkerGraphV1) {
+  if (/(?:controller-adapter|program-surface)-[A-Za-z0-9_-]+\.js$/u.test(path)) {
+    failV1(`Agent Worker graph contains page controller or UI module: ${path}`);
+  }
+  const source = await Deno.readTextFile(new URL(path, buildDirectoryV1));
+  for (const [label, marker] of programImplementationMarkersV1.slice(0, 3)) {
+    if (source.includes(marker)) failV1(`Agent Worker graph contains ${label}: ${path}`);
+  }
+}
+
+const artifactProgramMarkerFilesV1 = new Map<string, string[]>();
+for (const path of filesV1.filter((file) => /\.(?:css|m?js)$/u.test(file))) {
+  const source = await Deno.readTextFile(new URL(path, buildDirectoryV1));
+  for (const [, marker] of programImplementationMarkersV1) {
+    if (!source.includes(marker)) continue;
+    const retained = artifactProgramMarkerFilesV1.get(marker) ?? [];
+    retained.push(path);
+    artifactProgramMarkerFilesV1.set(marker, retained);
+  }
+}
+for (const [label, marker] of programImplementationMarkersV1) {
+  if ((artifactProgramMarkerFilesV1.get(marker)?.length ?? 0) === 0) {
+    failV1(`artifact omits the selected lazy ${label}`);
+  }
+}
+
 const credentialVaultSourceRootV1 = new URL("../src/credential/", import.meta.url);
 const credentialVaultWorkerSourceEntryV1 = new URL(
   "browser-credential-vault.worker.ts",

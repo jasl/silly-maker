@@ -18,6 +18,14 @@
   display: none !important;
 }
 
+.silly-os > .program-runtime-surface {
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
 .silly-os-visually-hidden {
   position: absolute !important;
   inline-size: 1px !important;
@@ -86,6 +94,27 @@
 }
 
 /* Cross-route surface status */
+
+.program-route-state {
+  position: relative;
+  display: flex;
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 18%, var(--sos-accent-radial), transparent 32%),
+    linear-gradient(180deg, var(--sos-surface-subtle) 0%, var(--silly-color-control-hover) 100%);
+}
+
+.program-route-state__content {
+  display: grid;
+  flex: 1 1 auto;
+  min-block-size: 0;
+  place-items: center;
+  padding: 24px;
+}
 
 .program-storage-status {
   position: fixed;

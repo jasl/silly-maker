@@ -8,7 +8,7 @@ import {
   createBrowserAgentPreferencesRepositoryV1,
   defaultBrowserAgentReasoningEffortV1,
   type BrowserAgentPreferencesStorageV1,
-} from "../product/browser-agent-preferences-repository.ts";
+} from "../application/preferences/browser-agent-preferences-repository.ts";
 
 function memoryStorageV1(initial?: string): BrowserAgentPreferencesStorageV1 {
   const values = new Map<string, string>();

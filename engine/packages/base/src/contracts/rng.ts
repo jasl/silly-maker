@@ -126,7 +126,6 @@ function parsePurpose(value: unknown): string {
   if (
     typeof value !== "string" ||
     value.length < 1 ||
-    value.length > 128 ||
     !/^(?:demand|check|scheduler):[a-z0-9._:-]+$/u.test(value)
   ) {
     throw new TypeError("invalid RNG purpose");

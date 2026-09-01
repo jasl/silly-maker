@@ -9,7 +9,7 @@ import {
   createBrowserProductPreferencesRepositoryV1,
   defaultBrowserProductPreferencesSnapshotV1,
   type BrowserProductPreferencesStorageEventTargetV1,
-} from "../product/browser-product-preferences-repository.ts";
+} from "../application/preferences/browser-product-preferences-repository.ts";
 
 class MemoryStorageV1 implements Storage {
   readonly values = new Map<string, string>();

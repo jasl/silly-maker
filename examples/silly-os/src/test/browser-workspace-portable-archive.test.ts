@@ -32,8 +32,8 @@ const manifestV1: SillyOsWorkspaceExportManifestV1 = {
   workspaceFormat: 1,
   programId: "program.preview.1",
   workspaceId: "workspace.preview.1",
-  programRevision: 4,
-  repositoryRevision: 7,
+  sourceRevision: 4,
+  baseRevision: 7,
   checkpointId: "checkpoint.preview.9",
   generation: 9,
 };

@@ -5,19 +5,28 @@ import { describe, expect, it } from "vitest";
 import {
   createDeterministicPiAgentV1,
   createPiAgentV1,
-  type PiSimpleStreamOptionsV1,
-  type PiStreamFnV1,
 } from "../agent/browser-pi-runtime-bridge.js";
-import { creatorProgramHarnessReferenceV1 } from "../agent/browser-pi-agent-dispatch.ts";
-import { creatorBundledProgramPackageV1 } from "../agent/bundled-program-packages/creator-current.ts";
+import {
+  creatorProgramRuntimeProfileImplementationV1,
+  creatorProgramRuntimeProfileV1,
+} from "../../programs/creator/runtime-profile/creator-runtime-profile.ts";
 import {
   translationBatchToolNameV1,
-  translationBundledProgramPackageV1,
-} from "../agent/bundled-program-packages/translation-current.ts";
+  translationProgramRuntimeProfileImplementationV1,
+  translationProgramRuntimeProfileV1,
+} from "../../programs/translation/runtime-profile/translation-runtime-profile.ts";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "./pi-faux-runtime.js";
-import {
-  translationProgramHarnessReferenceV1,
-} from "../product/translation/translation-batch-protocol.ts";
+
+const creatorProgramPackageV1 = {
+  programId: "sillyos.creator",
+  packageVersion: "1.0.0",
+  contentDigest: "c".repeat(64),
+} as const;
+const translationProgramPackageV1 = {
+  programId: "sillyos.translation",
+  packageVersion: "1.0.0",
+  contentDigest: "d".repeat(64),
+} as const;
 
 describe("SillyOS Browser Pi runtime bridge", () => {
   it("passes the effective reasoning effort through Pi Agent to the Provider request", async () => {
@@ -26,28 +35,30 @@ describe("SillyOS Browser Pi runtime bridge", () => {
       tokensPerSecond: 0,
     });
     faux.setResponses([fauxAssistantMessage("Done")]);
-    let observedReasoning: PiSimpleStreamOptionsV1["reasoning"];
-    const streamFn: PiStreamFnV1 = (model, context, options) => {
+    let observedReasoning: string | undefined;
+    const streamFn: typeof faux.provider.streamSimple = (model, context, options) => {
       observedReasoning = options?.reasoning;
       return faux.provider.streamSimple(model, context, options);
     };
     const dispatch = {
       revision: 1,
-      harnessReference: creatorProgramHarnessReferenceV1,
-      programId: "program.reasoning.1",
-      submit: {
+      runtimeProfile: creatorProgramRuntimeProfileV1,
+      programPackage: creatorProgramPackageV1,
+      workspaceProgramId: creatorProgramPackageV1.programId,
+      payload: {
         revision: 1,
         proposalId: "proposal.reasoning.1",
-        programId: "program.reasoning.1",
+        programId: creatorProgramPackageV1.programId,
         baseProgramRevision: 1,
         text: "Verify the effective reasoning effort.",
       },
     } as const;
+    const admission = creatorProgramRuntimeProfileImplementationV1.admitDispatch(dispatch);
+    if (admission.kind === "rejected") throw new Error("Creator dispatch was rejected");
     const agent = createPiAgentV1({
-      instructions: creatorBundledProgramPackageV1.instructions,
+      instructions: "Create the requested Program.",
       workspaceTools: [],
-      completionTool: creatorBundledProgramPackageV1.createCompletionTool({
-        dispatch,
+      completionTool: admission.invocation.createCompletionTool({
         onCandidate: () => {},
       }),
       onTextDelta: () => {},
@@ -81,39 +92,43 @@ describe("SillyOS Browser Pi runtime bridge", () => {
     const textDeltas: string[] = [];
     const dispatch = {
       revision: 1,
-      harnessReference: translationProgramHarnessReferenceV1,
-      programId: "program.translation.1",
-      requestedOutputTokens: 4_608,
-      request: {
-        sourceLocale: "zh-CN",
-        targetLocale: "en",
-        documentPurpose: "Fictional dialogue.",
-        style: "Natural.",
-        glossary: [],
-        confirmedMeaningFacts: [],
-        neighboringUnits: { preceding: null, following: null },
-        units: [{
-          unitId: "translation.unit.000001",
-          order: 0,
-          locator: "line/1",
-          context: null,
-          durationMilliseconds: null,
-          source: "你好。",
-          protectedSegments: [],
-        }],
+      runtimeProfile: translationProgramRuntimeProfileV1,
+      programPackage: translationProgramPackageV1,
+      workspaceProgramId: translationProgramPackageV1.programId,
+      payload: {
+        requestedOutputTokens: 4_608,
+        request: {
+          sourceLocale: "zh-CN",
+          targetLocale: "en",
+          documentPurpose: "Fictional dialogue.",
+          style: "Natural.",
+          glossary: [],
+          confirmedMeaningFacts: [],
+          neighboringUnits: { preceding: null, following: null },
+          units: [{
+            unitId: "translation.unit.000001",
+            order: 0,
+            locator: "line/1",
+            context: null,
+            durationMilliseconds: null,
+            source: "你好。",
+            protectedSegments: [],
+          }],
+        },
       },
     } as const;
     const onCandidate = (candidate: unknown) => {
       candidates.push(candidate);
     };
+    const admission = translationProgramRuntimeProfileImplementationV1.admitDispatch(dispatch);
+    if (admission.kind === "rejected") throw new Error("Translation dispatch was rejected");
     const agent = createPiAgentV1({
-      instructions: translationBundledProgramPackageV1.instructions,
+      instructions: "Translate the admitted batch faithfully.",
       workspaceTools: [],
-      completionTool: translationBundledProgramPackageV1.createCompletionTool({
-        dispatch,
+      completionTool: admission.invocation.createCompletionTool({
         onCandidate,
       }),
-      onTextDelta: (delta) => textDeltas.push(delta),
+      onTextDelta: (delta: string) => textDeltas.push(delta),
       reasoningEffort: "off",
       streamFn: faux.provider.streamSimple,
       model: faux.getModel(),
@@ -135,37 +150,44 @@ describe("SillyOS Browser Pi runtime bridge", () => {
     const candidates: unknown[] = [];
     const dispatch = {
       revision: 1,
-      harnessReference: translationProgramHarnessReferenceV1,
-      programId: "program.translation.deterministic.1",
-      requestedOutputTokens: 4_608,
-      request: {
-        sourceLocale: "zh-CN",
-        targetLocale: "en",
-        documentPurpose: "Fictional dialogue.",
-        style: "Natural.",
-        glossary: [],
-        confirmedMeaningFacts: [],
-        neighboringUnits: { preceding: null, following: null },
-        units: [{
-          unitId: "translation.unit.deterministic.1",
-          order: 0,
-          locator: "line/1",
-          context: null,
-          durationMilliseconds: null,
-          source: "你好，⟦SM:0⟧。",
-          protectedSegments: [{
-            token: "⟦SM:0⟧",
-            source: "{name}",
-            kind: "placeholder",
+      runtimeProfile: translationProgramRuntimeProfileV1,
+      programPackage: translationProgramPackageV1,
+      workspaceProgramId: translationProgramPackageV1.programId,
+      payload: {
+        requestedOutputTokens: 4_608,
+        request: {
+          sourceLocale: "zh-CN",
+          targetLocale: "en",
+          documentPurpose: "Fictional dialogue.",
+          style: "Natural.",
+          glossary: [],
+          confirmedMeaningFacts: [],
+          neighboringUnits: { preceding: null, following: null },
+          units: [{
+            unitId: "translation.unit.deterministic.1",
+            order: 0,
+            locator: "line/1",
+            context: null,
+            durationMilliseconds: null,
+            source: "你好，⟦SM:0⟧。",
+            protectedSegments: [{
+              token: "⟦SM:0⟧",
+              source: "{name}",
+              kind: "placeholder",
+            }],
           }],
-        }],
+        },
       },
     } as const;
+    const admission = translationProgramRuntimeProfileImplementationV1.admitDispatch(dispatch);
+    if (admission.kind === "rejected") throw new Error("Translation dispatch was rejected");
     const agent = createDeterministicPiAgentV1({
-      dispatch,
-      programPackage: translationBundledProgramPackageV1,
+      instructions: "Translate the admitted batch faithfully.",
+      runtimeProfile: translationProgramRuntimeProfileImplementationV1,
+      invocation: admission.invocation,
+      harnessToolIds: translationProgramRuntimeProfileImplementationV1.harnessToolIds,
       workspaceTools: [],
-      onCandidate: (candidate) => {
+      onCandidate: (candidate: unknown) => {
         candidates.push(candidate);
       },
       onTextDelta: () => undefined,

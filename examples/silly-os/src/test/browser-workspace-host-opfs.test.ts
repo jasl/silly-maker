@@ -1083,8 +1083,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     }> = [];
     const exportOnce = async (): Promise<Uint8Array> => {
       const archive = await opened.lease.createPortableArchive({
-        programRevision: 4,
-        repositoryRevision: 7,
+        sourceRevision: 4,
+        baseRevision: 7,
         expectedHead: head,
         signal: new AbortController().signal,
         onProgress: (next) => progress.push(next),
@@ -1117,8 +1117,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
         workspaceFormat: 1,
         programId: opened.lease.anchor.programId,
         workspaceId: opened.lease.anchor.workspaceId,
-        programRevision: 4,
-        repositoryRevision: 7,
+        sourceRevision: 4,
+        baseRevision: 7,
         checkpointId: head.checkpointId,
         generation: head.generation,
       })
@@ -1147,9 +1147,9 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     const preparedHead = await opened.lease.readHead();
     const prepareInput = {
       snapshotId: "snapshot.exact.1",
-      proposalId: "proposal.exact.1",
-      programRevision: 8,
-      baseRepositoryRevision: 13,
+      publicationId: "proposal.exact.1",
+      sourceRevision: 8,
+      baseRevision: 13,
       expectedHead: preparedHead,
       signal: new AbortController().signal,
     } as const;
@@ -1161,9 +1161,9 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       workspaceId: opened.lease.anchor.workspaceId,
       volumeId: opened.lease.anchor.volumeId,
       workspaceFormat: 1,
-      proposalId: prepareInput.proposalId,
-      programRevision: prepareInput.programRevision,
-      baseRepositoryRevision: prepareInput.baseRepositoryRevision,
+      publicationId: prepareInput.publicationId,
+      sourceRevision: prepareInput.sourceRevision,
+      baseRevision: prepareInput.baseRevision,
       checkpointId: preparedHead.checkpointId,
       generation: preparedHead.generation,
     });
@@ -1233,8 +1233,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     expect(snapshotArchive.bytes).toEqual(archiveBeforeMutation);
 
     const portable = await reopened.createPortableArchive({
-      programRevision: 9,
-      repositoryRevision: 14,
+      sourceRevision: 9,
+      baseRevision: 14,
       expectedHead: changed.head,
       signal: new AbortController().signal,
       onProgress() {},
@@ -1277,9 +1277,9 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     const head = await opened.lease.readHead();
     const receipt = await opened.lease.prepareImmutableSnapshot({
       snapshotId: "snapshot.collision.1",
-      proposalId: "proposal.collision.1",
-      programRevision: 2,
-      baseRepositoryRevision: 3,
+      publicationId: "proposal.collision.1",
+      sourceRevision: 2,
+      baseRevision: 3,
       expectedHead: head,
       signal: new AbortController().signal,
     });
@@ -1298,9 +1298,9 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
 
     await expect(opened.lease.prepareImmutableSnapshot({
       snapshotId: receipt.snapshotId,
-      proposalId: "proposal.collision.2",
-      programRevision: 3,
-      baseRepositoryRevision: 4,
+      publicationId: "proposal.collision.2",
+      sourceRevision: 3,
+      baseRevision: 4,
       expectedHead: head,
       signal: new AbortController().signal,
     })).rejects.toMatchObject({ code: "snapshot_mismatch" });
@@ -1316,9 +1316,9 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     const head = await opened.lease.readHead();
     const receipt = await opened.lease.prepareImmutableSnapshot({
       snapshotId: "snapshot.discard.1",
-      proposalId: "proposal.discard.1",
-      programRevision: 2,
-      baseRepositoryRevision: 3,
+      publicationId: "proposal.discard.1",
+      sourceRevision: 2,
+      baseRevision: 3,
       expectedHead: head,
       signal: new AbortController().signal,
     });
@@ -1356,9 +1356,9 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     const anchor = opened.lease.anchor;
     const receipt = await opened.lease.prepareImmutableSnapshot({
       snapshotId: "snapshot.discard-recovery.1",
-      proposalId: "proposal.discard-recovery.1",
-      programRevision: 2,
-      baseRepositoryRevision: 3,
+      publicationId: "proposal.discard-recovery.1",
+      sourceRevision: 2,
+      baseRevision: 3,
       expectedHead: head,
       signal: new AbortController().signal,
     });
@@ -1405,13 +1405,13 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     const first = await bootstrap.openVolume(firstAnchor);
     const second = await bootstrap.openVolume(secondAnchor);
     const snapshotId = "snapshot.shared-opaque-id.1";
-    const prepare = async (lease: BrowserWorkspaceHostVolumeLeasePortV1, proposalId: string) => {
+    const prepare = async (lease: BrowserWorkspaceHostVolumeLeasePortV1, publicationId: string) => {
       const head = await lease.readHead();
       return await lease.prepareImmutableSnapshot({
         snapshotId,
-        proposalId,
-        programRevision: 2,
-        baseRepositoryRevision: 3,
+        publicationId,
+        sourceRevision: 2,
+        baseRevision: 3,
         expectedHead: head,
         signal: new AbortController().signal,
       });
@@ -1463,9 +1463,9 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
           workspaceId: anchor.workspaceId,
           volumeId: anchor.volumeId,
           workspaceFormat: anchor.workspaceFormat,
-          proposalId: "proposal.partial.1",
-          programRevision: 2,
-          baseRepositoryRevision: 3,
+          publicationId: "proposal.partial.1",
+          sourceRevision: 2,
+          baseRevision: 3,
           checkpointId: head.checkpointId,
           generation: head.generation,
         })
@@ -1497,9 +1497,9 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
 
     await expect(opened.lease.prepareImmutableSnapshot({
       snapshotId: "snapshot.marker-failure.1",
-      proposalId: "proposal.marker-failure.1",
-      programRevision: 2,
-      baseRepositoryRevision: 3,
+      publicationId: "proposal.marker-failure.1",
+      sourceRevision: 2,
+      baseRevision: 3,
       expectedHead: head,
       signal: new AbortController().signal,
     })).rejects.toThrow("injected snapshot-candidate.json close failure");
@@ -1561,8 +1561,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     root.faults.writableCreates.length = 0;
 
     await expect(lease.createPortableArchive({
-      programRevision: 2,
-      repositoryRevision: 3,
+      sourceRevision: 2,
+      baseRevision: 3,
       expectedHead: head,
       signal: new AbortController().signal,
       onProgress() {},
@@ -1582,9 +1582,9 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     root.faults.writableCreates.length = 0;
     await expect(lease.prepareImmutableSnapshot({
       snapshotId: "snapshot.quota.1",
-      proposalId: "proposal.quota.1",
-      programRevision: 2,
-      baseRepositoryRevision: 3,
+      publicationId: "proposal.quota.1",
+      sourceRevision: 2,
+      baseRevision: 3,
       expectedHead: head,
       signal: new AbortController().signal,
     })).rejects.toMatchObject({ code: "capacity_exceeded" });
@@ -1629,8 +1629,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     };
 
     await expect(opened.lease.createPortableArchive({
-      programRevision: 2,
-      repositoryRevision: 3,
+      sourceRevision: 2,
+      baseRevision: 3,
       expectedHead: head,
       signal: controller.signal,
       onProgress() {},
@@ -1676,8 +1676,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     };
 
     await expect(opened.lease.createPortableArchive({
-      programRevision: 2,
-      repositoryRevision: 3,
+      sourceRevision: 2,
+      baseRevision: 3,
       expectedHead: head,
       signal: controller.signal,
       onProgress() {},
@@ -1692,8 +1692,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     ]);
     expect(staging.entries.has("portable-export.zip")).toBe(true);
     const retry = await opened.lease.createPortableArchive({
-      programRevision: 2,
-      repositoryRevision: 3,
+      sourceRevision: 2,
+      baseRevision: 3,
       expectedHead: head,
       signal: new AbortController().signal,
       onProgress() {},
@@ -1724,8 +1724,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     }
     const head = await opened.lease.readHead();
     await expect(opened.lease.createPortableArchive({
-      programRevision: 2,
-      repositoryRevision: 3,
+      sourceRevision: 2,
+      baseRevision: 3,
       expectedHead: head,
       signal: new AbortController().signal,
       onProgress() {},
@@ -1829,8 +1829,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     }
     const head = await opened.lease.readHead();
     await expect(opened.lease.createPortableArchive({
-      programRevision: 2,
-      repositoryRevision: 3,
+      sourceRevision: 2,
+      baseRevision: 3,
       expectedHead: head,
       signal: new AbortController().signal,
       onProgress() {},
@@ -1878,8 +1878,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     );
 
     await expect(opened.lease.createPortableArchive({
-      programRevision: 2,
-      repositoryRevision: 3,
+      sourceRevision: 2,
+      baseRevision: 3,
       expectedHead: head,
       signal: new AbortController().signal,
       onProgress() {},
@@ -1931,8 +1931,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     root.faults.fileSliceReads.length = 0;
     root.faults.writeChunkBytes.length = 0;
     const archive = await lease.createPortableArchive({
-      programRevision: 2,
-      repositoryRevision: 3,
+      sourceRevision: 2,
+      baseRevision: 3,
       expectedHead: head,
       signal: new AbortController().signal,
       onProgress() {},

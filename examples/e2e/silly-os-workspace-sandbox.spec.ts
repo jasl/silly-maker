@@ -65,8 +65,8 @@ interface SandboxWorkspaceExportManifestV1 {
   readonly workspaceFormat: 1;
   readonly programId: string;
   readonly workspaceId: string;
-  readonly programRevision: 1;
-  readonly repositoryRevision: 1;
+  readonly sourceRevision: 1;
+  readonly baseRevision: 1;
   readonly checkpointId: string;
   readonly generation: 82;
 }
@@ -163,8 +163,8 @@ async function assertSandboxQualificationArchiveV1(
     workspaceFormat: 1,
     programId: receipt.anchor.programId,
     workspaceId: receipt.anchor.workspaceId,
-    programRevision: 1,
-    repositoryRevision: 1,
+    sourceRevision: 1,
+    baseRevision: 1,
     checkpointId: receipt.snapshot.checkpointId,
     generation: 82,
   };
@@ -329,11 +329,11 @@ async function qualifySandboxWorkspaceV1(
       prepareSnapshot(input: {
         readonly workspaceSessionId: string;
         readonly snapshotId: string;
-        readonly proposalId: string;
+        readonly publicationId: string;
         readonly expectedCheckpointId: string;
         readonly expectedGeneration: number;
-        readonly programRevision: number;
-        readonly baseRepositoryRevision: number;
+        readonly sourceRevision: number;
+        readonly baseRevision: number;
       }): Promise<{
         readonly snapshotId: string;
         readonly checkpointId: string;
@@ -487,11 +487,11 @@ async function qualifySandboxWorkspaceV1(
       const snapshot = await coldHost.prepareSnapshot({
         workspaceSessionId: verifiedHead.descriptor.workspaceSessionId,
         snapshotId: `snapshot.sandbox.${crypto.randomUUID()}`,
-        proposalId: `proposal.sandbox.${crypto.randomUUID()}`,
+        publicationId: `publication.sandbox.${crypto.randomUUID()}`,
         expectedCheckpointId: verifiedHead.checkpointId,
         expectedGeneration: verifiedHead.descriptor.generation,
-        programRevision: 1,
-        baseRepositoryRevision: 1,
+        sourceRevision: 1,
+        baseRevision: 1,
       });
       const owner = globalThis as typeof globalThis & {
         sillyOsS1aWorkspaceSandboxOwnerV1?: {
@@ -596,7 +596,7 @@ test(
   async ({ durableProgramPage: page }) => {
     test.setTimeout(120_000);
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
-    await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+    await expect(page.locator('[data-silly-os-view="program-library"]')).toBeVisible();
     const ordinaryFrameCount = await page.locator(
       "iframe[data-silly-os-workspace-sandbox='active']",
     ).count();
@@ -627,7 +627,7 @@ test(
   async ({ durableProgramPage: page }, testInfo) => {
     test.setTimeout(600_000);
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
-    await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+    await expect(page.locator('[data-silly-os-view="program-library"]')).toBeVisible();
     const ordinaryFrameCount = await page.locator(
       "iframe[data-silly-os-workspace-sandbox='active']",
     ).count();
@@ -759,7 +759,7 @@ test(
   async ({ durableProgramPage: page }) => {
     test.setTimeout(120_000);
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
-    await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+    await expect(page.locator('[data-silly-os-view="program-library"]')).toBeVisible();
     const ordinaryFrameCount = await page.locator(
       "iframe[data-silly-os-workspace-sandbox='active']",
     ).count();
@@ -981,7 +981,7 @@ test(
   async ({ page, pageDiagnostics }) => {
     test.setTimeout(120_000);
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
-    await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+    await expect(page.locator('[data-silly-os-view="program-library"]')).toBeVisible();
     const ordinaryFrameCount = await page.locator(
       "iframe[data-silly-os-workspace-sandbox='active']",
     ).count();

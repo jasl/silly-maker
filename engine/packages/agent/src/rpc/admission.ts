@@ -19,7 +19,7 @@ const projectionLimitsInternalV1: BoundedCanonicalJsonLimitsInternalV1 = {
   maxDepth: 16 as BoundedCanonicalJsonLimitsInternalV1["maxDepth"],
   maxNodes: 2_048 as BoundedCanonicalJsonLimitsInternalV1["maxNodes"],
 };
-const identifierPatternInternalV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+const identifierPatternInternalV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u;
 const maxTextLengthInternalV1 = 8_192;
 
 export type AgentSessionAdmissionResultInternalV1<TValue> =

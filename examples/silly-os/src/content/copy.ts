@@ -24,33 +24,11 @@ const defaultSillyOsLocaleV1: SillyOsLocaleV1 = "en";
 export interface SillyOsCopyV1 {
   readonly locale: SillyOsLocaleV1;
   readonly productName: string;
-  readonly preview: string;
-  readonly creatorName: string;
-  readonly creatorKicker: string;
-  readonly creatorTitle: string;
-  readonly creatorDescription: string;
-  readonly creatorPlaceholder: string;
-  readonly create: string;
-  readonly examplesLabel: string;
-  readonly recentProgramsLabel: string;
-  readonly browserLocal: string;
-  readonly recentProgramsEmpty: string;
-  readonly programsLoading: string;
-  readonly programsUnavailable: string;
-  readonly loadMorePrograms: string;
-  readonly loadingMorePrograms: string;
-  readonly runProgram: string;
-  readonly editProgram: string;
   readonly openingProgram: string;
-  readonly savingProgram: string;
   readonly retry: string;
   readonly persistenceFailure: string;
   readonly persistenceConflict: string;
   readonly persistenceOutcomeUnknown: string;
-  readonly programKindTranslation: string;
-  readonly programKindWriting: string;
-  readonly programKindRoleplay: string;
-  readonly programKindGeneral: string;
   readonly home: string;
   readonly chat: string;
   readonly loadOlderTranscript: string;
@@ -65,73 +43,35 @@ export interface SillyOsCopyV1 {
   readonly transcriptToolResult: string;
   readonly transcriptArtifact: string;
   readonly previewTab: string;
-  readonly capabilitiesTab: string;
-  readonly fullscreen: string;
-  readonly exitFullscreen: string;
-  readonly closePreview: string;
-  readonly openPreview: string;
   readonly sendPlaceholder: string;
   readonly send: string;
-  readonly accept: string;
-  readonly reject: string;
-  readonly accepted: string;
-  readonly rejected: string;
-  readonly proposedProgram: string;
-  readonly workspaceReview: string;
-  readonly acceptedSnapshot: string;
-  readonly pendingReview: string;
-  readonly snapshotId: string;
-  readonly proposalId: string;
-  readonly programRevision: string;
-  readonly acceptedHead: string;
-  readonly reviewedHead: string;
-  readonly mutableHead: string;
-  readonly generation: string;
-  readonly fileCount: string;
-  readonly archiveSize: string;
-  readonly mutableHeadUnavailable: string;
-  readonly pendingReviewMatches: string;
-  readonly pendingReviewChanged: string;
-  readonly pendingReviewUnavailable: string;
-  readonly acceptedSnapshotMatches: string;
-  readonly acceptedSnapshotChanged: string;
-  readonly acceptedSnapshotUnavailable: string;
-  readonly workspaceAria: string;
-  readonly resizeAria: string;
   readonly mobileNavigation: string;
-  readonly piTestTitle: string;
-  readonly piTestDescription: string;
-  readonly piTestKeyLabel: string;
-  readonly piTestKeyPlaceholder: string;
-  readonly piTestInitialize: string;
-  readonly piTestLoading: string;
-  readonly piTestInitializing: string;
-  readonly piTestReady: string;
-  readonly piTestFailed: string;
-  readonly piTestDraft: string;
-  readonly piTestCancel: string;
-  readonly piTestForget: string;
-  readonly piLiveFailed: string;
-  readonly creatorReadinessCatalogLoadingTitle: string;
-  readonly creatorReadinessCatalogLoadingDescription: string;
-  readonly creatorReadinessCatalogFailedTitle: string;
-  readonly creatorReadinessCatalogFailedDescription: string;
-  readonly creatorReadinessVaultLoadingTitle: string;
-  readonly creatorReadinessVaultLoadingDescription: string;
-  readonly creatorReadinessVaultUnavailableTitle: string;
-  readonly creatorReadinessVaultUnavailableDescription: string;
-  readonly creatorReadinessVaultLockedTitle: string;
-  readonly creatorReadinessVaultLockedDescription: string;
-  readonly creatorReadinessModelRequiredTitle: string;
-  readonly creatorReadinessModelRequiredDescription: string;
-  readonly creatorReadinessCredentialRequiredTitle: string;
-  readonly creatorReadinessCredentialRequiredDescription: string;
-  readonly creatorReadinessAgentInitializingTitle: string;
-  readonly creatorReadinessAgentInitializingDescription: string;
-  readonly creatorReadinessAgentFailedTitle: string;
-  readonly creatorReadinessAgentFailedDescription: string;
-  readonly creatorReadinessOpenProviders: string;
-  readonly creatorReadinessOpenVault: string;
+  readonly agentRunTitle: string;
+  readonly agentRunReady: string;
+  readonly agentRunUnavailable: string;
+  readonly agentRunDraft: string;
+  readonly agentRunCancel: string;
+  readonly agentRunForgetCredential: string;
+  readonly programAgentReadinessCatalogLoadingTitle: string;
+  readonly programAgentReadinessCatalogLoadingDescription: string;
+  readonly programAgentReadinessCatalogFailedTitle: string;
+  readonly programAgentReadinessCatalogFailedDescription: string;
+  readonly programAgentReadinessVaultLoadingTitle: string;
+  readonly programAgentReadinessVaultLoadingDescription: string;
+  readonly programAgentReadinessVaultUnavailableTitle: string;
+  readonly programAgentReadinessVaultUnavailableDescription: string;
+  readonly programAgentReadinessVaultLockedTitle: string;
+  readonly programAgentReadinessVaultLockedDescription: string;
+  readonly programAgentReadinessModelRequiredTitle: string;
+  readonly programAgentReadinessModelRequiredDescription: string;
+  readonly programAgentReadinessCredentialRequiredTitle: string;
+  readonly programAgentReadinessCredentialRequiredDescription: string;
+  readonly programAgentReadinessAgentInitializingTitle: string;
+  readonly programAgentReadinessAgentInitializingDescription: string;
+  readonly programAgentReadinessAgentFailedTitle: string;
+  readonly programAgentReadinessAgentFailedDescription: string;
+  readonly programAgentReadinessOpenProviders: string;
+  readonly programAgentReadinessOpenVault: string;
   readonly networkAccessTitle: string;
   readonly networkAccessToggle: string;
   readonly networkAccessDescription: string;
@@ -221,23 +161,23 @@ export interface SillyOsCopyV1 {
   readonly modelSearchLabel: string;
   readonly modelSearchPlaceholder: string;
   readonly modelSearchEmpty: string;
-  readonly creatorModelSelection: string;
-  readonly creatorSelectModel: string;
-  readonly creatorModelSwitching: string;
-  readonly creatorNoConnectedModels: string;
-  readonly creatorModelSettings: string;
-  readonly creatorReasoningEffort: string;
-  readonly creatorReasoningEffortSelection: string;
-  readonly creatorReasoningEffortSwitching: string;
-  readonly creatorReasoningEffortOff: string;
-  readonly creatorReasoningEffortMinimal: string;
-  readonly creatorReasoningEffortLow: string;
-  readonly creatorReasoningEffortMedium: string;
-  readonly creatorReasoningEffortHigh: string;
-  readonly creatorReasoningEffortXHigh: string;
-  readonly creatorReasoningEffortMax: string;
-  readonly creatorModelTitle: string;
-  readonly creatorModelDescription: string;
+  readonly programAgentModelSelection: string;
+  readonly programAgentSelectModel: string;
+  readonly programAgentModelSwitching: string;
+  readonly programAgentNoConnectedModels: string;
+  readonly programAgentModelSettings: string;
+  readonly programAgentReasoningEffort: string;
+  readonly programAgentReasoningEffortSelection: string;
+  readonly programAgentReasoningEffortSwitching: string;
+  readonly programAgentReasoningEffortOff: string;
+  readonly programAgentReasoningEffortMinimal: string;
+  readonly programAgentReasoningEffortLow: string;
+  readonly programAgentReasoningEffortMedium: string;
+  readonly programAgentReasoningEffortHigh: string;
+  readonly programAgentReasoningEffortXHigh: string;
+  readonly programAgentReasoningEffortMax: string;
+  readonly programAgentModelTitle: string;
+  readonly programAgentModelDescription: string;
   readonly providerConnectionModelRequired: string;
   readonly selectedModelUnavailable: string;
   readonly providerConnectionTitle: string;
@@ -301,42 +241,17 @@ export interface SillyOsCopyV1 {
   readonly credentialVaultBindingsCountSuffix: string;
   readonly credentialVaultBindingsEmpty: string;
   readonly credentialVaultForgetBinding: string;
-  readonly samplePrompts: readonly string[];
 }
 
 const englishV1: SillyOsCopyV1 = {
   locale: "en",
   productName: "SillyOS",
-  preview: "Preview",
-  creatorName: "Agent Creator",
-  creatorKicker: "Bundled with SillyOS",
-  creatorTitle: "What would you like to make?",
-  creatorDescription:
-    "Describe an outcome. Agent Creator will propose a focused program whose instructions, capabilities, work and review surface stay together.",
-  creatorPlaceholder:
-    "For example: translate this visual novel, preserve character voices, and give me a review queue for uncertain lines…",
-  create: "Create program",
-  examplesLabel: "Try a starting point",
-  recentProgramsLabel: "Recent programs",
-  browserLocal: "Stored in this browser",
-  recentProgramsEmpty: "Programs you create here will appear in this browser.",
-  programsLoading: "Opening the local Program catalog…",
-  programsUnavailable: "The local Program catalog is unavailable.",
-  loadMorePrograms: "Load more programs",
-  loadingMorePrograms: "Loading more programs…",
-  runProgram: "Start or continue",
-  editProgram: "Edit program",
   openingProgram: "Opening program…",
-  savingProgram: "Saving Program…",
   retry: "Retry",
   persistenceFailure: "The Program was not saved. Your previous committed version is unchanged.",
   persistenceConflict: "Another page updated this Program. The durable version has been reopened.",
   persistenceOutcomeUnknown: "Checking whether the Program was committed…",
-  programKindTranslation: "Translation",
-  programKindWriting: "Writing",
-  programKindRoleplay: "Role-play",
-  programKindGeneral: "Creator tool",
-  home: "Creator home",
+  home: "Program library",
   chat: "Chat",
   loadOlderTranscript: "Load earlier messages",
   loadingOlderTranscript: "Loading earlier messages…",
@@ -350,87 +265,46 @@ const englishV1: SillyOsCopyV1 = {
   transcriptToolResult: "Tool result",
   transcriptArtifact: "Artifact",
   previewTab: "View",
-  capabilitiesTab: "Capabilities",
-  fullscreen: "Open full screen",
-  exitFullscreen: "Exit full screen",
-  closePreview: "Close workpiece",
-  openPreview: "Open workpiece",
   sendPlaceholder: "Ask for a change…",
   send: "Send",
-  accept: "Accept program",
-  reject: "Reject proposal",
-  accepted: "Program accepted",
-  rejected: "Proposal rejected",
-  proposedProgram: "Proposed program",
-  workspaceReview: "Workspace review",
-  acceptedSnapshot: "Accepted snapshot",
-  pendingReview: "Pending review",
-  snapshotId: "Snapshot ID",
-  proposalId: "Proposal ID",
-  programRevision: "Program revision",
-  acceptedHead: "Accepted head",
-  reviewedHead: "Reviewed head",
-  mutableHead: "Current working head",
-  generation: "Generation",
-  fileCount: "Files",
-  archiveSize: "Archive bytes",
-  mutableHeadUnavailable: "Unavailable",
-  pendingReviewMatches: "The working copy matches the reviewed proposal.",
-  pendingReviewChanged:
-    "The workspace changed after this proposal was reviewed. Ask Agent Creator for a new revision before accepting.",
-  pendingReviewUnavailable:
-    "The current working head is unavailable, so its relationship to this proposal is unknown.",
-  acceptedSnapshotMatches: "The working copy matches the accepted snapshot.",
-  acceptedSnapshotChanged:
-    "The working copy has changes after the accepted snapshot. Those changes are not accepted.",
-  acceptedSnapshotUnavailable:
-    "The current working head is unavailable, so its relationship to the accepted snapshot is unknown.",
-  workspaceAria: "SillyOS program workspace",
-  resizeAria: "Resize conversation and workpiece panes",
   mobileNavigation: "Workspace views",
-  piTestTitle: "Browser Pi wiring check",
-  piTestDescription:
-    "Runs the product-pinned Pi 0.84.4 Agent with a deterministic local provider. It does not contact an LLM or validate a real provider key.",
-  piTestKeyLabel: "Synthetic test key (memory only)",
-  piTestKeyPlaceholder: "Enter a disposable test value",
-  piTestInitialize: "Initialize Pi test",
-  piTestLoading: "Loading the Browser adapter…",
-  piTestInitializing: "Starting the Agent Worker…",
-  piTestReady: "Pi test ready",
-  piTestFailed: "Pi test unavailable",
-  piTestDraft: "Agent Creator draft",
-  piTestCancel: "Cancel run",
-  piTestForget: "Forget test key",
-  piLiveFailed: "Provider Agent unavailable",
-  creatorReadinessCatalogLoadingTitle: "Loading model Providers",
-  creatorReadinessCatalogLoadingDescription: "Reading this device's Provider and model settings.",
-  creatorReadinessCatalogFailedTitle: "Provider catalog unavailable",
-  creatorReadinessCatalogFailedDescription:
-    "Open Providers to retry the bundled catalog before using Agent Creator.",
-  creatorReadinessVaultLoadingTitle: "Opening Credential Vault",
-  creatorReadinessVaultLoadingDescription: "Preparing saved Provider keys for this session.",
-  creatorReadinessVaultUnavailableTitle: "Credential Vault unavailable",
-  creatorReadinessVaultUnavailableDescription:
+  agentRunTitle: "Agent run",
+  agentRunReady: "Agent ready",
+  agentRunUnavailable: "Agent unavailable",
+  agentRunDraft: "Agent draft",
+  agentRunCancel: "Cancel run",
+  agentRunForgetCredential: "Forget test credential",
+  programAgentReadinessCatalogLoadingTitle: "Loading model Providers",
+  programAgentReadinessCatalogLoadingDescription:
+    "Reading this device's Provider and model settings.",
+  programAgentReadinessCatalogFailedTitle: "Provider catalog unavailable",
+  programAgentReadinessCatalogFailedDescription:
+    "Open Providers to retry the bundled catalog before using Program Agent.",
+  programAgentReadinessVaultLoadingTitle: "Opening Credential Vault",
+  programAgentReadinessVaultLoadingDescription: "Preparing saved Provider keys for this session.",
+  programAgentReadinessVaultUnavailableTitle: "Credential Vault unavailable",
+  programAgentReadinessVaultUnavailableDescription:
     "Saved Provider keys cannot be used in this browser until the Vault is available.",
-  creatorReadinessVaultLockedTitle: "Credential Vault locked",
-  creatorReadinessVaultLockedDescription: "Unlock the Vault to use its saved Provider keys.",
-  creatorReadinessModelRequiredTitle: "Choose a model",
-  creatorReadinessModelRequiredDescription:
-    "Select at least one model to make it available to Agent Creator.",
-  creatorReadinessCredentialRequiredTitle: "API key required",
-  creatorReadinessCredentialRequiredDescription:
+  programAgentReadinessVaultLockedTitle: "Credential Vault locked",
+  programAgentReadinessVaultLockedDescription: "Unlock the Vault to use its saved Provider keys.",
+  programAgentReadinessModelRequiredTitle: "Choose a model",
+  programAgentReadinessModelRequiredDescription:
+    "Select at least one model to make it available to Program Agent.",
+  programAgentReadinessCredentialRequiredTitle: "API key required",
+  programAgentReadinessCredentialRequiredDescription:
     "Save an API key for a Provider that offers one of your selected models.",
-  creatorReadinessAgentInitializingTitle: "Starting Agent Creator",
-  creatorReadinessAgentInitializingDescription: "Preparing the selected model for this session.",
-  creatorReadinessAgentFailedTitle: "Agent Creator unavailable",
-  creatorReadinessAgentFailedDescription:
+  programAgentReadinessAgentInitializingTitle: "Starting Program Agent",
+  programAgentReadinessAgentInitializingDescription:
+    "Preparing the selected model for this session.",
+  programAgentReadinessAgentFailedTitle: "Program Agent unavailable",
+  programAgentReadinessAgentFailedDescription:
     "Open Providers to choose another model or update the Provider API key.",
-  creatorReadinessOpenProviders: "Open Providers",
-  creatorReadinessOpenVault: "Open Credential Vault",
+  programAgentReadinessOpenProviders: "Open Providers",
+  programAgentReadinessOpenVault: "Open Credential Vault",
   networkAccessTitle: "Network access",
   networkAccessToggle: "Allow network access",
   networkAccessDescription:
-    "Off by default. When enabled, Agent tools may fetch pages and download files over HTTPS for this Program. Full URL paths and queries may be sent to remote sites, and browser CORS still applies.",
+    "Off by default. When enabled, Agent tools may fetch pages and download files over HTTPS for this Process. Full URL paths and queries may be sent to remote sites, and browser CORS still applies.",
   settings: "Settings",
   productMenu: "SillyOS menu",
   settingsTheme: "Theme",
@@ -438,7 +312,7 @@ const englishV1: SillyOsCopyV1 = {
   themeSystem: "System",
   themeLight: "Light",
   themeDark: "Dark",
-  settingsBack: "Back to Agent Creator",
+  settingsBack: "Back to Program Agent",
   settingsCategoryGeneral: "General",
   settingsCategoryProviders: "Providers",
   settingsCategoryCredentialVault: "Credential Vault",
@@ -528,31 +402,31 @@ const englishV1: SillyOsCopyV1 = {
   modelsCountSuffix: "models",
   providerModelsTitle: "Available models",
   providerModelsDescription:
-    "Choose which models appear in Agent Creator. The current composer choice is the preferred default; both are independent of the API key and connection diagnostics.",
+    "Choose which models appear in Program Agent. The current composer choice is the preferred default; both are independent of the API key and connection diagnostics.",
   providerModelsEmpty: "No models are available for this Provider.",
   modelSearchLabel: "Search models",
   modelSearchPlaceholder: "Search model name or ID…",
   modelSearchEmpty: "No models match this search.",
-  creatorModelSelection: "Agent Creator model",
-  creatorSelectModel: "Select model",
-  creatorModelSwitching: "Switching model…",
-  creatorNoConnectedModels: "No checked model is currently available to Agent Creator.",
-  creatorModelSettings: "Model settings",
-  creatorReasoningEffort: "Reasoning effort",
-  creatorReasoningEffortSelection: "Agent Creator reasoning effort",
-  creatorReasoningEffortSwitching: "Changing reasoning effort…",
-  creatorReasoningEffortOff: "Off",
-  creatorReasoningEffortMinimal: "Minimal",
-  creatorReasoningEffortLow: "Low",
-  creatorReasoningEffortMedium: "Medium",
-  creatorReasoningEffortHigh: "High",
-  creatorReasoningEffortXHigh: "Extra high",
-  creatorReasoningEffortMax: "Maximum",
-  creatorModelTitle: "Use with Agent Creator",
-  creatorModelDescription:
+  programAgentModelSelection: "Program Agent model",
+  programAgentSelectModel: "Select model",
+  programAgentModelSwitching: "Switching model…",
+  programAgentNoConnectedModels: "No checked model is currently available to Program Agent.",
+  programAgentModelSettings: "Model settings",
+  programAgentReasoningEffort: "Reasoning effort",
+  programAgentReasoningEffortSelection: "Program Agent reasoning effort",
+  programAgentReasoningEffortSwitching: "Changing reasoning effort…",
+  programAgentReasoningEffortOff: "Off",
+  programAgentReasoningEffortMinimal: "Minimal",
+  programAgentReasoningEffortLow: "Low",
+  programAgentReasoningEffortMedium: "Medium",
+  programAgentReasoningEffortHigh: "High",
+  programAgentReasoningEffortXHigh: "Extra high",
+  programAgentReasoningEffortMax: "Maximum",
+  programAgentModelTitle: "Use with Program Agent",
+  programAgentModelDescription:
     "This device-local preference configures the current supervisor. The key never becomes Program or Workspace data.",
   providerConnectionModelRequired:
-    "Choose at least one available model before running Agent Creator. Saving an API key does not change model preferences.",
+    "Choose at least one available model before running Program Agent. Saving an API key does not change model preferences.",
   selectedModelUnavailable:
     "The selected model is not available through this Provider in the current Browser build.",
   providerConnectionTitle: "Connection",
@@ -634,46 +508,17 @@ const englishV1: SillyOsCopyV1 = {
   credentialVaultBindingsCountSuffix: "saved",
   credentialVaultBindingsEmpty: "No Provider API key is saved.",
   credentialVaultForgetBinding: "Forget",
-  samplePrompts: [
-    "Translate a visual novel and keep each character’s voice consistent",
-    "Turn my research notes into a chapter-by-chapter writing room",
-    "Create a role-play studio with editable character and world memory",
-  ],
 };
 
 const chineseV1: SillyOsCopyV1 = {
   locale: "zh-CN",
   productName: "SillyOS",
-  preview: "预览",
-  creatorName: "Agent Creator",
-  creatorKicker: "随 SillyOS 分发",
-  creatorTitle: "你想创作什么？",
-  creatorDescription:
-    "描述你想得到的结果。Agent Creator 会提出一个专注的程序，把指令、能力、工作内容和人工审查界面组织在同一个工程中。",
-  creatorPlaceholder:
-    "例如：翻译这部视觉小说，保留每位角色的说话风格，并把不确定的文本放进人工审查队列……",
-  create: "创建程序",
-  examplesLabel: "从一个想法开始",
-  recentProgramsLabel: "最近的程序",
-  browserLocal: "保存在此浏览器中",
-  recentProgramsEmpty: "你在这里创建的程序会出现在此浏览器中。",
-  programsLoading: "正在打开本地 Program 目录……",
-  programsUnavailable: "本地 Program 目录当前不可用。",
-  loadMorePrograms: "载入更多程序",
-  loadingMorePrograms: "正在载入更多程序……",
-  runProgram: "开始或继续",
-  editProgram: "编辑程序",
   openingProgram: "正在打开程序……",
-  savingProgram: "正在保存 Program……",
   retry: "重试",
   persistenceFailure: "Program 未保存；上一个已提交版本保持不变。",
   persistenceConflict: "另一个页面已更新此 Program，已重新打开持久版本。",
   persistenceOutcomeUnknown: "正在核对 Program 是否已经提交……",
-  programKindTranslation: "翻译",
-  programKindWriting: "写作",
-  programKindRoleplay: "角色扮演",
-  programKindGeneral: "创作工具",
-  home: "Creator 首页",
+  home: "Program 库",
   chat: "对话",
   loadOlderTranscript: "载入更早的消息",
   loadingOlderTranscript: "正在载入更早的消息……",
@@ -687,80 +532,41 @@ const chineseV1: SillyOsCopyV1 = {
   transcriptToolResult: "工具结果",
   transcriptArtifact: "产物",
   previewTab: "界面",
-  capabilitiesTab: "能力",
-  fullscreen: "全屏打开",
-  exitFullscreen: "退出全屏",
-  closePreview: "关闭工作界面",
-  openPreview: "打开工作界面",
   sendPlaceholder: "告诉 Agent 你想修改什么……",
   send: "发送",
-  accept: "接受程序",
-  reject: "拒绝方案",
-  accepted: "已接受程序",
-  rejected: "已拒绝方案",
-  proposedProgram: "建议的程序",
-  workspaceReview: "工作区审查",
-  acceptedSnapshot: "已接受快照",
-  pendingReview: "待审查方案",
-  snapshotId: "快照 ID",
-  proposalId: "方案 ID",
-  programRevision: "Program 版本",
-  acceptedHead: "已接受版本头",
-  reviewedHead: "已审查版本头",
-  mutableHead: "当前工作版本头",
-  generation: "代次",
-  fileCount: "文件数",
-  archiveSize: "归档字节数",
-  mutableHeadUnavailable: "不可用",
-  pendingReviewMatches: "当前工作副本与已审查方案一致。",
-  pendingReviewChanged:
-    "工作区在本方案完成审查后发生了变化。请先让 Agent Creator 生成新的修订版本，再执行接受。",
-  pendingReviewUnavailable: "当前工作版本头不可用，因此无法判断它与本方案的关系。",
-  acceptedSnapshotMatches: "当前工作副本与已接受快照一致。",
-  acceptedSnapshotChanged: "当前工作副本在已接受快照之后发生了变化；这些变化尚未被接受。",
-  acceptedSnapshotUnavailable: "当前工作版本头不可用，因此无法判断它与已接受快照的关系。",
-  workspaceAria: "SillyOS 程序工作区",
-  resizeAria: "调整对话区和工作界面的宽度",
   mobileNavigation: "工作区视图",
-  piTestTitle: "浏览器 Pi 接线检查",
-  piTestDescription:
-    "使用产品固定的 Pi 0.84.4 Agent 和确定性本地 provider；不会连接 LLM，也不会校验真实 provider key。",
-  piTestKeyLabel: "合成测试 key（仅内存）",
-  piTestKeyPlaceholder: "输入可随时丢弃的测试值",
-  piTestInitialize: "初始化 Pi 测试",
-  piTestLoading: "正在加载 Browser 适配器……",
-  piTestInitializing: "正在启动 Agent Worker……",
-  piTestReady: "Pi 测试已就绪",
-  piTestFailed: "Pi 测试不可用",
-  piTestDraft: "Agent Creator 草稿",
-  piTestCancel: "取消运行",
-  piTestForget: "忘记测试 key",
-  piLiveFailed: "Provider Agent 不可用",
-  creatorReadinessCatalogLoadingTitle: "正在载入模型 Provider",
-  creatorReadinessCatalogLoadingDescription: "正在读取此设备上的 Provider 与模型设置。",
-  creatorReadinessCatalogFailedTitle: "Provider 目录不可用",
-  creatorReadinessCatalogFailedDescription: "打开 Provider 设置并重试产品随附的目录。",
-  creatorReadinessVaultLoadingTitle: "正在打开凭据保险库",
-  creatorReadinessVaultLoadingDescription: "正在为当前会话准备已保存的 Provider Key。",
-  creatorReadinessVaultUnavailableTitle: "凭据保险库不可用",
-  creatorReadinessVaultUnavailableDescription:
+  agentRunTitle: "Agent 运行",
+  agentRunReady: "Agent 已就绪",
+  agentRunUnavailable: "Agent 不可用",
+  agentRunDraft: "Agent 草稿",
+  agentRunCancel: "取消运行",
+  agentRunForgetCredential: "忘记测试凭据",
+  programAgentReadinessCatalogLoadingTitle: "正在载入模型 Provider",
+  programAgentReadinessCatalogLoadingDescription: "正在读取此设备上的 Provider 与模型设置。",
+  programAgentReadinessCatalogFailedTitle: "Provider 目录不可用",
+  programAgentReadinessCatalogFailedDescription: "打开 Provider 设置并重试产品随附的目录。",
+  programAgentReadinessVaultLoadingTitle: "正在打开凭据保险库",
+  programAgentReadinessVaultLoadingDescription: "正在为当前会话准备已保存的 Provider Key。",
+  programAgentReadinessVaultUnavailableTitle: "凭据保险库不可用",
+  programAgentReadinessVaultUnavailableDescription:
     "保险库恢复可用前，此浏览器无法使用已保存的 Provider Key。",
-  creatorReadinessVaultLockedTitle: "凭据保险库已锁定",
-  creatorReadinessVaultLockedDescription: "解锁保险库后才能使用已保存的 Provider Key。",
-  creatorReadinessModelRequiredTitle: "请选择模型",
-  creatorReadinessModelRequiredDescription: "至少勾选一个希望 Agent Creator 使用的模型。",
-  creatorReadinessCredentialRequiredTitle: "需要 API Key",
-  creatorReadinessCredentialRequiredDescription: "请为提供已选模型的 Provider 保存 API Key。",
-  creatorReadinessAgentInitializingTitle: "正在启动 Agent Creator",
-  creatorReadinessAgentInitializingDescription: "正在为当前会话准备所选模型。",
-  creatorReadinessAgentFailedTitle: "Agent Creator 不可用",
-  creatorReadinessAgentFailedDescription: "打开 Provider 设置，更换模型或更新 Provider API Key。",
-  creatorReadinessOpenProviders: "打开 Provider 设置",
-  creatorReadinessOpenVault: "打开凭据保险库",
+  programAgentReadinessVaultLockedTitle: "凭据保险库已锁定",
+  programAgentReadinessVaultLockedDescription: "解锁保险库后才能使用已保存的 Provider Key。",
+  programAgentReadinessModelRequiredTitle: "请选择模型",
+  programAgentReadinessModelRequiredDescription: "至少勾选一个希望 Program Agent 使用的模型。",
+  programAgentReadinessCredentialRequiredTitle: "需要 API Key",
+  programAgentReadinessCredentialRequiredDescription: "请为提供已选模型的 Provider 保存 API Key。",
+  programAgentReadinessAgentInitializingTitle: "正在启动 Program Agent",
+  programAgentReadinessAgentInitializingDescription: "正在为当前会话准备所选模型。",
+  programAgentReadinessAgentFailedTitle: "Program Agent 不可用",
+  programAgentReadinessAgentFailedDescription:
+    "打开 Provider 设置，更换模型或更新 Provider API Key。",
+  programAgentReadinessOpenProviders: "打开 Provider 设置",
+  programAgentReadinessOpenVault: "打开凭据保险库",
   networkAccessTitle: "网络访问",
   networkAccessToggle: "允许网络访问",
   networkAccessDescription:
-    "默认关闭。启用后，Agent 工具可以为此 Program 通过 HTTPS 抓取页面和下载文件；完整 URL 的路径与查询参数可能发送至远程站点，且仍受浏览器 CORS 限制。",
+    "默认关闭。启用后，Agent 工具可以为此 Process 通过 HTTPS 抓取页面和下载文件；完整 URL 的路径与查询参数可能发送至远程站点，且仍受浏览器 CORS 限制。",
   settings: "设置",
   productMenu: "SillyOS 菜单",
   settingsTheme: "主题",
@@ -768,7 +574,7 @@ const chineseV1: SillyOsCopyV1 = {
   themeSystem: "跟随系统",
   themeLight: "浅色",
   themeDark: "深色",
-  settingsBack: "返回 Agent Creator",
+  settingsBack: "返回 Program Agent",
   settingsCategoryGeneral: "通用",
   settingsCategoryProviders: "Provider",
   settingsCategoryCredentialVault: "凭据保险库",
@@ -850,31 +656,31 @@ const chineseV1: SillyOsCopyV1 = {
   modelsCountSuffix: "个模型",
   providerModelsTitle: "可用模型",
   providerModelsDescription:
-    "勾选希望在 Agent Creator 中显示的模型；当前输入框中的选择就是首选默认模型。两者都与 API Key 和连接诊断相互独立。",
+    "勾选希望在 Program Agent 中显示的模型；当前输入框中的选择就是首选默认模型。两者都与 API Key 和连接诊断相互独立。",
   providerModelsEmpty: "这个 Provider 当前没有可用模型。",
   modelSearchLabel: "搜索模型",
   modelSearchPlaceholder: "搜索模型名称或 ID……",
   modelSearchEmpty: "没有符合搜索条件的模型。",
-  creatorModelSelection: "Agent Creator 模型",
-  creatorSelectModel: "选择模型",
-  creatorModelSwitching: "正在切换模型……",
-  creatorNoConnectedModels: "当前没有已勾选且可供 Agent Creator 使用的模型。",
-  creatorModelSettings: "模型设置",
-  creatorReasoningEffort: "推理强度",
-  creatorReasoningEffortSelection: "Agent Creator 推理强度",
-  creatorReasoningEffortSwitching: "正在切换推理强度……",
-  creatorReasoningEffortOff: "关闭",
-  creatorReasoningEffortMinimal: "最低",
-  creatorReasoningEffortLow: "低",
-  creatorReasoningEffortMedium: "中",
-  creatorReasoningEffortHigh: "高",
-  creatorReasoningEffortXHigh: "极高",
-  creatorReasoningEffortMax: "最高",
-  creatorModelTitle: "用于 Agent Creator",
-  creatorModelDescription:
+  programAgentModelSelection: "Program Agent 模型",
+  programAgentSelectModel: "选择模型",
+  programAgentModelSwitching: "正在切换模型……",
+  programAgentNoConnectedModels: "当前没有已勾选且可供 Program Agent 使用的模型。",
+  programAgentModelSettings: "模型设置",
+  programAgentReasoningEffort: "推理强度",
+  programAgentReasoningEffortSelection: "Program Agent 推理强度",
+  programAgentReasoningEffortSwitching: "正在切换推理强度……",
+  programAgentReasoningEffortOff: "关闭",
+  programAgentReasoningEffortMinimal: "最低",
+  programAgentReasoningEffortLow: "低",
+  programAgentReasoningEffortMedium: "中",
+  programAgentReasoningEffortHigh: "高",
+  programAgentReasoningEffortXHigh: "极高",
+  programAgentReasoningEffortMax: "最高",
+  programAgentModelTitle: "用于 Program Agent",
+  programAgentModelDescription:
     "此设备上的模型偏好用于配置当前 supervisor；Key 永远不会成为 Program 或 Workspace 数据。",
   providerConnectionModelRequired:
-    "运行 Agent Creator 前请至少勾选一个可用模型；保存 API Key 不会改变模型偏好。",
+    "运行 Program Agent 前请至少勾选一个可用模型；保存 API Key 不会改变模型偏好。",
   selectedModelUnavailable: "当前浏览器版本无法通过这个 Provider 使用所选模型。",
   providerConnectionTitle: "连接配置",
   providerConnectionDescription:
@@ -951,11 +757,6 @@ const chineseV1: SillyOsCopyV1 = {
   credentialVaultBindingsCountSuffix: "项已保存",
   credentialVaultBindingsEmpty: "尚未保存任何 Provider API Key。",
   credentialVaultForgetBinding: "忘记",
-  samplePrompts: [
-    "翻译一部视觉小说，并保持每位角色的语言风格一致",
-    "把我的调研笔记整理成可以逐章推进的写作工作室",
-    "创建一个能编辑角色设定与世界记忆的 AI 角色扮演工作室",
-  ],
 };
 
 const copyByLocaleV1: Readonly<Record<SillyOsLocaleV1, SillyOsCopyV1>> = Object.freeze({

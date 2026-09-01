@@ -8,6 +8,7 @@ export default defineConfig({
       "engine/packages/**/src/**/*.test.mjs",
       "e2e/src/**/*.{test,spec}.{ts,tsx}",
       "examples/*/src/**/*.{test,spec}.{ts,tsx}",
+      "examples/*/programs/*/test/**/*.{test,spec}.{ts,tsx}",
       "template/src/**/*.{test,spec}.{ts,tsx}",
       "scripts/**/*.test.ts",
       "scripts/**/*.test.mjs",

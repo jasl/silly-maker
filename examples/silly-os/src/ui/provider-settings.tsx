@@ -30,7 +30,7 @@ import {
   type SillyOsLocaleV1,
 } from "../content/copy.ts";
 import type { BrowserPiReasoningEffortV1 } from "../agent/browser-pi-worker-protocol.ts";
-import type { SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
+import type { SillyOsThemeModeV1 } from "../application/preferences/browser-product-preferences-repository.ts";
 import { CollectionStateV1 } from "./collection-state.tsx";
 import {
   credentialVaultBindingsEqualV2,
@@ -2298,7 +2298,7 @@ export function ProviderSettingsV1({
                                           : (
                                             <FieldSetV1 className="provider-settings__model-list">
                                               <FieldLegendV1 className="silly-os-visually-hidden">
-                                                {copy.creatorModelSelection}
+                                                {copy.programAgentModelSelection}
                                               </FieldLegendV1>
                                               {filteredModels.map((model) => {
                                                 const available = model.availability.status ===

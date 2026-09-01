@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { Globe2, Laptop, Moon, Settings, Sun } from "lucide-react";
+import { Boxes, Globe2, Laptop, Moon, Settings, Sun } from "lucide-react";
 import { type ReactNode } from "react";
 
 import {
@@ -7,7 +7,7 @@ import {
   type SillyOsCopyV1,
   type SillyOsLocaleV1,
 } from "../content/copy.ts";
-import { type SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
+import { type SillyOsThemeModeV1 } from "../application/preferences/browser-product-preferences-repository.ts";
 import { IconButtonV1 } from "./design-system/button.tsx";
 import {
   DropdownMenuContentV1,
@@ -32,6 +32,7 @@ export interface ProductMenuPropsV1 {
   readonly onThemeChange: (theme: SillyOsThemeModeV1) => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
   readonly onOpenSettings?: () => void;
+  readonly onOpenProgramLibrary?: () => void;
 }
 
 const themeChoicesV1 = [
@@ -48,6 +49,7 @@ export function ProductMenuV1({
   onThemeChange,
   onLocaleChange,
   onOpenSettings,
+  onOpenProgramLibrary,
 }: ProductMenuPropsV1): ReactNode {
   return (
     <DropdownMenuV1>
@@ -111,6 +113,14 @@ export function ProductMenuV1({
           </DropdownMenuSubContentV1>
         </DropdownMenuSubV1>
         <DropdownMenuSeparatorV1 />
+        {onOpenProgramLibrary === undefined ? null : (
+          <DropdownMenuItemV1
+            onSelect={() => setTimeout(onOpenProgramLibrary, 0)}
+          >
+            <Boxes className="sos:size-4" aria-hidden="true" />
+            <span>{copy.home}</span>
+          </DropdownMenuItemV1>
+        )}
         <DropdownMenuItemV1
           disabled={surface === "settings" || onOpenSettings === undefined}
           aria-current={surface === "settings" ? "page" : undefined}

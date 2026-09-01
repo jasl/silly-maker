@@ -42,7 +42,7 @@ function strictOriginV1(value: string): string | null {
 }
 
 function validBootstrapIdentityV1(value: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9._:+-]{0,127}$/u.test(value);
+  return /^[A-Za-z0-9][A-Za-z0-9._:+-]*$/u.test(value);
 }
 
 /** Opens the fixed third-origin Broker and returns its one transferable Agent port. */

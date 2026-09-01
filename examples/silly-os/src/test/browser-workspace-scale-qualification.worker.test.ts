@@ -28,7 +28,7 @@ const qualificationInitialGenerationV1 = 1;
 const qualificationFinalGenerationV1 = qualificationInitialGenerationV1 + qualificationFileCountV1;
 const qualificationBusyRetryCountV1 = 50;
 const qualificationBusyRetryDelayMsV1 = 100;
-const identityPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+const identityPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u;
 const sha256PatternV1 = /^[a-f0-9]{64}$/u;
 
 interface QualificationFileV1 {

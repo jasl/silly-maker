@@ -28,7 +28,7 @@ const intentProjectionLimitsInternalV1: BoundedCanonicalJsonLimitsInternalV1 = {
   maxDepth: 3 as BoundedCanonicalJsonLimitsInternalV1["maxDepth"],
   maxNodes: 16 as BoundedCanonicalJsonLimitsInternalV1["maxNodes"],
 };
-const identifierPatternInternalV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+const identifierPatternInternalV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u;
 const maxArtifactTreeDepthInternalV1 = 8;
 const maxArtifactNodesInternalV1 = 128;
 const maxArtifactChildrenInternalV1 = 32;
@@ -88,7 +88,7 @@ export function admitUiArtifactCandidateInternalV1(
   const allowed = new Set<string>();
   for (const actionId of allowedActionIds) {
     if (!identifierPatternInternalV1.test(actionId) || allowed.has(actionId)) {
-      throw new TypeError("UiArtifact allowed action IDs must be unique bounded identifiers");
+      throw new TypeError("UiArtifact allowed action IDs must be unique valid identifiers");
     }
     allowed.add(actionId);
   }

@@ -2,10 +2,12 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { createBornDigitalPdfFixtureV1 } from "../silly-os/src/test/fixtures/born-digital-pdf-fixture.ts";
-import type { BornDigitalPdfImportResultV1 } from "../silly-os/src/product/translation/pdf/pdf-import-contract.ts";
+import { createBornDigitalPdfFixtureV1 } from "../silly-os/programs/translation/test/fixtures/born-digital-pdf-fixture.ts";
+import type { BornDigitalPdfImportResultV1 } from "../silly-os/programs/translation/runtime/pdf/pdf-import-contract.ts";
 
 import { sillyOsTargetUrlV1 } from "./fixtures.ts";
+
+const bornDigitalPdfHarnessPathV1 = "programs/translation/notes/pdf-harness/index.html";
 
 interface BornDigitalPdfHarnessWindowV1 extends Window {
   readonly sillyOsBornDigitalPdfHarnessV1: (
@@ -34,7 +36,7 @@ test("born-digital PDF harness stays lazy and extracts stable page locators", as
   const requestedUrls: string[] = [];
   page.on("request", (request) => requestedUrls.push(request.url()));
 
-  await page.goto(sillyOsTargetUrlV1("research/pdf-harness.html"));
+  await page.goto(sillyOsTargetUrlV1(bornDigitalPdfHarnessPathV1));
   await page.waitForFunction(() => "sillyOsBornDigitalPdfHarnessV1" in window);
   expect(requestedUrls.some((url) => url.includes("browser-pdf-text-extractor"))).toBe(false);
   expect(requestedUrls.some((url) => url.includes("pdfjs-dist"))).toBe(false);
@@ -68,7 +70,7 @@ test("born-digital PDF harness stays lazy and extracts stable page locators", as
 });
 
 test("born-digital PDF harness separates empty text from invalid bytes", async ({ page }) => {
-  await page.goto(sillyOsTargetUrlV1("research/pdf-harness.html"));
+  await page.goto(sillyOsTargetUrlV1(bornDigitalPdfHarnessPathV1));
   await page.waitForFunction(() => "sillyOsBornDigitalPdfHarnessV1" in window);
 
   await expect(importPdfV1(page, createBornDigitalPdfFixtureV1([[]]))).resolves.toMatchObject({

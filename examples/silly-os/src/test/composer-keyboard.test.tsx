@@ -8,7 +8,6 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { getSillyOsCopyV1 } from "../content/copy.ts";
 import { ChatPaneV1 } from "../ui/chat-pane.tsx";
 import { isComposerCompositionKeyV1 } from "../ui/composer-keyboard.ts";
-import { CreatorHomeV1 } from "../ui/creator-home.tsx";
 
 afterEach(cleanup);
 beforeAll(() => {
@@ -34,43 +33,13 @@ describe("composer keyboard contract", () => {
     expect(isComposerCompositionKeyV1({ isComposing: false, keyCode: 13 })).toBe(false);
   });
 
-  it("submits Creator Home with Enter but leaves Shift+Enter and IME keys to the textarea", () => {
-    const onCreate = vi.fn();
-    render(
-      <CreatorHomeV1
-        copy={copyV1}
-        onCreate={onCreate}
-        onLocaleChange={vi.fn()}
-        theme="system"
-        onThemeChange={vi.fn()}
-      />,
-    );
-    const composer = screen.getByRole("textbox", { name: copyV1.creatorTitle });
-    fireEvent.change(composer, { target: { value: "  Build a writing room  " } });
-
-    expect(fireEvent.keyDown(composer, { key: "Enter", shiftKey: true })).toBe(true);
-    expect(fireEvent.keyDown(composer, { key: "Enter", isComposing: true })).toBe(true);
-    expect(fireEvent.keyDown(composer, { key: "Enter", keyCode: 229, which: 229 })).toBe(true);
-    expect(onCreate).not.toHaveBeenCalled();
-
-    expect(fireEvent.keyDown(composer, { key: "Enter", keyCode: 13, which: 13 })).toBe(false);
-    expect(onCreate).toHaveBeenCalledOnce();
-    expect(onCreate).toHaveBeenCalledWith("Build a writing room");
-  });
-
   it("applies the same keyboard ownership to the Workspace composer", async () => {
     const onSend = vi.fn();
     render(
       <ChatPaneV1
         copy={copyV1}
+        agentName="Agent"
         transcript={emptyTranscriptV1}
-        proposal={null}
-        program={null}
-        workspaceReview={null}
-        workpieceOpen={false}
-        onAccept={vi.fn()}
-        onReject={vi.fn()}
-        onOpenWorkpiece={vi.fn()}
         onSend={onSend}
       />,
     );

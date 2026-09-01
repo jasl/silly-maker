@@ -7,6 +7,8 @@ import { describe, expect, it } from "vitest";
 import { resolveSillyOsLocaleQueryOverrideV1 } from "../content/copy.ts";
 
 const productRootV1 = resolve(import.meta.dirname, "..");
+const programsRootV1 = resolve(productRootV1, "../programs");
+const creatorHomeCssImportV1 = 'import "./creator-home.css";';
 
 async function readUiTsxSourcesV1(directoryV1: string): Promise<
   readonly {
@@ -74,21 +76,23 @@ describe("SillyOS design-system foundation", () => {
       settingsCss,
       providerSettingsCss,
       chatCss,
-      workspaceViewCss,
+      creatorChatCss,
+      creatorWorkspaceCss,
       componentCss,
     ] = await Promise.all([
       readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
-      readFile(resolve(productRootV1, "ui/creator-home.css"), "utf8"),
+      readFile(resolve(programsRootV1, "creator/ui/creator-home.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/composer-model-picker.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/settings.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/provider-settings.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/chat.css"), "utf8"),
-      readFile(resolve(productRootV1, "ui/workspace-view.css"), "utf8"),
+      readFile(resolve(programsRootV1, "creator/ui/creator-chat.css"), "utf8"),
+      readFile(resolve(programsRootV1, "creator/ui/creator-program-workspace.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
     ]);
 
     expect(
-      `${productCss}\n${creatorHomeCss}\n${composerModelPickerCss}\n${settingsCss}\n${providerSettingsCss}\n${chatCss}\n${workspaceViewCss}\n${componentCss}`,
+      `${productCss}\n${creatorHomeCss}\n${composerModelPickerCss}\n${settingsCss}\n${providerSettingsCss}\n${chatCss}\n${creatorChatCss}\n${creatorWorkspaceCss}\n${componentCss}`,
     )
       .not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/iu);
     expect(productCss).toContain("var(--sos-surface-translucent)");
@@ -119,40 +123,39 @@ describe("SillyOS design-system foundation", () => {
     expect(textButtonRule).not.toMatch(/(^|\s)block-size:/u);
   });
 
-  it("keeps the shared composer picker before its Creator Home surface owner", async () => {
-    const [app, legacyCss, creatorHomeCss, composerModelPickerCss] = await Promise.all([
-      readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
-      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
-      readFile(resolve(productRootV1, "ui/creator-home.css"), "utf8"),
-      readFile(resolve(productRootV1, "ui/composer-model-picker.css"), "utf8"),
-    ]);
+  it("keeps shared composer styles in the shell and Creator Home styles with its lazy owner", async () => {
+    const [app, creatorHome, legacyCss, creatorHomeCss, composerModelPickerCss] = await Promise.all(
+      [
+        readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
+        readFile(resolve(programsRootV1, "creator/ui/creator-home.tsx"), "utf8"),
+        readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+        readFile(resolve(programsRootV1, "creator/ui/creator-home.css"), "utf8"),
+        readFile(resolve(productRootV1, "ui/composer-model-picker.css"), "utf8"),
+      ],
+    );
 
     expect(app.indexOf('import "./collection-state.css";')).toBeLessThan(
       app.indexOf('import "./composer-model-picker.css";'),
     );
-    expect(app.indexOf('import "./composer-model-picker.css";')).toBeLessThan(
-      app.indexOf('import "./creator-home.css";'),
-    );
-    expect(app.indexOf('import "./creator-home.css";')).toBeLessThan(
-      app.indexOf('import "./silly-os.css";'),
-    );
+    expect(app).not.toContain(creatorHomeCssImportV1);
+    expect(creatorHome).toContain(creatorHomeCssImportV1);
     expect(app.indexOf('import "./silly-os.css";')).toBeLessThan(
       app.indexOf('import "./design-system/tailwind.css";'),
     );
 
     expect(creatorHomeCss).toContain(".creator-home {");
     expect(creatorHomeCss).toContain(".pi-agent-setup {");
-    expect(creatorHomeCss).toContain(".creator-composer {");
-    expect(creatorHomeCss).not.toMatch(/(^|\n)\s*\.creator-composer__(?:model|reasoning)/u);
-    expect(composerModelPickerCss).toContain(".creator-composer__model-picker {");
+    expect(creatorHomeCss).toContain(".program-agent-composer {");
+    expect(creatorHomeCss).not.toMatch(/(^|\n)\s*\.program-agent-composer__(?:model|reasoning)/u);
+    expect(composerModelPickerCss).toContain(".program-agent-composer__model-picker {");
     expect(composerModelPickerCss).not.toMatch(/(^|\n)\s*\.creator-home(?:\b|__)/u);
     expect(legacyCss).not.toMatch(/(^|\n)\s*\.creator-home(?:\b|__)/u);
     expect(legacyCss).not.toMatch(/(^|\n)\s*\.pi-agent-setup(?:\b|__)/u);
-    expect(legacyCss).not.toMatch(/(^|\n)\s*\.creator-composer(?:\s|,|\{)/u);
+    expect(legacyCss).not.toMatch(/(^|\n)\s*\.program-agent-composer(?:\s|,|\{)/u);
     expect(legacyCss).not.toMatch(
-      /(^|\n)\s*\.creator-composer__(?:actions|primary-actions)(?:\b|\s|,|\{)/u,
+      /(^|\n)\s*\.program-agent-composer__(?:actions|primary-actions)(?:\b|\s|,|\{)/u,
     );
-    expect(legacyCss).not.toMatch(/(^|\n)\s*\.creator-composer__(?:model|reasoning)/u);
+    expect(legacyCss).not.toMatch(/(^|\n)\s*\.program-agent-composer__(?:model|reasoning)/u);
   });
 
   it("keeps Settings surface styles separate from Provider detail ownership", async () => {
@@ -167,9 +170,6 @@ describe("SillyOS design-system foundation", () => {
       ]);
 
     expect(app.indexOf('import "./design-system/components.css";')).toBeLessThan(
-      app.indexOf('import "./settings.css";'),
-    );
-    expect(app.indexOf('import "./creator-home.css";')).toBeLessThan(
       app.indexOf('import "./settings.css";'),
     );
     expect(app.indexOf('import "./settings.css";')).toBeLessThan(
@@ -213,17 +213,15 @@ describe("SillyOS design-system foundation", () => {
     expect(legacyCss).not.toContain("silly-os-settings__dialog-backdrop");
   });
 
-  it("keeps Chat surface styles separate from Program and Workpiece chrome", async () => {
-    const [app, chatCss, legacyCss] = await Promise.all([
+  it("keeps shared Chat styles separate from Creator proposal and Workpiece chrome", async () => {
+    const [app, chatCss, creatorChatCss, legacyCss] = await Promise.all([
       readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
       readFile(resolve(productRootV1, "ui/chat.css"), "utf8"),
+      readFile(resolve(programsRootV1, "creator/ui/creator-chat.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
     ]);
 
     expect(app.indexOf('import "./composer-model-picker.css";')).toBeLessThan(
-      app.indexOf('import "./chat.css";'),
-    );
-    expect(app.indexOf('import "./creator-home.css";')).toBeLessThan(
       app.indexOf('import "./chat.css";'),
     );
     expect(app.indexOf('import "./settings.css";')).toBeLessThan(
@@ -237,23 +235,28 @@ describe("SillyOS design-system foundation", () => {
     );
 
     expect(chatCss).toContain(".chat-pane {");
-    expect(chatCss).toContain(".chat-pane > .creator-readiness {");
+    expect(chatCss).toContain(".chat-pane__status-notice {");
     expect(chatCss).toContain("@container chat-pane (width < 340px)");
     expect(chatCss).toContain(".chat-message {");
     expect(chatCss).toContain(".pi-agent-run {");
     expect(chatCss).toContain(".network-access {");
-    expect(chatCss).toContain(".program-proposal {");
-    expect(chatCss).toContain(".program-workspace-review {");
-    expect(chatCss).toContain(".silly-os .workpiece-link {");
     expect(chatCss).toContain(".chat-composer {");
-    expect(chatCss).toContain(".chat-composer .creator-composer__model-picker");
+    expect(chatCss).toContain(".chat-composer .program-agent-composer__model-picker");
     expect(chatCss).toContain(
-      ".chat-composer__primary-actions > .creator-composer__model-picker",
+      ".chat-composer__primary-actions > .program-agent-composer__model-picker",
     );
     expect(chatCss).toContain("@media (width <= 767px)");
     expect(chatCss).not.toContain("@keyframes silly-os-spin");
+    expect(chatCss).not.toContain(".program-proposal {");
+    expect(chatCss).not.toContain(".program-workspace-review {");
+    expect(chatCss).not.toContain(".silly-os .workpiece-link {");
     expect(chatCss).not.toMatch(/(^|\n)\s*\.program-workspace__(?:chat-shell|mobile-nav)/u);
     expect(chatCss).not.toMatch(/(^|\n)\s*\.workpiece-pane(?:\b|__)/u);
+
+    expect(creatorChatCss).toContain(".program-proposal {");
+    expect(creatorChatCss).toContain(".program-workspace-review {");
+    expect(creatorChatCss).toContain(".workpiece-link {");
+    expect(creatorChatCss).toContain("@media (width <= 767px)");
 
     expect(legacyCss).not.toMatch(
       /(^|\n)\s*(?:\.chat-pane(?:\b|__)|\.chat-message(?:\b|--|__)|\.pi-agent-run(?:\b|__)|\.network-access(?:\b|__)|\.program-proposal(?:\b|__)|\.program-workspace-review(?:\b|__)|\.workpiece-link(?:\b|__)|\.chat-composer(?:\b|__))/u,
@@ -262,40 +265,41 @@ describe("SillyOS design-system foundation", () => {
     expect(legacyCss).toContain("@keyframes silly-os-spin");
   });
 
-  it("keeps Workspace View shared status baselines separate from residual runtime status", async () => {
-    const [app, workspaceViewCss, legacyCss] = await Promise.all([
-      readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
-      readFile(resolve(productRootV1, "ui/workspace-view.css"), "utf8"),
-      readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
-    ]);
+  it("keeps Creator Workspace chrome with the Program-local surface", async () => {
+    const [app, workspaceChrome, creatorWorkspace, creatorWorkspaceCss, legacyCss] = await Promise
+      .all([
+        readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
+        readFile(resolve(productRootV1, "ui/workspace-chrome.tsx"), "utf8"),
+        readFile(resolve(programsRootV1, "creator/ui/program-workspace.tsx"), "utf8"),
+        readFile(resolve(programsRootV1, "creator/ui/creator-program-workspace.css"), "utf8"),
+        readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
+      ]);
 
-    expect(app.indexOf('import "./chat.css";')).toBeLessThan(
-      app.indexOf('import "./workspace-view.css";'),
-    );
-    expect(app.indexOf('import "./workspace-view.css";')).toBeLessThan(
-      app.indexOf('import "./silly-os.css";'),
-    );
+    expect(app).not.toContain('import "./workspace-view.css";');
+    expect(workspaceChrome).not.toContain("workspace-view.css");
+    expect(workspaceChrome).not.toContain("creator-program-workspace.css");
+    expect(creatorWorkspace).toContain('import "./creator-program-workspace.css";');
     expect(app.indexOf('import "./silly-os.css";')).toBeLessThan(
       app.indexOf('import "./design-system/tailwind.css";'),
     );
 
-    expect(workspaceViewCss).toContain(".program-workspace {");
-    expect(workspaceViewCss).toContain(".program-workspace__separator {");
-    expect(workspaceViewCss).toContain(".program-workspace__mobile-nav {");
-    expect(workspaceViewCss).toContain(".workpiece-pane {");
-    expect(workspaceViewCss).toContain(".workpiece-workspace-export {");
-    expect(workspaceViewCss).toContain(".program-canvas {");
-    expect(workspaceViewCss).toContain(".program-surface {");
-    expect(workspaceViewCss).toContain(".program-workpiece-empty {");
-    expect(workspaceViewCss).toContain(".program-capabilities {");
-    expect(workspaceViewCss).toContain(".program-execution-workspace {");
-    expect(workspaceViewCss).toContain(".program-browser-storage {");
-    expect(workspaceViewCss).toContain("@container workpiece-body (width < 620px)");
-    expect(workspaceViewCss).toContain("@media (width <= 1040px)");
-    expect(workspaceViewCss).toContain("@media (width <= 767px)");
-    expect(workspaceViewCss).toContain("@media (width <= 430px)");
-    expect(workspaceViewCss).not.toContain(".program-activity");
-    expect(workspaceViewCss).not.toContain("@keyframes silly-os-spin");
+    expect(creatorWorkspaceCss).toContain(".program-workspace {");
+    expect(creatorWorkspaceCss).toContain(".program-workspace__separator {");
+    expect(creatorWorkspaceCss).toContain(".program-workspace__mobile-nav {");
+    expect(creatorWorkspaceCss).toContain(".workpiece-pane {");
+    expect(creatorWorkspaceCss).toContain(".workpiece-workspace-export {");
+    expect(creatorWorkspaceCss).toContain(".program-canvas {");
+    expect(creatorWorkspaceCss).toContain(".program-surface {");
+    expect(creatorWorkspaceCss).toContain(".program-workpiece-empty {");
+    expect(creatorWorkspaceCss).toContain(".program-capabilities {");
+    expect(creatorWorkspaceCss).toContain(".program-execution-workspace {");
+    expect(creatorWorkspaceCss).toContain(".program-browser-storage {");
+    expect(creatorWorkspaceCss).toContain("@container workpiece-body (width < 620px)");
+    expect(creatorWorkspaceCss).toContain("@media (width <= 1040px)");
+    expect(creatorWorkspaceCss).toContain("@media (width <= 767px)");
+    expect(creatorWorkspaceCss).toContain("@media (width <= 430px)");
+    expect(creatorWorkspaceCss).not.toContain(".program-activity");
+    expect(creatorWorkspaceCss).not.toContain("@keyframes silly-os-spin");
 
     expect(legacyCss).not.toMatch(
       /(^|\n)\s*(?:\.program-workspace(?:\b|__)|\.workpiece-pane(?:\b|__)|\.workpiece-workspace-export(?:\b|__)|\.program-canvas(?:\b|__)|\.program-surface(?:\b|__)|\.program-workpiece-empty(?:\b|__)|\.program-capabilities(?:\b|__)|\.program-execution-workspace(?:\b|__)|\.program-browser-storage(?:\b|__))/u,
@@ -305,25 +309,25 @@ describe("SillyOS design-system foundation", () => {
   });
 
   it("does not retain the superseded Activity shadow projection", async () => {
-    const [app, workpiece, workspaceViewCss, legacyCss] = await Promise.all([
+    const [app, workpiece, creatorWorkspaceCss, legacyCss] = await Promise.all([
       readFile(resolve(productRootV1, "ui/silly-os-app.tsx"), "utf8"),
-      readFile(resolve(productRootV1, "ui/workpiece-pane.tsx"), "utf8"),
-      readFile(resolve(productRootV1, "ui/workspace-view.css"), "utf8"),
+      readFile(resolve(programsRootV1, "creator/ui/workpiece-pane.tsx"), "utf8"),
+      readFile(resolve(programsRootV1, "creator/ui/creator-program-workspace.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
     ]);
 
     expect(app).not.toContain('import "./activity.css";');
     expect(workpiece).not.toContain("CreatorActivityV1");
     expect(workpiece).not.toContain("ProgramActivityV1");
-    expect(workspaceViewCss).not.toContain(".program-activity");
+    expect(creatorWorkspaceCss).not.toContain(".program-activity");
     expect(legacyCss).not.toMatch(/(^|\n)\s*\.program-activity(?:\b|__)/u);
   });
 
   it("routes multiline and durable export progress through the shared physical layer", async () => {
     const [creator, chat, workpiece, componentCss, productCss] = await Promise.all([
-      readFile(resolve(productRootV1, "ui/creator-home.tsx"), "utf8"),
+      readFile(resolve(programsRootV1, "creator/ui/creator-home.tsx"), "utf8"),
       readFile(resolve(productRootV1, "ui/chat-pane.tsx"), "utf8"),
-      readFile(resolve(productRootV1, "ui/workpiece-pane.tsx"), "utf8"),
+      readFile(resolve(programsRootV1, "creator/ui/workpiece-pane.tsx"), "utf8"),
       readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
       readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
     ]);
@@ -342,13 +346,16 @@ describe("SillyOS design-system foundation", () => {
     const checkboxPathV1 = resolve(productRootV1, "ui/design-system/checkbox.tsx");
     const [creator, chat, providers, checkbox, componentCss, productCss, uiSourcesV1] =
       await Promise.all([
-        readFile(resolve(productRootV1, "ui/creator-home.tsx"), "utf8"),
+        readFile(resolve(programsRootV1, "creator/ui/creator-home.tsx"), "utf8"),
         readFile(resolve(productRootV1, "ui/chat-pane.tsx"), "utf8"),
         readFile(resolve(productRootV1, "ui/provider-settings.tsx"), "utf8"),
         readFile(checkboxPathV1, "utf8"),
         readFile(resolve(productRootV1, "ui/design-system/components.css"), "utf8"),
         readFile(resolve(productRootV1, "ui/silly-os.css"), "utf8"),
-        readUiTsxSourcesV1(resolve(productRootV1, "ui")),
+        Promise.all([
+          readUiTsxSourcesV1(resolve(productRootV1, "ui")),
+          readUiTsxSourcesV1(programsRootV1),
+        ]).then((sourcesV1) => sourcesV1.flat()),
       ]);
 
     const rawCheckboxConsumersV1 = uiSourcesV1.filter((sourceV1) =>

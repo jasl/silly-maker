@@ -10,19 +10,21 @@ import {
   admitBrowserPiWorkerWorkspaceOutboundMessageV1,
 } from "../agent/browser-pi-worker-protocol.ts";
 import { browserPiDistributionIdentityV1 } from "../agent/browser-pi-distribution.ts";
-import {
-  creatorProgramHarnessReferenceV1,
-  serializeBrowserPiCreatorAgentDispatchV1,
-  serializeBrowserPiTranslationAgentDispatchV1,
-} from "../agent/browser-pi-agent-dispatch.ts";
-import { translationProgramHarnessReferenceV1 } from "../product/translation/translation-batch-protocol.ts";
+import { serializeBrowserPiCreatorAgentDispatchV1 } from "../../programs/creator/runtime-profile/creator-runtime-profile.ts";
+import { serializeBrowserPiTranslationAgentDispatchV1 } from "../../programs/translation/runtime-profile/translation-runtime-profile.ts";
 
 const programIdV1 = "program.workspace.preview.1";
+const processIdV1 = "process.workspace.preview.1";
 const workspaceIdV1 = "workspace.preview.1";
 const workspaceSessionIdV1 = "workspace.session.1";
+const programPackageV1 = {
+  programId: programIdV1,
+  packageVersion: "1.0.0",
+  contentDigest: "a".repeat(64),
+} as const;
 
 const submitTextV1 = serializeBrowserPiCreatorAgentDispatchV1({
-  executionCompatibilityReference: creatorProgramHarnessReferenceV1,
+  programPackage: programPackageV1,
   submit: {
     revision: 1,
     proposalId: "workspace.preview.1.proposal.1",
@@ -40,6 +42,7 @@ const submitRecordV1 = {
 
 const executionBindingV1 = {
   revision: 1,
+  processId: processIdV1,
   programId: programIdV1,
   workspaceId: workspaceIdV1,
   workspaceSessionId: workspaceSessionIdV1,
@@ -392,7 +395,7 @@ describe("Browser Pi Worker protocol", () => {
     }
   });
 
-  it("admits only bounded catalog projections with derived Provider availability", () => {
+  it("admits exact complete catalog projections with derived Provider availability", () => {
     const catalog = catalogV1();
     expect(admitBrowserPiProviderCatalogWireV1(catalog)).toMatchObject({
       providers: [
@@ -446,6 +449,29 @@ describe("Browser Pi Worker protocol", () => {
     })).toBeNull();
   });
 
+  it("admits a complete catalog beyond the former Provider and model count limits", () => {
+    const catalog = catalogV1();
+    const provider = (catalog.providers as Record<string, unknown>[])[0]!;
+    const model = (provider.models as Record<string, unknown>[])[0]!;
+    const providers = Array.from({ length: 65 }, (_providerSlot, providerIndex) => {
+      const modelCount = providerIndex === 0 ? 2_049 : 33;
+      return {
+        ...provider,
+        id: `provider.${String(providerIndex).padStart(2, "0")}`,
+        models: Array.from({ length: modelCount }, (_modelSlot, modelIndex) => ({
+          ...model,
+          id: `model.${String(modelIndex).padStart(4, "0")}`,
+        })),
+      };
+    });
+    const admitted = admitBrowserPiProviderCatalogWireV1({ ...catalog, providers });
+    expect(admitted?.providers).toHaveLength(65);
+    expect(admitted?.providers[0]?.models).toHaveLength(2_049);
+    expect(
+      admitted?.providers.reduce((total, item) => total + item.models.length, 0),
+    ).toBe(4_161);
+  });
+
   it("keeps start/cancel inner admission and adds execution only beside valid submit", () => {
     const start = { revision: 1, method: "start" };
     const cancel = {
@@ -474,7 +500,7 @@ describe("Browser Pi Worker protocol", () => {
       params: {
         sessionId: "pi.session.1",
         text: serializeBrowserPiTranslationAgentDispatchV1({
-          executionCompatibilityReference: translationProgramHarnessReferenceV1,
+          programPackage: programPackageV1,
           programId: programIdV1,
           requestedOutputTokens: 4_608,
           request: {
@@ -558,7 +584,7 @@ describe("Browser Pi Worker protocol", () => {
     });
     const replaceNetworkAccess = {
       method: "replace_network_access",
-      programId: programIdV1,
+      processId: processIdV1,
       workspaceSessionId: workspaceSessionIdV1,
       enabled: true,
     } as const;

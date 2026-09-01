@@ -36,7 +36,7 @@ const qualificationTimeoutMillisecondsV1 = 180_000;
 const qualificationCleanupTimeoutMillisecondsV1 = 1_000;
 const qualificationTextPathV1 = "qualification/native-pi-round-trip.txt";
 export const qualificationTextV1 = "SillyOS independent-origin native Pi round trip.\n";
-const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u;
 
 interface QualificationRequestV1 {
   readonly revision: 1;

@@ -10,7 +10,7 @@ import type {
 } from "./pi-workspace-runtime-bridge.d.ts";
 
 import type {
-  CreatorAgentExecutionBindingV1,
+  ProgramAgentExecutionBindingV1,
   WorkspaceAgentRunV1,
   WorkspaceBeginRunRejectionCodeV1,
   WorkspaceExecutionDescriptorV1,
@@ -59,7 +59,7 @@ export interface BrowserWorkspaceEnvironmentMessagePortV1 {
 export interface BrowserWorkspaceEnvironmentClientV1 {
   getDescriptor(): WorkspaceExecutionDescriptorV1;
   beginAgentRun(input: {
-    readonly binding: CreatorAgentExecutionBindingV1;
+    readonly binding: ProgramAgentExecutionBindingV1;
     readonly piSessionId: string;
     readonly piRunId: string;
   }): Promise<
@@ -773,7 +773,7 @@ class BrowserWorkspaceEnvironmentClientOwnerV1 implements BrowserWorkspaceEnviro
   }
 
   async beginAgentRun(input: {
-    readonly binding: CreatorAgentExecutionBindingV1;
+    readonly binding: ProgramAgentExecutionBindingV1;
     readonly piSessionId: string;
     readonly piRunId: string;
   }): Promise<

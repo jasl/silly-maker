@@ -6,9 +6,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getSillyOsCopyV1 } from "../content/copy.ts";
-import type { CreatorTranscriptWindowProjectionV1 } from "../product/creator-controller.ts";
-import type { TranscriptEntryV1 } from "../product/program-process-repository.ts";
-import { ChatPaneV1 } from "../ui/chat-pane.tsx";
+import type { TranscriptEntryV1 } from "../program-platform/process/program-process-repository.ts";
+import { ChatPaneV1, type ConversationTranscriptWindowProjectionV1 } from "../ui/chat-pane.tsx";
 
 afterEach(cleanup);
 beforeAll(() => {
@@ -23,10 +22,10 @@ const copyV1 = getSillyOsCopyV1("en");
 function transcriptV1(
   entries: readonly TranscriptEntryV1[],
   options: {
-    readonly phase?: CreatorTranscriptWindowProjectionV1["phase"];
+    readonly phase?: ConversationTranscriptWindowProjectionV1["phase"];
     readonly nextBeforeSequence?: number | null;
   } = {},
-): CreatorTranscriptWindowProjectionV1 {
+): ConversationTranscriptWindowProjectionV1 {
   return {
     entries,
     byteLength: 1,
@@ -37,20 +36,14 @@ function transcriptV1(
 }
 
 function renderTranscriptV1(
-  transcript: CreatorTranscriptWindowProjectionV1,
+  transcript: ConversationTranscriptWindowProjectionV1,
   onLoadOlderTranscript = vi.fn(),
 ) {
   return render(
     <ChatPaneV1
       copy={copyV1}
+      agentName="Agent"
       transcript={transcript}
-      proposal={null}
-      program={null}
-      workspaceReview={null}
-      workpieceOpen={false}
-      onAccept={vi.fn()}
-      onReject={vi.fn()}
-      onOpenWorkpiece={vi.fn()}
       onSend={vi.fn()}
       onLoadOlderTranscript={onLoadOlderTranscript}
     />,
@@ -58,6 +51,33 @@ function renderTranscriptV1(
 }
 
 describe("SillyOS rich Process transcript", () => {
+  it("keeps rich pagination available while removing every composer mutation in read-only mode", () => {
+    const onLoadOlderTranscript = vi.fn();
+    render(
+      <ChatPaneV1
+        copy={copyV1}
+        agentName="Agent"
+        transcript={transcriptV1([{
+          schemaVersion: 1,
+          processId: "process.read-only",
+          sequence: 2,
+          entryId: "entry.read-only.2",
+          role: "assistant",
+          state: "committed",
+          parts: [{ kind: "text_markdown", partId: "part.read-only", markdown: "Durable reply" }],
+        }], { nextBeforeSequence: 2 })}
+        readOnly
+        onSend={vi.fn()}
+        onLoadOlderTranscript={onLoadOlderTranscript}
+      />,
+    );
+
+    expect(screen.getByText("Durable reply")).toBeVisible();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: copyV1.loadOlderTranscript }));
+    expect(onLoadOlderTranscript).toHaveBeenCalledOnce();
+  });
+
   it("renders every admitted rich part and identifies an interrupted partial response", () => {
     const entry: TranscriptEntryV1 = {
       schemaVersion: 1,
@@ -127,15 +147,9 @@ describe("SillyOS rich Process transcript", () => {
     view.rerender(
       <ChatPaneV1
         copy={copyV1}
+        agentName="Agent"
         transcript={transcriptV1([])}
         interruptedRetry={{ pending: false, onRetry }}
-        proposal={null}
-        program={null}
-        workspaceReview={null}
-        workpieceOpen={false}
-        onAccept={vi.fn()}
-        onReject={vi.fn()}
-        onOpenWorkpiece={vi.fn()}
         onSend={vi.fn()}
       />,
     );
@@ -145,15 +159,9 @@ describe("SillyOS rich Process transcript", () => {
     view.rerender(
       <ChatPaneV1
         copy={copyV1}
+        agentName="Agent"
         transcript={transcriptV1([])}
         interruptedRetry={{ pending: true, onRetry }}
-        proposal={null}
-        program={null}
-        workspaceReview={null}
-        workpieceOpen={false}
-        onAccept={vi.fn()}
-        onReject={vi.fn()}
-        onOpenWorkpiece={vi.fn()}
         onSend={vi.fn()}
       />,
     );
@@ -201,14 +209,8 @@ describe("SillyOS rich Process transcript", () => {
     view.rerender(
       <ChatPaneV1
         copy={copyV1}
+        agentName="Agent"
         transcript={transcriptV1([older, latest], { nextBeforeSequence: null })}
-        proposal={null}
-        program={null}
-        workspaceReview={null}
-        workpieceOpen={false}
-        onAccept={vi.fn()}
-        onReject={vi.fn()}
-        onOpenWorkpiece={vi.fn()}
         onSend={vi.fn()}
         onLoadOlderTranscript={onLoadOlderTranscript}
       />,
@@ -242,14 +244,8 @@ describe("SillyOS rich Process transcript", () => {
     const view = render(
       <ChatPaneV1
         copy={copyV1}
+        agentName="Agent"
         transcript={transcriptV1([first, second])}
-        proposal={null}
-        program={null}
-        workspaceReview={null}
-        workpieceOpen={false}
-        onAccept={vi.fn()}
-        onReject={vi.fn()}
-        onOpenWorkpiece={vi.fn()}
         onSend={vi.fn()}
         initialDraft="0123456789"
         onConversationViewStateChange={captured}
@@ -300,14 +296,8 @@ describe("SillyOS rich Process transcript", () => {
     const restored = render(
       <ChatPaneV1
         copy={copyV1}
+        agentName="Agent"
         transcript={transcriptV1([first, second])}
-        proposal={null}
-        program={null}
-        workspaceReview={null}
-        workpieceOpen={false}
-        onAccept={vi.fn()}
-        onReject={vi.fn()}
-        onOpenWorkpiece={vi.fn()}
         onSend={vi.fn()}
         initialDraft="0123456789"
         initialConversationViewState={restoredState}

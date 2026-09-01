@@ -8,7 +8,7 @@ import {
   browserProviderRecommendedModelFamiliesV1,
   isBrowserProviderRecommendedModelIdV1,
   recommendedBrowserProviderBuiltinModelRefsV1,
-} from "../product/browser-provider-model-recommendations.ts";
+} from "../application/preferences/browser-provider-model-recommendations.ts";
 import { projectProviderSettingsCatalogV1 } from "../ui/provider-settings-catalog.ts";
 
 describe("Browser Provider recommended model defaults", () => {

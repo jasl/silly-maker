@@ -7,29 +7,32 @@ Creator 把意图整理成双方都能理解、运行、检查和继续修改的
 
 ```text
 Program = reusable workflow + Agent profile + tools/scripts + guided UI
-Process = one durable conversation/project + Workspace + domain work/results
+Process = one durable conversation/project + isolated Workspace + settings/network + domain work/results
 ```
 
 Agent Creator 与 Translation 是当前两个 bundled Program。Bundling 只表示随 SillyOS 分发，
-不授予运行时特权；它们与以后准入的 Program 使用同一个 UI Container、Process/Workspace、
-Agent、admission 与 currentness 规则。Program 是可复用的工作方式；每次使用
-Program 创建一个持久 Process。对 Translation 而言，这个 Process 本身就是用户理解的翻译
-Project，不再另设 Project 身份、列表、路由或生命周期。
+不授予运行时特权：bundled archive 与用户导入的 ZIP 进入同一个 archive admission、
+IndexedDB installation repository、exact-package loader、runtime-profile selection 和 Program UI
+Container；安装结果不保留 acquisition origin。Program 是可复用的工作方式；每次使用
+Program 创建一个固定完整 package reference、持有独立 Conversation/Workspace/设置/能力偏好的
+持久 Process。对 Translation 而言，这个 Process 本身就是用户理解的翻译 Project，不再另设
+Project 身份、列表、路由或生命周期。完整合同见
+[Program package contract](./PROGRAM-PACKAGE-DESIGN.md)。
 
 ## 目前能体验什么
 
 普通入口现在提供 Browser Provider 设置。Settings 明确分为 **General**、**Providers** 和
-**Credential Vault** 三类；Creator Home 的 Provider warning 会直接进入 Providers。Provider
+**Credential Vault** 三类；Program Library 中 Creator 的 Provider warning 会直接进入 Providers。Provider
 只要具备当前 Browser 已实现的单 Key 凭据形状、API 协议适配器和 canonical HTTPS Endpoint，
 其目录模型就可以供用户勾选。这只是 Browser 技术兼容边界，不声称 SillyOS 逐个调用、评测或
 批准过每个模型。
 
 模型行是多选 checkbox，用于指定哪些模型出现在 Agent Creator；另一个 preferred model 是当前
 默认执行目标。全新非秘密设置会从产品维护的推荐 model family 与当前 Pi 目录的精确交集初始化
-一组 checked models，用户可以随时增删；推荐不构成质量准入。Creator Home 与 Program
-workspace 的输入框复用同一个模型选择组件。可用选项是 checked models 与**已解锁 Vault 中精确
+一组 checked models，用户可以随时增删；推荐不构成质量准入。Program Library 中 Creator 与
+Process Workspace 的输入框复用同一个模型选择组件。可用选项是 checked models 与**已解锁 Vault 中精确
 Provider/Endpoint binding** 的交集，不再依赖某个 Agent Worker 此刻是否已持有 Key。没有可用
-选项时 Home 只显示 warning；有可用选项时只显示模型选择器，并按 preferred 或首个可用模型向
+选项时 Creator 只显示 warning；有可用选项时只显示模型选择器，并按 preferred 或首个可用模型向
 新 Agent Worker 懒交付对应 Key。同一 credential scope 内切换模型复用当前 Worker；跨
 Provider/Endpoint scope 则从 Vault 做新的精确 typed handoff。只有用户模型切换成功后才更新
 preferred；保存 Key 与连接测试都不会修改 checked/preferred 模型。
@@ -56,21 +59,21 @@ Key 会一直保存到用户 Forget 或清除此站点数据。
 Bedrock 这类 ambient、OAuth、keyless 或多字段凭据 profile 仍可查看，但不会被压成一个假的
 API-key 表单，也不会显示可用的 Test connection。
 
-- 从 Creator Home 提交翻译、写作、角色扮演或通用创作意图；
+- 从 Program Library 打开 Creator 并提交翻译、写作、角色扮演或通用创作意图；
 - 查看确定性的本地 Creator 回复和带明确版本的 Program proposal；
-- 在 Program workspace 中同时查看人类/Creator 的分页富文本 Conversation、proposal 与预览；
+- 在 Creator 的 Process Workspace 中同时查看人类/Creator 的分页富文本 Conversation、proposal 与预览；
 - 接受或拒绝当前精确版本；补充要求会形成新的 `pending` 版本，旧版本决定会被完整拒绝；
-- Program 与 Creator Process 会在同一事务提交后写入此浏览器；返回 Home 或刷新页面后可以从
-  “最近的程序”重开同一修订、决定和完整 pageable Conversation；
-- 已接受的 Translation Program 可以进入真实的 `sillyos.builtin.translation` revision 1
-  Process 路由。该路线创建独立
-  Process Workspace，并能 cold-reopen 同一 Process、Conversation、Workspace binding 与 V13
+- Program 与 Creator Process 会在同一事务提交后写入此浏览器；Program Library 会列出已安装的
+  exact packages 和最近 Processes，并可重开同一修订、决定和完整 pageable Conversation；
+- 已安装的 `sillyos.translation@1.0.0` package 可用它的 exact content digest 创建 Translation
+  Process。该路线创建独立 Process Workspace，并能 cold-reopen 同一 Process、Conversation、
+  exact package、Workspace binding 与 V16
   Translation workset head。guided workbench 已把上传控件和 Process 自有的分页 source workset 接到
   controller。导入取得 Process execution lease 时，会在同一个 IndexedDB transaction 核对
   workset 仍不存在或仍是调用方见到的精确 staging revision；取得 lease 后，Workspace 原件写入、workset begin、每页
   append 与 finalize 都核对同一 attempt/generation；耗时的 Workspace 写入在前台按统一 lease
   cadence 续租，但浏览器冻结后仍以 generation fence 而非后台持续执行作保证。过期且未完成的导入 Process 会保留为
-  `interrupted_unrecoverable` 供按 ID 审查，而 Home 的下一次启动会创建新 Process，不会被旧
+  `interrupted_unrecoverable` 供按 ID 审查，而 Program Library 的下一次启动会创建新 Process，不会被旧
   Process 永久阻塞。Workset ready 与 completed Process terminal/checkpoint 在同一个 IndexedDB
   transaction 发布，避免出现已完成 workset 配上失败 Conversation 的双重事实。这里没有独立
   Project 身份、列表、路由或生命周期；持久化 Process 直接拥有 source rows、glossary、candidate
@@ -78,20 +81,21 @@ API-key 表单，也不会显示可用的 Test connection。
   reopen，但仍缺格式保持 exporter 与完整 QA，所以还不是可完成翻译的普通用户旅程。
 
 固定 Pi 提供窄 `fetch_url({ url })` 与 `download({ url, destination, overwrite? })` 工具。每个
-Program 只有一个 **允许网络访问** 复选框，默认关闭；关闭时工具在 Network Broker 收到请求前
+Process 只有一个 **允许网络访问** 复选框，默认关闭；关闭时工具在 Network Broker 收到请求前
 返回 `network_disabled`，开启后两个工具可直接访问通过合同校验的 HTTPS URL，不再出现逐次、
 逐 URL 或逐 origin 审批。该选择作为普通非秘密产品设置持久化，不包含完整 URL 或 API Key；
-Agent Worker 会在每次 admitted submit 前同步当前 Program 的布尔值。真正的 `GET` 只在独立
+Agent Worker 会在每次 admitted submit 前同步当前 Process 的布尔值。真正的 `GET` 只在独立
 origin、无 API key 的 Network Broker 中执行，不携带 Cookie、Authorization、referrer、body
 或自定义 header；`fetch_url` 只返回不超过 `256 KiB` 的声明 UTF-8 文本/JSON/XML。目标仍必须
 允许 Browser CORS；这不是任意网页抓取或搜索能力。`download` 使用独立 Broker，在 Workspace
 Host 准备好私有 staging 后才开始 GET，每次最多转交一个等待 ACK 的 `1 MiB` chunk，完整且仍
-current 的 2xx 响应才会通过原有 journal 发布到 Program volume。Chromium 与 WebKit 已各自
+current 的 2xx 响应才会通过原有 journal 发布到 Process volume。Chromium 与 WebKit 已各自
 验证 `32 MiB` 二进制、SHA-256、generation/receipt 和冷重开；这仍不等于任意站点 CORS、线上
 ingress、搜索、解压、认证下载或真实模型调用已经通过。Provider 请求是独立的凭据面能力，不受
-Program 网络开关控制。S2-N3 已通过完整 521 项 SillyOS 单元套件、Chromium/WebKit 的
-开关/冷重开/`fetch_url`/`32 MiB download` 路径及三份生产构建边界检查，并已进入当前
-`a17c3490` 三 origin artifact；artifact availability 不提升上述行为资格。
+Process 网络开关控制。历史 S2-N3 Program-scoped 版本曾通过完整 521 项 SillyOS 单元套件、
+Chromium/WebKit 的开关/冷重开/`fetch_url`/`32 MiB download` 路径及三份生产构建边界检查，
+并进入 `a17c3490` 三 origin artifact；当前 V16 Process-scoped replacement 是本地 preview
+事实，不追溯改变该部署记录。artifact availability 不提升上述行为资格。
 
 另有一个只在 `?agent=pi-test` 出现的 B0a 验证入口：它会把产品 lockfile 固定的
 `pi-agent-core` / `pi-ai` 0.84.4 懒加载进 Dedicated Worker，通过 typed RPC 运行真实
@@ -112,11 +116,16 @@ HTTPS endpoint 的精确 binding 加密持久化；修改 endpoint 不会隐式�
 binding，并可从独立 Vault 列表 Forget 已不再使用的旧 binding。最近一次测试状态不会持久化，
 一次测试成功也不会升级成 SillyOS 的 built-in 双浏览器资格结论。
 
-当前产品已经有由 Dedicated Worker 持有的 Browser IndexedDB Program Data
-Repository V13；它按行保存 Program head/revision/decision、Process、分页富文本
-Conversation、Process lease/fencing 状态、`process_commits` 中的精确 operation receipt、
-Workspace continuation、Program 网络开关，以及 Translation Process 自有 workset head、精确 import
-receipt 和可分页 unit/glossary rows。原始 Translation 文件由同一个 Browser Workspace
+当前持久化按职责分离。Program Package Installation Repository V1 在 `packages` 中保留 admitted
+immutable package，在 `package_heads` 中只选择供新 Process 使用的 current exact reference；bundled
+与 ZIP import 都经过这个 repository。Dedicated Worker 持有的 Browser IndexedDB Program Data Repository
+V16 的 **Conversation Core** 只保存固定 exact package 的 Process、分页富文本 Conversation、Process
+lease/fencing、`process_commits` 中的精确 operation receipt、`process_workspace_bindings`、
+`process_settings_overrides` 和 `process_network_access`。Creator 的 Program subject/head/revision/decision
+属于 Creator 自己的 persistence facet；Translation 的 workset head、精确 import receipt、分页
+unit/glossary/candidate rows 属于 Translation facet。两种 facet 通过同一 Core transaction kernel 与相关
+Process 终态原子提交，但不会把业务 schema 重新提升成通用 Program Data Repository 权威。原始 Translation
+文件由同一个 Browser Workspace
 Authority 写入 Process 自己的 Workspace；Repository 只保存其 SHA-256、规范相对路径和精确
 checkpoint binding。它不保存 API Key、Pi 私有 session/continuation 内容、附件字节或
 workspace 文件。Credential Vault
@@ -126,13 +135,24 @@ workspace 文件。Credential Vault
 workspace head 发布为本地不可变 Program snapshot，但不会因此生成、部署或托管一个真实
 应用。这个边界会在界面中如实显示，不使用假网络层来伪装后端。
 
+创建 Process 时会永久写入完整 `{ programId, packageVersion, contentDigest }` reference；安装
+successor 只移动供新 Process 使用的 current pointer，不替换已有 Process 的 package，也不迁移其
+VFS。如果 exact package、compatible runtime profile、可选 Program storage 或 Process Workspace
+不可用，Program Library 仍会打开 package-independent 的 pageable read-only Conversation；该模式
+不暴露 runtime、settings、Workspace、Agent 或 mutation actions，也不会删除 transcript。
+
+Package 可以提供 closed settings schema 和完整 immutable defaults。一个 Process 可保存一个经过
+exact package admission 的 override；没有 override 时使用 package defaults。缺失、无效或部分输入
+不会阻挡 Process，也不会替换已保存 override；每次 Agent attempt 只捕获它开始时的 exact override。
+当前没有独立的 mutable Program-default preference repository。
+
 ## 已完成的 P4-A 执行与恢复边界
 
 P4-A 已于 2026-08-30 在本地完成并通过独立审查。交付的产品体验是
 可分页的 rich Conversation，以及一次只挂载一个 active Process 的 bounded UI projection。
 切换 Process 会卸载旧富文本、工具和媒体子树，但不会截断或删除它的持久 Conversation。
 
-执行侧只需要三种 Product Repository 语义原子事务；lease renewal 是单独的活性 CAS，不推进语义
+执行侧只需要三种 Program Data Repository 语义原子事务；lease renewal 是单独的活性 CAS，不推进语义
 checkpoint：
 
 1. 在 Pi submit 前，原子写入已接受的用户 entry、active attempt、起始 Process/Workspace
@@ -147,8 +167,8 @@ checkpoint：
 每个正在运行的 attempt 由 **Process-scoped renewable lease** 保护。每个新 attempt（首次执行或
 用户明确重试）都会获得严格递增的 fencing generation；heartbeat 只续租，不代表语义进度，也不是 Conversation 或
 Workspace checkpoint。任何旧 generation 即使在页面或 Worker 恢复后也不能再发布。
-闲置标签页不占有 Process lease，也不预先打开或占用 Program Workspace。Send、Retry 与 Export
-在用户触发时才取得一个 exact Workspace session；Send/Retry 随后才通过同一 Product Repository
+闲置标签页不占有 Process lease，也不预先打开或占用 Process Workspace。Send、Retry 与 Export
+在用户触发时才取得一个 exact Workspace session；Send/Retry 随后才通过同一 Program Data Repository
 事务原子竞争 Process lease，竞争失败者释放刚取得的 exact Workspace session 并刷新投影。Export
 只临时使用 Workspace，不取得 Process lease。terminal 已持久提交且 Agent terminal acknowledgement
 完成后，页面才按 exact `workspaceSessionId` 释放该 session；瞬态释放失败保留为待重试清理，由同一
@@ -210,7 +230,7 @@ SillyOS UI / Product Core
 产品固定版本的 Pi Agent / Credential plane
   +-> typed WorkspaceExecutionPort
   |     -> 独立 origin 的 Workspace Execution Sandbox
-  |          -> 当前 Program 专属 VFS volume
+  |          -> 当前 Process 独立 VFS volume
   +-> typed NetworkCapabilityPort
         -> 独立 origin、无凭据的 Network Broker
              -> 有界 Browser HTTPS text fetch
@@ -222,35 +242,38 @@ origin 中执行；生成 HTML 也不得注入控制面 DOM。Pi 仍是唯一 Ag
 Agent loop 来源。当前 deterministic 与 live Pi 路线都通过独立 origin Sandbox 获得 Pi
 原生 `read`/`write`/`edit`/`bash`；SillyOS 另外以 Pi `AgentTool` 注册一个固定、只读、
 结构化的 `grep` capability，以及固定的 `fetch_url` / `download` capability。`grep` 使用显式
-typed Workspace RPC；网络工具只能在一次性或当前 Program 持久化的精确授权后进入无 Key 的
+typed Workspace RPC；网络工具只能在当前 Process 持久化网络偏好开启后进入无 Key 的
 第三 origin Broker。它们都复用 Pi 的工具/Agent loop，不是第二套 tool dispatcher。Workspace
 Sandbox、QJS 和 just-bash 仍保持无网络，未注册 `curl`。
 
-产品数据、凭据与 workspace bytes 分属 Product Repository、Credential Vault 和 Workspace
-Volume Repository。Product Repository 与 Credential Vault 使用不同 Worker 和 IndexedDB
+产品数据、凭据与 workspace bytes 分属 Program Data Repository、Credential Vault 和 Workspace
+Volume Repository。Program Data Repository 与 Credential Vault 使用不同 Worker 和 IndexedDB
 database，因此普通 Program 生命周期与导出不会拥有或混入凭据；但两者仍处于 control origin，
 不同 database 名称只提供所有权分离，不构成对同源恶意代码的物理权限隔离。S1a-1 已在 source
 中把普通 Program 的唯一 Authority 切到独立 Sandbox origin：控制面创建精确 origin frame
 transport，Sandbox 内固定 Host Worker 独占 OPFS、
 snapshot/export 与 volume 生命周期，旧控制-origin Host Worker 和 fallback 已删除。物理 Product
-Repository V13 是当前 pre-stable clean replacement：规范化
-Program/Process/Conversation stores、Process execution lease 与单一
-`process_commits` operation-receipt authority 保持不变，并新增唯一
-`process_workspace_bindings`，把一个非 Creator Process 精确绑定到自己的
-Workspace/OPFS volume；Translation Process 直接拥有 workset head、import receipt、分页
-unit/glossary stores、pending candidate 与 accepted-target review 状态。物理 store 和 receipt
-统一采用 `translation_workset_*` 语义，不存在独立 Project 产品层级。Program-scoped Workspace continuation 与缺行即默认关闭的
-network-access row 仍是不同 authority。Process、首个 transcript checkpoint 和 binding
+Repository V16 是当前 pre-stable clean replacement：规范化
+Program/Process/Conversation stores、Process execution lease 与单一 Core Process
+`process_commits` operation-receipt authority 保持不变；Program facet 可以保留领域内 mutation
+幂等记录，但不会成为第二个 Process/Conversation 权威。每个 Process 固定 exact package，并由
+`process_workspace_bindings` 精确绑定自己的 Workspace/OPFS volume。Process-scoped
+`process_settings_overrides` 与缺行即默认关闭的 `process_network_access` 保持正交。Translation
+Process 直接拥有 workset head、import receipt、分页 unit/glossary stores、pending candidate 与
+accepted-target review 状态。物理 store 和 receipt 统一采用 `translation_workset_*` 语义，不存在
+独立 Project 产品层级。Process、首个 transcript checkpoint 和 binding
 可在一个 IndexedDB transaction 中提交；OPFS volume 的物理创建仍由 Sandbox Host
 单独拥有，不伪装成跨 IndexedDB/OPFS transaction。
-由于产品尚未发布稳定持久化合同，V13 对任何较早的预览数据库执行 row-blind reset，
-不读取或迁移旧 rows。旧 control-origin OPFS bytes 可能仍由浏览器保留，但产品不再可达，
-也不会把它们作为迁移输入。
+由于产品尚未发布稳定持久化合同，V16 对任何较早的 preview Program Data Repository 执行 row-blind
+reset，不读取或迁移旧 rows，也不保留旧 wire、method 或 type alias。同一 V16 database 中已删除或未知
+的 optional facet store 可以作为不可达物理数据暂留；Core 打开时忽略它，所选 facet 缺失或损坏只降级
+为 unavailable，显式 Clear All 才清空 Core 和当时存在的全部 facet stores。旧 control-origin
+OPFS bytes 可能仍由浏览器保留，但产品不再可达，也不会把它们作为迁移输入。
 
 Credential Vault V2 是 Provider Key 的唯一持久 owner。Fresh initialization 自动创建
 **Automatic** 模式，把不可导出的设备 AES-256-GCM `CryptoKey` 保存在 Vault IndexedDB，并在
 fresh Worker 中自动验证和解锁。可选 **Password** 模式通过 PBKDF2-SHA-256 派生不可导出的
-AES-GCM key；Automatic 与 Password 之间切换时，header 和最多 32 条现有密文会在同一事务内
+AES-GCM key；Automatic 与 Password 之间切换时，header 和全部现有密文会在同一事务内
 rewrap。每条 Key 都以完整 normalized HTTPS endpoint 与 Provider/profile identity 作为精确
 binding/AAD。Vault 支持 Password Lock/Unlock、Forget、Replace，以及只在 unlocked 且 binding
 精确匹配时通过 transferred port 完成的一次 handoff；完整 Key 不在 UI 中回读。旧 V1 Vault
@@ -354,7 +377,7 @@ typed `WorkspaceExecutionPort` 后使用更完整的 native process sandbox 和�
 just-bash，也不需要复制 Browser 的紧缩限制。
 
 Desktop 更完整不等于降低边界：native Workspace sandbox 默认仍不能继承 Provider key、Pi
-auth store、Product Repository handles 或 companion ambient environment；network 与 host path
+auth store、Program Data Repository handles 或 companion ambient environment；network 与 host path
 mount 都必须是显式 capability。某能力只在一个目标通过时就只在该目标如实显示。Browser
 Q1 不阻塞 Desktop 选择更强的 sandbox，Desktop 证据也不能替代 Browser 资格。
 
@@ -398,7 +421,7 @@ snapshot、Sandbox 内触发的逐字节 ZIP 下载、控制-origin OPFS 不可�
 `connect-src 'none'` 在请求发出前拒绝网络。该单独构建的 artifact 不包含测试 Worker、Pi、
 Provider、React 或 just-bash，也没有 production deployment receipt。S1a-1 已完成 source
 cutover：资格 transport 是普通产品唯一 read/write Authority，旧同源执行 owner 已删除，physical
-Product Repository V5 clean-reset preview V4，Sandbox bootstrap/Host/control artifact 通过同一
+Program Data Repository V5 clean-reset preview V4，Sandbox bootstrap/Host/control artifact 通过同一
 build identity fail-closed 组合，下载 URL 也不离开 Sandbox。local dev 的 control/sandbox 文档都
 启用严格 CSP 并关闭 HMR。普通 `@s1a-ordinary` Creator/Program journey 已在 Chromium 4/4、
 持久 WebKit 4/4 通过，S1a-1 因而在本地关闭。S1b-1 的独立 native edit case 与 S1b-2 的
@@ -423,7 +446,7 @@ reload。单独的 Chromium/WebKit qualification 各 3/3
 Pi 工具到 workspace runtime 的转发、Pi 能力组合、OpenUI 到 SillyMaker 组件映射，
 再到翻译/写作/角色扮演产品的分阶段路径见 [PLAN.md](./PLAN.md)。Translation P5-A
 完成了四格式确定性 round-trip laboratory 和双路线 model-protocol smoke；后续正式基础已经
-加入真实 Translation Process 路由、独立 Process Workspace、同一 Authority 的原件导入、V13
+加入真实 Translation Process 路由、独立 Process Workspace、同一 Authority 的原件导入、V16
 Process-owned workset head/分页 rows、cold reopen，以及按需加载的文字型 PDF text-reflow。它们仍不代表
 Translation Program 已可用或任一路线已通过资格。当前正式路径已经把所选模型的 context/output
 envelope 转成无隐藏条数上限的 bounded batch，经共享的单一 Agent Worker/Session 产生一个
@@ -528,8 +551,8 @@ React 产品面；Desktop 是产品目标，不会另外模拟操作系统桌面
 
 要运行不访问 LLM 的 Browser Pi B0a 接线检查，在该地址追加
 `?locale=zh-CN&agent=pi-test`，输入任意可丢弃的合成测试值并初始化，再创建 Program、
-提交一次 follow-up。普通确定性 Pi 流程用原生 `write`/`read` 在独立-origin 持久 Program
-workspace 完成字节往返，再形成 proposal。以
+提交一次 follow-up。普通确定性 Pi 流程用原生 `write`/`read` 在独立-origin 持久 Process
+Workspace 完成字节往返，再形成 proposal。以
 `Exercise the pinned native Pi edit tool with exact text:` 开头的显式 S1b-1 probe 会另外执行
 Pi 原生 `write -> edit -> read`。显式 S1b-2 bash probe 则只在 deterministic fixture 中调用
 Pi 原生 `createBashTool` 和当前 29-command just-bash built-in facade；产品另外固定提供
@@ -545,11 +568,11 @@ fresh 设置会先勾选产品维护的推荐 family 与实际 Pi 目录的精�
 在 Connection 中选择可选的测试模型、确认只读 endpoint scopes，输入该 Provider 的 key，再点击
 **Save**。Fresh Vault 已处于 Automatic unlocked；Save 会把 Key 加密保存到每个展示的 exact
 scope，但不会请求 Provider，也不会改变 checked/preferred。按 preferred 或首个可用模型完成
-Vault-to-Agent handoff 后，Agent Creator 的 Provider/proposal 路线和当前 Program-bound workspace
+Vault-to-Agent handoff 后，Agent Creator 的 Provider/proposal 路线和当前 Process-bound Workspace
 工具立即可用，Home warning 消失。网页不会读取开发机 `.env`；Key 输入会立即清空，完整 Key
 不会回显。
 
-Home 与 Program workspace 的模型选择器共用一个 **Reasoning effort** 控件。可选值完全来自
+Program Library 与 Process Workspace 的模型选择器共用一个 **Reasoning effort** 控件。可选值完全来自
 固定 Pi 对当前 built-in 模型声明的能力；产品偏好默认 `medium`，实际执行使用 Pi clamp 后的
 effective level。切换模型不会改写全局偏好，custom endpoint 在显式 schema 之前固定为 `off`。
 该设置与 Key、Test、模型 checkbox 及 Program 数据相互独立；当前公网 artifact 已包含这条路径，
@@ -668,7 +691,7 @@ Permissions Policy、`no-referrer`、`nosniff` 和嵌入 denial。control 文档
 精确 Sandbox、Network Broker origin 与 `blob:`，Sandbox 文档的 `frame-src` 只允许 `blob:`，用于 WebKit 的
 Sandbox-private download navigation；该 Blob URL 从不跨 control RPC。Sandbox 文档的
 `frame-ancestors` 也只允许精确 control origin。Network Broker 同样只允许精确 control
-ancestor，不持有 Provider key、Product Repository 或 Workspace VFS。普通文档与 catalog Worker 的
+ancestor，不持有 Provider key、Program Data Repository 或 Workspace VFS。普通文档与 catalog Worker 的
 `connect-src` 只有 self；built-in 或 custom Agent Worker URL 携带经过验证的
 `endpoint-origin` 时，只有该 Worker 增加这一个精确 HTTPS origin。Cloudflare 和 local
 Vite dev 使用同一 canonical rule；dev 对重复、HTTP 或畸形 origin 返回 400/no-store，并在
@@ -797,12 +820,12 @@ deno run -A npm:@playwright/test test \
 
 ```sh
 deno run -A npm:vitest run \
-  src/test/program-catalog-repository.conformance.test.ts \
+  programs/creator/test/program-catalog-repository.conformance.test.ts \
   src/test/program-process-repository.conformance.test.ts \
   src/test/program-data-repository-indexeddb.test.ts \
   src/test/program-data-repository-worker.test.ts \
-  src/test/creator-controller.test.ts \
-  src/test/creator-agent-admission.test.ts \
+  programs/creator/test/creator-controller.test.ts \
+  programs/creator/test/creator-agent-admission.test.ts \
   src/test/browser-control-plane-security.test.ts \
   src/test/browser-credential-vault-port.test.ts \
   src/test/browser-credential-vault-security.test.ts \
@@ -828,44 +851,29 @@ deno run -A npm:vitest run \
 
 ## 当前代码边界
 
-| 位置                                                            | 所有权                                                                         |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `src/product/contracts.ts`                                      | Program、proposal 与 Creator Agent 终态投影合同                                |
-| `src/product/program-catalog-repository.ts`                     | Program head、不可变 revision、review decision 与分页目录合同                  |
-| `src/product/program-process-repository.ts`                     | Creator Process、attempt/checkpoint 与富文本 Conversation 分页合同             |
-| `src/product/program-data-repository.ts`                        | Program 与 Process 复合提交的唯一产品持久化边界                                |
-| `src/product/creator-controller.ts`                             | 单 active Process、分页 Conversation、proposal review 与 Agent currentness     |
-| `src/product/translation/translation-process-controller.ts`     | Translation Process 路由、原件导入、cold reopen 与自有 workset 分页投影        |
-| `src/product/translation/translation-workset-repository.ts`     | Process-owned workset、receipt、unit/glossary/candidate pages 与 review CAS    |
-| `src/product/translation/pdf/`                                  | 按需 born-digital PDF text-reflow；不提供 OCR 或 PDF round-trip                |
-| `src/product/creator-agent-admission.ts`                        | submit/candidate 的严格 product wire admission                                 |
-| `src/product/browser-provider-settings-repository.ts`           | 有界非秘密 custom HTTPS profile 持久化；不接收 key                             |
-| `src/product/fake-creator.ts`                                   | 默认初始 proposal 的确定性 fake Creator                                        |
-| `src/agent/browser-program-agent-port.ts`                       | bundled Creator/Translation 共用单 Worker/Session owner 与 typed facades       |
-| `src/product/translation/translation-agent-contracts.ts`        | Translation Run/terminal 的 Process/currentness 合同                           |
-| `src/product/translation/translation-batch-planner.ts`          | 依模型 context/output envelope 规划无隐藏条数上限的下一批                      |
-| `src/product/translation/translation-process-view.ts`           | Process-owned workset 的 bounded UI row-window 投影                            |
-| `src/agent/browser-pi-*`                                        | 公共 Agent Session connector、产品私有 Worker wire、固定 Pi 与 workspace tools |
-| `src/agent/pi-workspace-tool-binder.ts`                         | Pi 原生四工具绑定与固定 structured `grep` AgentTool                            |
-| `src/credential/`                                               | 独立 Vault Worker、WebCrypto、exact binding、IndexedDB、handoff 与 client      |
-| `src/deployment/browser-credential-vault-security.ts`           | Vault Worker 的 network-off CSP 与专属 response headers                        |
-| `src/workspace/browser-workspace-just-bash-runtime.ts`          | bounded just-bash facade、fixed-`rg` grep 与 lazy fixed-`qjs` registry         |
-| `src/workspace/browser-workspace-quickjs-{protocol,command}.ts` | Q1 exact DTO、limits、explicit text staging、diff preflight 与 child broker    |
-| `src/workspace-sandbox/browser-workspace-quickjs.worker.ts`     | fixed QuickJS 0.32.0 fresh child runtime；无 ambient storage/network           |
-| `src/deployment/cloudflare-selected-origin-worker.ts`           | built-in/custom Agent Worker 的完整 strict-CSP 与精确 selected-origin 响应层   |
-| `src/deployment/cloudflare-workspace-sandbox-worker.ts`         | 独立 Sandbox artifact 的固定响应头与 Cloudflare 静态边界                       |
-| `src/workspace/browser-workspace-sandbox-frame-transport.ts`    | 控制 origin 到固定 Sandbox origin 的 fail-closed bootstrap/typed channel       |
-| `src/workspace/browser-workspace-sandbox-build-identity.ts`     | control/bootstrap/Host 共用的 product-derived build identity admission         |
-| `src/workspace/browser-workspace-sandbox-download-protocol.ts`  | Sandbox Host 到 bootstrap frame 的私有 download request/receipt                |
-| `src/workspace-sandbox/`                                        | Sandbox 文档 bootstrap 与同 origin 固定 Host Worker                            |
-| `src/product/indexeddb-program-data-repository.ts`              | physical Product Repository V13、Program/Process 与 Translation workset 事务   |
-| `src/product/browser-program-data-repository.ts`                | V13 Worker client、响应 identity 与 outcome-unknown fencing                    |
-| `src/companion/pi-rpc-startup.ts`                               | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要                     |
-| `src/application/`                                              | Browser/Deno 共用的 React 产品入口与工作区表现                                 |
-| `src/test/browser-pi-worker.test.ts`                            | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown                    |
-| `tools/pi-rpc.mts`                                              | raw Pi RPC 开发启动器；尚未连接 Creator                                        |
-| `PLAN.md`                                                       | 独立产品孵化顺序、所有权、停止条件与明确 defer                                 |
-| `WASM-WORKSPACE-RESEARCH.md`                                    | workspace harness 候选、共同语料和选型证据门                                   |
+| 位置                                                                            | 所有权                                                                                |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `programs/<name>/package/`                                                      | bundled/ZIP 共用的 production package bytes；不包含 tests、notes 或 Host code         |
+| `programs/<name>/distribution/`                                                 | 只重建 bundled archive 的 build-time source adapter；不赋予来源特权                   |
+| `programs/<name>/persistence/`                                                  | 可选的 Program-owned domain facet；通过 Host 的事务与命名空间边界执行                 |
+| `programs/<name>/runtime/`                                                      | 该 Program/profile 的 domain controller、合同与业务投影                               |
+| `programs/<name>/runtime-profile/`                                              | build-known Host adapter；同 profile 的 imported package 走相同路径                   |
+| `programs/<name>/ui/`                                                           | Program UI Container 内的 Host-compiled surface                                       |
+| `programs/<name>/{test,notes}/`                                                 | 测试、研究、fixtures 与工具；不进入 archive 或 production graph                       |
+| `src/program-platform/package/`                                                 | manifest/archive/digest/runtime-profile admission                                     |
+| `src/program-platform/installation/`                                            | bundled/ZIP 共用安装 repository、exact package load 与新 Process current pointer      |
+| `src/program-platform/process/`                                                 | Process、exact package、分页 Conversation、lease/checkpoint 与 settings override 合同 |
+| `src/program-platform/capabilities/`                                            | Process-scoped capability preferences                                                 |
+| `src/program-platform/ui/`                                                      | Program Library、UI Container 与 package-independent read-only Conversation           |
+| `src/application/program-{composition,controller-owner,runtime-composition}.ts` | 产品 composition roots；选择 bundled sources 与 build-known profiles                  |
+| `src/application/persistence/`                                                  | physical Program Data Repository V16、Worker client/wire 与复合原子事务               |
+| `src/application/{preferences,workspace}/`                                      | 产品级偏好与 Process Workspace Host adapter                                           |
+| `src/agent/browser-program-*`                                                   | 固定 harness 的 package/profile execution loader 与 typed Agent bridge                |
+| `src/agent/browser-pi-*`                                                        | 公共 Agent Session connector、产品私有 Worker wire、固定 Pi 与 Workspace tools        |
+| `src/credential/`                                                               | 独立 Vault Worker、WebCrypto、exact binding、IndexedDB、handoff 与 client             |
+| `src/workspace/` / `src/workspace-sandbox/`                                     | independent-origin VFS、bounded shell/QJS 与固定 Sandbox Host                         |
+| `PLAN.md`                                                                       | 独立产品孵化顺序、所有权、停止条件与明确 defer                                        |
+| `PROGRAM-PACKAGE-DESIGN.md`                                                     | 当前 Program package、安装、隔离、升级和降级合同                                      |
 
 后续 Agent loop、模型/provider、会话、tool dispatch 与 Agent 扩展统一由 Pi 负责。
 Browser Agent Worker 或 Desktop companion 只做目标适配、Program 数据所有权和 typed

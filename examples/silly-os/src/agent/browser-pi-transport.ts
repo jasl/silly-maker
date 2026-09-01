@@ -14,9 +14,8 @@ import browserPiWorkerUrlV1 from "./browser-pi.worker.ts?worker&url";
 import type {
   BrowserProgramWorkspaceAuthorityV1,
   BrowserProgramWorkspaceFatalV1,
-  BrowserProcessWorkspaceAuthorityV1,
-} from "../product/browser-program-workspace-authority.ts";
-import type { ProgramNetworkAccessV1 } from "../product/program-network-access.ts";
+} from "../application/workspace/browser-program-workspace-authority.ts";
+import type { ProcessNetworkAccessV1 } from "../program-platform/capabilities/process-network-access.ts";
 import type { BrowserWorkspaceHostSnapshotWireV1 } from "../workspace/browser-workspace-host-protocol.ts";
 import type { BrowserNetworkBrokerLeaseV1 } from "../network/browser-network-broker-frame-transport.ts";
 import {
@@ -122,9 +121,7 @@ export interface BrowserPiWorkerConnectorV1 extends AgentSessionConnectorV1 {
     preferredReasoningEffort: BrowserPiReasoningEffortV1,
   ): Promise<BrowserPiWorkerSetReasoningEffortResultV1>;
   openWorkspace(
-    input:
-      | { readonly programId: string; readonly workspaceId: string }
-      | { readonly processId: string; readonly workspaceId: string },
+    input: { readonly processId: string; readonly workspaceId: string },
   ): Promise<BrowserPiWorkspaceSnapshotWireV1>;
   closeWorkspace(workspaceSessionId: string): Promise<BrowserPiWorkspaceSnapshotWireV1>;
   queryWorkspace(workspaceSessionId: string): Promise<BrowserPiWorkspaceSnapshotWireV1>;
@@ -133,7 +130,7 @@ export interface BrowserPiWorkerConnectorV1 extends AgentSessionConnectorV1 {
     readonly throughSequence: number;
   }): Promise<BrowserPiWorkspaceSnapshotWireV1>;
   replaceNetworkAccess(input: {
-    readonly access: ProgramNetworkAccessV1;
+    readonly access: ProcessNetworkAccessV1;
     readonly workspaceSessionId: string;
   }): Promise<BrowserPiWorkspaceSnapshotWireV1>;
   subscribeWorkspaceReceipts(
@@ -204,6 +201,7 @@ interface ConnectionStateV1 {
   nextCallId: number;
   pendingSubmitGates: number;
   activeWorkspace: BrowserPiWorkspaceSnapshotWireV1 | null;
+  activeWorkspaceProcessId: string | null;
   workspaceReceiptSequence: number;
   activeSelection: BrowserPiModelSelectionV1 | null;
   activePreferredReasoningEffort: BrowserPiReasoningEffortV1;
@@ -297,11 +295,13 @@ function hostDescriptorMatchesPiSnapshotV1(
 
 function executionBindingFromHostV1(
   host: BrowserWorkspaceHostSnapshotWireV1,
+  processId: string,
 ): Extract<BrowserPiWorkspaceRequestRecordV1, { readonly method: "attach_workspace" }>[
   "descriptor"
 ] {
   return Object.freeze({
     revision: 1,
+    processId,
     programId: host.descriptor.programId,
     workspaceId: host.descriptor.workspaceId,
     workspaceSessionId: host.descriptor.workspaceSessionId,
@@ -320,9 +320,7 @@ export function createBrowserPiWorkerConnectorV1({
 }:
   & {
     readonly openNetworkBroker: BrowserPiOpenNetworkBrokerV1;
-    readonly workspaceAuthority:
-      & BrowserProgramWorkspaceAuthorityV1
-      & Partial<Pick<BrowserProcessWorkspaceAuthorityV1, "openProcessWorkspace">>;
+    readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
     readonly workerFactory?: BrowserPiWorkerFactoryV1;
     readonly createCredentialHandoffId?: () => string;
     readonly preferredReasoningEffort?: BrowserPiReasoningEffortV1;
@@ -364,6 +362,7 @@ export function createBrowserPiWorkerConnectorV1({
   ): void => {
     if (state.closed) return;
     state.closed = true;
+    state.activeWorkspaceProcessId = null;
     state.resolveClosed();
     const workspaceSessionId = state.activeWorkspace?.phase === "open"
       ? state.activeWorkspace.workspaceSessionId
@@ -523,6 +522,7 @@ export function createBrowserPiWorkerConnectorV1({
       nextCallId: 1,
       pendingSubmitGates: 0,
       activeWorkspace: null,
+      activeWorkspaceProcessId: null,
       workspaceReceiptSequence: 0,
       activeSelection: selection,
       activePreferredReasoningEffort: preferredReasoningEffort,
@@ -553,7 +553,7 @@ export function createBrowserPiWorkerConnectorV1({
         generation: receipt.resultingGeneration,
         // The transport projects only the newest unacknowledged watermark. Receipt
         // observers receive every ordered mutation, while the Workspace host owns
-        // its bounded queue until the Creator port acknowledges this sequence.
+        // its bounded queue until the Program facade acknowledges this sequence.
         receipts: Object.freeze([receipt]),
       });
       state.workspaceReceiptSequence = receipt.sequence;
@@ -814,7 +814,8 @@ export function createBrowserPiWorkerConnectorV1({
           const envelope = request.method === "submit"
             ? (() => {
               const workspace = state.activeWorkspace;
-              if (workspace === null || workspace.phase !== "open") {
+              const processId = state.activeWorkspaceProcessId;
+              if (workspace === null || workspace.phase !== "open" || processId === null) {
                 throw transportErrorV1("workspace_unavailable");
               }
               return Object.freeze({
@@ -824,6 +825,7 @@ export function createBrowserPiWorkerConnectorV1({
                 record: request,
                 execution: Object.freeze({
                   revision: 1,
+                  processId,
                   programId: workspace.programId,
                   workspaceId: workspace.workspaceId,
                   workspaceSessionId: workspace.workspaceSessionId,
@@ -1115,26 +1117,24 @@ export function createBrowserPiWorkerConnectorV1({
       return { kind: "connected", connection: createConnectionV1(state) };
     },
     async openWorkspace(input): Promise<BrowserPiWorkspaceSnapshotWireV1> {
-      const opened = "processId" in input
-        ? await (() => {
-          const openProcessWorkspace = workspaceAuthority.openProcessWorkspace;
-          if (openProcessWorkspace === undefined) {
-            throw transportErrorV1("process_workspace_unsupported");
-          }
-          return openProcessWorkspace.call(workspaceAuthority, input);
-        })()
-        : await workspaceAuthority.openWorkspace(input);
+      const opened = await workspaceAuthority.openProcessWorkspace(input);
       try {
         const snapshot = await workspaceRequestV1(
           {
             method: "attach_workspace",
-            descriptor: executionBindingFromHostV1(opened.snapshot),
+            descriptor: executionBindingFromHostV1(opened.snapshot, input.processId),
           },
           [opened.environmentPort],
         );
         if (!hostDescriptorMatchesPiSnapshotV1(opened.snapshot, snapshot)) {
           throw transportErrorV1("workspace_attachment_mismatch");
         }
+        const state = activeState;
+        if (
+          state === null || state.closed ||
+          state.activeWorkspace?.workspaceSessionId !== snapshot.workspaceSessionId
+        ) throw transportErrorV1("workspace_attachment_stale");
+        state.activeWorkspaceProcessId = input.processId;
         return snapshot;
       } catch (error) {
         try {
@@ -1172,6 +1172,8 @@ export function createBrowserPiWorkerConnectorV1({
       if (!hostDescriptorMatchesPiSnapshotV1(hostSnapshot, piSnapshot)) {
         throw transportErrorV1("workspace_close_mismatch");
       }
+      const state = activeState;
+      if (state !== null && !state.closed) state.activeWorkspaceProcessId = null;
       return piSnapshot;
     },
     async queryWorkspace(workspaceSessionId): Promise<BrowserPiWorkspaceSnapshotWireV1> {
@@ -1192,9 +1194,16 @@ export function createBrowserPiWorkerConnectorV1({
       });
     },
     replaceNetworkAccess(input): Promise<BrowserPiWorkspaceSnapshotWireV1> {
+      const state = activeState;
+      const workspace = state?.activeWorkspace;
+      if (
+        state === null || state.closed || workspace?.phase !== "open" ||
+        workspace.workspaceSessionId !== input.workspaceSessionId ||
+        state.activeWorkspaceProcessId !== input.access.processId
+      ) return Promise.reject(transportErrorV1("network_access_scope_mismatch"));
       return workspaceRequestV1({
         method: "replace_network_access",
-        programId: input.access.programId,
+        processId: input.access.processId,
         workspaceSessionId: input.workspaceSessionId,
         enabled: input.access.enabled,
       });

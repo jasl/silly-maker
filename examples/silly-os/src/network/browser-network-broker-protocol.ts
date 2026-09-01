@@ -6,7 +6,7 @@ export const browserNetworkBrokerProtocolRevisionV1 = 1 as const;
 export const browserNetworkBrokerResponseMaximumBytesV1 = 256 * 1_024;
 export const browserNetworkBrokerContentTypeMaximumBytesV1 = 512;
 
-const requestIdPatternV1 = /^[A-Za-z0-9][A-Za-z0-9._:+-]{0,127}$/u;
+const requestIdPatternV1 = /^[A-Za-z0-9][A-Za-z0-9._:+-]*$/u;
 
 export interface BrowserNetworkBrokerFetchUrlRequestV1 {
   readonly revision: 1;

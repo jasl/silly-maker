@@ -76,7 +76,7 @@ describe("SillyOS Browser control-plane source boundary", () => {
     for (
       const path of [
         new URL("../agent/browser-pi-transport.ts", import.meta.url),
-        new URL("../agent/browser-program-agent-port.ts", import.meta.url),
+        new URL("../application/program-agent-composition.ts", import.meta.url),
       ]
     ) {
       const source = await readFile(path, "utf8");

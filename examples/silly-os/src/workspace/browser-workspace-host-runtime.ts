@@ -33,9 +33,9 @@ import {
   isBrowserWorkspaceHostNormalizedPathV1,
 } from "./browser-workspace-host-protocol.ts";
 import {
-  programWorkspaceSnapshotReceiptsEqualV1,
+  workspaceImmutableSnapshotReceiptsEqualV1,
   workspaceGrepDeadlineMillisecondsV1,
-  type ProgramWorkspaceSnapshotReceiptV1,
+  type WorkspaceImmutableSnapshotReceiptV1,
 } from "./contracts.ts";
 import type {
   BrowserWorkspaceJustBashPathViewV1,
@@ -50,7 +50,7 @@ import {
   type BrowserNetworkDownloadResponseV1,
 } from "../network/browser-network-download-stream-protocol.ts";
 
-const identityPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+const identityPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u;
 const workspaceRootV1 = "/workspace";
 const workspaceReadRangeChunkMaximumBytesV1 = 1024 * 1024;
 
@@ -131,8 +131,8 @@ export interface BrowserWorkspaceHostEntryMutationInputV1 {
 }
 
 export interface BrowserWorkspaceHostPortableArchiveInputV1 {
-  readonly programRevision: number;
-  readonly repositoryRevision: number;
+  readonly sourceRevision: number;
+  readonly baseRevision: number;
   readonly expectedHead: BrowserWorkspaceHostDurableHeadV1;
   readonly signal: AbortSignal;
   readonly onProgress: (progress: BrowserWorkspaceHostExportProgressWireV1) => void;
@@ -146,9 +146,9 @@ export interface BrowserWorkspaceHostPortableArchiveV1 {
 
 export interface BrowserWorkspaceHostImmutableSnapshotInputV1 {
   readonly snapshotId: string;
-  readonly proposalId: string;
-  readonly programRevision: number;
-  readonly baseRepositoryRevision: number;
+  readonly publicationId: string;
+  readonly sourceRevision: number;
+  readonly baseRevision: number;
   readonly expectedHead: BrowserWorkspaceHostDurableHeadV1;
   readonly signal: AbortSignal;
 }
@@ -183,19 +183,19 @@ export interface BrowserWorkspaceHostVolumeLeasePortV1 {
   ): Promise<BrowserWorkspaceHostPortableArchiveV1>;
   prepareImmutableSnapshot(
     input: BrowserWorkspaceHostImmutableSnapshotInputV1,
-  ): Promise<ProgramWorkspaceSnapshotReceiptV1>;
-  queryCurrentImmutableSnapshotCandidate(): Promise<ProgramWorkspaceSnapshotReceiptV1 | null>;
+  ): Promise<WorkspaceImmutableSnapshotReceiptV1>;
+  queryCurrentImmutableSnapshotCandidate(): Promise<WorkspaceImmutableSnapshotReceiptV1 | null>;
   queryRetainedImmutableSnapshot(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
-  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null>;
+    expected: WorkspaceImmutableSnapshotReceiptV1,
+  ): Promise<WorkspaceImmutableSnapshotReceiptV1 | null>;
   resumeImmutableSnapshotPublication(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
-  ): Promise<ProgramWorkspaceSnapshotReceiptV1>;
+    expected: WorkspaceImmutableSnapshotReceiptV1,
+  ): Promise<WorkspaceImmutableSnapshotReceiptV1>;
   adoptImmutableSnapshot(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
+    expected: WorkspaceImmutableSnapshotReceiptV1,
   ): Promise<"adopted" | "already_retained">;
   discardImmutableSnapshot(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
+    expected: WorkspaceImmutableSnapshotReceiptV1,
   ): Promise<"discarded" | "absent" | "retained">;
   close(): Promise<void>;
 }
@@ -363,7 +363,7 @@ interface SessionStateV1 {
   exportOperation: ExportOperationV1 | null;
   importOperation: boolean;
   snapshotOperation: boolean;
-  publicationFence: ProgramWorkspaceSnapshotReceiptV1 | null;
+  publicationFence: WorkspaceImmutableSnapshotReceiptV1 | null;
   closeDrain: Promise<void> | null;
 }
 
@@ -486,7 +486,7 @@ function sameHeadV1(
 }
 
 function snapshotReceiptMatchesSessionV1(
-  receipt: ProgramWorkspaceSnapshotReceiptV1,
+  receipt: WorkspaceImmutableSnapshotReceiptV1,
   session: SessionStateV1,
 ): boolean {
   return receipt.programId === session.anchor.programId &&
@@ -500,11 +500,12 @@ function snapshotPrepareMatchesReceiptV1(
     BrowserWorkspaceHostControlRequestRecordV1,
     { readonly method: "prepare_snapshot" }
   >,
-  receipt: ProgramWorkspaceSnapshotReceiptV1,
+  receipt: WorkspaceImmutableSnapshotReceiptV1,
 ): boolean {
-  return receipt.snapshotId === record.snapshotId && receipt.proposalId === record.proposalId &&
-    receipt.programRevision === record.programRevision &&
-    receipt.baseRepositoryRevision === record.baseRepositoryRevision &&
+  return receipt.snapshotId === record.snapshotId &&
+    receipt.publicationId === record.publicationId &&
+    receipt.sourceRevision === record.sourceRevision &&
+    receipt.baseRevision === record.baseRevision &&
     receipt.checkpointId === record.expectedCheckpointId &&
     receipt.generation === record.expectedGeneration;
 }
@@ -2552,8 +2553,8 @@ export function createBrowserWorkspaceHostRuntimeV1(
     session: SessionStateV1,
     operation: ExportOperationV1,
     input: {
-      readonly programRevision: number;
-      readonly repositoryRevision: number;
+      readonly sourceRevision: number;
+      readonly baseRevision: number;
       readonly expectedHead: BrowserWorkspaceHostDurableHeadV1;
       readonly fileName: string;
     },
@@ -2620,8 +2621,8 @@ export function createBrowserWorkspaceHostRuntimeV1(
         );
       }
       archive = await lease.createPortableArchive({
-        programRevision: input.programRevision,
-        repositoryRevision: input.repositoryRevision,
+        sourceRevision: input.sourceRevision,
+        baseRevision: input.baseRevision,
         expectedHead: input.expectedHead,
         signal: operation.abortController.signal,
         onProgress: publishProgress,
@@ -3151,7 +3152,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
       });
       return;
     }
-    if (record.method === "capture_review_head") {
+    if (record.method === "capture_stable_head") {
       if (
         session.phase !== "open" || !session.accepting || session.lease === null ||
         session.activeRun !== null || session.exportOperation !== null ||
@@ -3165,7 +3166,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         kind: "control_response",
         requestId,
         ok: true,
-        response: { method: "capture_review_head", snapshot: snapshot(session) },
+        response: { method: "capture_stable_head", snapshot: snapshot(session) },
       });
       return;
     }
@@ -3195,9 +3196,9 @@ export function createBrowserWorkspaceHostRuntimeV1(
         }
         const receipt = await session.lease.prepareImmutableSnapshot({
           snapshotId: record.snapshotId,
-          proposalId: record.proposalId,
-          programRevision: record.programRevision,
-          baseRepositoryRevision: record.baseRepositoryRevision,
+          publicationId: record.publicationId,
+          sourceRevision: record.sourceRevision,
+          baseRevision: record.baseRevision,
           expectedHead: {
             revision: 1,
             volumeId: session.anchor.volumeId,
@@ -3211,7 +3212,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
           !snapshotReceiptMatchesSessionV1(receipt, session) ||
           !snapshotPrepareMatchesReceiptV1(record, receipt) ||
           (session.publicationFence !== null &&
-            !programWorkspaceSnapshotReceiptsEqualV1(session.publicationFence, receipt))
+            !workspaceImmutableSnapshotReceiptsEqualV1(session.publicationFence, receipt))
         ) {
           throw new BrowserWorkspaceHostStorageErrorV1(
             "volume_corrupt",
@@ -3276,7 +3277,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         session.activeRun !== null || session.exportOperation !== null ||
         session.snapshotOperation ||
         (session.publicationFence !== null &&
-          !programWorkspaceSnapshotReceiptsEqualV1(session.publicationFence, record.expected))
+          !workspaceImmutableSnapshotReceiptsEqualV1(session.publicationFence, record.expected))
       ) {
         controlFailure(
           requestId,
@@ -3291,7 +3292,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
       session.snapshotOperation = true;
       try {
         const receipt = await session.lease.resumeImmutableSnapshotPublication(record.expected);
-        if (!programWorkspaceSnapshotReceiptsEqualV1(receipt, record.expected)) {
+        if (!workspaceImmutableSnapshotReceiptsEqualV1(receipt, record.expected)) {
           throw new BrowserWorkspaceHostStorageErrorV1(
             "volume_corrupt",
             "Workspace immutable snapshot resume returned a different receipt",
@@ -3318,7 +3319,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         session.activeRun !== null || session.exportOperation !== null ||
         session.snapshotOperation ||
         (session.publicationFence !== null &&
-          !programWorkspaceSnapshotReceiptsEqualV1(session.publicationFence, record.expected))
+          !workspaceImmutableSnapshotReceiptsEqualV1(session.publicationFence, record.expected))
       ) {
         controlFailure(
           requestId,
@@ -3335,7 +3336,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         const kind = await session.lease.adoptImmutableSnapshot(record.expected);
         if (
           session.publicationFence !== null &&
-          programWorkspaceSnapshotReceiptsEqualV1(session.publicationFence, record.expected)
+          workspaceImmutableSnapshotReceiptsEqualV1(session.publicationFence, record.expected)
         ) session.publicationFence = null;
         postControl({
           revision: 1,
@@ -3361,7 +3362,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         session.activeRun !== null || session.exportOperation !== null ||
         session.snapshotOperation ||
         (session.publicationFence !== null &&
-          !programWorkspaceSnapshotReceiptsEqualV1(session.publicationFence, record.expected))
+          !workspaceImmutableSnapshotReceiptsEqualV1(session.publicationFence, record.expected))
       ) {
         controlFailure(
           requestId,
@@ -3378,7 +3379,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         const kind = await session.lease.discardImmutableSnapshot(record.expected);
         if (
           session.publicationFence !== null &&
-          programWorkspaceSnapshotReceiptsEqualV1(session.publicationFence, record.expected)
+          workspaceImmutableSnapshotReceiptsEqualV1(session.publicationFence, record.expected)
         ) session.publicationFence = null;
         postControl({
           revision: 1,
@@ -3514,8 +3515,8 @@ export function createBrowserWorkspaceHostRuntimeV1(
       });
       operation.completion = Promise.resolve().then(() =>
         runExport(session, operation, {
-          programRevision: record.programRevision,
-          repositoryRevision: record.repositoryRevision,
+          sourceRevision: record.sourceRevision,
+          baseRevision: record.baseRevision,
           expectedHead: session.head,
           fileName: record.fileName,
         })

@@ -95,7 +95,7 @@ as Cloudflare version `e1808054-af9f-446f-a913-22a39bf98e37`; its exact build
 identity, response policy, Home, and Settings catalog pass in public Chromium
 and WebKit. S1a-0's independent-origin topology qualification has closed
 locally. S1a-1's source cutover is now assembled: the independent-origin
-transport is the ordinary Authority, physical Product Repository V5
+transport is the ordinary Authority, physical Program Data Repository V5
 clean-resets preview V4, production composition is build-identity-locked and
 fail-closed, download stays inside the Sandbox origin, and the same-origin Host
 Worker is deleted. The ordinary Chromium and persistent-WebKit acceptance now
@@ -153,9 +153,9 @@ implementation baseline before P0 is commit
 Agent Creator and Translation are the current bundled user-facing Programs.
 Creator is a bootstrap and in-product revision path, not an attempt to
 replace a general coding Agent as the preferred environment for authoring and
-testing sophisticated Programs. A future externally authored Program package
-must enter through the same admission, review, snapshot, and revision-pinning
-contracts rather than gaining a privileged install path. Every Program remains
+testing sophisticated Programs. An externally authored Program ZIP enters the
+same archive admission, installation repository, exact-package loading, and
+revision-pinning contracts rather than gaining a privileged install path. Every Program remains
 one cohesive product unit:
 
 ```text
@@ -167,7 +167,7 @@ For Agent execution, the useful package can be stated more concretely:
 ```text
 SillyOS runtime = fixed harness + VFS/Process authorities + closed UI/tool adapters
 Program package = PROGRAM.md + references + scripts + assets + workflow/profile data
-Process = compatible Program revision + user input + Conversation + Workspace + mutable work/output
+Process = exact immutable Program package + user input + Conversation + isolated Workspace + settings/network + mutable work/output
 ```
 
 Each durable Process is the user's project instance. A domain may attach a
@@ -193,30 +193,41 @@ Codex's package format as a new plugin system:
 
 ```text
 program-name/
+|-- program.json     required machine-readable package manifest
 |-- PROGRAM.md       required purpose, routing, workflow and constraints
 |-- references/      optional domain material loaded only for a relevant stage
 |-- scripts/         optional deterministic helpers for a shipped interpreter
+|-- settings.schema.json  optional admitted settings contract
 `-- assets/          optional templates/media used in inputs or generated output
 ```
 
-Metadata needed for admission is normalized into a typed Program definition at
-install/revision time. The entry instructions remain concise; substantial modes
+Metadata needed for admission is normalized directly from `program.json` into
+one immutable package reference at install time. There is no parallel Program
+Definition authority. The entry instructions remain concise; substantial modes
 and examples live in references; assets do not enter model context by default;
 and repeated mechanical work belongs in tested scripts. Empty placeholder
 directories, a second README, dynamic dependencies, and an internal package
 manager are not part of the denominator.
 
+Repository source is stricter than the archive shape: every concern owned by a
+Program lives below `programs/<name>/`. Its `package/` directory is the complete
+archive/production package; `distribution/` reconstructs the bundled archive;
+`persistence/`, `runtime/`, `runtime-profile/` and `ui/` contain the build-known
+Host implementation selected by that package; `test/` and `notes/` remain
+source-only and never enter the archive or production package input. A bundled
+package receives no path outside this boundary and no loader privilege that an
+admitted ZIP selecting the same runtime profile would not receive.
+
 SillyOS workflow controllers own stage transitions, context planning,
-checkpoints, and recovery. A Process retains the exact immutable Definition
-content and execution-compatibility requirement that created it, so removing a
-Program from the current catalog cannot erase that Process. After a refresh,
-however, a bundled Program normally runs the newest compatible SillyOS-shipped
-implementation that satisfies that compatibility requirement. The current
-prototype loader updates only Agent instructions, prompt projection,
-completion/admission, selected tools, and run policy. Workflow, packaged
-scripts, and Program-owned UI join that rule only after a formal package
-actually owns those facets. Already committed transcript, decisions, artifacts,
-and checkpoints are never rewritten.
+checkpoints, and recovery. A Process retains the complete exact package
+reference that created it, so removing a Program from discovery cannot erase
+that Process. Installing a successor moves only the current pointer used for a
+new Process. Refreshing SillyOS may improve the fixed harness implementation,
+but it never substitutes newer Program content, rewrites the Process VFS, or
+migrates Program-owned data. If the exact package or a compatible runtime is
+unavailable, the Conversation still opens and the affected Program services
+degrade explicitly. Already committed transcript, decisions, artifacts, and
+checkpoints are never rewritten.
 The Agent/model performs semantic judgment under those instructions and the
 admitted Profile; the human owns final Profile, ambiguity, review, and acceptance
 decisions. Product admission, repositories, and Workspace authority own
@@ -227,18 +238,18 @@ procedures and examples and may package fixed scripts; scripts execute only
 through admitted tool or Workspace boundaries. The app and structured domain
 records remain the human-facing product and durable authority.
 
-A Program may also expose optional settings as a closed schema with defaults.
-Program preferences provide the fallback for every later attempt whose Process
-has no admitted override; a Process may provide its own document, and an
-attempt captures one immutable effective settings snapshot when it begins.
-Later edits affect only later attempts or batches. Settings are
-best-effort input, not an execution precondition: absence uses defaults; invalid
-JSON falls back; and missing or invalid fields fall back to the next valid
-Program or product default while producing diagnostics. Only a complete
-schema-valid canonical document may replace a saved preference. Provider
-credentials and model capability admission remain SillyOS authorities; a
-Program setting may name translate, review, or OCR model-selection references,
-but it cannot grant itself a Provider or capability.
+A Program may also expose an optional closed settings schema plus immutable
+package defaults. A Process may persist one admitted override, and each attempt
+captures the exact override present when it begins before resolving it against
+those package defaults. Later Process edits affect only later attempts or
+batches. Settings are best-effort input, not an execution precondition: absence
+uses package defaults; invalid JSON falls back; and missing or invalid fields
+fall back field by field while producing diagnostics. Invalid input never
+replaces the last admitted Process override. There is no separate mutable
+Program-default preference. Provider credentials and model capability admission
+remain SillyOS authorities; a Program setting may name translate, review, or
+OCR model-selection references, but it cannot grant itself a Provider or
+capability.
 
 Mechanical work belongs in deterministic tools or Workspace scripts whenever
 practical: parsing, normalization, splitting, counting, lookup, comparison,
@@ -252,22 +263,23 @@ requirement, not merely an optimization.
 Those executable pieces may use three deliberately different forms. Stable
 product mechanics are ordinary typed TypeScript operations and remain the
 preferred form. A Program-owned script is versioned content inside the admitted
-Program revision and executes only through a fixed harness-owned interpreter or
-tool boundary. The two current bundled prototypes still come from the build
-graph and carry no such script; a later dynamic package may carry admitted
-script bytes without adding an interpreter, tool implementation, dispatcher, or
-ambient authority. An Agent-authored script is an ordinary mutable Process
-Workspace artifact and may run only through an explicitly selected Workspace
-execution profile. Each form produces candidates, artifacts, or receipts that
-the product authority must admit before publication. The current Translation
-path has not yet added a Program-owned script or Agent-authored-script profile.
+Program package and executes only through a fixed harness-owned interpreter or
+tool boundary. Bundled and imported packages may carry admitted script bytes
+without adding an interpreter, tool implementation, dispatcher, or ambient
+authority. The current formal Creator and Translation manifests both declare
+`scripts: []`; Translation's earlier deterministic batch script remains a
+research note and is not production package content. An Agent-authored script is
+an ordinary mutable Process Workspace artifact and may run only through an
+explicitly selected Workspace execution profile. Each form produces candidates,
+artifacts, or receipts that the product authority must admit before publication.
+An Agent-authored-script profile remains later work.
 
 CodeAct remains a later, explicit workflow escalation rather than the default
 action space or an in-place capability upgrade. Browser already has bounded
 Pi `bash` plus lazy `qjs` Workspace primitives suitable for testing a first
 CodeAct slice on admitted Creator paths: guest
 JavaScript runs synchronously in a fresh bounded Worker over explicitly staged
-files, with no DOM, ambient network, Provider credentials, or product repository
+files, with no DOM, ambient network, Provider credentials, or program data repository
 access. Translation currently selects no Workspace tools. A later real workflow
 may end a semantic attempt and start a fenced successor with a CodeAct profile,
 but this slice adds no structured CodeAct request, stage transition, fixed-script
@@ -398,18 +410,19 @@ workflow, persistence, or background-execution API.
 
 ### Product authorities
 
-- `sillyos.builtin.creator@1` is the first build-known Program definition. A
-  Creator Process pins that exact definition revision when it is created. A
-  later Creator definition revision cannot mutate or reinterpret an existing
-  Process.
-- The Program being created or edited is the Process **subject**. Its
+- This closure originally used one build-known Creator definition. The active
+  clean replacement no longer retains that identity or a built-in Program
+  class: Creator is the ordinary package `sillyos.creator@1.0.0`, installed by
+  the same repository as a user ZIP. Every Process pins its complete immutable
+  `{ programId, packageVersion, contentDigest }` reference when it is created.
+  A successor package is only the default for a newly created Process.
+- For Creator, the Program being created or edited is the Process **subject**. Its
   `programId` and evolving revisions are not the Process's pinned harness
   identity.
-- A Program revision is immutable product content. A compact Program head
-  selects the current proposal/definition and list summary; revision rows and
-  review decisions remain separately addressable rather than accumulating in
-  one aggregate.
-- A Process head owns its identity, pinned Program definition, optional subject,
+- Creator's Program revision is immutable subject content. Its Program head,
+  revisions and review decisions belong to the Creator persistence facet, not
+  to generic Conversation Core or every Program runtime.
+- A Process head owns its identity, pinned exact Program package, optional subject,
   current status, monotonic revision, transcript frontier, and the exact active
   attempt/checkpoint metadata. Beginning an attempt atomically commits its
   accepted user entry, exact starting Workspace checkpoint, and idempotency
@@ -419,34 +432,37 @@ workflow, persistence, or background-execution API.
 - Transcript entries are the sole product authority for user-visible
   Conversation history. Pi/provider continuation is separate opaque evidence;
   neither source may be reconstructed from the other.
-- Workspace continuation and Program network access remain Program-scoped
-  product authorities. They are not copied into Process or transcript rows.
+- Workspace continuation, settings override and network access are Process-scoped
+  product authorities. They are not copied into transcript rows.
 
 ### Clean replacement schema
 
-The preview database advances to physical Repository V9 by a row-blind reset.
-It deletes the V3 aggregate readers, every recognized V4–V8 preview store set,
-the superseded Worker wire, fixtures, and aliases in the same source cutover.
-There is no migration or dual reader before the first stable release.
+The historical P4-A slice advanced to Repository V9. That schema is no longer
+implemented or read. The active clean replacement is Repository V16: opening
+any older preview version performs one row-blind reset and creates only the
+current store set. There is no migration, version-by-version reader, dual
+schema, deprecated method, or alias before the first stable release.
 
-The replacement repository owns these logical units:
+The replacement persistence composition owns these logical units:
 
-1. `program_definitions` — immutable reusable Program/harness definitions,
-   including the pinned bundled Creator revision;
-2. `program_heads` — compact current Program/proposal/repository summary;
-3. `program_revisions` — immutable `(programId, programRevision)` content;
-4. `program_decisions` — immutable review outcomes and exact accepted Workspace
-   receipts;
-5. `processes` — compact Process heads pinned to a Program definition revision;
-6. `transcript_entries` — immutable `(processId, sequence)` rich Conversation
-   entries;
-7. `process_execution_leases` — one renewable Process execution lease whose
-   attempt generation is the publication fence;
-8. `catalog_commits` — exact catalog-mutation idempotency receipts;
-9. `process_commits` — the single exact Process operation-receipt authority for
-   attempt acquisition and terminal publication, not an alternate Process or
-   Conversation history; and
-10. existing Program-scoped Workspace continuation and network-access rows.
+1. Program Package Installation Repository V1 owns immutable package archives
+   plus the `package_heads` current exact reference used only by new Processes;
+2. Conversation Core owns `processes`, `transcript_entries`,
+   `process_execution_leases`, `process_commits`, `process_workspace_bindings`,
+   `process_settings_overrides`, and `process_network_access`;
+3. Creator's optional facet owns only `creator_program_heads`,
+   `creator_program_revisions`, and `creator_program_decisions` for the subject
+   Programs that Creator authors; and
+4. Translation's optional facet owns its `translation_workset_*`, glossary and
+   candidate rows for the exact Process.
+
+The two Program facets use the Core transaction kernel when a business update
+must publish with a Process terminal. They do not own a second Process,
+Conversation, lease or receipt authority. Facet schema descriptors are
+build-known, while business operations load only when selected. A removed or
+unknown facet is ignored by Core; a selected missing/damaged facet degrades to
+unavailable, and explicit reset clears Core plus all physically present facet
+stores.
 
 There is no separate `agent_run_receipts` store. The Process head carries the
 semantic active/terminal attempt state; each lost-response reconciliation names
@@ -477,13 +493,15 @@ conversation length.
   pages are loaded.
 - React mounts exactly one active Process Conversation subtree. It keeps a
   bounded page/window projection, saves draft/scroll anchor/selection before a
-  switch, then unmounts the predecessor and releases observers, object URLs,
-  rich-text/OpenUI/tool/media resources.
+  switch into the Host's exact-package-scoped, non-durable UI session state,
+  then unmounts the predecessor and releases observers, object URLs,
+  rich-text/OpenUI/tool/media resources. This state does not enter Program Data
+  Repository or survive an application-session replacement.
 
 ### Browser execution and recovery contract
 
 P4-A requires only three durable **semantic** execution mutations, all inside
-the single Product Repository authority. Lease renewal is a separate liveness
+the single Program Data Repository authority. Lease renewal is a separate liveness
 CAS and advances no semantic checkpoint:
 
 1. **Begin attempt.** Before Pi submit, one Process CAS atomically commits the
@@ -493,7 +511,7 @@ CAS and advances no semantic checkpoint:
    exact retry names the existing trigger entry instead of duplicating the
    user's words.
 2. **Successful terminal.** Once a current attempt has an admitted candidate
-   and exact current Workspace checkpoint, one Product Repository transaction
+   and exact current Workspace checkpoint, one Program Data Repository transaction
    atomically commits the successor Program rows, admitted terminal transcript
    batch, lease-bound final Process checkpoint naming that Workspace checkpoint,
    and one exact terminal operation receipt in `process_commits`. Program success cannot become
@@ -796,7 +814,7 @@ The delivered sequence was:
    relevant Settings category while preserving return focus.
 
    DS1c-1 also corrects the product boundary exposed by that pattern: a durable
-   Program belongs to the Product Repository and remains openable whenever that
+   Program belongs to the Program Data Repository and remains openable whenever that
    repository is ready, even when no Provider credential is available, the
    Vault is locked, or the Agent cannot start. Provider/Agent readiness gates
    Creator model calls and Pi tool execution, not access to an existing Program.
@@ -1141,7 +1159,7 @@ Sandbox document/worker owner with a closed bootstrap and transferred typed
 channel, but the mechanism is selected only after Chromium/WebKit storage,
 lifecycle, download, cancellation, and CSP evidence. The admitted capability is
 bound to one exact `(programId, workspaceId, volumeId, workspaceSessionId,
-generation)` and exposes no Product Repository, Credential Vault, DOM, cookies,
+generation)` and exposes no Program Data Repository, Credential Vault, DOM, cookies,
 general host JavaScript, or ambient network.
 
 Move the Workspace VFS, `/tmp`, snapshot/export owner, and tool-effect side of
@@ -1221,7 +1239,7 @@ S1a-1 now clean-replaces that qualification-only wiring in source:
 1. the default Program Workspace Authority creates only the exact-origin frame
    transport; the retired control-origin Host Worker, factory, fallback, and
    live-Provider access are absent;
-2. physical Product Repository V5 accepts a fresh database or exact preview V4,
+2. physical Program Data Repository V5 accepts a fresh database or exact preview V4,
    drops and recreates the V4 stores without reading or migrating rows, and
    rejects other historical/future versions. Old control-origin OPFS bytes may
    remain browser-managed but are unreachable and are not migration input;
@@ -1252,7 +1270,7 @@ S1a-1 now clean-replaces that qualification-only wiring in source:
    checkpoints own their current admission.
 
 The control-origin storage estimate/persistence UI is removed because it would
-describe Product Repository quota rather than the Sandbox-origin volume. A
+describe Program Data Repository quota rather than the Sandbox-origin volume. A
 future Workspace storage display must come from a typed Sandbox-owned status;
 S1a-1 does not add that contract.
 
@@ -1371,7 +1389,7 @@ Browser and Desktop share the following semantic denominator:
 - Pi-native `read`/`write`/`edit`/`bash` meaning and product capability names;
 - lifecycle, currentness, cancellation, bounded output, mutation receipts,
   snapshots, export, and truthful availability;
-- no workspace access to credentials, Pi auth storage, Product Repository,
+- no workspace access to credentials, Pi auth storage, Program Data Repository,
   ambient companion environment, or another Program's volume.
 
 They do not share one physical runtime. Browser stays deliberately small:
@@ -1551,7 +1569,7 @@ Provider egress remains separate. Provider requests and each exact credential
 capability stay in the selected fixed Pi Agent Worker after one-time Vault
 handoff; the durable ciphertext remains in Credential Vault V2. Product code never configures,
 attaches, or derives a Provider key, Authorization header, or Cookie for a
-Broker request. The Broker receives no Product Repository, Credential Vault,
+Broker request. The Broker receives no Program Data Repository, Credential Vault,
 general Workspace/VFS handle, or generic request headers/body; N2 may give one
 call a bounded write-only staging port. The admitted URL remains user/Agent data
 and can itself contain sensitive information. This defends the credential plane
@@ -1695,7 +1713,7 @@ or missing-CORS behavior, N1/N2, or search.
 
 After N0, add the smallest durable grant flow. **Allow for this Program** stores
 only `(programId, immutable normalized HTTPS origin, admitted operation)` in the
-ordinary Product Repository and can be revoked. **Deny** rejects the pending
+ordinary Program Data Repository and can be revoked. **Deny** rejects the pending
 request without creating a persistent rule system. Full requested URLs remain
 transient; the Broker reads no repository and receives only a request already
 admitted by Product Core. Network grants are non-secret product preferences and
@@ -1717,7 +1735,7 @@ would require S3 key persistence, S4 transcript persistence, generic capability
 composition, or automatic replay of arbitrary Agent turns, retain terminal
 `approval_required` and stop instead of broadening the slice.
 
-N1 delivered on 2026-08-29. The existing Product Repository now owns one
+N1 delivered on 2026-08-29. The existing Program Data Repository now owns one
 independent `program_network_grants` row per Program under physical schema V6;
 the V5→V6 upgrade preserves exact Program/continuation rows and adds no grant
 CAS or second repository. Each admitted submit replaces the Agent Worker's
@@ -1813,9 +1831,9 @@ per-origin/per-operation grant, retry inheritance, revoke list, and associated
 RPC/UI state. It does not add a generic approval framework or retain deprecated
 wire records for preview compatibility.
 
-Each Program owns exactly one non-secret `ProgramNetworkAccessV1` value:
+At that dated checkpoint, each Program owned one non-secret `ProgramNetworkAccessV1` value:
 `{ revision: 1, programId, enabled }`. Missing state means `enabled: false`.
-Product Repository V7 preserves the exact V6 Program and Workspace continuation
+Program Data Repository V7 preserves the exact V6 Program and Workspace continuation
 rows, deletes `program_network_grants`, creates `program_network_access`, and
 does not translate old grants. This intentionally makes every upgraded Program
 network-off rather than broadening a previously limited origin grant.
@@ -1854,12 +1872,23 @@ N3 acceptance required:
    remain green.
 
 All five gates passed locally on 2026-08-29. The complete SillyOS unit suite is
-521/521; the focused Agent and Product Repository subsets are respectively
+521/521; the focused Agent and Program Data Repository subsets are respectively
 65/65 and 70/70. Controlled Chromium and persistent-WebKit each pass the
 Program switch/cold-reopen `fetch_url` journey and the exact `32 MiB` streamed
 `download` journey. The control, Broker, and Sandbox production builds and
 their three boundary checkers pass. This is local closure, not deployment or a
 public-origin/real-model network-tool qualification.
+
+Current preview source clean-replaces that dated Program scope. Each Process
+owns one non-secret `ProcessNetworkAccessV1` value
+`{ revision: 1, processId, enabled }`; missing state remains disabled. Repository
+V16 uses a row-blind preview reset and replaces the superseded network shape with
+only `process_network_access`; it retains no old network store, wire, method, or
+type alias. The exact `processId` is
+carried through Product admission, Worker attach and submit, active-run
+currentness, and network-setting replacement. Program Workspace identity stays
+orthogonal and the lower Workspace host receives only its existing Program/
+Workspace execution binding.
 
 N3 does not claim arbitrary-site CORS, physical redirect/missing-CORS behavior,
 public-origin ingress, search, authenticated requests, Browser DLP, safe remote
@@ -1885,7 +1914,7 @@ credential handoff to a fresh product-pinned Pi Agent Worker are typed
 operations. There is no full-key read operation. The Vault Worker sends the
 decrypted value only across the exact one-shot `MessagePort`, clears its local
 reference after transfer, rejects stale or duplicate handoffs, has
-`connect-src 'none'`, and owns neither Product Repository nor Workspace VFS.
+`connect-src 'none'`, and owns neither Program Data Repository nor Workspace VFS.
 The receiving Agent Worker validates the exact binding, endpoint, handoff ID,
 port count, and deadline before configuring Pi. Provider transport uses
 `credentials: "omit"`, `referrerPolicy: "no-referrer"`, `cache: "no-store"`,
@@ -1955,7 +1984,7 @@ The replacement has three implemented contract groups:
    PBKDF2-SHA-256 (`600,000`) and AES-256-GCM path, with explicit Lock/Unlock.
    Preserve exact endpoint binding, no full-key read, one-time direct Agent
    Worker handoff, network-off Vault policy, synchronous credential-owner
-   revocation, and separation from Product Repository and Workspace storage.
+   revocation, and separation from Program Data Repository and Workspace storage.
    Automatic mode must state that the durable device key provides no locked
    at-rest protection; only password mode while locked has that claim. Do not add
    WebAuthn, recovery, sync, a server secret, or a compatibility framework for
@@ -2005,7 +2034,7 @@ Local closure evidence is deliberately product-level and mutation-sensitive:
   non-extractable persisted device-key use after cold reopen, durable Replace and
   Forget, password-mode conversion plus Lock/reload/Unlock, exact endpoint
   binding, and absence of a generic plaintext read;
-- sentinel tests continue to find no key in Product Repository, Workspace
+- sentinel tests continue to find no key in Program Data Repository, Workspace
   volume, logs, diagnostics, model preferences, network grants, or Broker wire;
 - Provider/settings tests prove that credential Save performs no Provider call,
   persists without a Remember choice, survives reload through the Vault handoff,
@@ -2038,7 +2067,7 @@ into a SillyMaker engine concern. This slice has two capabilities:
    or adding quotas; and
 2. after an accessible second confirmation, revoke the live Agent credential
    capability, cancel/settle current Workspace work, reset the Vault to a fresh
-   empty Automatic state, clear the Product Repository's three owned stores and
+   empty Automatic state, clear the Program Data Repository's three owned stores and
    the exact Provider-settings key, and purge the Sandbox's product-owned root
    behind its maintenance fence.
 
@@ -2050,7 +2079,7 @@ engine API. A concurrent tab may hold the Sandbox shared maintenance lease or
 create new data after the reset boundary; D1 reports the former as partial and
 does not attempt a universal cross-origin write freeze. A product-local
 control-origin Web Lock admits ordinary Browser Program/Workspace Authority
-operations in shared mode and holds reset exclusively across Product Repository
+operations in shared mode and holds reset exclusively across Program Data Repository
 clear plus Workspace purge. The fence prevents a product-created Program/
 continuation/volume pair from being split by a concurrent control tab during
 that critical section while leaving different Programs' ordinary operations
@@ -2066,7 +2095,7 @@ Programs and Pi sessions over the shared IndexedDB/OPFS authorities; same-Progra
 collaboration, durable shared Agent state, and a generic tab-sync framework are
 not part of D1.
 
-D1 closed with focused Product Repository, Vault, Sandbox Host, Authority,
+D1 closed with focused Program Data Repository, Vault, Sandbox Host, Authority,
 settings, formatter, and reset-coordinator contracts; the combined focused suite
 passed 294 cases. A later deterministic two-Authority regression now also holds
 Repository reset open while another tab attempts Program creation, proving the
@@ -2142,7 +2171,15 @@ hunk staging, Git commit, or Cat Cafe Inspector support. Those require
 separate product/tooling adapters and real consumers, not a general engine
 workflow framework.
 
-## Current baseline and gaps
+## Historical baseline before the current Program-package clean replacement
+
+The paragraphs in this section record the path by which the product reached the
+current source. They retain the names and storage versions used by those closed
+lanes; they are not current compatibility surfaces. Current source uses Program
+Package Installation Repository V1 plus Program Data Repository V16, exact
+package-pinned Processes, and Process-owned Workspace bindings, settings
+overrides and network preferences. V16 row-blind resets every earlier preview
+Program Data Repository schema and provides no migration or compatibility aliases.
 
 The committed P0 Creator Preview is a real responsive product shell backed by
 one deterministic in-memory initial producer. B0a added a query-gated,
@@ -2173,7 +2210,7 @@ durable-by-default credential semantics, independent Vault Settings IA,
 Provider/model/Test separation, and first-install checked-model recommendation
 seeds are closed and carried by the current deployment. S1a-1
 clean-replaces the ordinary same-origin Workspace
-owner with the independent-origin transport and physical Product Repository V5;
+owner with the independent-origin transport and physical Program Data Repository V5;
 S1b-3 is the live-tools consumer, and closed S2-Q1 adds only fixed
 synchronous QuickJS beneath Pi native `bash`.
 Its initial proposal and remaining capability labels remain explicit preview
@@ -2206,18 +2243,18 @@ promotion gate, not a prerequisite for the 2.9.5 companion preview path.
 
 | Authority                                                                                                     | Owner                                        | Boundary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Program identity, accepted revisions, proposals, decisions, and publication receipts                          | SillyOS product database                     | Product repository and typed product services                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Program identity, accepted revisions, proposals, decisions, and publication receipts                          | SillyOS product database                     | Program data repository and typed product services                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Creator Chat, live Pi-session binding, and review coordination                                                | SillyOS Creator supervisor                   | Session-local control plane plus bounded durable references/receipts; conversation is not Program content                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per Program             | A product-selected `WorkspaceRuntime`; accepted Program state names an exact immutable snapshot                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per Process             | A product-selected `WorkspaceRuntime`; an installed Program package is immutable and projected read-only, while an accepted subject Program state names an exact immutable snapshot                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Agent loop, session semantics, compaction, model/provider calls, tool dispatch, and Agent extension lifecycle | Pi                                           | Fixed `pi-agent-core`/`pi-ai` in Browser; complete fixed `pi-coding-agent` companion in Desktop; public Pi tool/extension contracts                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `read`/`write`/`edit`/`bash` Agent schemas, validation, execution algorithms, updates, and results            | Pi                                           | Deterministic and live runs use all four shipped Pi tools through the independent-origin Sandbox                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Structured `grep` schema, bounded result, and fixed Workspace adapter                                         | Pi plus pinned SillyOS capability adapter    | One fixed Browser `AgentTool` and explicit read-only `grep_workspace` operation; raw `rg` remains inside Pi `bash`, and no generic dispatcher is added                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Fixed `fetch_url`/`download` schemas and Agent lifecycle                                                      | Pi plus pinned SillyOS network adapters      | Product-shipped `AgentTool` values over one non-generic typed port; no `curl`, guest fetch, arbitrary headers/body, or Credential-plane integration                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Program network switch and Browser egress execution                                                           | SillyOS Program authority and keyless Broker | One default-off non-secret Program boolean; enabled fixed Pi tools may use admitted HTTPS URLs without per-tool approval. Product code derives no Broker request from Provider credentials, and the Broker receives no repository, general Workspace authority, or user/guest code                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Process network switch and Browser egress execution                                                           | SillyOS Process authority and keyless Broker | One default-off non-secret Process boolean; enabled fixed Pi tools may use admitted HTTPS URLs without per-tool approval. Product code derives no Broker request from Provider credentials, and the Broker receives no repository, general Workspace authority, or user/guest code                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Fixed Browser `qjs` command and child-runtime admission                                                       | SillyOS Browser execution adapter            | One product-shipped implementation below Pi native `bash`; fresh Worker, explicit text staging, no extra AgentTool/runtime RPC, and no Desktop parity claim                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Presentation-facing Agent transport                                                                           | SillyOS target adapter                       | Browser Worker or Desktop companion projects only admitted commands/events; raw Pi/provider records never enter React state                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Agent-side product functions                                                                                  | Pi plus pinned SillyOS capability adapters   | One shared schema/prompt/handler core, registered as a Browser `AgentTool` or Desktop `ExtensionAPI` tool; no parallel Agent/plugin runtime                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Workspace lifecycle, capabilities, generation, change journal, and terminal mutation receipts                 | SillyOS `WorkspaceRuntimePort`               | Product-private owner that supplies a stable Program-scoped Pi `ExecutionEnv`; it is not a second tool API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Workspace lifecycle, capabilities, generation, change journal, and terminal mutation receipts                 | SillyOS `WorkspaceRuntimePort`               | Product-private owner that supplies a stable Process-scoped Pi `ExecutionEnv`; it is not a second tool API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Workspace filesystem and shell effects                                                                        | Product-selected execution provider          | Browser VFS and bounded shell are independent-origin Sandbox capabilities; no control-origin or Host-filesystem fallback remains                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Pi session and provider credentials                                                                           | Credential Vault plus target-local Pi owner  | Current Browser source uses Vault V2 automatic device-key persistence by default, optional Password Lock/Unlock, and direct one-time exact-binding handoff to the matching Agent Worker. A built-in Save projects only to the deduplicated fixed scopes formed from the Provider's admitted `baseUrl`, when present, plus exact technically callable model endpoints; Provider Connection Forget removes the stored scopes while Vault inventory may remove one binding. Test requires the corresponding selection binding and has no generic key read. The current public deployment carries this R1 contract. Desktop may use isolated Pi/OS credential storage; Program data holds no secret |
 | Responsive presentation and application mounting                                                              | SillyMaker GUI contracts                     | React/UI components, input, focus, accessibility, responsive layout, and admitted UI interaction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -2229,7 +2266,7 @@ icons. Agent-facing capabilities are real Pi extensions/tools selected by a
 Program; SillyOS does not mirror them into another executable plugin system.
 
 `WorkspaceRuntimePort` and Pi `ExecutionEnv` are orthogonal rather than
-competing abstractions. The former is the eventual owner of a Program
+competing abstractions. The former is the eventual owner of a Process
 Workspace's lifecycle, provider selection, leases, generations, persistence,
 capability truth, and receipts; each phase implements only the fields with a
 real consumer. Its Pi-facing execution projection satisfies the latter's
@@ -2400,7 +2437,7 @@ The accepted execution order is no longer the numeric subsection order:
    `e1808054-af9f-446f-a913-22a39bf98e37` pass the same public-origin gate.
 9. **S1a-0 and S1a-1 closed locally:** the exact independent-origin topology and Sandbox-owned
    download passed their qualification. The ordinary Authority now selects that
-   transport, preview Product Repository V4 clean-resets to physical V5, the
+   transport, preview Program Data Repository V4 clean-resets to physical V5, the
    same-origin execution owner is deleted, and deterministic Pi selects only
    `write`/`read`. Chromium and persistent-WebKit ordinary product evidence
    passes. This closure alone did not activate S1b.
@@ -2585,7 +2622,7 @@ The API key necessarily exists briefly in the page's uncontrolled password
 input and browser memory. Save sends it to the separate Credential Vault as
 encrypted ciphertext plus bounded endpoint-binding metadata, then performs a
 one-time transfer into a fresh Agent Worker. It never enters React state, a URL,
-logs, telemetry, HTML bootstrap, Product Repository, Workspace OPFS, Cache API,
+logs, telemetry, HTML bootstrap, Program Data Repository, Workspace OPFS, Cache API,
 exports, or downloads, and plaintext is never exposed through a read API.
 Provider Connection Forget terminates the active Agent Worker and deletes every
 stored fixed-scope binding for that Provider; Credential Vault inventory Forget
@@ -2722,7 +2759,7 @@ choice into the Program-owned Pi profile/capability composition. Credentials
 never become Program or Workspace content.
 
 Pi 0.84.3 is the single Provider/model authority. The Agent Worker reads the
-public Pi catalog and projects bounded display records over product RPC. React
+complete public Pi catalog and projects exact display records over product RPC. React
 does not import Pi, reconstruct Provider factories, copy model metadata, or
 maintain a second Provider/model registry. B1a/B1b historically overlaid exact
 `qualified`/`candidate` release evidence. B1c-C supersedes that runtime product
@@ -3180,7 +3217,7 @@ data.
 
 ### P2 — product persistence and database ownership
 
-Give SillyOS one product repository contract and one exact current schema owner
+Give SillyOS one program data repository contract and one exact current schema owner
 for the Program catalog, immutable Program revisions, exact P0 proposal
 decisions, and P1 terminal Agent-run receipts. Before the first stable release,
 a breaking repository change replaces and resets the preview schema instead of
@@ -3203,7 +3240,7 @@ Worker-owned IndexedDB repository because P2 needs bounded catalog records, not
 a speculative SQL/Wasm stack. SQLite-WASM/OPFS remains an evidence-gated option
 if a real query or transaction need exceeds that adapter. A
 companion-owned native SQLite driver is the Deno Desktop candidate. Selected
-database adapters run the same product repository conformance and schema-version
+database adapters run the same program data repository conformance and schema-version
 contract, while exactly one adapter owns a live catalog in either target. Pi
 session persistence and the Program database own different facts; neither is an
 alternate authority for the other. SillyMaker Game Save owns neither.
@@ -3290,7 +3327,7 @@ explicit and retryable.
 
 P2-B0 acceptance is:
 
-- one product repository conformance covers create/list/load, immutable v1/v2
+- one program data repository conformance covers create/list/load, immutable v1/v2
   revisions, exact accepted/rejected decisions, idempotence, stale CAS, and
   reopen;
 - schema/open failure, corrupt rows, transaction abort/quota, Worker disposal,
@@ -4219,7 +4256,7 @@ identity, or Pi private session state.
 
 The manifest is the product-owned volume/index anchor to one exact P2 Program
 projection, not a second source for continuation semantics. On reopen, the
-product repository loads the exact anchored Program/repository revision. Its
+program data repository loads the exact anchored Program/repository revision. Its
 current Program intent and accumulated requirements provide the goal; current
 proposal status provides the phase and open review work; existing exact
 decisions, Activity, and terminal product receipts provide bounded decision
@@ -4632,7 +4669,7 @@ and smoke-verified from the public Cloudflare origin on 2026-08-28:
    `volumeId`, `workspaceFormat`, `checkpointId`, and `generation`.
    `baseAcceptedProgramRevision` is the only nullable field. The exact accepted
    decision property is `snapshot`; it contains the complete target-neutral
-   `ProgramWorkspaceSnapshotReceiptV1`. The rejected decision shape omits
+   `WorkspaceImmutableSnapshotReceiptV1`. The rejected decision shape omits
    `snapshot` entirely rather than storing null. These names are product-private
    durable schema, not a Browser Host wire or public engine API.
 3. **C2c — product-owned composition and atomic cutover (delivered 2026-08-28).** Make one application-owned Browser
@@ -4787,31 +4824,31 @@ selection remains P3b work; it is not retroactively folded into persistence.
 
 ### P4 — Pi extension composition and OpenUI mapping
 
-**Activation status (2026-08-31):** P4 is active only as the smallest shared
-slice reproduced by the P5 translation study. The research contract, clean-room
-reference boundary, dual-model matrix, and staged gates live in
-[TRANSLATION-PROGRAM-RESEARCH.md](./TRANSLATION-PROGRAM-RESEARCH.md). P5-A has
-recorded model-protocol evidence through both named routes. A cohesive
-research-only package now also proves one fixed QuickJS script, optional
-best-effort settings with complete defaults, a closed Creator blueprint, and a
-lazy born-digital PDF text adapter that the formal Translation import path now
-selects on demand. This activation does not product-qualify either route or
-claim a complete Pi capability composition, shipped CodeAct workflow, formal
-Program SDK, OCR pipeline, PDF round-trip exporter, or OpenUI mapping.
+**Activation status (2026-08-31):** P4 has delivered the smallest package and
+runtime substrate reproduced by Creator and Translation. Program source is
+strictly contained under `programs/<name>/`; only `package/` enters the archive,
+while runtime/profile/UI code is Host-compiled and tests/notes stay outside the
+production package. A bundled archive and a user-selected ZIP use the same
+admission, IndexedDB installation repository, exact-package loader, available
+runtime profile and Program UI Container. P5-A's research contract, clean-room
+reference boundary, dual-model matrix and staged gates remain in
+[Translation Program research](./programs/translation/notes/TRANSLATION-PROGRAM-RESEARCH.md).
+This activation does not product-qualify either model route or claim a shipped
+CodeAct workflow, general Program SDK, OCR pipeline, PDF round-trip exporter,
+marketplace or OpenUI mapping.
 
-Generalize only after Pi, storage, and the P3 tool are real consumers. A reviewed
-Program Definition revision durably identifies immutable declarative content
-and preserves the Process even if the catalog later removes that Program.
-Separately, its harness reference is an execution-compatibility generation.
-After refresh it selects the newest compatible SillyOS-shipped Program
-implementation. For the current two prototypes this selection covers only the
-Agent-package facets listed below; workflow, scripts, and Program-owned UI are
-future formal-package facets. Browser composes public
-`AgentTool` values and admitted resources directly; Desktop maps the same
-capability cores through its proven extension/resource route and Pi tool
-allowlists. Availability is reported truthfully per target. Pi remains the only
-Agent capability registry and lifecycle owner; SillyOS does not build a
-parallel plugin loader, dependency solver, tool dispatcher, or session runtime.
+Generalize only after Pi, storage, and a real Program reproduce the boundary. A
+Process durably pins its complete immutable
+`{ programId, packageVersion, contentDigest }` reference. Installing a successor
+changes only the current pointer used when creating a new Process; refresh never
+substitutes newer package content into an existing Process. Harness compatibility
+admits that exact package against an available current Host profile rather than
+selecting a newer package implementation. Browser composes public `AgentTool`
+values and admitted resources directly; Desktop maps the same capability cores
+through its proven extension/resource route and Pi tool allowlists. Availability
+is reported truthfully per target. Pi remains the only Agent capability registry
+and lifecycle owner; SillyOS does not build a parallel plugin loader, dependency
+solver, tool dispatcher or session runtime.
 
 When a real Program needs generated UI, a named Pi extension tool may return one
 complete OpenUI document. A product-private adapter would first admit the whole
@@ -4832,40 +4869,24 @@ the neutral second-consumer evidence for an engine handback; SillyOS does not
 build its own dynamic component registry around the gap.
 
 The capability view projects these real Pi and UI bindings; it is not another
-runtime. The first lane uses only build-known extensions shipped with SillyOS.
-Broader Pi Package installation, a marketplace, and post-release arbitrary code
-remain separate product/distribution decisions. This lane does not introduce or
-expand the existing focused public SillyMaker Mod API, and it introduces no
-public Agent, Program, or plugin ABI.
-
-The first composition cleanup is now delivered only for the two current
-build-known bundled Programs. Creator and Translation each have one private
-Program-package module that co-locates the current instructions, user-prompt
-projection, completion contract and candidate admission, selected subset of
-fixed Workspace tools, text-delta policy, Provider timeout, and output envelope.
-Translation remains on its existing compatibility reference while its current
-system-prompt revision is 6. The Worker resolves the selected bundled package
-before starting an Agent run and does not fall back from an unknown reference.
-
-This is bootstrap cleanup, not the final externally authored Program package
-contract. The persisted `harnessReference` is a compatibility selector for the
-two bundled Programs, not their source-code revision. Existing
-`sillyos.builtin.*` Program IDs retain their historical spelling as current
-identifiers; that spelling does not create a privileged Program class or a
-pre-stable storage-migration promise. Their compatible instructions,
-prompt projection, completion/admission, selected tools, and run policy may
-improve when SillyOS updates. A
-later externally authored package still needs durable retained content so a
-deleted package cannot strand its Processes; its manifest must separately state
-which current fixed-harness compatibility generation can execute it.
-Capability IDs remain descriptive Program data rather than a second tool grant
+runtime. Creator (`sillyos.creator@1.0.0`) and Translation
+(`sillyos.translation@1.0.0`) are ordinary bundled packages without a
+`builtin` identity, acquisition-origin flag, or privileged loader branch. Their
+distinct build-known runtime profiles describe different workflows; the same
+profiles are available to an admitted imported package under identical
+persistence/controller/Agent/UI rules. Both formal manifests have `scripts: []`;
+Translation's earlier deterministic QuickJS batch script remains in its
+source-only research notes and is not package or production input. Capability
+IDs remain descriptive package data and never become a second tool-grant
 authority.
 
-The explicit dynamic imports defer package-module initialization until first
-selection. The current Vite Worker IIFE still includes both package modules in
-one Worker asset, so this slice does not claim separate network chunks. It also
-adds no plugin loader, dependency solver, workflow language, fixed-script
-registry, CodeAct activation, or third Agent runtime.
+The exact package and runtime profile are acquired lazily and released with the
+owning Process runtime. The current Vite graph does not claim one network chunk
+per package, and package files cannot carry same-realm TypeScript or React. This
+slice adds no npm resolver, dependency solver, workflow language, arbitrary
+post-release code, fixed-script registry, CodeAct activation or third Agent
+runtime. Its current contract is recorded in
+[PROGRAM-PACKAGE-DESIGN.md](./PROGRAM-PACKAGE-DESIGN.md).
 
 Complete Browser/Desktop Extension API parity is explicitly deferred. Browser
 does not emulate Pi's Node/TUI/CLI/exec extension surface. If a later Program
@@ -4879,25 +4900,25 @@ request backed by the real consumer, not permission to create a second runtime.
 P5-A is complete with the deterministic original four-format corpus,
 round-trip laboratory, secret-safe research runner, recorded prompt-v4/v5
 model-protocol evidence, a current-versus-clean-room prompt matrix, the
-research-only Skill-like package/fixed-script/settings candidate, the closed
-Creator blueprint experiment, and a lazy born-digital PDF text-adapter
-experiment. The evidence supports beginning the formal P5-B product slice
-without replacing the production prompt wholesale. The build-known Creator /
-Translation Program-package colocation cleanup is also complete; Translation's
-compatibility reference remains `@1` and its current prompt revision is 6.
+research-only Skill-like fixed-script/settings candidate, the closed Creator
+blueprint experiment, and a lazy born-digital PDF text-adapter experiment. The
+formal package is now `sillyos.translation@1.0.0` with an exact content digest,
+`sillyos.program-harness.v1` compatibility and the build-known
+`agent.translation.v1` profile. It declares `agent.text` and
+`translation.batch`, has no Workspace/`bash`/`qjs` grant, and carries
+`scripts: []`; the fixed script remains research-only under `notes/`.
 The first formal P5-B UI/domain foundation is now implemented: a SillyOS-owned
 Program UI Container switches guided “Simple” and Conversation presentation for
 the same Process; a bounded run strip projects the latest one to three activity
 lines and truthful mechanical/indeterminate progress; the Translation workbench
 uses a virtualized unit list with desktop/mobile target-detail presentation;
-and the ordinary
-Translation route owns a real `sillyos.builtin.translation` revision 1 Process
-controller. That
-controller creates or cold-reopens the exact Process and its independent
-Workspace without pre-acquiring an idle Workspace. Existing Processes remain
-explicitly reopenable by `processId` at the controller boundary if their subject
-later disappears from the current catalog; Home does not yet discover those
-orphan Processes. Source import reuses the existing Process execution lease;
+and the ordinary Translation route owns a real exact-package-pinned Process
+controller. It creates or cold-reopens the Process and its independent
+Workspace without pre-acquiring an idle Workspace. Program Library lists
+installed exact packages and recent Processes; a Process whose package or
+runtime services are unavailable still opens through the package-independent
+read-only Conversation instead of being deleted or silently rebound. Source
+import reuses the existing Process execution lease;
 lease acquisition and the expected absent/exact-staging workset revision are
 one IndexedDB admission, so a stale tab cannot begin a successor attempt after
 another tab has already finalized that Process's workset. After admission,
@@ -4910,7 +4931,7 @@ Cold open terminalizes an expired unfinished import as explicitly unrecoverable
 for direct review; ordinary Home selection skips that terminal Process and
 creates a fresh one instead of leaving the Program permanently blocked.
 
-Physical Product Repository V13 now stores a compact Process-owned Translation workset head,
+Physical Program Data Repository V16 now stores a compact Process-owned Translation workset head,
 exact import-operation receipts, and separately pageable unit/glossary rows.
 The UI paging source requests only bounded visible row windows; the 10,000-unit
 evidence no longer depends on moving one in-memory workset aggregate through the
@@ -4947,17 +4968,20 @@ qualification.
 The product model remains `Program -> durable Process`: each Translation
 Process directly owns its pageable/CAS workset, candidate, and review state.
 There is no independent Project identity, list, route, or lifecycle. Physical
-stores and receipts use current `translation_workset_*` terminology. Program
-Data Repository V13 row-blind resets any earlier preview database rather than
-retaining pre-stable migration code. The research candidate script still uses
+stores and receipts use current `translation_workset_*` terminology. Product
+Repository V16 row-blind resets any earlier preview database and retains no old
+wire, method or type alias, migration reader or compatibility fallback. A removed
+same-version optional facet store may remain physically unreachable until an
+explicit product reset; Conversation Core does not depend on it.
+The research candidate script still uses
 its own `project.json` wire format; it is laboratory input, not the product
 domain model or production persistence authority.
 
 The fixed QuickJS 0.32 harness separately passes real regular-expression
 coverage for ordinary expressions, Unicode property escapes, lookbehind, and
-named captures. Translation has not selected that capability: its intended
-Definition currently advertises no tools, and no Translation Agent profile
-authorizes Workspace tools, `bash`, or `qjs`.
+named captures. Translation has not selected that capability: its manifest
+advertises `agent.text` and `translation.batch`, while its runtime profile
+authorizes no Workspace tools, `bash` or `qjs`.
 
 P5-B through P5-D remain incomplete. Import, bounded Agent batching, stale-safe
 candidate publication, editable human accept/reject, accepted-target
@@ -4965,7 +4989,7 @@ persistence, and cold reopen now form one real execution/review loop. There is
 still no discovery-oriented QA beyond protected-structure admission, final
 format-preserving exporter, OpenUI renderer, Conversation-mode free follow-up,
 real-Provider product qualification, Python, or CodeAct path. See
-[TRANSLATION-PROGRAM-RESEARCH.md](./TRANSLATION-PROGRAM-RESEARCH.md).
+[Translation Program research](./programs/translation/notes/TRANSLATION-PROGRAM-RESEARCH.md).
 
 Make translation the first complete product consumer. Its denominator is one
 real import-to-export journey: ordered source units, one-to-one mapping,

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "programId": "sillyos.creator",
+  "packageVersion": "1.0.0",
+  "harnessCompatibility": "sillyos.program-harness.v1",
+  "runtimeProfile": "agent.creator.v1",
+  "name": "Program Creator",
+  "summary": "Create and revise a reusable SillyOS Program package.",
+  "instructionsPath": "PROGRAM.md",
+  "settingsSchemaPath": null,
+  "settingsDefaultsPath": null,
+  "initialUiPath": null,
+  "scripts": [],
+  "capabilityIds": [
+    "agent.text",
+    "creator.catalog",
+    "network.optional",
+    "workspace.read",
+    "workspace.search",
+    "workspace.write"
+  ]
+}

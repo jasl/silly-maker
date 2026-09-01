@@ -7,9 +7,9 @@ import {
   isBrowserWorkspaceHostNormalizedPathV1,
 } from "./browser-workspace-host-protocol.ts";
 import {
-  admitProgramWorkspaceSnapshotReceiptV1,
-  programWorkspaceSnapshotReceiptsEqualV1,
-  type ProgramWorkspaceSnapshotReceiptV1,
+  admitWorkspaceImmutableSnapshotReceiptV1,
+  workspaceImmutableSnapshotReceiptsEqualV1,
+  type WorkspaceImmutableSnapshotReceiptV1,
 } from "./contracts.ts";
 import {
   type BrowserWorkspaceHostBootstrapPortV1,
@@ -55,7 +55,7 @@ const downloadStageFileNameV1 = "download.bin";
 const immutableSnapshotArchiveFileNameV1 = "workspace.zip";
 const immutableSnapshotPrepareMarkerFileNameV1 = "snapshot-candidate.json";
 const immutableSnapshotCommitFileNameV1 = "commit.json";
-const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u;
 
 export const browserWorkspaceHostIoChunkMaximumBytesV1 = 1024 * 1024;
 export const browserWorkspaceHostIoBytesInFlightMaximumV1 = 4 *
@@ -109,9 +109,9 @@ interface ImmutableSnapshotPrepareMarkerV1 {
   readonly workspaceId: string;
   readonly volumeId: string;
   readonly workspaceFormat: 1;
-  readonly proposalId: string;
-  readonly programRevision: number;
-  readonly baseRepositoryRevision: number;
+  readonly publicationId: string;
+  readonly sourceRevision: number;
+  readonly baseRevision: number;
   readonly checkpointId: string;
   readonly generation: number;
 }
@@ -343,24 +343,24 @@ function admitImmutableSnapshotPrepareMarkerV1(
       "workspaceId",
       "volumeId",
       "workspaceFormat",
-      "proposalId",
-      "programRevision",
-      "baseRepositoryRevision",
+      "publicationId",
+      "sourceRevision",
+      "baseRevision",
       "checkpointId",
       "generation",
     ]) || record.revision !== 1 || typeof record.snapshotId !== "string" ||
     typeof record.programId !== "string" || typeof record.workspaceId !== "string" ||
     typeof record.volumeId !== "string" || record.workspaceFormat !== 1 ||
-    typeof record.proposalId !== "string" ||
-    typeof record.programRevision !== "number" ||
-    !Number.isSafeInteger(record.programRevision) || record.programRevision <= 0 ||
-    typeof record.baseRepositoryRevision !== "number" ||
-    !Number.isSafeInteger(record.baseRepositoryRevision) ||
-    record.baseRepositoryRevision <= 0 || typeof record.checkpointId !== "string" ||
+    typeof record.publicationId !== "string" ||
+    typeof record.sourceRevision !== "number" ||
+    !Number.isSafeInteger(record.sourceRevision) || record.sourceRevision <= 0 ||
+    typeof record.baseRevision !== "number" ||
+    !Number.isSafeInteger(record.baseRevision) ||
+    record.baseRevision <= 0 || typeof record.checkpointId !== "string" ||
     typeof record.generation !== "number" || !Number.isSafeInteger(record.generation) ||
     record.generation <= 0 || !identifierPatternV1.test(record.snapshotId) ||
     !identifierPatternV1.test(record.programId) || !identifierPatternV1.test(record.workspaceId) ||
-    !identifierPatternV1.test(record.volumeId) || !identifierPatternV1.test(record.proposalId) ||
+    !identifierPatternV1.test(record.volumeId) || !identifierPatternV1.test(record.publicationId) ||
     !identifierPatternV1.test(record.checkpointId)
   ) return null;
   return record as unknown as ImmutableSnapshotPrepareMarkerV1;
@@ -1016,10 +1016,10 @@ function sameHeadV1(
 }
 
 function sameImmutableSnapshotReceiptV1(
-  left: ProgramWorkspaceSnapshotReceiptV1,
-  right: ProgramWorkspaceSnapshotReceiptV1,
+  left: WorkspaceImmutableSnapshotReceiptV1,
+  right: WorkspaceImmutableSnapshotReceiptV1,
 ): boolean {
-  return programWorkspaceSnapshotReceiptsEqualV1(left, right);
+  return workspaceImmutableSnapshotReceiptsEqualV1(left, right);
 }
 
 function immutableSnapshotPrepareMarkerV1(
@@ -1033,9 +1033,9 @@ function immutableSnapshotPrepareMarkerV1(
     workspaceId: anchor.workspaceId,
     volumeId: anchor.volumeId,
     workspaceFormat: anchor.workspaceFormat,
-    proposalId: input.proposalId,
-    programRevision: input.programRevision,
-    baseRepositoryRevision: input.baseRepositoryRevision,
+    publicationId: input.publicationId,
+    sourceRevision: input.sourceRevision,
+    baseRevision: input.baseRevision,
     checkpointId: input.expectedHead.checkpointId,
     generation: input.expectedHead.generation,
   };
@@ -1047,22 +1047,22 @@ function sameImmutableSnapshotPrepareMarkerV1(
 ): boolean {
   return left.snapshotId === right.snapshotId && left.programId === right.programId &&
     left.workspaceId === right.workspaceId && left.volumeId === right.volumeId &&
-    left.workspaceFormat === right.workspaceFormat && left.proposalId === right.proposalId &&
-    left.programRevision === right.programRevision &&
-    left.baseRepositoryRevision === right.baseRepositoryRevision &&
+    left.workspaceFormat === right.workspaceFormat && left.publicationId === right.publicationId &&
+    left.sourceRevision === right.sourceRevision &&
+    left.baseRevision === right.baseRevision &&
     left.checkpointId === right.checkpointId && left.generation === right.generation;
 }
 
 function immutableSnapshotReceiptMatchesMarkerV1(
-  receipt: ProgramWorkspaceSnapshotReceiptV1,
+  receipt: WorkspaceImmutableSnapshotReceiptV1,
   marker: ImmutableSnapshotPrepareMarkerV1,
 ): boolean {
   return receipt.snapshotId === marker.snapshotId && receipt.programId === marker.programId &&
     receipt.workspaceId === marker.workspaceId && receipt.volumeId === marker.volumeId &&
     receipt.workspaceFormat === marker.workspaceFormat &&
-    receipt.proposalId === marker.proposalId &&
-    receipt.programRevision === marker.programRevision &&
-    receipt.baseRepositoryRevision === marker.baseRepositoryRevision &&
+    receipt.publicationId === marker.publicationId &&
+    receipt.sourceRevision === marker.sourceRevision &&
+    receipt.baseRevision === marker.baseRevision &&
     receipt.checkpointId === marker.checkpointId && receipt.generation === marker.generation;
 }
 
@@ -1301,8 +1301,8 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
 
   private requireImmutableSnapshotReceiptV1(
     value: unknown,
-  ): ProgramWorkspaceSnapshotReceiptV1 {
-    const receipt = admitProgramWorkspaceSnapshotReceiptV1(value);
+  ): WorkspaceImmutableSnapshotReceiptV1 {
+    const receipt = admitWorkspaceImmutableSnapshotReceiptV1(value);
     if (
       receipt === null || receipt.programId !== this.anchor.programId ||
       receipt.workspaceId !== this.anchor.workspaceId ||
@@ -1320,7 +1320,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   private async readImmutableSnapshotPackageV1(
     snapshotId: string,
     invalidCommit: "corrupt" | "incomplete" = "corrupt",
-  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
+  ): Promise<WorkspaceImmutableSnapshotReceiptV1 | null> {
     const directory = await this.immutableSnapshotDirectoryV1(snapshotId, false);
     if (directory === null) return null;
     const handle = await fileHandleIfPresentV1(directory, immutableSnapshotCommitFileNameV1);
@@ -1357,7 +1357,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
         { cause: error instanceof Error ? error : new Error(String(error)) },
       );
     }
-    const receipt = admitProgramWorkspaceSnapshotReceiptV1(decoded);
+    const receipt = admitWorkspaceImmutableSnapshotReceiptV1(decoded);
     if (receipt === null) {
       if (invalidCommit === "incomplete") return null;
       throw new BrowserWorkspaceHostStorageErrorV1(
@@ -1399,7 +1399,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   private async readImmutableSnapshotCommitV1(
     marker: ImmutableSnapshotPrepareMarkerV1,
     invalidCommit: "corrupt" | "incomplete" = "corrupt",
-  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
+  ): Promise<WorkspaceImmutableSnapshotReceiptV1 | null> {
     const receipt = await this.readImmutableSnapshotPackageV1(
       marker.snapshotId,
       invalidCommit,
@@ -1679,8 +1679,8 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
       workspaceFormat: 1,
       programId: this.anchor.programId,
       workspaceId: this.anchor.workspaceId,
-      programRevision: input.programRevision,
-      repositoryRevision: input.repositoryRevision,
+      sourceRevision: input.sourceRevision,
+      baseRevision: input.baseRevision,
       checkpointId: input.expectedHead.checkpointId,
       generation: input.expectedHead.generation,
     };
@@ -1806,7 +1806,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
 
   async prepareImmutableSnapshot(
     input: BrowserWorkspaceHostImmutableSnapshotInputV1,
-  ): Promise<ProgramWorkspaceSnapshotReceiptV1> {
+  ): Promise<WorkspaceImmutableSnapshotReceiptV1> {
     this.assertOpen();
     if (input.signal.aborted) {
       throw new DOMException("Workspace immutable snapshot preparation was aborted", "AbortError");
@@ -1873,8 +1873,8 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
       }
       const archive = await this.createArchiveAtV1(
         {
-          programRevision: input.programRevision,
-          repositoryRevision: input.baseRepositoryRevision,
+          sourceRevision: input.sourceRevision,
+          baseRevision: input.baseRevision,
           expectedHead: input.expectedHead,
           signal: input.signal,
           onProgress: () => {},
@@ -1889,16 +1889,16 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
           "Workspace durable head changed during immutable snapshot preparation",
         );
       }
-      const receipt: ProgramWorkspaceSnapshotReceiptV1 = {
+      const receipt: WorkspaceImmutableSnapshotReceiptV1 = {
         revision: 1,
         snapshotId: input.snapshotId,
         programId: this.anchor.programId,
         workspaceId: this.anchor.workspaceId,
         volumeId: this.anchor.volumeId,
         workspaceFormat: this.anchor.workspaceFormat,
-        proposalId: input.proposalId,
-        programRevision: input.programRevision,
-        baseRepositoryRevision: input.baseRepositoryRevision,
+        publicationId: input.publicationId,
+        sourceRevision: input.sourceRevision,
+        baseRevision: input.baseRevision,
         checkpointId: input.expectedHead.checkpointId,
         generation: input.expectedHead.generation,
         fileCount: archive.progress.filesTotal,
@@ -1946,7 +1946,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   }
 
   async queryCurrentImmutableSnapshotCandidate(): Promise<
-    ProgramWorkspaceSnapshotReceiptV1 | null
+    WorkspaceImmutableSnapshotReceiptV1 | null
   > {
     this.assertOpen();
     const marker = await this.readImmutableSnapshotPrepareMarkerV1();
@@ -1955,8 +1955,8 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   }
 
   async queryRetainedImmutableSnapshot(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
-  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
+    expected: WorkspaceImmutableSnapshotReceiptV1,
+  ): Promise<WorkspaceImmutableSnapshotReceiptV1 | null> {
     this.assertOpen();
     const admitted = this.requireImmutableSnapshotReceiptV1(expected);
     const marker = await this.readImmutableSnapshotPrepareMarkerV1();
@@ -1982,8 +1982,8 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   }
 
   async resumeImmutableSnapshotPublication(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
-  ): Promise<ProgramWorkspaceSnapshotReceiptV1> {
+    expected: WorkspaceImmutableSnapshotReceiptV1,
+  ): Promise<WorkspaceImmutableSnapshotReceiptV1> {
     this.assertOpen();
     const admitted = this.requireImmutableSnapshotReceiptV1(expected);
     const marker = await this.readImmutableSnapshotPrepareMarkerV1();
@@ -2013,7 +2013,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   }
 
   async adoptImmutableSnapshot(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
+    expected: WorkspaceImmutableSnapshotReceiptV1,
   ): Promise<"adopted" | "already_retained"> {
     this.assertOpen();
     const admitted = this.requireImmutableSnapshotReceiptV1(expected);
@@ -2044,7 +2044,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   }
 
   async discardImmutableSnapshot(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
+    expected: WorkspaceImmutableSnapshotReceiptV1,
   ): Promise<"discarded" | "absent" | "retained"> {
     this.assertOpen();
     const admitted = this.requireImmutableSnapshotReceiptV1(expected);

@@ -7,8 +7,10 @@ import type {
   BrowserPiReasoningEffortV1,
 } from "./browser-pi-worker-protocol.ts";
 import type { BrowserPiProviderFetchV1 } from "./browser-pi-provider-fetch-guard.ts";
-import type { BrowserPiAgentDispatchV1 } from "./browser-pi-agent-dispatch.ts";
-import type { BrowserBundledProgramPackageV1 } from "./browser-bundled-program-package.ts";
+import type {
+  BrowserProgramRuntimeInvocationV1,
+  BrowserProgramRuntimeProfileV1,
+} from "./browser-program-runtime-profile.ts";
 
 export function projectBrowserPiProviderCatalogV1(): BrowserPiProviderCatalogWireV1;
 
@@ -33,13 +35,11 @@ export function probeBrowserPiProviderSelectionV1(input: {
 export function browserPiCompletionToolChoiceV1(proposed: boolean): "auto" | "none";
 
 export function browserPiAgentProviderTimeoutMillisecondsV1(
-  programPackage: BrowserBundledProgramPackageV1,
-  dispatch: BrowserPiAgentDispatchV1,
+  runtimeProfile: BrowserProgramRuntimeProfileV1,
 ): number;
 
 export function browserPiAgentMaximumOutputTokensV1(
-  programPackage: BrowserBundledProgramPackageV1,
-  dispatch: BrowserPiAgentDispatchV1,
+  invocation: BrowserProgramRuntimeInvocationV1,
   modelMaximumTokens: number,
 ): number;
 

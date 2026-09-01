@@ -3,7 +3,6 @@
 
 export const credentialVaultRevisionV2 = 2 as const;
 export const credentialVaultKdfIterationsV2 = 600_000;
-export const credentialVaultMaximumBindingsV2 = 32;
 export const credentialVaultPassphraseMaximumUtf8BytesV2 = 4 * 1024;
 export const credentialVaultApiKeyMaximumUtf8BytesV2 = 64 * 1024;
 export const credentialVaultBindingIdMaximumUtf8BytesV2 = 256;
@@ -194,9 +193,7 @@ export function admitCredentialVaultListV2(
   if (record.protection === "device" && record.state !== "unlocked") {
     return { kind: "rejected", path: "/state" };
   }
-  if (
-    !Array.isArray(record.bindings) || record.bindings.length > credentialVaultMaximumBindingsV2
-  ) {
+  if (!Array.isArray(record.bindings)) {
     return { kind: "rejected", path: "/bindings" };
   }
   const bindings: CredentialVaultBindingV2[] = [];

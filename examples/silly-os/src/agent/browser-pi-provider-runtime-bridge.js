@@ -24,27 +24,19 @@ export function browserPiCompletionToolChoiceV1(proposed) {
   return proposed ? "none" : "auto";
 }
 
-export function browserPiAgentProviderTimeoutMillisecondsV1(programPackage, dispatch) {
-  if (programPackage.reference !== dispatch.harnessReference) {
-    throw new TypeError("SillyOS bundled Program package does not match dispatch");
-  }
-  return programPackage.providerTimeoutMilliseconds;
+export function browserPiAgentProviderTimeoutMillisecondsV1(runtimeProfile) {
+  return runtimeProfile.providerTimeoutMilliseconds;
 }
 
 /** Cap the selected package's request envelope by the exact model capability. */
 export function browserPiAgentMaximumOutputTokensV1(
-  programPackage,
-  dispatch,
+  invocation,
   modelMaximumTokens,
 ) {
   if (!Number.isSafeInteger(modelMaximumTokens) || modelMaximumTokens <= 0) {
     throw new TypeError("Pi model maximum output tokens are invalid");
   }
-  if (programPackage.reference !== dispatch.harnessReference) {
-    throw new TypeError("SillyOS bundled Program package does not match dispatch");
-  }
-  const requested = programPackage.requestedOutputTokens(dispatch);
-  return Math.min(modelMaximumTokens, requested);
+  return Math.min(modelMaximumTokens, invocation.requestedOutputTokens);
 }
 
 function providersV1() {
@@ -239,20 +231,18 @@ export function createBrowserPiProviderAgentV1(input) {
   const boundedModel = {
     ...resolved.model,
     maxTokens: browserPiAgentMaximumOutputTokensV1(
-      input.programPackage,
-      input.dispatch,
+      input.invocation,
       resolved.model.maxTokens,
     ),
   };
 
   let apiKey = input.apiKey;
-  const completionTool = input.programPackage.createCompletionTool({
-    dispatch: input.dispatch,
+  const completionTool = input.invocation.createCompletionTool({
     onCandidate: input.onCandidate,
   });
   const completionToolName = completionTool.name;
   const agent = createPiAgentV1({
-    instructions: input.programPackage.instructions,
+    instructions: input.instructions,
     workspaceTools: input.workspaceTools,
     completionTool,
     onTextDelta: input.onTextDelta,
@@ -265,8 +255,7 @@ export function createBrowserPiProviderAgentV1(input) {
         ...options,
         maxRetries: 0,
         timeoutMs: browserPiAgentProviderTimeoutMillisecondsV1(
-          input.programPackage,
-          input.dispatch,
+          input.runtimeProfile,
         ),
         toolChoice: browserPiCompletionToolChoiceV1(proposed),
         transport: "sse",

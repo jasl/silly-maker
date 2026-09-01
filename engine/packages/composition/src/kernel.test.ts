@@ -209,6 +209,32 @@ describe("composition profile preflight and activation", () => {
     );
   });
 
+  it("does not impose a semantic length ceiling on trusted composition identifiers", async () => {
+    const suffix = "identifier".repeat(40);
+    const service = createCompositionServiceTokenV1<number>(`service.${suffix}`);
+    const registry = createCompositionRegistryTokenV1<string>(`registry.${suffix}`);
+    const entryId = `entry.${suffix}`;
+    const plugin = defineCompositionPluginV1({
+      id: `plugin.${suffix}`,
+      revision: 1,
+      provides: [service],
+      contributes: [{ token: registry, id: entryId }],
+      setup(scope) {
+        scope.provide(service, 7);
+        scope.contribute(registry, { id: entryId, value: "ready" });
+      },
+    });
+
+    const mounted = await kernelV1().mount(profileV1([plugin]));
+    expect(mounted.compileDirectPlan((resolve) => ({
+      service: resolve.use(service),
+      registry: resolve.contributions(registry),
+    }))).toEqual({
+      service: 7,
+      registry: [{ id: entryId, value: "ready", priority: 0, pluginId: plugin.id }],
+    });
+  });
+
   it("does not let a same-id token substitute for the declared typed token", async () => {
     const numberToken = createCompositionServiceTokenV1<number>(
       "identity.service",

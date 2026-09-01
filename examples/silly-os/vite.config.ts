@@ -228,6 +228,13 @@ export default defineConfig(async ({ command, isPreview }) => {
         "@earendil-works/pi-ai/providers/all",
       ],
     },
+    worker: {
+      ...config.worker,
+      // The Agent Worker resolves a Program runtime profile only after a run
+      // selects it. ESM output preserves those dynamic imports as separate
+      // chunks instead of folding every bundled Program into one Worker file.
+      format: "es" as const,
+    },
     server: {
       ...config.server,
       // Vite's development client and dependency optimizer create dynamic

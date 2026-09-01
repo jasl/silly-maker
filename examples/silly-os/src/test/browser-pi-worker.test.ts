@@ -29,10 +29,14 @@ import type {
 } from "../agent/browser-pi-worker-protocol.ts";
 import { browserPiSelectionEndpointOriginV1 } from "../agent/browser-pi-worker-protocol.ts";
 import {
+  createBrowserProgramAgentHostV1,
   type BrowserProgramAgentPortInputV1,
-  createBrowserProgramAgentPortsV1,
+} from "../application/program-agent-composition.ts";
+import {
+  createCreatorProgramAgentPortV1,
   type CreatorAgentPortV1,
-} from "../agent/browser-program-agent-port.ts";
+} from "../../programs/creator/runtime-profile/browser-creator-agent-port.ts";
+import { createTranslationProgramAgentPortV1 } from "../../programs/translation/runtime-profile/browser-translation-agent-port.ts";
 import type { BrowserNetworkBrokerLeaseV1 } from "../network/browser-network-broker-frame-transport.ts";
 import {
   admitBrowserNetworkBrokerCancelV1,
@@ -60,29 +64,36 @@ import {
 import type {
   BrowserProgramWorkspaceAuthorityV1,
   BrowserProgramWorkspaceFatalV1,
-} from "../product/browser-program-workspace-authority.ts";
+} from "../application/workspace/browser-program-workspace-authority.ts";
 import {
-  creatorProgramHarnessReferenceV1,
+  creatorProgramRuntimeProfileImplementationV1,
+  creatorProgramRuntimeProfileV1,
   serializeBrowserPiCreatorAgentDispatchV1,
+} from "../../programs/creator/runtime-profile/creator-runtime-profile.ts";
+import {
   serializeBrowserPiTranslationAgentDispatchV1,
-} from "../agent/browser-pi-agent-dispatch.ts";
+  translationProgramRuntimeProfileImplementationV1,
+  translationProgramRuntimeProfileV1,
+} from "../../programs/translation/runtime-profile/translation-runtime-profile.ts";
 import {
   admitCredentialVaultHandoffReadyV2,
   createCredentialVaultHandoffDeliveryV2,
 } from "../credential/credential-vault-protocol.ts";
 import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
-import type { CreatorAgentRunRequestV1, CreatorAgentSubmitV1 } from "../product/contracts.ts";
-import { translationProgramHarnessReferenceV1 } from "../product/translation/translation-batch-protocol.ts";
-import type { TranslationAgentRunRequestV1 } from "../product/translation/translation-agent-contracts.ts";
+import type {
+  CreatorAgentRunRequestV1,
+  CreatorAgentSubmitV1,
+} from "../../programs/creator/runtime/contracts.ts";
+import type { TranslationAgentRunRequestV1 } from "../../programs/translation/runtime/translation-agent-contracts.ts";
 import {
-  applyProgramNetworkAccessMutationV1,
-  cloneProgramNetworkAccessV1,
-  createDefaultProgramNetworkAccessV1,
-  type ProgramNetworkAccessV1,
-} from "../product/program-network-access.ts";
+  applyProcessNetworkAccessMutationV1,
+  cloneProcessNetworkAccessV1,
+  createDefaultProcessNetworkAccessV1,
+  type ProcessNetworkAccessV1,
+} from "../program-platform/capabilities/process-network-access.ts";
 import {
-  programWorkspaceSnapshotReceiptsEqualV1,
-  type ProgramWorkspaceSnapshotReceiptV1,
+  workspaceImmutableSnapshotReceiptsEqualV1,
+  type WorkspaceImmutableSnapshotReceiptV1,
   workspaceRootV1,
 } from "../workspace/contracts.ts";
 import {
@@ -318,6 +329,7 @@ function createBrowserPiWorkerRuntimeV1(
   let inferredEndpointOrigin = input.expectedEndpointOrigin ?? null;
   const runtimeInput = {
     ...input,
+    loadProgramExecution: input.loadProgramExecution ?? loadTestProgramExecutionV1,
     get expectedEndpointOrigin(): string | null {
       return input.expectedEndpointOrigin ?? inferredEndpointOrigin;
     },
@@ -363,18 +375,47 @@ function createBrowserCreatorAgentPortV1(
     readonly openNetworkBroker?: () => Promise<BrowserNetworkBrokerLeaseV1>;
   },
 ): CreatorAgentPortV1 {
-  return createBrowserProgramAgentPortsV1(
-    {
-      ...input,
-      openNetworkBroker: input.openNetworkBroker ?? openTestNetworkBrokerV1,
-    } as BrowserProgramAgentPortInputV1,
-  ).creator;
+  const host = createBrowserProgramAgentHostV1({
+    ...input,
+    openNetworkBroker: input.openNetworkBroker ?? openTestNetworkBrokerV1,
+  } as BrowserProgramAgentPortInputV1);
+  const port = createCreatorProgramAgentPortV1(host);
+  testProgramAgentHostsV1.add(host);
+  testProgramAgentHostByPortV1.set(port, host);
+  return port;
+}
+
+const testProgramAgentHostsV1 = new Set<ReturnType<typeof createBrowserProgramAgentHostV1>>();
+const testProgramAgentHostByPortV1 = new WeakMap<
+  CreatorAgentPortV1,
+  ReturnType<typeof createBrowserProgramAgentHostV1>
+>();
+
+function testProgramAgentHostV1(port: CreatorAgentPortV1) {
+  const host = testProgramAgentHostByPortV1.get(port);
+  if (host === undefined) throw new Error("test Program Agent Host is unavailable");
+  return host;
+}
+
+function createTestProgramAgentPortsV1(input: BrowserProgramAgentPortInputV1) {
+  const host = createBrowserProgramAgentHostV1(input);
+  const creator = createCreatorProgramAgentPortV1(host);
+  testProgramAgentHostsV1.add(host);
+  testProgramAgentHostByPortV1.set(creator, host);
+  return Object.freeze({
+    host,
+    creator,
+    translation: createTranslationProgramAgentPortV1(host),
+  });
 }
 
 afterEach(async () => {
   vi.useRealTimers();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+  const hosts = [...testProgramAgentHostsV1];
+  testProgramAgentHostsV1.clear();
+  await Promise.all(hosts.map((host) => host.dispose()));
   const authorities = [...testWorkspaceAuthoritiesV1];
   testWorkspaceAuthoritiesV1.clear();
   await Promise.all(authorities.map((authority) => authority.dispose()));
@@ -388,9 +429,36 @@ const submitV1: CreatorAgentSubmitV1 = {
   text: "Make review explicit.",
 };
 
+function programPackageV1(programId: string, digestDigit = "c") {
+  return {
+    programId,
+    packageVersion: "1.0.0",
+    contentDigest: digestDigit.repeat(64),
+  } as const;
+}
+
+const loadTestProgramExecutionV1: NonNullable<
+  Parameters<typeof createBrowserPiWorkerRuntimeCoreV1>[0]["loadProgramExecution"]
+> = (dispatch) => {
+  const runtimeProfile = dispatch.runtimeProfile === creatorProgramRuntimeProfileV1
+    ? creatorProgramRuntimeProfileImplementationV1
+    : translationProgramRuntimeProfileImplementationV1;
+  const admission = runtimeProfile.admitDispatch(dispatch);
+  return Promise.resolve(
+    admission.kind === "rejected" ? null : {
+      instructions: dispatch.runtimeProfile === creatorProgramRuntimeProfileV1
+        ? "Create the requested Program."
+        : "Translate the admitted batch faithfully.",
+      workspaceScripts: [],
+      runtimeProfile,
+      invocation: admission.invocation,
+    },
+  );
+};
+
 function serializeCreatorAgentSubmitV1(submit: CreatorAgentSubmitV1): string {
   return serializeBrowserPiCreatorAgentDispatchV1({
-    executionCompatibilityReference: creatorProgramHarnessReferenceV1,
+    programPackage: programPackageV1(submit.programId),
     submit,
   });
 }
@@ -400,7 +468,7 @@ function productRunV1(
 ): CreatorAgentRunRequestV1 {
   return {
     agentRunId: "agent.run.product.1",
-    executionCompatibilityReference: creatorProgramHarnessReferenceV1,
+    programPackage: programPackageV1(submitV1.programId),
     processId: "process.creator.product.1",
     processAttemptGeneration: 1,
     workspaceCheckpointId: "checkpoint.workspace.preview.1",
@@ -419,7 +487,7 @@ function translationAgentRunV1(
 ): TranslationAgentRunRequestV1 {
   return {
     agentRunId: "agent.run.translation.1",
-    executionCompatibilityReference: translationProgramHarnessReferenceV1,
+    programPackage: programPackageV1(submitV1.programId, "d"),
     processId: "process.translation.agent-port.1",
     processAttemptGeneration: 1,
     workspaceCheckpointId: "sillyos.workspace.checkpoint.test.1",
@@ -488,6 +556,7 @@ function connectionTestRequestV1(
 function executionBindingV1(expectedGeneration = 1): BrowserPiWorkerExecutionBindingV1 {
   return {
     revision: 1,
+    processId: productRunV1().processId,
     programId: submitV1.programId,
     workspaceId: workspaceIdV1,
     workspaceSessionId: workspaceSessionIdV1,
@@ -497,8 +566,8 @@ function executionBindingV1(expectedGeneration = 1): BrowserPiWorkerExecutionBin
 
 interface TestBrowserWorkspaceVolumeStateV1 {
   head: BrowserWorkspaceHostDurableHeadV1;
-  preparedSnapshot: ProgramWorkspaceSnapshotReceiptV1 | null;
-  readonly retainedSnapshots: Map<string, ProgramWorkspaceSnapshotReceiptV1>;
+  preparedSnapshot: WorkspaceImmutableSnapshotReceiptV1 | null;
+  readonly retainedSnapshots: Map<string, WorkspaceImmutableSnapshotReceiptV1>;
   readonly directories: Set<string>;
   readonly files: Map<string, Uint8Array>;
   readonly readFileRangeRequests: {
@@ -728,16 +797,16 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
   async prepareImmutableSnapshot(
     input: Parameters<BrowserWorkspaceHostVolumeLeasePortV1["prepareImmutableSnapshot"]>[0],
   ): ReturnType<BrowserWorkspaceHostVolumeLeasePortV1["prepareImmutableSnapshot"]> {
-    const receipt: ProgramWorkspaceSnapshotReceiptV1 = {
+    const receipt: WorkspaceImmutableSnapshotReceiptV1 = {
       revision: 1,
       snapshotId: input.snapshotId,
       programId: this.anchor.programId,
       workspaceId: this.anchor.workspaceId,
       volumeId: this.anchor.volumeId,
       workspaceFormat: 1,
-      proposalId: input.proposalId,
-      programRevision: input.programRevision,
-      baseRepositoryRevision: input.baseRepositoryRevision,
+      publicationId: input.publicationId,
+      sourceRevision: input.sourceRevision,
+      baseRevision: input.baseRevision,
       checkpointId: input.expectedHead.checkpointId,
       generation: input.expectedHead.generation,
       fileCount: this.state.files.size,
@@ -747,27 +816,27 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
     return receipt;
   }
 
-  queryCurrentImmutableSnapshotCandidate(): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
+  queryCurrentImmutableSnapshotCandidate(): Promise<WorkspaceImmutableSnapshotReceiptV1 | null> {
     return Promise.resolve(this.state.preparedSnapshot);
   }
 
   queryRetainedImmutableSnapshot(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
-  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
+    expected: WorkspaceImmutableSnapshotReceiptV1,
+  ): Promise<WorkspaceImmutableSnapshotReceiptV1 | null> {
     const retained = this.state.retainedSnapshots.get(expected.snapshotId) ?? null;
     return Promise.resolve(
-      retained !== null && programWorkspaceSnapshotReceiptsEqualV1(retained, expected)
+      retained !== null && workspaceImmutableSnapshotReceiptsEqualV1(retained, expected)
         ? retained
         : null,
     );
   }
 
   resumeImmutableSnapshotPublication(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
-  ): Promise<ProgramWorkspaceSnapshotReceiptV1> {
+    expected: WorkspaceImmutableSnapshotReceiptV1,
+  ): Promise<WorkspaceImmutableSnapshotReceiptV1> {
     if (
       this.state.preparedSnapshot === null ||
-      !programWorkspaceSnapshotReceiptsEqualV1(this.state.preparedSnapshot, expected) ||
+      !workspaceImmutableSnapshotReceiptsEqualV1(this.state.preparedSnapshot, expected) ||
       this.state.head.checkpointId !== expected.checkpointId ||
       this.state.head.generation !== expected.generation
     ) throw new Error("test Workspace snapshot resume mismatch");
@@ -775,18 +844,18 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
   }
 
   adoptImmutableSnapshot(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
+    expected: WorkspaceImmutableSnapshotReceiptV1,
   ): Promise<"adopted" | "already_retained"> {
     const retained = this.state.retainedSnapshots.get(expected.snapshotId);
     if (retained !== undefined) {
-      if (!programWorkspaceSnapshotReceiptsEqualV1(retained, expected)) {
+      if (!workspaceImmutableSnapshotReceiptsEqualV1(retained, expected)) {
         throw new Error("test Workspace retained snapshot mismatch");
       }
       return Promise.resolve("already_retained");
     }
     if (
       this.state.preparedSnapshot === null ||
-      !programWorkspaceSnapshotReceiptsEqualV1(this.state.preparedSnapshot, expected)
+      !workspaceImmutableSnapshotReceiptsEqualV1(this.state.preparedSnapshot, expected)
     ) throw new Error("test Workspace snapshot adopt mismatch");
     this.state.retainedSnapshots.set(expected.snapshotId, expected);
     this.state.preparedSnapshot = null;
@@ -794,17 +863,17 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
   }
 
   discardImmutableSnapshot(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
+    expected: WorkspaceImmutableSnapshotReceiptV1,
   ): Promise<"discarded" | "absent" | "retained"> {
     const retained = this.state.retainedSnapshots.get(expected.snapshotId);
     if (retained !== undefined) {
-      if (!programWorkspaceSnapshotReceiptsEqualV1(retained, expected)) {
+      if (!workspaceImmutableSnapshotReceiptsEqualV1(retained, expected)) {
         throw new Error("test Workspace retained snapshot mismatch");
       }
       return Promise.resolve("retained");
     }
     if (this.state.preparedSnapshot === null) return Promise.resolve("absent");
-    if (!programWorkspaceSnapshotReceiptsEqualV1(this.state.preparedSnapshot, expected)) {
+    if (!workspaceImmutableSnapshotReceiptsEqualV1(this.state.preparedSnapshot, expected)) {
       throw new Error("test Workspace snapshot discard mismatch");
     }
     this.state.preparedSnapshot = null;
@@ -889,14 +958,16 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   private nextRequestId = 1;
   private nextCheckpointOrdinal = 2;
   private controlledWorkerGeneration: number | null = null;
-  private readonly programNetworkAccess = new Map<string, ProgramNetworkAccessV1>();
+  private readonly processNetworkAccess = new Map<string, ProcessNetworkAccessV1>();
   private disposed = false;
   closeWorkspaceCalls = 0;
   agentSubmitAdmissionCalls = 0;
-  lastAgentSubmitAdmission: {
-    readonly expectedCheckpointId: string;
-    readonly expectedGeneration: number;
-  } | null = null;
+  lastAgentSubmitAdmission:
+    | Omit<
+      Parameters<BrowserProgramWorkspaceAuthorityV1["withAgentSubmitAdmission"]>[0],
+      "operation"
+    >
+    | null = null;
   readonly detachWorkspaceEnvironmentCalls: string[] = [];
   holdDetachWorkspaceEnvironment = false;
   disposeCalls = 0;
@@ -972,40 +1043,49 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     throw new Error("test repository decision is unavailable");
   }
 
-  async loadProgramNetworkAccess(programId: string): Promise<ProgramNetworkAccessV1> {
-    return cloneProgramNetworkAccessV1(
-      this.programNetworkAccess.get(programId) ?? createDefaultProgramNetworkAccessV1(programId),
+  async loadProcessNetworkAccess(processId: string): Promise<ProcessNetworkAccessV1> {
+    return cloneProcessNetworkAccessV1(
+      this.processNetworkAccess.get(processId) ?? createDefaultProcessNetworkAccessV1(processId),
     );
   }
 
-  async setProgramNetworkAccess(
-    input: Parameters<BrowserProgramWorkspaceAuthorityV1["setProgramNetworkAccess"]>[0],
-  ): ReturnType<BrowserProgramWorkspaceAuthorityV1["setProgramNetworkAccess"]> {
-    const applied = applyProgramNetworkAccessMutationV1(
-      await this.loadProgramNetworkAccess(input.programId),
+  async setProcessNetworkAccess(
+    input: Parameters<BrowserProgramWorkspaceAuthorityV1["setProcessNetworkAccess"]>[0],
+  ): ReturnType<BrowserProgramWorkspaceAuthorityV1["setProcessNetworkAccess"]> {
+    const applied = applyProcessNetworkAccessMutationV1(
+      await this.loadProcessNetworkAccess(input.processId),
       input,
     );
-    this.programNetworkAccess.set(input.programId, cloneProgramNetworkAccessV1(applied.value));
-    return { kind: applied.kind, value: cloneProgramNetworkAccessV1(applied.value) };
+    this.processNetworkAccess.set(input.processId, cloneProcessNetworkAccessV1(applied.value));
+    return { kind: applied.kind, value: cloneProcessNetworkAccessV1(applied.value) };
   }
 
   async withAgentSubmitAdmission<T>(
-    input: {
-      readonly programId: string;
-      readonly workspaceSessionId: string;
-      readonly expectedProgramRevision: number;
-      readonly expectedRepositoryRevision: number;
-      readonly expectedCheckpointId: string;
-      readonly expectedGeneration: number;
-      readonly operation: (access: ProgramNetworkAccessV1) => Promise<T>;
-    },
+    input: Parameters<BrowserProgramWorkspaceAuthorityV1["withAgentSubmitAdmission"]>[0],
   ): Promise<T> {
     this.agentSubmitAdmissionCalls += 1;
+    const { operation, ...admission } = input;
     this.lastAgentSubmitAdmission = {
-      expectedCheckpointId: input.expectedCheckpointId,
-      expectedGeneration: input.expectedGeneration,
+      ...admission,
+      programPackage: structuredClone(admission.programPackage),
     };
-    return await input.operation(await this.loadProgramNetworkAccess(input.programId));
+    return await operation(await this.loadProcessNetworkAccess(input.processId)) as T;
+  }
+
+  async createProcessWorkspace(): Promise<never> {
+    throw new Error("test Process Workspace creation is unavailable");
+  }
+
+  async inspectProcessWorkspace(): Promise<null> {
+    return null;
+  }
+
+  async probeProcessWorkspace(): Promise<boolean> {
+    return true;
+  }
+
+  async importProcessWorkspaceFile(): Promise<never> {
+    throw new Error("test Process Workspace import is unavailable");
   }
 
   get readFileRangeRequests(): TestBrowserWorkspaceVolumeStateV1["readFileRangeRequests"] {
@@ -1174,9 +1254,9 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   }
 
   async resetStoredData(): ReturnType<BrowserProgramWorkspaceAuthorityV1["resetStoredData"]> {
-    this.programNetworkAccess.clear();
+    this.processNetworkAccess.clear();
     return {
-      productRepository: { kind: "cleared" },
+      programDataRepository: { kind: "cleared" },
       workspaceVolumes: { kind: "cleared" },
     };
   }
@@ -1209,12 +1289,13 @@ async function attachRuntimeWorkspaceV1(
   authority: BrowserProgramWorkspaceAuthorityV1,
   requestId = 2,
 ): Promise<BrowserPiWorkerExecutionBindingV1> {
-  const opened = await authority.openWorkspace({
-    programId: submitV1.programId,
+  const opened = await authority.openProcessWorkspace({
+    processId: productRunV1().processId,
     workspaceId: workspaceIdV1,
   });
   const descriptor: BrowserPiWorkerExecutionBindingV1 = {
     revision: 1,
+    processId: productRunV1().processId,
     programId: opened.snapshot.descriptor.programId,
     workspaceId: opened.snapshot.descriptor.workspaceId,
     workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
@@ -1242,7 +1323,11 @@ async function configureAndTestProductPortV1(
 
 async function openProductWorkspaceV1(port: CreatorAgentPortV1): Promise<void> {
   if (port.getSnapshot().phase === "uninitialized") await configureAndTestProductPortV1(port);
-  await expect(port.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }))
+  await expect(port.openWorkspace({
+    processId: productRunV1().processId,
+    programId: submitV1.programId,
+    workspaceId: workspaceIdV1,
+  }))
     .resolves.toEqual({
       kind: "opened",
       descriptor: {
@@ -1264,7 +1349,10 @@ class InMemoryBrowserPiWorkerV1 {
 
   constructor(
     input: Partial<
-      Pick<Parameters<typeof createBrowserPiWorkerRuntimeCoreV1>[0], "createProviderAgent">
+      Pick<
+        Parameters<typeof createBrowserPiWorkerRuntimeCoreV1>[0],
+        "createProviderAgent" | "loadProgramExecution"
+      >
     > = {},
   ) {
     this.runtime = createBrowserPiWorkerRuntimeV1({
@@ -1411,9 +1499,10 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   selectModelRequests = 0;
   startRequests = 0;
   testConnectionRequests = 0;
+  cancelRequests = 0;
   readonly requestOrder: string[] = [];
   readonly networkAccessReplacements: Array<{
-    readonly programId: string;
+    readonly processId: string;
     readonly workspaceSessionId: string;
     readonly enabled: boolean;
   }> = [];
@@ -1571,11 +1660,11 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
       } else if (record.method === "replace_network_access") {
         this.requestOrder.push("replace_network_access");
         this.networkAccessReplacements.push(structuredClone({
-          programId: record.programId,
+          processId: record.processId,
           workspaceSessionId: record.workspaceSessionId,
           enabled: record.enabled,
         }) as {
-          readonly programId: string;
+          readonly processId: string;
           readonly workspaceSessionId: string;
           readonly enabled: boolean;
         });
@@ -1649,6 +1738,7 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
       return;
     }
     if (record.method === "cancel") {
+      this.cancelRequests += 1;
       this.emit({
         revision: 1,
         kind: "rpc_response",
@@ -1796,16 +1886,16 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
 }
 
 describe("SillyOS Browser Pi Worker runtime", () => {
-  it("dispatches the build-known Translation harness and keeps extra assistant text inert", async () => {
+  it("dispatches the fixed Translation runtime profile and keeps extra assistant text inert", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const prompts: string[] = [];
-    const harnesses: string[] = [];
+    const runtimeProfiles: string[] = [];
     const workspaceToolCounts: number[] = [];
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
       createProviderAgent: (input) => {
-        harnesses.push(input.dispatch.harnessReference);
+        runtimeProfiles.push(input.runtimeProfile.runtimeProfile);
         workspaceToolCounts.push(input.workspaceTools.length);
         return {
           async prompt(text) {
@@ -1852,7 +1942,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       params: {
         sessionId: "sillyos.session.1",
         text: serializeBrowserPiTranslationAgentDispatchV1({
-          executionCompatibilityReference: translationProgramHarnessReferenceV1,
+          programPackage: programPackageV1(submitV1.programId, "d"),
           programId: submitV1.programId,
           requestedOutputTokens: 4_608,
           request: {
@@ -1887,7 +1977,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
       )
     );
-    expect(harnesses).toEqual([translationProgramHarnessReferenceV1]);
+    expect(runtimeProfiles).toEqual([translationProgramRuntimeProfileV1]);
     expect(workspaceToolCounts).toEqual([0]);
     expect(JSON.parse(prompts[0] ?? "null")).toMatchObject({
       schema: "sillyos.translation-batch-request.v1",
@@ -1916,13 +2006,13 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     await workspaceAuthority.dispose();
   });
 
-  it("settles submit when a shipped Program package cannot load", async () => {
+  it("settles submit when the exact Program execution cannot load", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
-      loadBundledProgramPackage: () =>
-        Promise.reject(new TypeError("synthetic shipped Program package failure")),
+      loadProgramExecution: () =>
+        Promise.reject(new TypeError("synthetic exact Program execution failure")),
     });
     runtime.receive({
       revision: 1,
@@ -3530,7 +3620,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     await workspaceAuthority.dispose();
   });
 
-  it("rejects a stale execution binding without disturbing the active run and retries from query", async () => {
+  it("rejects a stale Process or generation binding without disturbing the active run and retries from query", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeV1({
@@ -3570,6 +3660,32 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         message.kind === "workspace_receipt" && message.receipt.runId === "sillyos.run.1"
       )
     );
+
+    runtime.receive(rpcRequestV1(50, {
+      revision: 1,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          proposalId: "workspace.preview.1.proposal.other-process",
+          text: "This other Process must be rejected before Pi.",
+        }),
+      },
+    }, { ...execution, processId: "process.other" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 50 && !message.ok
+      )
+    );
+    expect(messages.find((message) => message.kind === "rpc_response" && message.requestId === 50))
+      .toEqual({
+        revision: 1,
+        kind: "rpc_response",
+        requestId: 50,
+        ok: false,
+        code: "invalid_request",
+      });
 
     runtime.receive(rpcRequestV1(5, {
       revision: 1,
@@ -3823,7 +3939,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     await workspaceAuthority.dispose();
   });
 
-  it("binds network access to one exact Program Workspace and resets it on close", async () => {
+  it("binds network access to one exact Process and Program Workspace and resets it on close", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const brokerRequests: string[] = [];
     const brokerLease = createTestNetworkBrokerLeaseV1({
@@ -3836,6 +3952,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const runtime = createBrowserPiWorkerRuntimeCoreV1({
       expectedEndpointOrigin: null,
       providerFetch: fetch,
+      loadProgramExecution: loadTestProgramExecutionV1,
       postMessage: (message) => messages.push(structuredClone(message)),
     });
     runtime.receive({
@@ -3856,13 +3973,13 @@ describe("SillyOS Browser Pi Worker runtime", () => {
 
     runtime.receive(workspaceRequestV1(3, {
       method: "replace_network_access",
-      programId: "program.other",
+      processId: "process.other",
       workspaceSessionId: execution.workspaceSessionId,
       enabled: true,
     }));
     runtime.receive(workspaceRequestV1(4, {
       method: "replace_network_access",
-      programId: execution.programId,
+      processId: execution.processId,
       workspaceSessionId: "workspace.session.other",
       enabled: true,
     }));
@@ -3877,7 +3994,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
 
     runtime.receive(workspaceRequestV1(5, {
       method: "replace_network_access",
-      programId: execution.programId,
+      processId: execution.processId,
       workspaceSessionId: execution.workspaceSessionId,
       enabled: true,
     }));
@@ -4044,7 +4161,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         text: serializeCreatorAgentSubmitV1({
           ...submitV1,
           proposalId: "workspace.preview.1.proposal.network.disabled",
-          text: "Try the product-fixed network tool while Program access is disabled.",
+          text: "Try the product-fixed network tool while Process access is disabled.",
         }),
       },
     }, execution));
@@ -4069,7 +4186,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     await workspaceAuthority.dispose();
   });
 
-  it("streams an enabled Program download directly into Workspace", async () => {
+  it("streams an enabled Process download directly into Workspace", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const brokerMessages: unknown[] = [];
     const downloadRequests: string[] = [];
@@ -4083,6 +4200,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const runtime = createBrowserPiWorkerRuntimeCoreV1({
       expectedEndpointOrigin: null,
       providerFetch: fetch,
+      loadProgramExecution: loadTestProgramExecutionV1,
       postMessage: (message) => messages.push(structuredClone(message)),
     });
     runtime.receive({
@@ -4104,7 +4222,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const url = `${origin}/assets/archive.zip?revision=1`;
     runtime.receive(workspaceRequestV1(3, {
       method: "replace_network_access",
-      programId: execution.programId,
+      processId: execution.processId,
       workspaceSessionId: execution.workspaceSessionId,
       enabled: true,
     }));
@@ -4179,6 +4297,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const runtime = createBrowserPiWorkerRuntimeCoreV1({
       expectedEndpointOrigin: null,
       providerFetch: fetch,
+      loadProgramExecution: loadTestProgramExecutionV1,
       postMessage: (message) => messages.push(structuredClone(message)),
       downloadOuterDeadlineMilliseconds: 20,
     });
@@ -4201,7 +4320,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const url = `${origin}/assets/silent.zip`;
     runtime.receive(workspaceRequestV1(3, {
       method: "replace_network_access",
-      programId: execution.programId,
+      processId: execution.processId,
       workspaceSessionId: execution.workspaceSessionId,
       enabled: true,
     }));
@@ -4272,6 +4391,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const runtime = createBrowserPiWorkerRuntimeCoreV1({
       expectedEndpointOrigin: null,
       providerFetch: fetch,
+      loadProgramExecution: loadTestProgramExecutionV1,
       postMessage: (message) => messages.push(structuredClone(message)),
     });
     runtime.receive({
@@ -4320,7 +4440,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
 
     runtime.receive(workspaceRequestV1(5, {
       method: "replace_network_access",
-      programId: execution.programId,
+      processId: execution.processId,
       workspaceSessionId: execution.workspaceSessionId,
       enabled: true,
     }));
@@ -4359,7 +4479,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
   it("runs Translation through the same credential-bearing Worker without requiring text output", async () => {
     const workspaceAuthority = testWorkspaceAuthorityV1();
     let workerFactoryCalls = 0;
-    const ports = createBrowserProgramAgentPortsV1({
+    const ports = createTestProgramAgentPortsV1({
       runtime: "pi_provider",
       selection: availableSelectionV1,
       workspaceAuthority,
@@ -4369,7 +4489,9 @@ describe("SillyOS Browser Pi transport and product port", () => {
         return new InMemoryBrowserPiWorkerV1({
           createProviderAgent: (input) => ({
             async prompt() {
-              expect(input.dispatch.harnessReference).toBe(translationProgramHarnessReferenceV1);
+              expect(input.runtimeProfile.runtimeProfile).toBe(
+                translationProgramRuntimeProfileV1,
+              );
               expect(input.workspaceTools).toEqual([]);
               await input.onCandidate({
                 targets: [{
@@ -4430,13 +4552,18 @@ describe("SillyOS Browser Pi transport and product port", () => {
     });
     expect(ports.translation.getSnapshot()).toMatchObject({ phase: "ready", terminalRuns: [] });
     await ports.creator.dispose();
+    expect(ports.creator.getSnapshot().phase).toBe("disposed");
+    expect(ports.translation.getSnapshot().phase).toBe("ready");
+    await expect(ports.translation.closeWorkspace()).resolves.toMatchObject({ kind: "closed" });
+    expect(ports.translation.getSnapshot().workspace.phase).toBe("closed");
+    await ports.host.dispose();
     expect(ports.translation.getSnapshot().phase).toBe("disposed");
   });
 
   it("fences Translation by the opened Process Workspace and projects shared connection loss", async () => {
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const worker = new ControllableBrowserPiWorkerV1();
-    const ports = createBrowserProgramAgentPortsV1({
+    const ports = createTestProgramAgentPortsV1({
       runtime: "pi_provider",
       selection: availableSelectionV1,
       workspaceAuthority,
@@ -4476,7 +4603,85 @@ describe("SillyOS Browser Pi transport and product port", () => {
       terminalRuns: [],
       diagnostic: { code: "connection_failed" },
     });
-    await ports.translation.dispose();
+    await ports.host.dispose();
+  });
+
+  it("detaches one active Program facade without retiring the shared Agent owner", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const host = createBrowserProgramAgentHostV1({
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      openNetworkBroker: openTestNetworkBrokerV1,
+      workerFactory: () => worker,
+    });
+    const firstCreator = createCreatorProgramAgentPortV1(host);
+    const translation = createTranslationProgramAgentPortV1(host);
+    await expect(firstCreator.configureCredential("sentinel-browser-key")).resolves.toMatchObject({
+      kind: "configured",
+    });
+    await openProductWorkspaceV1(firstCreator);
+    await expect(firstCreator.submit(productRunV1())).resolves.toMatchObject({
+      kind: "submitted",
+    });
+
+    const detachedNotifications = vi.fn();
+    firstCreator.subscribe(detachedNotifications);
+    await firstCreator.dispose();
+    const notificationsAfterDetach = detachedNotifications.mock.calls.length;
+    expect(worker.cancelRequests).toBe(1);
+    expect(worker.terminated).toBe(false);
+    expect(firstCreator.getSnapshot()).toMatchObject({
+      phase: "disposed",
+      activeRunId: null,
+      terminalRuns: [],
+      workspace: { phase: "disposed", descriptor: null },
+    });
+    expect(translation.getSnapshot().phase).toBe("ready");
+    await expect(firstCreator.testConnection()).resolves.toMatchObject({
+      kind: "unavailable",
+      diagnostic: { code: "disposed" },
+    });
+
+    const successorCreator = createCreatorProgramAgentPortV1(host);
+    const successorRun = productRunV1({ agentRunId: "agent.run.product.successor" });
+    await expect(successorCreator.submit(successorRun)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: successorRun.agentRunId,
+    });
+    expect(successorCreator.getSnapshot()).toMatchObject({
+      phase: "running",
+      activeRunId: successorRun.agentRunId,
+    });
+    expect(detachedNotifications).toHaveBeenCalledTimes(notificationsAfterDetach);
+
+    await translation.forget();
+    expect(translation.getSnapshot().phase).toBe("forgotten");
+    expect(successorCreator.getSnapshot().phase).toBe("running");
+    expect(worker.terminated).toBe(false);
+    await host.dispose();
+    expect(successorCreator.getSnapshot().phase).toBe("disposed");
+    expect(worker.terminated).toBe(true);
+  });
+
+  it("keeps an unconfigured shared Agent owner uninitialized when a Program facade detaches", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const host = createBrowserProgramAgentHostV1({
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      openNetworkBroker: openTestNetworkBrokerV1,
+      workerFactory: () => worker,
+    });
+    const control = host.createControlPort();
+    const creator = createCreatorProgramAgentPortV1(host);
+    expect(control.getSnapshot().phase).toBe("uninitialized");
+    expect(creator.getSnapshot().phase).toBe("uninitialized");
+
+    await creator.dispose();
+
+    expect(control.getSnapshot().phase).toBe("uninitialized");
+    expect(worker.terminated).toBe(false);
+    await host.dispose();
+    expect(control.getSnapshot().phase).toBe("disposed");
   });
 
   it("hands off exact workspace exports and aborts a held export before Forget", async () => {
@@ -4522,7 +4727,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
         diagnostic: { code: "request_failed", path: "/workspace/busy" },
       });
 
-    await port.forget();
+    await testProgramAgentHostV1(port).forget();
     await expect(held).resolves.toMatchObject({ kind: "cancelled" });
     expect(workspaceAuthority.exportAborted).toBe(true);
     expect(port.getSnapshot()).toMatchObject({
@@ -4559,7 +4764,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     await waitUntilV1(() => workspaceAuthority.authorizedExportStarted);
 
     let forgetSettled = false;
-    const forgetting = port.forget().then(() => {
+    const forgetting = testProgramAgentHostV1(port).forget().then(() => {
       forgetSettled = true;
     });
     await Promise.resolve();
@@ -4624,7 +4829,11 @@ describe("SillyOS Browser Pi transport and product port", () => {
 
     workspaceAuthority.nextOpenFailureCode = "volume_busy";
     await expect(
-      port.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+      port.openWorkspace({
+        processId: productRunV1().processId,
+        programId: submitV1.programId,
+        workspaceId: workspaceIdV1,
+      }),
     ).resolves.toEqual({
       kind: "unavailable",
       diagnostic: { code: "workspace_busy", path: "/workspace/open" },
@@ -4658,17 +4867,16 @@ describe("SillyOS Browser Pi transport and product port", () => {
         Promise.reject(new Error("test repository is unavailable"));
       const authority: BrowserProgramWorkspaceAuthorityV1 = {
         initialize: () => Promise.resolve(),
-        inspectProgramWorkspace: repositoryUnavailable,
-        create: repositoryUnavailable,
-        applyRevision: repositoryUnavailable,
-        applyAgentRevision: repositoryUnavailable,
-        decide: repositoryUnavailable,
-        loadProgramNetworkAccess: (programId) =>
-          Promise.resolve(createDefaultProgramNetworkAccessV1(programId)),
-        setProgramNetworkAccess: repositoryUnavailable,
-        withAgentSubmitAdmission: async (input) =>
-          await input.operation(createDefaultProgramNetworkAccessV1(input.programId)),
-        openWorkspace: () =>
+        loadProcessNetworkAccess: (processId) =>
+          Promise.resolve(createDefaultProcessNetworkAccessV1(processId)),
+        setProcessNetworkAccess: repositoryUnavailable,
+        withAgentSubmitAdmission: (input) =>
+          input.operation(createDefaultProcessNetworkAccessV1(input.processId)),
+        createProcessWorkspace: repositoryUnavailable,
+        inspectProcessWorkspace: () => Promise.resolve(null),
+        probeProcessWorkspace: () => Promise.resolve(true),
+        importProcessWorkspaceFile: repositoryUnavailable,
+        openProcessWorkspace: () =>
           Promise.reject(
             new BrowserWorkspaceHostControlErrorV1(hostCode, `synthetic ${hostCode}`),
           ),
@@ -4685,7 +4893,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
           }),
         resetStoredData: () =>
           Promise.resolve({
-            productRepository: { kind: "cleared" },
+            programDataRepository: { kind: "cleared" },
             workspaceVolumes: { kind: "cleared" },
           }),
         subscribeFatal: () => () => {},
@@ -4698,7 +4906,11 @@ describe("SillyOS Browser Pi transport and product port", () => {
       });
       await configureAndTestProductPortV1(port);
       await expect(
-        port.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+        port.openWorkspace({
+          processId: productRunV1().processId,
+          programId: submitV1.programId,
+          workspaceId: workspaceIdV1,
+        }),
       ).resolves.toEqual({
         kind: "unavailable",
         diagnostic: { code: productCode, path: "/workspace/open" },
@@ -4791,7 +5003,11 @@ describe("SillyOS Browser Pi transport and product port", () => {
       },
     });
     await expect(
-      port.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+      port.openWorkspace({
+        processId: productRunV1().processId,
+        programId: submitV1.programId,
+        workspaceId: workspaceIdV1,
+      }),
     ).resolves.toEqual({
       kind: "unavailable",
       diagnostic: { code: "request_failed", path: "/connection" },
@@ -4809,17 +5025,21 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(workerFactoryCalls).toBe(1);
     expect(worker.testConnectionRequests).toBe(0);
     await expect(
-      port.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+      port.openWorkspace({
+        processId: productRunV1().processId,
+        programId: submitV1.programId,
+        workspaceId: workspaceIdV1,
+      }),
     ).resolves.toMatchObject({ kind: "opened" });
     await expect(port.submit(productRunV1())).resolves.toMatchObject({ kind: "submitted" });
     expect(worker.testConnectionRequests).toBe(0);
     await port.dispose();
   });
 
-  it("synchronizes the admitted Program network setting before submitting", async () => {
+  it("synchronizes the admitted Process network setting before submitting", async () => {
     const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
-    await expect(workspaceAuthority.setProgramNetworkAccess({
-      programId: submitV1.programId,
+    await expect(workspaceAuthority.setProcessNetworkAccess({
+      processId: productRunV1().processId,
       enabled: true,
     })).resolves.toMatchObject({ kind: "committed" });
     const worker = new ControllableBrowserPiWorkerV1();
@@ -4833,11 +5053,15 @@ describe("SillyOS Browser Pi transport and product port", () => {
       effectiveReasoningEffort: "off",
     });
     await expect(
-      port.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+      port.openWorkspace({
+        processId: productRunV1().processId,
+        programId: submitV1.programId,
+        workspaceId: workspaceIdV1,
+      }),
     ).resolves.toMatchObject({ kind: "opened" });
 
     await expect(port.synchronizeNetworkAccess(
-      createDefaultProgramNetworkAccessV1("program.other"),
+      createDefaultProcessNetworkAccessV1("process.other"),
     )).resolves.toEqual({
       kind: "unavailable",
       diagnostic: { code: "request_failed", path: "/networkAccess/scope" },
@@ -4854,28 +5078,39 @@ describe("SillyOS Browser Pi transport and product port", () => {
       diagnostic: { code: "submit_invalid", path: "/run" },
     });
     await expect(port.submit(productRunV1({
-      executionCompatibilityReference: "sillyos.builtin.creator@999",
+      programPackage: {
+        ...programPackageV1(submitV1.programId),
+        contentDigest: "invalid",
+      },
     }))).resolves.toEqual({
       kind: "unavailable",
       diagnostic: { code: "submit_invalid", path: "/run" },
     });
 
+    const uncappedAgentRunId = `agent.run.${"a".repeat(256)}`;
     const run = productRunV1({
+      agentRunId: uncappedAgentRunId,
       workspaceCheckpointId: "checkpoint.durable.before-submit",
       workspaceGeneration: 7,
     });
     await expect(port.submit(run)).resolves.toEqual({
       kind: "submitted",
-      agentRunId: "agent.run.product.1",
+      agentRunId: uncappedAgentRunId,
     });
     expect(worker.networkAccessReplacements).toEqual([{
-      programId: submitV1.programId,
+      processId: productRunV1().processId,
       workspaceSessionId: workspaceSessionIdV1,
       enabled: true,
     }]);
     expect(worker.requestOrder).toEqual(["replace_network_access", "submit"]);
     expect(workspaceAuthority.agentSubmitAdmissionCalls).toBe(1);
     expect(workspaceAuthority.lastAgentSubmitAdmission).toEqual({
+      agentRunId: run.agentRunId,
+      processAttemptGeneration: run.processAttemptGeneration,
+      processId: run.processId,
+      programId: run.programId,
+      programPackage: run.programPackage,
+      workspaceSessionId: workspaceSessionIdV1,
       expectedCheckpointId: run.workspaceCheckpointId,
       expectedGeneration: run.workspaceGeneration,
     });
@@ -4957,7 +5192,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       });
 
       await configureAndTestProductPortV1(port);
-      await port[operation]();
+      await testProgramAgentHostV1(port)[operation]();
       expect(onConnectionLost).not.toHaveBeenCalled();
       expect(worker.terminated).toBe(true);
     },
@@ -5086,7 +5321,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       },
     });
     await configureAndTestProductPortV1(builtinPort);
-    await builtinPort.dispose();
+    await testProgramAgentHostV1(builtinPort).dispose();
 
     const customWorker = new ControllableBrowserPiWorkerV1();
     const customPort = createBrowserCreatorAgentPortV1({
@@ -5106,7 +5341,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     ]);
     expect(JSON.stringify(factoryInputs)).not.toContain("private-model");
     expect(JSON.stringify(factoryInputs)).not.toContain("custom-key");
-    await customPort.dispose();
+    await testProgramAgentHostV1(customPort).dispose();
     expect(builtinWorker.terminated).toBe(true);
     expect(customWorker.terminated).toBe(true);
   });
@@ -5303,7 +5538,10 @@ describe("SillyOS Browser Pi transport and product port", () => {
     });
     await expect(connector.testConnection()).resolves.toEqual({ kind: "ready" });
     await expect(
-      connector.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+      connector.openWorkspace({
+        processId: productRunV1().processId,
+        workspaceId: workspaceIdV1,
+      }),
     ).resolves.toMatchObject({
       phase: "open",
       programId: submitV1.programId,
@@ -5421,7 +5659,10 @@ describe("SillyOS Browser Pi transport and product port", () => {
       sessionId: "controlled.session.1",
     });
     await expect(
-      connector.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+      connector.openWorkspace({
+        processId: productRunV1().processId,
+        workspaceId: workspaceIdV1,
+      }),
     ).resolves.toMatchObject({ phase: "open", generation: 1 });
     worker.dropSubmitResponses = true;
     const submitted = client.submit({
@@ -5638,7 +5879,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     });
     expect(port.getSnapshot()).toMatchObject({ phase: "ready", terminalRuns: [] });
     await expect(port.acknowledgeTerminal(run.agentRunId)).resolves.toEqual({ kind: "idle" });
-    await port.forget();
+    await testProgramAgentHostV1(port).forget();
     expect(port.getSnapshot()).toMatchObject({
       phase: "forgotten",
       activeRunId: null,
@@ -5813,7 +6054,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
           settled = true;
           return result;
         })
-        : port.dispose().then(() => {
+        : testProgramAgentHostV1(port).dispose().then(() => {
           settled = true;
           return null;
         });
@@ -5826,7 +6067,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
         if (closeResult?.kind !== "closed") {
           throw new Error(`unexpected close result: ${JSON.stringify(closeResult)}`);
         }
-        await port.dispose();
+        await testProgramAgentHostV1(port).dispose();
       } else {
         await expect(settlement).resolves.toBeNull();
       }
@@ -6053,7 +6294,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     await port.dispose();
   });
 
-  it("synchronizes Program network access only for the open Workspace scope", async () => {
+  it("synchronizes Process network access only for the open Workspace scope", async () => {
     const worker = new ControllableBrowserPiWorkerV1();
     const port = createBrowserCreatorAgentPortV1({
       runtime: "deterministic_test",
@@ -6063,7 +6304,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     await openProductWorkspaceV1(port);
 
     await expect(port.synchronizeNetworkAccess(
-      createDefaultProgramNetworkAccessV1("program.other"),
+      createDefaultProcessNetworkAccessV1("process.other"),
     )).resolves.toEqual({
       kind: "unavailable",
       diagnostic: { code: "request_failed", path: "/networkAccess/scope" },
@@ -6072,11 +6313,11 @@ describe("SillyOS Browser Pi transport and product port", () => {
 
     await expect(port.synchronizeNetworkAccess({
       revision: 1,
-      programId: submitV1.programId,
+      processId: productRunV1().processId,
       enabled: true,
     })).resolves.toEqual({ kind: "synchronized" });
     expect(worker.networkAccessReplacements).toEqual([{
-      programId: submitV1.programId,
+      processId: productRunV1().processId,
       workspaceSessionId: workspaceSessionIdV1,
       enabled: true,
     }]);

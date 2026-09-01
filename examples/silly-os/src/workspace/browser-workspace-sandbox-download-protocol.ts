@@ -2,7 +2,7 @@
 
 import { validBrowserWorkspaceDownloadFileNameV1 } from "./browser-workspace-host-protocol.ts";
 
-const identifierPatternV1 = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+const identifierPatternV1 = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/u;
 
 export interface BrowserWorkspaceSandboxDownloadRequestV1 {
   readonly revision: 1;

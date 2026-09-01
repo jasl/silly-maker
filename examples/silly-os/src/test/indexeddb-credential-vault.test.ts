@@ -146,6 +146,38 @@ describe("IndexedDB Credential Vault V2", () => {
     ).resolves.toMatchObject({ payload: { iv: bufferV2(12, 31) } });
   });
 
+  it("stores and rewraps bindings beyond the former 32-row product limit", async () => {
+    const repository = createIndexedDbCredentialVaultV2({
+      indexedDB: new IDBFactory(),
+      databaseName: "credential-v2.unbounded-bindings",
+    });
+    repositoriesV2.push(repository);
+    const initialHeader = await deviceHeaderV2();
+    await repository.createHeader(initialHeader);
+    const bindings = Array.from({ length: 40 }, (_, index): CredentialVaultBindingV2 => ({
+      bindingId: `custom:provider.${String(index).padStart(2, "0")}`,
+      credentialKind: "api_key",
+      baseUrl: "https://provider.example/v1",
+    }));
+    for (const [index, binding] of bindings.entries()) {
+      await expect(
+        repository.upsert(credentialV2(binding, index), initialHeader.generationToken),
+      ).resolves.toBe("created");
+    }
+    await expect(repository.list()).resolves.toHaveLength(40);
+
+    const nextHeader = await deviceHeaderV2();
+    await expect(repository.replaceProtection(
+      initialHeader.generationToken,
+      nextHeader,
+      bindings.map((binding, index) => credentialV2(binding, index + 40)),
+    )).resolves.toBeUndefined();
+    await expect(repository.list()).resolves.toHaveLength(40);
+    await expect(
+      repository.loadCredential(bindings[32]!, nextHeader.generationToken),
+    ).resolves.toMatchObject({ bindingId: bindings[32]!.bindingId });
+  });
+
   it("atomically replaces every Vault row with one fresh device header", async () => {
     const indexedDB = new IDBFactory();
     const databaseName = "credential-v2.user-reset";

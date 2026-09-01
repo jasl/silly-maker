@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 import {
-  admitProgramWorkspaceSnapshotReceiptV1,
+  admitWorkspaceImmutableSnapshotReceiptV1,
   admitWorkspaceGrepQueryV1,
-  type ProgramWorkspaceSnapshotReceiptV1,
+  type WorkspaceImmutableSnapshotReceiptV1,
   type WorkspaceGrepQueryV1,
   type WorkspaceGrepResultV1,
 } from "./contracts.ts";
@@ -30,7 +30,7 @@ export const browserWorkspaceShellOutputMaximumUtf8BytesV1 = 256 * 1024;
 export const browserWorkspaceShellRequestedTimeoutMaximumMillisecondsV1 = 30_000;
 export const browserWorkspaceDownloadFileNameMaximumUtf8BytesV1 = 255;
 
-const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u;
 const shellEnvironmentKeyPatternV1 = /^[a-zA-Z_][a-zA-Z0-9_]*$/u;
 
 export function validBrowserWorkspaceDownloadFileNameV1(value: unknown): value is string {
@@ -211,19 +211,19 @@ export type BrowserWorkspaceHostControlRequestRecordV1 =
     readonly workspaceSessionId: string;
     readonly expectedCheckpointId: string;
     readonly expectedGeneration: number;
-    readonly programRevision: number;
-    readonly repositoryRevision: number;
+    readonly sourceRevision: number;
+    readonly baseRevision: number;
     readonly fileName: string;
   }
   | {
     readonly method: "prepare_snapshot";
     readonly workspaceSessionId: string;
     readonly snapshotId: string;
-    readonly proposalId: string;
+    readonly publicationId: string;
     readonly expectedCheckpointId: string;
     readonly expectedGeneration: number;
-    readonly programRevision: number;
-    readonly baseRepositoryRevision: number;
+    readonly sourceRevision: number;
+    readonly baseRevision: number;
   }
   | {
     readonly method: "query_snapshot_candidate";
@@ -236,14 +236,14 @@ export type BrowserWorkspaceHostControlRequestRecordV1 =
       | "adopt_snapshot"
       | "discard_snapshot";
     readonly workspaceSessionId: string;
-    readonly expected: ProgramWorkspaceSnapshotReceiptV1;
+    readonly expected: WorkspaceImmutableSnapshotReceiptV1;
   }
   | {
     readonly method:
       | "close_workspace"
       | "query_workspace"
       | "attach_environment"
-      | "capture_review_head";
+      | "capture_stable_head";
     readonly workspaceSessionId: string;
   };
 
@@ -291,7 +291,7 @@ export interface BrowserWorkspaceHostControlSuccessResponseV1 {
         | "close_workspace"
         | "query_workspace"
         | "attach_environment"
-        | "capture_review_head";
+        | "capture_stable_head";
       readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
     }
     | {
@@ -301,11 +301,11 @@ export interface BrowserWorkspaceHostControlSuccessResponseV1 {
     }
     | {
       readonly method: "prepare_snapshot" | "resume_snapshot_publication";
-      readonly receipt: ProgramWorkspaceSnapshotReceiptV1;
+      readonly receipt: WorkspaceImmutableSnapshotReceiptV1;
     }
     | {
       readonly method: "query_snapshot_candidate" | "query_retained_snapshot";
-      readonly receipt: ProgramWorkspaceSnapshotReceiptV1 | null;
+      readonly receipt: WorkspaceImmutableSnapshotReceiptV1 | null;
     }
     | {
       readonly method: "adopt_snapshot";
@@ -826,8 +826,8 @@ export function admitBrowserWorkspaceHostControlRequestV1(
     "workspaceSessionId",
     "expectedCheckpointId",
     "expectedGeneration",
-    "programRevision",
-    "repositoryRevision",
+    "sourceRevision",
+    "baseRevision",
     "fileName",
   ]);
   if (
@@ -835,8 +835,8 @@ export function admitBrowserWorkspaceHostControlRequestV1(
     identifierV1(startExport.exportId) && identifierV1(startExport.workspaceSessionId) &&
     identifierV1(startExport.expectedCheckpointId) &&
     positiveSafeIntegerV1(startExport.expectedGeneration) &&
-    positiveSafeIntegerV1(startExport.programRevision) &&
-    positiveSafeIntegerV1(startExport.repositoryRevision) &&
+    positiveSafeIntegerV1(startExport.sourceRevision) &&
+    positiveSafeIntegerV1(startExport.baseRevision) &&
     validBrowserWorkspaceDownloadFileNameV1(startExport.fileName)
   ) {
     return {
@@ -849,8 +849,8 @@ export function admitBrowserWorkspaceHostControlRequestV1(
         workspaceSessionId: startExport.workspaceSessionId,
         expectedCheckpointId: startExport.expectedCheckpointId,
         expectedGeneration: startExport.expectedGeneration,
-        programRevision: startExport.programRevision,
-        repositoryRevision: startExport.repositoryRevision,
+        sourceRevision: startExport.sourceRevision,
+        baseRevision: startExport.baseRevision,
         fileName: startExport.fileName,
       },
     };
@@ -859,20 +859,20 @@ export function admitBrowserWorkspaceHostControlRequestV1(
     "method",
     "workspaceSessionId",
     "snapshotId",
-    "proposalId",
+    "publicationId",
     "expectedCheckpointId",
     "expectedGeneration",
-    "programRevision",
-    "baseRepositoryRevision",
+    "sourceRevision",
+    "baseRevision",
   ]);
   if (
     prepareSnapshot !== null && prepareSnapshot.method === "prepare_snapshot" &&
     identifierV1(prepareSnapshot.workspaceSessionId) &&
-    identifierV1(prepareSnapshot.snapshotId) && identifierV1(prepareSnapshot.proposalId) &&
+    identifierV1(prepareSnapshot.snapshotId) && identifierV1(prepareSnapshot.publicationId) &&
     identifierV1(prepareSnapshot.expectedCheckpointId) &&
     positiveSafeIntegerV1(prepareSnapshot.expectedGeneration) &&
-    positiveSafeIntegerV1(prepareSnapshot.programRevision) &&
-    positiveSafeIntegerV1(prepareSnapshot.baseRepositoryRevision)
+    positiveSafeIntegerV1(prepareSnapshot.sourceRevision) &&
+    positiveSafeIntegerV1(prepareSnapshot.baseRevision)
   ) {
     return {
       revision: 1,
@@ -882,11 +882,11 @@ export function admitBrowserWorkspaceHostControlRequestV1(
         method: "prepare_snapshot",
         workspaceSessionId: prepareSnapshot.workspaceSessionId,
         snapshotId: prepareSnapshot.snapshotId,
-        proposalId: prepareSnapshot.proposalId,
+        publicationId: prepareSnapshot.publicationId,
         expectedCheckpointId: prepareSnapshot.expectedCheckpointId,
         expectedGeneration: prepareSnapshot.expectedGeneration,
-        programRevision: prepareSnapshot.programRevision,
-        baseRepositoryRevision: prepareSnapshot.baseRepositoryRevision,
+        sourceRevision: prepareSnapshot.sourceRevision,
+        baseRevision: prepareSnapshot.baseRevision,
       },
     };
   }
@@ -919,7 +919,7 @@ export function admitBrowserWorkspaceHostControlRequestV1(
       receiptBoundSnapshot.method === "discard_snapshot") &&
     identifierV1(receiptBoundSnapshot.workspaceSessionId)
   ) {
-    const expected = admitProgramWorkspaceSnapshotReceiptV1(
+    const expected = admitWorkspaceImmutableSnapshotReceiptV1(
       receiptBoundSnapshot.expected,
     );
     if (expected === null) return null;
@@ -938,7 +938,7 @@ export function admitBrowserWorkspaceHostControlRequestV1(
   if (
     scoped === null ||
     (scoped.method !== "close_workspace" && scoped.method !== "query_workspace" &&
-      scoped.method !== "attach_environment" && scoped.method !== "capture_review_head") ||
+      scoped.method !== "attach_environment" && scoped.method !== "capture_stable_head") ||
     !identifierV1(scoped.workspaceSessionId)
   ) return null;
   return {
@@ -1360,7 +1360,7 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
       response !== null && snapshot !== null &&
       (response.method === "open_workspace" || response.method === "close_workspace" ||
         response.method === "query_workspace" || response.method === "attach_environment" ||
-        response.method === "capture_review_head")
+        response.method === "capture_stable_head")
     ) {
       return {
         revision: 1,
@@ -1398,7 +1398,7 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
       (preparedSnapshot.method === "prepare_snapshot" ||
         preparedSnapshot.method === "resume_snapshot_publication")
     ) {
-      const receipt = admitProgramWorkspaceSnapshotReceiptV1(preparedSnapshot.receipt);
+      const receipt = admitWorkspaceImmutableSnapshotReceiptV1(preparedSnapshot.receipt);
       return receipt === null ? null : {
         revision: 1,
         kind: "control_response",
@@ -1415,7 +1415,7 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
     ) {
       const receipt = queriedSnapshot.receipt === null
         ? null
-        : admitProgramWorkspaceSnapshotReceiptV1(queriedSnapshot.receipt);
+        : admitWorkspaceImmutableSnapshotReceiptV1(queriedSnapshot.receipt);
       return queriedSnapshot.receipt !== null && receipt === null ? null : {
         revision: 1,
         kind: "control_response",

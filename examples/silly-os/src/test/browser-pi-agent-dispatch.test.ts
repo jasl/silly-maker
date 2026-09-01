@@ -4,11 +4,27 @@ import { describe, expect, it } from "vitest";
 
 import {
   admitBrowserPiAgentDispatchTextV1,
-  creatorProgramHarnessReferenceV1,
-  serializeBrowserPiCreatorAgentDispatchV1,
-  serializeBrowserPiTranslationAgentDispatchV1,
+  serializeBrowserPiAgentDispatchV1,
 } from "../agent/browser-pi-agent-dispatch.ts";
-import { translationProgramHarnessReferenceV1 } from "../product/translation/translation-batch-protocol.ts";
+import {
+  creatorProgramRuntimeProfileV1,
+  serializeBrowserPiCreatorAgentDispatchV1,
+} from "../../programs/creator/runtime-profile/creator-runtime-profile.ts";
+import {
+  serializeBrowserPiTranslationAgentDispatchV1,
+  translationProgramRuntimeProfileV1,
+} from "../../programs/translation/runtime-profile/translation-runtime-profile.ts";
+
+const creatorProgramPackageV1 = {
+  programId: "sillyos.creator",
+  packageVersion: "1.0.0",
+  contentDigest: "c".repeat(64),
+} as const;
+const translationProgramPackageV1 = {
+  programId: "sillyos.translation",
+  packageVersion: "1.0.0",
+  contentDigest: "d".repeat(64),
+} as const;
 
 const translationRequestV1 = {
   sourceLocale: "zh-CN",
@@ -37,14 +53,14 @@ const translationRequestV1 = {
 } as const;
 
 describe("SillyOS Browser Pi build-known Agent dispatch", () => {
-  it("round-trips the Creator and Translation harnesses through distinct exact envelopes", () => {
+  it("round-trips exact Program packages with their fixed runtime profiles", () => {
     const creator = admitBrowserPiAgentDispatchTextV1(
       serializeBrowserPiCreatorAgentDispatchV1({
-        executionCompatibilityReference: creatorProgramHarnessReferenceV1,
+        programPackage: creatorProgramPackageV1,
         submit: {
           revision: 1,
           proposalId: "proposal.1",
-          programId: "program.creator.1",
+          programId: creatorProgramPackageV1.programId,
           baseProgramRevision: 1,
           text: "Create a translation Program.",
         },
@@ -53,15 +69,16 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
     expect(creator).toMatchObject({
       kind: "admitted",
       value: {
-        harnessReference: creatorProgramHarnessReferenceV1,
-        programId: "program.creator.1",
+        runtimeProfile: creatorProgramRuntimeProfileV1,
+        programPackage: creatorProgramPackageV1,
+        workspaceProgramId: creatorProgramPackageV1.programId,
       },
     });
 
     const translation = admitBrowserPiAgentDispatchTextV1(
       serializeBrowserPiTranslationAgentDispatchV1({
-        executionCompatibilityReference: translationProgramHarnessReferenceV1,
-        programId: "program.translation.1",
+        programPackage: translationProgramPackageV1,
+        programId: translationProgramPackageV1.programId,
         requestedOutputTokens: 4_608,
         request: translationRequestV1,
       }),
@@ -70,67 +87,65 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
       kind: "admitted",
       value: {
         revision: 1,
-        harnessReference: translationProgramHarnessReferenceV1,
-        programId: "program.translation.1",
-        requestedOutputTokens: 4_608,
-        request: translationRequestV1,
+        runtimeProfile: translationProgramRuntimeProfileV1,
+        programPackage: translationProgramPackageV1,
+        workspaceProgramId: translationProgramPackageV1.programId,
+        payload: {
+          requestedOutputTokens: 4_608,
+          request: translationRequestV1,
+        },
       },
     });
   });
 
-  it("rejects unknown harnesses, cross-Program Creator payloads, and malformed translation units", () => {
+  it("keeps profile payloads opaque while rejecting malformed generic envelopes", () => {
     const validText = serializeBrowserPiTranslationAgentDispatchV1({
-      executionCompatibilityReference: translationProgramHarnessReferenceV1,
-      programId: "program.translation.1",
+      programPackage: translationProgramPackageV1,
+      programId: translationProgramPackageV1.programId,
       requestedOutputTokens: 4_608,
       request: translationRequestV1,
     });
     const valid = JSON.parse(validText) as Record<string, unknown>;
     expect(admitBrowserPiAgentDispatchTextV1(JSON.stringify({
       ...valid,
-      harnessReference: "sillyos.harness.unknown@1",
-    }))).toEqual({ kind: "rejected" });
+      runtimeProfile: "agent.unknown.v1",
+    }))).toMatchObject({
+      kind: "admitted",
+      value: { runtimeProfile: "agent.unknown.v1" },
+    });
 
-    expect(() =>
+    expect(admitBrowserPiAgentDispatchTextV1(
       serializeBrowserPiCreatorAgentDispatchV1({
-        executionCompatibilityReference: "sillyos.builtin.creator@999",
+        programPackage: creatorProgramPackageV1,
         submit: {
           revision: 1,
           proposalId: "proposal.1",
-          programId: "program.creator.1",
+          programId: "program.created.by.creator",
           baseProgramRevision: 1,
-          text: "Do not fall back.",
+          text: "Keep package and Workspace identities separate.",
         },
-      })
-    ).toThrow("sillyos.browser_pi_agent_dispatch.invalid");
-
-    expect(admitBrowserPiAgentDispatchTextV1(JSON.stringify({
-      revision: 1,
-      harnessReference: creatorProgramHarnessReferenceV1,
-      programId: "program.creator.1",
-      submit: {
-        revision: 1,
-        proposalId: "proposal.1",
-        programId: "program.other.1",
-        baseProgramRevision: 1,
-        text: "Mismatched Program.",
+      }),
+    )).toMatchObject({
+      kind: "admitted",
+      value: {
+        programPackage: creatorProgramPackageV1,
+        workspaceProgramId: "program.created.by.creator",
       },
-    }))).toEqual({ kind: "rejected" });
+    });
 
     expect(admitBrowserPiAgentDispatchTextV1(JSON.stringify({
       ...valid,
-      request: {
-        ...translationRequestV1,
-        units: [
-          { ...translationRequestV1.units[0], order: 1 },
-          {
-            ...translationRequestV1.units[0],
-            unitId: "translation.unit.000002",
-            order: 3,
-            locator: "line/2",
-          },
-        ],
-      },
+      workspaceProgramId: "invalid workspace identity",
     }))).toEqual({ kind: "rejected" });
+
+    expect(admitBrowserPiAgentDispatchTextV1(
+      serializeBrowserPiAgentDispatchV1({
+        revision: 1,
+        runtimeProfile: creatorProgramRuntimeProfileV1,
+        programPackage: creatorProgramPackageV1,
+        workspaceProgramId: creatorProgramPackageV1.programId,
+        payload: { invalid: undefined },
+      }),
+    )).toMatchObject({ kind: "admitted", value: { payload: {} } });
   });
 });

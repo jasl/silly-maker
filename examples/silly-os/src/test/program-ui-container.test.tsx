@@ -10,15 +10,17 @@ import {
   type ProgramRunProjectionV1,
   ProgramUiContainerV1,
   type ProgramUiModeV1,
-} from "../ui/program-ui-container.tsx";
+} from "../program-platform/ui/program-ui-container.tsx";
 
 afterEach(cleanup);
 
 function ProgramUiHarnessV1({
   run = null,
+  toolbarActions,
   overlaySurface,
 }: {
   readonly run?: ProgramRunProjectionV1 | null;
+  readonly toolbarActions?: ReactNode;
   readonly overlaySurface?: ReactNode;
 }): ReactNode {
   const [mode, setMode] = useState<ProgramUiModeV1>("guided");
@@ -32,6 +34,7 @@ function ProgramUiHarnessV1({
         <section aria-label="translation conversation">Conversation content</section>
       }
       run={run}
+      toolbarActions={toolbarActions}
       overlaySurface={overlaySurface}
       locale="zh-CN"
     />
@@ -52,6 +55,27 @@ function GuidedDraftV1(): ReactNode {
 }
 
 describe("SillyOS Program UI Container", () => {
+  it("hosts an integrated Program surface without inventing view modes or a Process", () => {
+    render(
+      <ProgramUiContainerV1
+        presentation="integrated"
+        processId={null}
+        surface={<main aria-label="integrated creator surface">Creator home</main>}
+        run={null}
+        locale="zh-CN"
+      />,
+    );
+
+    const container = document.querySelector<HTMLElement>("[data-program-ui-container]");
+    expect(container).not.toBeNull();
+    expect(container).toHaveAttribute("data-program-ui-presentation", "integrated");
+    expect(container).toHaveAttribute("data-program-ui-mode", "integrated");
+    expect(container).not.toHaveAttribute("data-program-ui-process-id");
+    expect(container).toHaveClass("is-toolbarless");
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.getByRole("main", { name: "integrated creator surface" })).toBeVisible();
+  });
+
   it("switches only the active surface without replacing the Process boundary", () => {
     render(<ProgramUiHarnessV1 />);
 
@@ -108,6 +132,7 @@ describe("SillyOS Program UI Container", () => {
     render(
       <ProgramUiHarnessV1
         run={run}
+        toolbarActions={<button type="button">Process settings</button>}
         overlaySurface={<section data-testid="program-overlay">Review unit</section>}
       />,
     );
@@ -119,6 +144,7 @@ describe("SillyOS Program UI Container", () => {
     expect(container).not.toBeNull();
     expect(overlayHost).not.toBeNull();
     expect(container).toContainElement(strip);
+    expect(container).toContainElement(screen.getByRole("button", { name: "Process settings" }));
     expect(container).toContainElement(overlayHost);
     expect(overlayHost).toContainElement(overlay);
     expect(overlay.parentElement).toBe(overlayHost);

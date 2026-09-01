@@ -328,7 +328,7 @@ a durable mutable checkpoint. One Workspace Host Worker owns each open
 Program's OPFS handles and streams filesystem primitives over a typed
 MessagePort; the page and Agent Worker never own or whole-value clone the tree.
 
-The product repository stores only the exact bounded continuation manifest
+The program data repository stores only the exact bounded continuation manifest
 defined in [PLAN.md](./PLAN.md): Program/workspace identity, opaque `volumeId`,
 workspace format, and exact anchored Program/repository revisions. It is not a
 chat log, Pi session repository, provider record, file index, generation

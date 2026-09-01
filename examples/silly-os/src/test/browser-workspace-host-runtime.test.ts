@@ -37,8 +37,8 @@ import {
 } from "../workspace/browser-workspace-host-protocol.ts";
 import {
   createWorkspaceGrepQueryV1,
-  programWorkspaceSnapshotReceiptsEqualV1,
-  type ProgramWorkspaceSnapshotReceiptV1,
+  workspaceImmutableSnapshotReceiptsEqualV1,
+  type WorkspaceImmutableSnapshotReceiptV1,
 } from "../workspace/contracts.ts";
 
 interface FakeRangeRequestV1 {
@@ -70,8 +70,8 @@ interface FakeVolumeV1 {
   archiveFailure: Error | null;
   holdArchiveUntilAbort: boolean;
   archiveStarted: (() => void) | null;
-  preparedSnapshot: ProgramWorkspaceSnapshotReceiptV1 | null;
-  readonly retainedSnapshots: Map<string, ProgramWorkspaceSnapshotReceiptV1>;
+  preparedSnapshot: WorkspaceImmutableSnapshotReceiptV1 | null;
+  readonly retainedSnapshots: Map<string, WorkspaceImmutableSnapshotReceiptV1>;
   snapshotPrepareStarted: (() => void) | null;
   snapshotPrepareGate: Promise<void> | null;
 }
@@ -342,16 +342,16 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
         "snapshot identity is already retained",
       );
     }
-    const receipt: ProgramWorkspaceSnapshotReceiptV1 = {
+    const receipt: WorkspaceImmutableSnapshotReceiptV1 = {
       revision: 1,
       snapshotId: input.snapshotId,
       programId: this.anchor.programId,
       workspaceId: this.anchor.workspaceId,
       volumeId: this.anchor.volumeId,
       workspaceFormat: 1,
-      proposalId: input.proposalId,
-      programRevision: input.programRevision,
-      baseRepositoryRevision: input.baseRepositoryRevision,
+      publicationId: input.publicationId,
+      sourceRevision: input.sourceRevision,
+      baseRevision: input.baseRevision,
       checkpointId: input.expectedHead.checkpointId,
       generation: input.expectedHead.generation,
       fileCount: this.volume.files.size,
@@ -365,7 +365,7 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     };
     if (
       this.volume.preparedSnapshot !== null &&
-      !programWorkspaceSnapshotReceiptsEqualV1(this.volume.preparedSnapshot, receipt)
+      !workspaceImmutableSnapshotReceiptsEqualV1(this.volume.preparedSnapshot, receipt)
     ) throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
     if (
       this.volume.preparedSnapshot === null &&
@@ -376,15 +376,15 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     return receipt;
   }
 
-  queryCurrentImmutableSnapshotCandidate(): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
+  queryCurrentImmutableSnapshotCandidate(): Promise<WorkspaceImmutableSnapshotReceiptV1 | null> {
     return Promise.resolve(this.volume.preparedSnapshot);
   }
 
   queryRetainedImmutableSnapshot(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
-  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
+    expected: WorkspaceImmutableSnapshotReceiptV1,
+  ): Promise<WorkspaceImmutableSnapshotReceiptV1 | null> {
     const retained = this.volume.retainedSnapshots.get(expected.snapshotId) ?? null;
-    if (retained !== null && !programWorkspaceSnapshotReceiptsEqualV1(retained, expected)) {
+    if (retained !== null && !workspaceImmutableSnapshotReceiptsEqualV1(retained, expected)) {
       return Promise.reject(
         new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch"),
       );
@@ -393,11 +393,11 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   }
 
   async resumeImmutableSnapshotPublication(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
-  ): Promise<ProgramWorkspaceSnapshotReceiptV1> {
+    expected: WorkspaceImmutableSnapshotReceiptV1,
+  ): Promise<WorkspaceImmutableSnapshotReceiptV1> {
     if (
       this.volume.preparedSnapshot === null ||
-      !programWorkspaceSnapshotReceiptsEqualV1(this.volume.preparedSnapshot, expected)
+      !workspaceImmutableSnapshotReceiptsEqualV1(this.volume.preparedSnapshot, expected)
     ) throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
     if (
       this.volume.head.checkpointId !== expected.checkpointId ||
@@ -407,18 +407,18 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   }
 
   async adoptImmutableSnapshot(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
+    expected: WorkspaceImmutableSnapshotReceiptV1,
   ): Promise<"adopted" | "already_retained"> {
     const retained = this.volume.retainedSnapshots.get(expected.snapshotId);
     if (retained !== undefined) {
-      if (!programWorkspaceSnapshotReceiptsEqualV1(retained, expected)) {
+      if (!workspaceImmutableSnapshotReceiptsEqualV1(retained, expected)) {
         throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
       }
       return "already_retained";
     }
     if (
       this.volume.preparedSnapshot === null ||
-      !programWorkspaceSnapshotReceiptsEqualV1(this.volume.preparedSnapshot, expected)
+      !workspaceImmutableSnapshotReceiptsEqualV1(this.volume.preparedSnapshot, expected)
     ) throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
     this.volume.retainedSnapshots.set(expected.snapshotId, expected);
     this.volume.preparedSnapshot = null;
@@ -426,18 +426,18 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   }
 
   async discardImmutableSnapshot(
-    expected: ProgramWorkspaceSnapshotReceiptV1,
+    expected: WorkspaceImmutableSnapshotReceiptV1,
   ): Promise<"discarded" | "absent" | "retained"> {
     const retained = this.volume.retainedSnapshots.get(expected.snapshotId);
     if (retained !== undefined) {
-      if (!programWorkspaceSnapshotReceiptsEqualV1(retained, expected)) {
+      if (!workspaceImmutableSnapshotReceiptsEqualV1(retained, expected)) {
         throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
       }
       return "retained";
     }
     if (this.volume.preparedSnapshot === null) return "absent";
     if (
-      !programWorkspaceSnapshotReceiptsEqualV1(this.volume.preparedSnapshot, expected)
+      !workspaceImmutableSnapshotReceiptsEqualV1(this.volume.preparedSnapshot, expected)
     ) throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
     this.volume.preparedSnapshot = null;
     return "discarded";
@@ -602,8 +602,8 @@ function startExportRequestV1(
     workspaceSessionId,
     expectedCheckpointId,
     expectedGeneration: 1,
-    programRevision: 1,
-    repositoryRevision: 1,
+    sourceRevision: 1,
+    baseRevision: 1,
   });
 }
 
@@ -613,11 +613,11 @@ function prepareSnapshotRequestV1(
   overrides: Readonly<
     Partial<{
       snapshotId: string;
-      proposalId: string;
+      publicationId: string;
       expectedCheckpointId: string;
       expectedGeneration: number;
-      programRevision: number;
-      baseRepositoryRevision: number;
+      sourceRevision: number;
+      baseRevision: number;
     }>
   > = {},
 ): Record<string, unknown> {
@@ -625,11 +625,11 @@ function prepareSnapshotRequestV1(
     method: "prepare_snapshot",
     workspaceSessionId,
     snapshotId: overrides.snapshotId ?? "snapshot.preview.1",
-    proposalId: overrides.proposalId ?? "proposal.preview.1",
+    publicationId: overrides.publicationId ?? "proposal.preview.1",
     expectedCheckpointId: overrides.expectedCheckpointId ?? "checkpoint.1",
     expectedGeneration: overrides.expectedGeneration ?? 1,
-    programRevision: overrides.programRevision ?? 2,
-    baseRepositoryRevision: overrides.baseRepositoryRevision ?? 1,
+    sourceRevision: overrides.sourceRevision ?? 2,
+    baseRevision: overrides.baseRevision ?? 1,
   });
 }
 
@@ -1141,7 +1141,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     const receipt = (lastV1(controls) as {
       readonly response: {
         readonly method: "prepare_snapshot";
-        readonly receipt: ProgramWorkspaceSnapshotReceiptV1;
+        readonly receipt: WorkspaceImmutableSnapshotReceiptV1;
       };
     }).response.receipt;
     expect(receipt).toEqual({
@@ -1151,9 +1151,9 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
       volumeId: anchor.volumeId,
       workspaceFormat: 1,
-      proposalId: "proposal.preview.1",
-      programRevision: 2,
-      baseRepositoryRevision: 1,
+      publicationId: "proposal.preview.1",
+      sourceRevision: 2,
+      baseRevision: 1,
       checkpointId: "checkpoint.1",
       generation: 1,
       fileCount: 2,
@@ -1180,7 +1180,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       response: { method: "prepare_snapshot", receipt },
     });
     await runtime.receiveControl(prepareSnapshotRequestV1(6, workspaceSessionId, {
-      proposalId: "proposal.preview.conflict",
+      publicationId: "proposal.preview.conflict",
     }));
     expect(lastV1(controls)).toMatchObject({
       requestId: 6,
@@ -1188,7 +1188,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       code: "snapshot_mismatch",
     });
 
-    const mismatchedReceipt = { ...receipt, programRevision: receipt.programRevision + 1 };
+    const mismatchedReceipt = { ...receipt, sourceRevision: receipt.sourceRevision + 1 };
     await runtime.receiveControl(controlRequestV1(7, {
       method: "discard_snapshot",
       workspaceSessionId,
@@ -1334,7 +1334,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
     await runtime.receiveControl(prepareSnapshotRequestV1(3, workspaceSessionId));
     const prepared = lastV1(controls) as {
-      readonly response: { readonly receipt: ProgramWorkspaceSnapshotReceiptV1 };
+      readonly response: { readonly receipt: WorkspaceImmutableSnapshotReceiptV1 };
     };
     expect(prepared).toMatchObject({ requestId: 3, ok: true });
 
@@ -1408,24 +1408,24 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
 
     await runtime.receiveControl(controlRequestV1(3, {
-      method: "capture_review_head",
+      method: "capture_stable_head",
       workspaceSessionId,
     }));
     expect(lastV1(controls)).toMatchObject({
       requestId: 3,
       ok: true,
       response: {
-        method: "capture_review_head",
+        method: "capture_stable_head",
         snapshot: { checkpointId: "checkpoint.1", descriptor: { generation: 1 } },
       },
     });
 
     await runtime.receiveControl(prepareSnapshotRequestV1(4, workspaceSessionId));
     const receipt = (lastV1(controls) as {
-      readonly response: { readonly receipt: ProgramWorkspaceSnapshotReceiptV1 };
+      readonly response: { readonly receipt: WorkspaceImmutableSnapshotReceiptV1 };
     }).response.receipt;
     await runtime.receiveControl(controlRequestV1(5, {
-      method: "capture_review_head",
+      method: "capture_stable_head",
       workspaceSessionId,
     }));
     expect(lastV1(controls)).toMatchObject({
@@ -1459,7 +1459,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       response: { method: "resume_snapshot_publication", receipt },
     });
     await runtime.receiveControl(controlRequestV1(10, {
-      method: "capture_review_head",
+      method: "capture_stable_head",
       workspaceSessionId,
     }));
     expect(lastV1(controls)).toMatchObject({
@@ -1479,13 +1479,13 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       response: { method: "discard_snapshot", result: "discarded" },
     });
     await runtime.receiveControl(controlRequestV1(12, {
-      method: "capture_review_head",
+      method: "capture_stable_head",
       workspaceSessionId,
     }));
     expect(lastV1(controls)).toMatchObject({
       requestId: 12,
       ok: true,
-      response: { method: "capture_review_head" },
+      response: { method: "capture_stable_head" },
     });
     await runtime.dispose();
   });
@@ -1568,7 +1568,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     releaseSnapshot();
     await prepare;
     const prepared = lastV1(controls) as {
-      readonly response: { readonly receipt: ProgramWorkspaceSnapshotReceiptV1 };
+      readonly response: { readonly receipt: WorkspaceImmutableSnapshotReceiptV1 };
     };
     expect(prepared).toMatchObject({
       requestId: 7,

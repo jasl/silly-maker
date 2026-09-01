@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "programId": "sillyos.translation",
+  "packageVersion": "1.0.0",
+  "harnessCompatibility": "sillyos.program-harness.v1",
+  "runtimeProfile": "agent.translation.v1",
+  "name": "Translation",
+  "summary": "A reviewable, format-aware translation workbench.",
+  "instructionsPath": "prompts/translate.md",
+  "settingsSchemaPath": null,
+  "settingsDefaultsPath": "settings.defaults.json",
+  "initialUiPath": "initial-ui.json",
+  "scripts": [],
+  "capabilityIds": [
+    "agent.text",
+    "translation.batch"
+  ]
+}

@@ -3,7 +3,7 @@ import { ArrowLeft, LayoutGrid, MessageCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
-import type { SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
+import type { SillyOsThemeModeV1 } from "../application/preferences/browser-product-preferences-repository.ts";
 import { IconButtonV1 } from "./design-system/button.tsx";
 import { SillyOsBrandV1 } from "./product-chrome.tsx";
 import { ProductMenuV1 } from "./product-menu.tsx";

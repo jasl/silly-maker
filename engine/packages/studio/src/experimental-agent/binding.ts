@@ -37,7 +37,7 @@ function admitSceneActionsInternalV1(
   }
   const actions: Record<string, SceneAuthoringOperationV1> = {};
   for (const actionId of actionIds) {
-    if (actionId.length > 128 || !actionIdPatternInternalV1.test(actionId)) {
+    if (!actionIdPatternInternalV1.test(actionId)) {
       throw new TypeError(`Experimental Agent action ID is invalid: ${actionId}`);
     }
     const admitted = admitSceneAuthoringOperationV1(value[actionId]);
@@ -59,7 +59,6 @@ export function admitExperimentalEmbeddedAgentBindingInternalV1(
   input: ExperimentalEmbeddedAgentBindingInputInternalV1,
 ): ExperimentalEmbeddedAgentBindingInternalV1 {
   if (
-    input.configurationId.length > 96 ||
     !configurationIdPatternInternalV1.test(input.configurationId)
   ) {
     throw new TypeError("Experimental Agent configuration ID is invalid");

@@ -49,12 +49,12 @@ describe("SillyOS shared composer reasoning effort", () => {
       />,
     );
 
-    const trigger = screen.getByRole("combobox", { name: "Agent Creator reasoning effort" });
+    const trigger = screen.getByRole("combobox", { name: "Program Agent reasoning effort" });
     expect(trigger.closest("[data-model-picker-surface]"))
       .toHaveAttribute("data-model-picker-surface", "home");
 
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
-    expect(screen.getByRole("listbox", { name: "Agent Creator reasoning effort" }))
+    expect(screen.getByRole("listbox", { name: "Program Agent reasoning effort" }))
       .toBeVisible();
     fireEvent.keyDown(trigger, { key: "End" });
     fireEvent.keyDown(trigger, { key: "Enter" });
@@ -73,8 +73,8 @@ describe("SillyOS shared composer reasoning effort", () => {
       />,
     );
 
-    expect(screen.getByRole("combobox", { name: "Agent Creator model" })).toBeEnabled();
-    expect(screen.getByRole("combobox", { name: "Agent Creator reasoning effort" }))
+    expect(screen.getByRole("combobox", { name: "Program Agent model" })).toBeEnabled();
+    expect(screen.getByRole("combobox", { name: "Program Agent reasoning effort" }))
       .toBeDisabled();
 
     view.rerender(
@@ -88,8 +88,8 @@ describe("SillyOS shared composer reasoning effort", () => {
         }}
       />,
     );
-    expect(screen.getByRole("combobox", { name: "Agent Creator model" })).toBeEnabled();
-    expect(screen.getByRole("combobox", { name: "Agent Creator reasoning effort" }))
+    expect(screen.getByRole("combobox", { name: "Program Agent model" })).toBeEnabled();
+    expect(screen.getByRole("combobox", { name: "Program Agent reasoning effort" }))
       .toBeDisabled();
   });
 
@@ -97,8 +97,8 @@ describe("SillyOS shared composer reasoning effort", () => {
     const onSelect = vi.fn();
     render(<ComposerModelPickerV1 {...propsV1({ disabled: true, onSelect })} />);
 
-    const model = screen.getByRole("combobox", { name: "Agent Creator model" });
-    const reasoning = screen.getByRole("combobox", { name: "Agent Creator reasoning effort" });
+    const model = screen.getByRole("combobox", { name: "Program Agent model" });
+    const reasoning = screen.getByRole("combobox", { name: "Program Agent reasoning effort" });
     expect(model).toHaveTextContent("Claude Sonnet 5");
     expect(model).toBeDisabled();
     expect(reasoning).toBeDisabled();

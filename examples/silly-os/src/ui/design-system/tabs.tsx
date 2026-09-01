@@ -19,7 +19,7 @@ export interface TabsPropsV1 {
   readonly labels?: { readonly tabList?: string };
 }
 
-/** Compact controlled tabs with roving focus for product workpiece views. */
+/** Compact controlled tabs with roving focus for product-defined views. */
 export function TabsV1({
   tabs,
   value,
@@ -34,7 +34,7 @@ export function TabsV1({
         data-slot="tabs-list"
         className={cnV1("sos-tabs__list", listClassName)}
         role="tablist"
-        aria-label={labels?.tabList ?? "Workpiece views"}
+        aria-label={labels?.tabList ?? "View tabs"}
       >
         {tabs.map((tab) => (
           <button

@@ -7,7 +7,6 @@ import {
   createWriteTool,
 } from "./pi-workspace-runtime-bridge.js";
 
-import { creatorAgentFinalReplyMaximumCharactersV1 } from "../product/contracts.ts";
 import {
   type WorkspaceExecutionDescriptorV1,
   type WorkspaceMutationRecordV1,
@@ -22,11 +21,12 @@ import {
   resolveBrowserPiReasoningEffortV1,
 } from "./browser-pi-provider-runtime-bridge.js";
 import { createDeterministicPiAgentV1 } from "./browser-pi-runtime-bridge.js";
-import { loadBrowserBundledProgramPackageV1 } from "./browser-bundled-program-package-loader.ts";
+import type { BrowserProgramExecutionLoaderV1 } from "./browser-program-execution-loader.ts";
 import type {
-  BrowserBundledProgramHarnessToolIdV1,
-  BrowserBundledProgramPackageV1,
-} from "./browser-bundled-program-package.ts";
+  BrowserProgramExecutionV1,
+  BrowserProgramHarnessToolIdV1,
+} from "./browser-program-runtime-profile.ts";
+import { stageBrowserProgramWorkspaceScriptsV1 } from "./browser-program-workspace-scripts.ts";
 import {
   admitBrowserPiWorkerSessionRequestV1,
   admitBrowserPiWorkerInboundMessageV1,
@@ -88,13 +88,14 @@ interface ActivePiRunV1 {
   readonly workspaceRun: BrowserWorkspaceAgentRunV1;
   readonly workspaceSessionId: string;
   readonly admittedWorkspaceGeneration: number;
+  readonly processId: string;
   readonly programId: string;
   readonly workspaceId: string;
   readonly networkAbort: AbortController;
   sequence: number;
   draft: string;
   readonly dispatch: BrowserPiAgentDispatchV1;
-  readonly programPackage: BrowserBundledProgramPackageV1;
+  readonly programExecution: BrowserProgramExecutionV1;
   candidate: object | null;
   candidateFailure:
     | "candidate_invalid"
@@ -122,7 +123,7 @@ export interface BrowserPiWorkerRuntimePortV1 {
 }
 
 interface BrowserPiNetworkAccessCacheV1 {
-  readonly programId: string;
+  readonly processId: string;
   readonly workspaceSessionId: string;
   readonly enabled: boolean;
 }
@@ -165,15 +166,24 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   readonly providerFetch: BrowserPiProviderFetchV1;
   readonly probeProviderSelection?: typeof probeBrowserPiProviderSelectionV1;
   readonly createProviderAgent?: typeof createBrowserPiProviderAgentV1;
-  readonly loadBundledProgramPackage?: typeof loadBrowserBundledProgramPackageV1;
+  readonly loadProgramExecution?: (
+    dispatch: BrowserPiAgentDispatchV1,
+  ) => Promise<BrowserProgramExecutionV1 | null>;
+  /** Production composition supplies an owned exact-package/profile loader. */
+  readonly programExecutionLoader?: BrowserProgramExecutionLoaderV1;
   readonly downloadOuterDeadlineMilliseconds?: number;
   readonly credentialHandoffDeadlineMilliseconds?: number;
 }): BrowserPiWorkerRuntimePortV1 {
   const probeProviderSelection = input.probeProviderSelection ??
     probeBrowserPiProviderSelectionV1;
   const createProviderAgent = input.createProviderAgent ?? createBrowserPiProviderAgentV1;
-  const loadBundledProgramPackage = input.loadBundledProgramPackage ??
-    loadBrowserBundledProgramPackageV1;
+  if (input.loadProgramExecution !== undefined && input.programExecutionLoader !== undefined) {
+    throw new TypeError("Program execution loader has multiple owners");
+  }
+  const loadProgramExecution = input.loadProgramExecution ?? input.programExecutionLoader?.load;
+  if (loadProgramExecution === undefined) {
+    throw new TypeError("Program execution loader is required");
+  }
   const downloadOuterDeadlineMilliseconds = input.downloadOuterDeadlineMilliseconds ??
     browserPiDownloadOuterDeadlineMillisecondsV1;
   const credentialHandoffDeadlineMilliseconds = input.credentialHandoffDeadlineMilliseconds ??
@@ -204,6 +214,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   let activeRun: ActivePiRunV1 | null = null;
   let workspaceClient: BrowserWorkspaceEnvironmentClientV1 | null = null;
   let workspacePhase: "open" | "closed" = "closed";
+  let workspaceProcessId: string | null = null;
   let networkClient: BrowserNetworkBrokerClientV1 | null = null;
   let networkAccessCache: BrowserPiNetworkAccessCacheV1 | null = null;
   let operationQueue = Promise.resolve();
@@ -413,7 +424,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     ) throw new Error("Agent run was cancelled");
     const access = networkAccessCache;
     if (
-      access === null || access.programId !== run.programId ||
+      access === null || access.processId !== run.processId ||
       access.workspaceSessionId !== run.workspaceSessionId || !access.enabled
     ) throw new Error(piNetworkDisabledErrorCodeV1);
     const url = normalizeBrowserNetworkUrlV1(rawUrl);
@@ -515,7 +526,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   };
 
   const createRun = async (
-    programPackage: BrowserBundledProgramPackageV1,
+    programExecution: BrowserProgramExecutionV1,
     dispatch: BrowserPiAgentDispatchV1,
     execution: BrowserPiWorkerExecutionBindingV1,
     sessionId: string,
@@ -534,14 +545,29 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       return null;
     }
     const begun = await client.beginAgentRun({
-      binding: execution,
+      binding: {
+        revision: 1,
+        programId: execution.programId,
+        workspaceId: execution.workspaceId,
+        workspaceSessionId: execution.workspaceSessionId,
+        expectedGeneration: execution.expectedGeneration,
+      },
       piSessionId: sessionId,
       piRunId: runId,
     });
     if (begun.kind !== "started") return null;
     const workspaceRun = begun.run;
+    try {
+      await stageBrowserProgramWorkspaceScriptsV1({
+        run: workspaceRun,
+        scripts: programExecution.workspaceScripts,
+      });
+    } catch {
+      await workspaceRun.abortAndDrain().catch(() => undefined);
+      return null;
+    }
     let run!: ActivePiRunV1;
-    const createWorkspaceToolV1 = (toolId: BrowserBundledProgramHarnessToolIdV1) => {
+    const createWorkspaceToolV1 = (toolId: BrowserProgramHarnessToolIdV1) => {
       switch (toolId) {
         case "read":
           return bindPiWorkspaceReadToolV1(createReadTool(), workspaceRun);
@@ -566,12 +592,16 @@ export function createBrowserPiWorkerRuntimeV1(input: {
           throw new TypeError(`Unknown Program Workspace tool: ${String(toolId)}`);
       }
     };
+    const runtimeProfile = programExecution.runtimeProfile;
+    const invocation = programExecution.invocation;
     const workspaceTools = createBrowserPiWorkspaceToolsV1(
-      programPackage.harnessToolIds.map((toolId) => () => createWorkspaceToolV1(toolId)),
+      runtimeProfile.harnessToolIds.map((toolId) => () => createWorkspaceToolV1(toolId)),
     );
     const agentInput = {
-      dispatch,
-      programPackage,
+      instructions: programExecution.instructions,
+      runtimeProfile,
+      invocation,
+      harnessToolIds: runtimeProfile.harnessToolIds,
       workspaceTools,
       reasoningEffort: resolveBrowserPiReasoningEffortV1(selection, preferredReasoningEffort),
       onCandidate(value: unknown): void {
@@ -582,7 +612,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
           run.candidateFailure = "candidate_duplicate";
           throw new Error("Only one Agent completion candidate is allowed");
         }
-        const admitted = programPackage.admitCandidate(value, dispatch);
+        const admitted = invocation.admitCandidate(value);
         if (admitted.kind === "rejected") {
           run.candidateFailure = admitted.failure;
           throw new TypeError(`Invalid Agent completion candidate: ${admitted.failure}`);
@@ -590,11 +620,11 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         run.candidate = admitted.candidate;
       },
       onTextDelta(delta: string): void {
-        if (!programPackage.publishTextDeltas) return;
+        if (invocation.textOutput.kind === "discard") return;
         if (
           activeRun !== run || run.terminal || run.requestedFailure !== null || delta.length === 0
         ) return;
-        if (run.draft.length + delta.length > creatorAgentFinalReplyMaximumCharactersV1) {
+        if (run.draft.length + delta.length > invocation.textOutput.maximumCharacters) {
           void requestRunFailure(run, "draft_limit");
           return;
         }
@@ -607,14 +637,16 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       const runNumber = Number(runId.slice(runId.lastIndexOf(".") + 1));
       if (runtime === "deterministic_test") {
         agent = createDeterministicPiAgentV1({
-          dispatch,
-          programPackage,
+          instructions: agentInput.instructions,
+          runtimeProfile,
+          invocation,
+          harnessToolIds: runtimeProfile.harnessToolIds,
           workspaceTools: agentInput.workspaceTools,
           reasoningEffort: agentInput.reasoningEffort,
           onCandidate: agentInput.onCandidate,
           onTextDelta: agentInput.onTextDelta,
           runNumber,
-        });
+        }) as PiAgentPortV1;
       } else {
         agent = createProviderAgent({
           ...agentInput,
@@ -632,10 +664,11 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       runId,
       agent,
       dispatch,
-      programPackage,
+      programExecution,
       workspaceRun,
       workspaceSessionId: execution.workspaceSessionId,
       admittedWorkspaceGeneration: execution.expectedGeneration,
+      processId: execution.processId,
       programId: execution.programId,
       workspaceId: execution.workspaceId,
       networkAbort: new AbortController(),
@@ -666,7 +699,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       respondRpcFailure(requestId, "session_mismatch");
       return;
     }
-    if (dispatch.programId !== execution.programId) {
+    if (dispatch.workspaceProgramId !== execution.programId) {
       respondRpcFailure(requestId, "invalid_request");
       return;
     }
@@ -674,6 +707,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     const client = workspaceClient;
     const descriptorBeforeDrain = client?.getDescriptor() ?? null;
     const matchesCurrentWorkspace = workspacePhase === "open" && descriptorBeforeDrain !== null &&
+      workspaceProcessId === execution.processId &&
       descriptorBeforeDrain.programId === execution.programId &&
       descriptorBeforeDrain.workspaceId === execution.workspaceId &&
       descriptorBeforeDrain.workspaceSessionId === execution.workspaceSessionId;
@@ -696,6 +730,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     const descriptorAfterDrain = workspaceClient?.getDescriptor() ?? null;
     if (
       descriptorAfterDrain === null ||
+      workspaceProcessId !== execution.processId ||
       descriptorAfterDrain.programId !== execution.programId ||
       descriptorAfterDrain.workspaceId !== execution.workspaceId ||
       descriptorAfterDrain.workspaceSessionId !== execution.workspaceSessionId
@@ -709,20 +744,20 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         ...execution,
         expectedGeneration: descriptorAfterDrain.generation,
       });
-    let programPackage: BrowserBundledProgramPackageV1 | null;
+    let programExecution: BrowserProgramExecutionV1 | null;
     try {
-      programPackage = await loadBundledProgramPackage(dispatch.harnessReference);
+      programExecution = await loadProgramExecution(dispatch);
     } catch {
       respondRpcFailure(requestId, "program_package_unavailable");
       return;
     }
-    if (programPackage === null) {
-      respondRpcFailure(requestId, "invalid_request");
+    if (programExecution === null) {
+      respondRpcFailure(requestId, "program_package_unavailable");
       return;
     }
     const runId = `sillyos.run.${String(nextRunId++)}`;
     const run = await createRun(
-      programPackage,
+      programExecution,
       dispatch,
       effectiveExecution,
       request.params.sessionId,
@@ -740,8 +775,9 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       ok: true,
       response: Object.freeze({ kind: "submitted", runId }),
     }));
-    const promptText = run.programPackage.createUserPrompt(dispatch);
-    run.settlement = Promise.resolve().then(() => settleRun(run, promptText));
+    run.settlement = Promise.resolve().then(() =>
+      settleRun(run, run.programExecution.invocation.userPrompt)
+    );
   };
 
   type WorkspaceRequestV1 = Extract<
@@ -778,6 +814,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         descriptor,
         onMutationRecord: handleMutationRecordV1,
       });
+      workspaceProcessId = record.descriptor.processId;
       workspacePhase = "open";
       networkAccessCache = null;
       post(Object.freeze({
@@ -811,6 +848,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         await requestRunFailure(run, "cancelled");
       }
       workspacePhase = "closed";
+      workspaceProcessId = null;
       networkAccessCache = null;
       post(Object.freeze({
         revision: 1,
@@ -839,13 +877,13 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     }
     if (record.method === "replace_network_access") {
       if (
-        workspacePhase !== "open" || descriptor.programId !== record.programId
+        workspacePhase !== "open" || workspaceProcessId !== record.processId
       ) {
         respondWorkspaceFailure(message.requestId, "workspace_mismatch");
         return;
       }
       networkAccessCache = Object.freeze({
-        programId: record.programId,
+        processId: record.processId,
         workspaceSessionId: record.workspaceSessionId,
         enabled: record.enabled,
       });
@@ -1457,6 +1495,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       configuredSelection = null;
       configuredPreferredReasoningEffort = null;
       connectionReady = false;
+      workspaceProcessId = null;
       networkAccessCache = null;
       networkClient?.close();
       networkClient = null;
@@ -1472,6 +1511,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       workspacePhase = "closed";
       workspaceClient?.dispose();
       workspaceClient = null;
+      void input.programExecutionLoader?.dispose();
     },
   };
 }

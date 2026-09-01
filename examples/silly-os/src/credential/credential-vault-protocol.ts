@@ -52,7 +52,6 @@ export type CredentialVaultFailureCodeV2 =
   | "invalid_passphrase"
   | "binding_conflict"
   | "binding_missing"
-  | "capacity_exceeded"
   | "storage_unavailable"
   | "quota_exceeded"
   | "schema_invalid"
@@ -136,8 +135,8 @@ function isWireIdentifierV2(value: unknown): value is string {
 function isFailureCodeV2(value: unknown): value is CredentialVaultFailureCodeV2 {
   return value === "locked" || value === "invalid_state" ||
     value === "invalid_passphrase" || value === "binding_conflict" ||
-    value === "binding_missing" || value === "capacity_exceeded" ||
-    value === "storage_unavailable" || value === "quota_exceeded" ||
+    value === "binding_missing" || value === "storage_unavailable" ||
+    value === "quota_exceeded" ||
     value === "schema_invalid" || value === "crypto_failed" ||
     value === "handoff_failed" || value === "wire_invalid";
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 import type { BrowserPiModelSelectionV1 } from "../agent/browser-pi-worker-protocol.ts";
-import type { BrowserProviderBuiltinModelRefV1 } from "../product/browser-provider-settings-repository.ts";
+import type { BrowserProviderBuiltinModelRefV1 } from "../application/preferences/browser-provider-settings-repository.ts";
 import {
   credentialVaultBindingsEqualV2,
   type CredentialVaultBindingV2,

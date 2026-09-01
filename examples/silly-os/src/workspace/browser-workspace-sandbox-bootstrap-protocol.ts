@@ -2,7 +2,7 @@
 
 export const browserWorkspaceSandboxBootstrapRevisionV1 = 1 as const;
 
-const sandboxBootstrapIdentityPatternV1 = /^[A-Za-z0-9][A-Za-z0-9._:+-]{0,127}$/u;
+const sandboxBootstrapIdentityPatternV1 = /^[A-Za-z0-9][A-Za-z0-9._:+-]*$/u;
 
 export interface BrowserWorkspaceSandboxFrameReadyV1 {
   readonly revision: 1;

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "surface": "translation.intake.v1",
+  "locales": {
+    "en": {
+      "title": "Start translating",
+      "description": "Import one source file. SillyOS detects its structure, preserves the original, and prepares stable units before the Agent runs.",
+      "dropLabel": "Drop a TXT, Markdown, SRT, JSON, or born-digital PDF here",
+      "formatNote": "Structure is confirmed after import; unsupported files are not sent to the model.",
+      "chooseFileLabel": "Choose file"
+    },
+    "zh-CN": {
+      "title": "开始翻译",
+      "description": "导入一个源文件。SillyOS 会先识别结构、保留原件并生成稳定条目，之后才让 Agent 工作。",
+      "dropLabel": "拖入 TXT、Markdown、SRT、JSON 或文字型 PDF",
+      "formatNote": "导入后再确认结构；不支持的文件不会直接交给模型。",
+      "chooseFileLabel": "选择文件"
+    }
+  }
+}

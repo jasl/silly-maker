@@ -54,7 +54,7 @@ describe("Browser Workspace Sandbox bootstrap protocol", () => {
     }
   });
 
-  it("rejects malformed identities, symbols, accessors, and failure codes", () => {
+  it("rejects malformed identity syntax, symbols, accessors, and failure codes", () => {
     expect(
       admitBrowserWorkspaceSandboxFrameReadyV1({
         revision: 1,
@@ -63,14 +63,15 @@ describe("Browser Workspace Sandbox bootstrap protocol", () => {
         buildIdentity: buildIdentityV1,
       }),
     ).toBeNull();
+    const longBuildIdentity = "x".repeat(256);
     expect(
       admitBrowserWorkspaceSandboxFrameReadyV1({
         revision: 1,
         kind: "workspace_sandbox_frame_ready",
         nonce: nonceV1,
-        buildIdentity: "x".repeat(129),
+        buildIdentity: longBuildIdentity,
       }),
-    ).toBeNull();
+    ).toMatchObject({ buildIdentity: longBuildIdentity });
     expect(
       admitBrowserWorkspaceSandboxFrameFailedV1({
         revision: 1,

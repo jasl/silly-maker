@@ -585,7 +585,7 @@ async function saveProviderCredentialAndReturnHomeV1(
 ): Promise<void> {
   await openProviderSelectionV1(page, profile);
   await saveProviderCredentialV1(page, credential);
-  await page.getByRole("button", { name: "Back to Agent Creator" }).click();
+  await page.getByRole("button", { name: "Back to Program Agent" }).click();
   await page.locator('[data-silly-os-view="home"]').waitFor();
   await page.locator('[data-pi-agent-runtime="pi_provider"]').waitFor({ state: "detached" });
   await waitForPiWorkerCountV1(page, 1);
@@ -759,7 +759,7 @@ async function qualifyBrowserV1(
       requestPhase = null;
       await page.getByRole("button", { name: "Delete saved API key", exact: true }).click();
       await waitForPiWorkerCountV1(page, 0);
-      await page.getByRole("button", { name: "Back to Agent Creator" }).click();
+      await page.getByRole("button", { name: "Back to Program Agent" }).click();
       await page.locator('[data-silly-os-view="home"]').waitFor();
       await page.locator('[data-pi-agent-runtime="pi_provider"]').waitFor({ state: "visible" });
 
@@ -789,7 +789,7 @@ async function qualifyBrowserV1(
         "valid_connection_provider_status_invalid",
       );
       requestPhase = null;
-      await page.getByRole("button", { name: "Back to Agent Creator" }).click();
+      await page.getByRole("button", { name: "Back to Program Agent" }).click();
       await page.locator('[data-silly-os-view="home"]').waitFor();
       await page.locator('[data-pi-agent-runtime="pi_provider"]').waitFor({ state: "detached" });
       await waitForPiWorkerCountV1(page, 1);

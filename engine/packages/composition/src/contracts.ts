@@ -198,12 +198,12 @@ function assertIdentifierV1(id: string, subject: string): void {
     }
   }
   if (
-    id.length === 0 || id.length > 128 || id.trim() !== id ||
+    id.length === 0 || id.trim() !== id ||
     hasControlCharacter
   ) {
     throw new CompositionErrorV1(
       "composition.invalid_definition",
-      `${subject} id must be 1-128 trimmed characters without control characters`,
+      `${subject} id must be non-empty trimmed text without control characters`,
     );
   }
 }

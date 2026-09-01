@@ -15,7 +15,7 @@ import {
   createBrowserProviderSettingsRepositoryV1,
   type BrowserProviderBuiltinModelRefV1,
   type BrowserProviderCustomProfileV1,
-} from "../product/browser-provider-settings-repository.ts";
+} from "../application/preferences/browser-provider-settings-repository.ts";
 
 class MemoryStorageV1 implements Storage {
   readonly values = new Map<string, string>();

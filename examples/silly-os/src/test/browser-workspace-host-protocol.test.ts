@@ -18,8 +18,8 @@ import {
   isBrowserWorkspaceHostNormalizedPathV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
 import {
-  admitProgramWorkspaceSnapshotReceiptV1,
-  programWorkspaceSnapshotReceiptsEqualV1,
+  admitWorkspaceImmutableSnapshotReceiptV1,
+  workspaceImmutableSnapshotReceiptsEqualV1,
 } from "../workspace/contracts.ts";
 
 const anchorV1 = {
@@ -85,9 +85,9 @@ function snapshotReceiptV1(
     workspaceId: anchorV1.workspaceId,
     volumeId: anchorV1.volumeId,
     workspaceFormat: 1,
-    proposalId: "proposal.preview.1",
-    programRevision: 2,
-    baseRepositoryRevision: 4,
+    publicationId: "proposal.preview.1",
+    sourceRevision: 2,
+    baseRevision: 4,
     checkpointId: "checkpoint.preview.3",
     generation: 7,
     fileCount: 3,
@@ -479,18 +479,18 @@ describe("SillyOS Browser Workspace Host protocol", () => {
   });
 
   it("admits the exact target-neutral Program workspace snapshot receipt", () => {
-    const receipt = admitProgramWorkspaceSnapshotReceiptV1(snapshotReceiptV1());
-    const same = admitProgramWorkspaceSnapshotReceiptV1(snapshotReceiptV1());
-    const newer = admitProgramWorkspaceSnapshotReceiptV1(snapshotReceiptV1({ generation: 8 }));
+    const receipt = admitWorkspaceImmutableSnapshotReceiptV1(snapshotReceiptV1());
+    const same = admitWorkspaceImmutableSnapshotReceiptV1(snapshotReceiptV1());
+    const newer = admitWorkspaceImmutableSnapshotReceiptV1(snapshotReceiptV1({ generation: 8 }));
     if (receipt === null || same === null || newer === null) {
       throw new Error("valid snapshot receipt fixture was rejected");
     }
 
     expect(receipt).toMatchObject({ snapshotId: "snapshot.preview.1", archiveBytes: 512 });
-    expect(programWorkspaceSnapshotReceiptsEqualV1(receipt, same)).toBe(true);
-    expect(programWorkspaceSnapshotReceiptsEqualV1(receipt, newer)).toBe(false);
+    expect(workspaceImmutableSnapshotReceiptsEqualV1(receipt, same)).toBe(true);
+    expect(workspaceImmutableSnapshotReceiptsEqualV1(receipt, newer)).toBe(false);
     expect(
-      admitProgramWorkspaceSnapshotReceiptV1(snapshotReceiptV1({ provider: "forbidden" })),
+      admitWorkspaceImmutableSnapshotReceiptV1(snapshotReceiptV1({ provider: "forbidden" })),
     ).toBeNull();
   });
 
@@ -499,11 +499,11 @@ describe("SillyOS Browser Workspace Host protocol", () => {
       method: "prepare_snapshot",
       workspaceSessionId: descriptorV1.workspaceSessionId,
       snapshotId: "snapshot.preview.1",
-      proposalId: "proposal.preview.1",
+      publicationId: "proposal.preview.1",
       expectedCheckpointId: "checkpoint.preview.3",
       expectedGeneration: 7,
-      programRevision: 2,
-      baseRepositoryRevision: 4,
+      sourceRevision: 2,
+      baseRevision: 4,
     } as const;
     expect(
       admitBrowserWorkspaceHostControlRequestV1(controlRequestV1(prepare)),
@@ -511,11 +511,11 @@ describe("SillyOS Browser Workspace Host protocol", () => {
     expect(
       admitBrowserWorkspaceHostControlRequestV1(
         controlRequestV1({
-          method: "capture_review_head",
+          method: "capture_stable_head",
           workspaceSessionId: descriptorV1.workspaceSessionId,
         }),
       ),
-    ).toMatchObject({ record: { method: "capture_review_head" } });
+    ).toMatchObject({ record: { method: "capture_stable_head" } });
     expect(
       admitBrowserWorkspaceHostControlRequestV1(
         controlRequestV1({
@@ -569,7 +569,7 @@ describe("SillyOS Browser Workspace Host protocol", () => {
     });
     expect(
       admitBrowserWorkspaceHostControlOutboundMessageV1(
-        response("capture_review_head", {
+        response("capture_stable_head", {
           snapshot: {
             revision: 1,
             phase: "open",
@@ -582,7 +582,7 @@ describe("SillyOS Browser Workspace Host protocol", () => {
       ),
     ).toMatchObject({
       response: {
-        method: "capture_review_head",
+        method: "capture_stable_head",
         snapshot: { checkpointId: "checkpoint.preview.3" },
       },
     });
@@ -689,16 +689,16 @@ describe("SillyOS Browser Workspace Host protocol", () => {
       method: "prepare_snapshot",
       workspaceSessionId: descriptorV1.workspaceSessionId,
       snapshotId: "snapshot.preview.1",
-      proposalId: "proposal.preview.1",
+      publicationId: "proposal.preview.1",
       expectedCheckpointId: "checkpoint.preview.3",
       expectedGeneration: 7,
-      programRevision: 2,
-      baseRepositoryRevision: 4,
+      sourceRevision: 2,
+      baseRevision: 4,
     } as const;
     for (
       const record of [
-        { ...prepare, baseRepositoryRevision: 0 },
-        { ...prepare, repositoryRevision: 4 },
+        { ...prepare, baseRevision: 0 },
+        { ...prepare, sourceRevision: 0 },
         {
           method: "query_snapshot_candidate",
           workspaceSessionId: descriptorV1.workspaceSessionId,
@@ -789,8 +789,8 @@ describe("SillyOS Browser Workspace Host protocol", () => {
           workspaceSessionId: descriptorV1.workspaceSessionId,
           expectedCheckpointId: "checkpoint.preview.3",
           expectedGeneration: 7,
-          programRevision: 2,
-          repositoryRevision: 4,
+          sourceRevision: 2,
+          baseRevision: 4,
         }),
       ),
     ).toMatchObject({ record: { method: "start_export", expectedGeneration: 7 } });
@@ -803,8 +803,8 @@ describe("SillyOS Browser Workspace Host protocol", () => {
           workspaceSessionId: descriptorV1.workspaceSessionId,
           expectedCheckpointId: "checkpoint.preview.3",
           expectedGeneration: 7,
-          programRevision: 2,
-          repositoryRevision: 4,
+          sourceRevision: 2,
+          baseRevision: 4,
           provider: "forbidden",
         }),
       ),

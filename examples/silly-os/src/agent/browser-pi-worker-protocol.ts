@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-import { admitProgramNetworkAccessV1 } from "../product/program-network-access.ts";
+import { admitProcessNetworkAccessV1 } from "../program-platform/capabilities/process-network-access.ts";
 import { admitCredentialVaultHandoffReadyV2 } from "../credential/credential-vault-protocol.ts";
 import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
 import { isBrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
@@ -147,6 +147,7 @@ export interface BrowserPiWorkerSetReasoningEffortV1 {
 
 export interface BrowserPiWorkerExecutionBindingV1 {
   readonly revision: 1;
+  readonly processId: string;
   readonly programId: string;
   readonly workspaceId: string;
   readonly workspaceSessionId: string;
@@ -189,7 +190,7 @@ export type BrowserPiWorkspaceRequestRecordV1 =
   }
   | {
     readonly method: "replace_network_access";
-    readonly programId: string;
+    readonly processId: string;
     readonly workspaceSessionId: string;
     readonly enabled: boolean;
   };
@@ -461,11 +462,8 @@ export type BrowserPiWorkerSessionRequestV1 =
 
 type DataRecordV1 = Readonly<Record<string, unknown>>;
 
-const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u;
 const credentialMaximumCharactersV1 = 64 * 1024;
-const catalogProviderMaximumV1 = 64;
-const catalogModelsPerProviderMaximumV1 = 2_048;
-const catalogModelsTotalMaximumV1 = 4_096;
 const catalogNameMaximumUtf8BytesV1 = 2_048;
 const catalogModelIdMaximumUtf8BytesV1 = 2_048;
 const catalogBaseUrlMaximumUtf8BytesV1 = 8_192;
@@ -784,7 +782,7 @@ function admitCatalogProviderV1(value: unknown): BrowserPiCatalogProviderWireV1 
       !isBoundedTextV1(provider.baseUrl, catalogBaseUrlMaximumUtf8BytesV1)) ||
     !isCatalogAvailabilityV1(provider.availability)
   ) return null;
-  const rawModels = exactArrayV1(provider.models, catalogModelsPerProviderMaximumV1);
+  const rawModels = exactArrayV1(provider.models, null);
   if (rawModels === null) return null;
   const models: BrowserPiCatalogModelWireV1[] = [];
   const modelIds = new Set<string>();
@@ -815,17 +813,14 @@ export function admitBrowserPiProviderCatalogWireV1(
     catalog === null || catalog.revision !== 1 ||
     !isBrowserPiDistributionIdentityV1(catalog.distribution)
   ) return null;
-  const rawProviders = exactArrayV1(catalog.providers, catalogProviderMaximumV1);
+  const rawProviders = exactArrayV1(catalog.providers, null);
   if (rawProviders === null) return null;
   const providers: BrowserPiCatalogProviderWireV1[] = [];
   const providerIds = new Set<string>();
-  let modelCount = 0;
   for (const rawProvider of rawProviders) {
     const provider = admitCatalogProviderV1(rawProvider);
     if (provider === null || providerIds.has(provider.id)) return null;
     providerIds.add(provider.id);
-    modelCount += provider.models.length;
-    if (modelCount > catalogModelsTotalMaximumV1) return null;
     providers.push(provider);
   }
   return {
@@ -852,18 +847,21 @@ function isNormalizedWorkspacePathV1(value: unknown): value is string {
 function admitExecutionBindingV1(value: unknown): BrowserPiWorkerExecutionBindingV1 | null {
   const binding = exactDataRecordV1(value, [
     "revision",
+    "processId",
     "programId",
     "workspaceId",
     "workspaceSessionId",
     "expectedGeneration",
   ]);
   if (
-    binding === null || binding.revision !== 1 || !isIdentifierV1(binding.programId) ||
+    binding === null || binding.revision !== 1 || !isIdentifierV1(binding.processId) ||
+    !isIdentifierV1(binding.programId) ||
     !isIdentifierV1(binding.workspaceId) || !isIdentifierV1(binding.workspaceSessionId) ||
     !isPositiveSafeIntegerV1(binding.expectedGeneration)
   ) return null;
   return {
     revision: 1,
+    processId: binding.processId,
     programId: binding.programId,
     workspaceId: binding.workspaceId,
     workspaceSessionId: binding.workspaceSessionId,
@@ -904,7 +902,7 @@ function admitWorkspaceRequestRecordV1(value: unknown): BrowserPiWorkspaceReques
   }
   const replaceNetworkAccess = exactDataRecordV1(value, [
     "method",
-    "programId",
+    "processId",
     "workspaceSessionId",
     "enabled",
   ]);
@@ -913,15 +911,15 @@ function admitWorkspaceRequestRecordV1(value: unknown): BrowserPiWorkspaceReques
     replaceNetworkAccess.method === "replace_network_access" &&
     isIdentifierV1(replaceNetworkAccess.workspaceSessionId)
   ) {
-    const admitted = admitProgramNetworkAccessV1({
+    const admitted = admitProcessNetworkAccessV1({
       revision: 1,
-      programId: replaceNetworkAccess.programId,
+      processId: replaceNetworkAccess.processId,
       enabled: replaceNetworkAccess.enabled,
     });
     if (admitted.kind === "rejected") return null;
     return {
       method: "replace_network_access",
-      programId: admitted.value.programId,
+      processId: admitted.value.processId,
       workspaceSessionId: replaceNetworkAccess.workspaceSessionId,
       enabled: admitted.value.enabled,
     };
@@ -1158,7 +1156,7 @@ export function admitBrowserPiWorkerInboundMessageV1(
       const submit = admitBrowserPiAgentDispatchTextV1(request.params.text);
       if (
         execution === null || submit.kind === "rejected" ||
-        execution.programId !== submit.value.programId
+        execution.programId !== submit.value.workspaceProgramId
       ) return null;
       return {
         revision: 1,

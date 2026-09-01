@@ -2,9 +2,12 @@
 
 import type { AgentTool } from "./pi-workspace-runtime-bridge.js";
 
-import type { BrowserPiAgentDispatchV1 } from "./browser-pi-agent-dispatch.ts";
 import type { BrowserPiReasoningEffortV1 } from "./browser-pi-worker-protocol.ts";
-import type { BrowserBundledProgramPackageV1 } from "./browser-bundled-program-package.ts";
+import type {
+  BrowserProgramHarnessToolIdV1,
+  BrowserProgramRuntimeInvocationV1,
+  BrowserProgramRuntimeProfileV1,
+} from "./browser-program-runtime-profile.ts";
 
 export const deterministicCancellationHoldPrefixV1: "Hold this deterministic run until cancelled:";
 export const deterministicPersistenceReadPrefixV1:
@@ -32,8 +35,10 @@ export interface PiAgentPortV1 {
 }
 
 export interface PiAgentRunInputV1 {
-  readonly dispatch: BrowserPiAgentDispatchV1;
-  readonly programPackage: BrowserBundledProgramPackageV1;
+  readonly instructions: string;
+  readonly runtimeProfile: BrowserProgramRuntimeProfileV1;
+  readonly invocation: BrowserProgramRuntimeInvocationV1;
+  readonly harnessToolIds: readonly BrowserProgramHarnessToolIdV1[];
   readonly workspaceTools: readonly AgentTool[];
   readonly onTextDelta: (delta: string) => void;
   readonly onCandidate: (candidate: unknown) => void | Promise<void>;

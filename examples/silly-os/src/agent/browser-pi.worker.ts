@@ -23,13 +23,17 @@ const providerFetchV1 = installBrowserPiProviderFetchGuardV1({
 });
 // Install the guard before importing Pi or any Provider adapter so even a
 // pinned module that captures global fetch at evaluation time sees the guard.
-const runtimeV1 = import("./browser-pi-worker-runtime.ts").then((module) =>
+const runtimeV1 = Promise.all([
+  import("./browser-pi-worker-runtime.ts"),
+  import("../application/program-agent-runtime-composition.ts"),
+]).then(([module, composition]) =>
   module.createBrowserPiWorkerRuntimeV1({
     // DedicatedWorkerGlobalScope.postMessage has no targetOrigin parameter.
     // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
     postMessage: (message) => scopeV1.postMessage(message),
     expectedEndpointOrigin: expectedEndpointOriginV1,
     providerFetch: providerFetchV1,
+    programExecutionLoader: composition.createSillyOsProgramExecutionLoaderV1(),
   })
 );
 

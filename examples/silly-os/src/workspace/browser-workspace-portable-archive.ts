@@ -11,7 +11,7 @@ export const browserWorkspacePortableArchiveManifestMaximumBytesV1 = 1024;
 export const browserWorkspacePortableArchiveSourceChunkMaximumBytesV1 = 1024 * 1024;
 export const browserWorkspacePortableArchiveFileModeV1 = 0o644;
 
-const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u;
 const workspaceEntryPrefixV1 = "workspace/";
 const centralDirectoryHeaderBytesV1 = 46;
 const centralDirectoryZip64ExtraMaximumBytesV1 = 28;
@@ -26,8 +26,8 @@ export interface SillyOsWorkspaceExportManifestV1 {
   readonly workspaceFormat: 1;
   readonly programId: string;
   readonly workspaceId: string;
-  readonly programRevision: number;
-  readonly repositoryRevision: number;
+  readonly sourceRevision: number;
+  readonly baseRevision: number;
   readonly checkpointId: string;
   readonly generation: number;
 }
@@ -146,8 +146,8 @@ function admitManifestV1(raw: SillyOsWorkspaceExportManifestV1): {
     raw === null || typeof raw !== "object" || raw.revision !== 1 ||
     raw.kind !== "sillyos-workspace" || raw.exportFormat !== 1 ||
     raw.workspaceFormat !== 1 || !identifierV1(raw.programId) ||
-    !identifierV1(raw.workspaceId) || !positiveSafeIntegerV1(raw.programRevision) ||
-    !positiveSafeIntegerV1(raw.repositoryRevision) || !identifierV1(raw.checkpointId) ||
+    !identifierV1(raw.workspaceId) || !positiveSafeIntegerV1(raw.sourceRevision) ||
+    !positiveSafeIntegerV1(raw.baseRevision) || !identifierV1(raw.checkpointId) ||
     !positiveSafeIntegerV1(raw.generation)
   ) {
     throw portableArchiveErrorV1(
@@ -162,8 +162,8 @@ function admitManifestV1(raw: SillyOsWorkspaceExportManifestV1): {
     workspaceFormat: 1,
     programId: raw.programId,
     workspaceId: raw.workspaceId,
-    programRevision: raw.programRevision,
-    repositoryRevision: raw.repositoryRevision,
+    sourceRevision: raw.sourceRevision,
+    baseRevision: raw.baseRevision,
     checkpointId: raw.checkpointId,
     generation: raw.generation,
   };

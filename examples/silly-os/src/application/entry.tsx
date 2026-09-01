@@ -5,11 +5,11 @@ import { resolveSillyOsCopyV1 } from "../content/copy.ts";
 import {
   createBrowserProductPreferencesRepositoryV1,
   defaultBrowserProductPreferencesSnapshotV1,
-} from "../product/browser-product-preferences-repository.ts";
+} from "./preferences/browser-product-preferences-repository.ts";
 import {
   applySillyOsDocumentPreferencesV1,
   resolveSillyOsColorSchemeV1,
-} from "../product/browser-product-theme.ts";
+} from "./preferences/browser-product-theme.ts";
 import { sillyOsApplicationV1 } from "./application.tsx";
 
 if (typeof document !== "undefined") {

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   applySillyOsDocumentPreferencesV1,
   resolveSillyOsColorSchemeV1,
-} from "../product/browser-product-theme.ts";
+} from "../application/preferences/browser-product-theme.ts";
 
 describe("SillyOS Browser product theme", () => {
   it("resolves explicit and system modes without persisting a derived scheme", () => {

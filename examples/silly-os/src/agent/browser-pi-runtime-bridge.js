@@ -24,8 +24,6 @@ export const deterministicDownloadDestinationV1 = "/workspace/.sillyos/n2-downlo
 export const deterministicOversizedReadProbeV1 =
   "Verify the qualification workspace rejects an oversized native Pi read.";
 
-const deterministicFinalReplyV1 = "Deterministic test proposal ready.";
-
 function toolResultTextV1(message) {
   if (message?.role !== "toolResult") return null;
   let text = "";
@@ -94,9 +92,8 @@ function createPiAgentV1(input) {
  * The adjacent declaration intentionally exposes only the product's bounded port.
  */
 export function createDeterministicPiAgentV1(input) {
-  const dispatch = input.dispatch;
-  const completionTool = input.programPackage.createCompletionTool({
-    dispatch,
+  const invocation = input.invocation;
+  const completionTool = invocation.createCompletionTool({
     onCandidate: input.onCandidate,
   });
   const faux = fauxProvider({
@@ -104,24 +101,18 @@ export function createDeterministicPiAgentV1(input) {
     tokensPerSecond: 0,
   });
 
-  if ("request" in dispatch) {
+  if (!input.harnessToolIds.includes("write")) {
     faux.setResponses([
       fauxAssistantMessage(
-        fauxToolCall(completionTool.name, {
-          targets: dispatch.request.units.map((unit) => ({
-            unitId: unit.unitId,
-            target: `[deterministic] ${unit.source}`,
-          })),
-          ambiguities: [],
-        }, {
-          id: `sillyos-translation-${input.runNumber}`,
+        fauxToolCall(completionTool.name, invocation.deterministicTest.completionArguments, {
+          id: `sillyos-completion-${input.runNumber}`,
         }),
         { stopReason: "toolUse" },
       ),
-      fauxAssistantMessage("Deterministic translation candidate ready."),
+      fauxAssistantMessage(invocation.deterministicTest.finalReply),
     ]);
     return createPiAgentV1({
-      instructions: input.programPackage.instructions,
+      instructions: input.instructions,
       workspaceTools: input.workspaceTools,
       completionTool,
       onTextDelta: input.onTextDelta,
@@ -131,20 +122,20 @@ export function createDeterministicPiAgentV1(input) {
     });
   }
 
-  const submit = dispatch.submit;
-  const holdForCancellation = submit.text.startsWith(
+  const promptText = invocation.userPrompt;
+  const holdForCancellation = promptText.startsWith(
     deterministicCancellationHoldPrefixV1,
   );
-  const verifyPersistentRead = submit.text.startsWith(
+  const verifyPersistentRead = promptText.startsWith(
     deterministicPersistenceReadPrefixV1,
   );
-  const exerciseEdit = submit.text.startsWith(deterministicEditProbePrefixV1);
-  const exerciseBash = submit.text.startsWith(deterministicBashProbePrefixV1);
-  const exerciseFileOps = submit.text.startsWith(deterministicFileOpsProbePrefixV1);
-  const exerciseGrep = submit.text.startsWith(deterministicGrepProbePrefixV1);
-  const exerciseFetchUrl = submit.text.startsWith(deterministicFetchUrlProbePrefixV1);
-  const exerciseDownload = submit.text.startsWith(deterministicDownloadProbePrefixV1);
-  const verifyOversizedRead = submit.text === deterministicOversizedReadProbeV1;
+  const exerciseEdit = promptText.startsWith(deterministicEditProbePrefixV1);
+  const exerciseBash = promptText.startsWith(deterministicBashProbePrefixV1);
+  const exerciseFileOps = promptText.startsWith(deterministicFileOpsProbePrefixV1);
+  const exerciseGrep = promptText.startsWith(deterministicGrepProbePrefixV1);
+  const exerciseFetchUrl = promptText.startsWith(deterministicFetchUrlProbePrefixV1);
+  const exerciseDownload = promptText.startsWith(deterministicDownloadProbePrefixV1);
+  const verifyOversizedRead = promptText === deterministicOversizedReadProbeV1;
   const roundTripPath = "/workspace/.sillyos/p3a-round-trip.txt";
   const bashRoundTripPath = "/workspace/.sillyos/p3a-bash-round-trip.txt";
   const bashRoundTripText = "SillyOS native bash checkpoint\n";
@@ -161,7 +152,7 @@ export function createDeterministicPiAgentV1(input) {
     { stopReason: "toolUse" },
   );
   const proposalResponse = fauxAssistantMessage(
-    fauxToolCall(completionTool.name, { requirement: submit.text }, {
+    fauxToolCall(completionTool.name, invocation.deterministicTest.completionArguments, {
       id: `sillyos-tool-${input.runNumber}`,
     }),
     { stopReason: "toolUse" },
@@ -187,7 +178,7 @@ export function createDeterministicPiAgentV1(input) {
   const bashSetupResponse = fauxAssistantMessage(
     fauxToolCall("write", {
       path: roundTripPath,
-      content: submit.text,
+      content: promptText,
     }, {
       id: `sillyos-bash-setup-${input.runNumber}`,
     }),
@@ -227,7 +218,7 @@ export function createDeterministicPiAgentV1(input) {
   const grepSetupResponse = fauxAssistantMessage(
     fauxToolCall("write", {
       path: roundTripPath,
-      content: submit.text,
+      content: promptText,
     }, {
       id: `sillyos-grep-setup-${input.runNumber}`,
     }),
@@ -246,7 +237,7 @@ export function createDeterministicPiAgentV1(input) {
   );
   const fetchUrlResponse = fauxAssistantMessage(
     fauxToolCall("fetch_url", {
-      url: submit.text.slice(deterministicFetchUrlProbePrefixV1.length),
+      url: promptText.slice(deterministicFetchUrlProbePrefixV1.length),
     }, {
       id: `sillyos-fetch-url-${input.runNumber}`,
     }),
@@ -254,7 +245,7 @@ export function createDeterministicPiAgentV1(input) {
   );
   const downloadResponse = fauxAssistantMessage(
     fauxToolCall("download", {
-      url: submit.text.slice(deterministicDownloadProbePrefixV1.length),
+      url: promptText.slice(deterministicDownloadProbePrefixV1.length),
       destination: deterministicDownloadDestinationV1,
     }, {
       id: `sillyos-download-${input.runNumber}`,
@@ -286,7 +277,7 @@ export function createDeterministicPiAgentV1(input) {
         }
         return proposalResponse;
       },
-      fauxAssistantMessage(deterministicFinalReplyV1),
+      fauxAssistantMessage(invocation.deterministicTest.finalReply),
     ]);
   } else if (exerciseFetchUrl) {
     faux.setResponses([
@@ -312,7 +303,7 @@ export function createDeterministicPiAgentV1(input) {
         }
         return proposalResponse;
       },
-      fauxAssistantMessage(deterministicFinalReplyV1),
+      fauxAssistantMessage(invocation.deterministicTest.finalReply),
     ]);
   } else if (exerciseFileOps) {
     faux.setResponses([
@@ -330,7 +321,7 @@ export function createDeterministicPiAgentV1(input) {
         }
         return proposalResponse;
       },
-      fauxAssistantMessage(deterministicFinalReplyV1),
+      fauxAssistantMessage(invocation.deterministicTest.finalReply),
     ]);
   } else if (exerciseGrep) {
     faux.setResponses([
@@ -341,7 +332,7 @@ export function createDeterministicPiAgentV1(input) {
           message.role === "toolResult" && message.toolName === "grep"
         );
         const actual = toolResultTextV1(result);
-        const expected = `${roundTripPath}:1:${submit.text}`;
+        const expected = `${roundTripPath}:1:${promptText}`;
         const details = result?.role === "toolResult" ? result.details : null;
         if (
           result?.role !== "toolResult" || result.isError || actual !== expected ||
@@ -353,7 +344,7 @@ export function createDeterministicPiAgentV1(input) {
         }
         return proposalResponse;
       },
-      fauxAssistantMessage(deterministicFinalReplyV1),
+      fauxAssistantMessage(invocation.deterministicTest.finalReply),
     ]);
   } else if (exerciseBash) {
     faux.setResponses([
@@ -382,10 +373,10 @@ export function createDeterministicPiAgentV1(input) {
         }
         return proposalResponse;
       },
-      fauxAssistantMessage(deterministicFinalReplyV1),
+      fauxAssistantMessage(invocation.deterministicTest.finalReply),
     ]);
   } else if (verifyPersistentRead || verifyOversizedRead) {
-    const expected = submit.text.slice(deterministicPersistenceReadPrefixV1.length);
+    const expected = promptText.slice(deterministicPersistenceReadPrefixV1.length);
     faux.setResponses([
       readResponse,
       (context) => {
@@ -405,7 +396,7 @@ export function createDeterministicPiAgentV1(input) {
         }
         return proposalResponse;
       },
-      fauxAssistantMessage(deterministicFinalReplyV1),
+      fauxAssistantMessage(invocation.deterministicTest.finalReply),
     ]);
   } else {
     const readAfterEditResponse = (context) => {
@@ -427,7 +418,7 @@ export function createDeterministicPiAgentV1(input) {
         message.role === "toolResult" && message.toolName === "read"
       );
       const actual = toolResultTextV1(result);
-      if (result?.role !== "toolResult" || result.isError || actual !== submit.text) {
+      if (result?.role !== "toolResult" || result.isError || actual !== promptText) {
         throw new Error("Workspace read did not match the exact submitted bytes");
       }
       return proposalResponse;
@@ -436,7 +427,7 @@ export function createDeterministicPiAgentV1(input) {
       fauxAssistantMessage(
         fauxToolCall("write", {
           path: roundTripPath,
-          content: exerciseEdit ? editMarker + submit.text : submit.text,
+          content: exerciseEdit ? editMarker + promptText : promptText,
         }, {
           id: `sillyos-write-${input.runNumber}`,
         }),
@@ -460,12 +451,12 @@ export function createDeterministicPiAgentV1(input) {
         : readResponse,
       ...(exerciseEdit ? [readAfterEditResponse] : []),
       proposalAfterReadResponse,
-      fauxAssistantMessage(deterministicFinalReplyV1),
+      fauxAssistantMessage(invocation.deterministicTest.finalReply),
     ]);
   }
 
   return createPiAgentV1({
-    instructions: input.programPackage.instructions,
+    instructions: input.instructions,
     workspaceTools: input.workspaceTools,
     completionTool,
     onTextDelta: input.onTextDelta,

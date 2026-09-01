@@ -1,35 +1,25 @@
 // SPDX-License-Identifier: MIT
 
-import { admitCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
-import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
-import { bundledCreatorProgramCompatibilityReferenceV1 } from "../product/program-process-repository.ts";
 import {
-  admitTranslationBatchRequestV1,
-  type TranslationBatchRequestV1,
-} from "../product/translation/translation-batch-protocol.ts";
-import { translationProgramHarnessReferenceV1 } from "../product/translation/translation-program-definition.ts";
+  admitInstalledProgramPackageReferenceV1,
+  type InstalledProgramPackageReferenceV1,
+} from "../program-platform/package/program-package-archive.ts";
 
-export const creatorProgramHarnessReferenceV1 = bundledCreatorProgramCompatibilityReferenceV1;
-
-export interface BrowserPiCreatorAgentDispatchV1 {
+/**
+ * Generic wire envelope for one exact Process-pinned Program execution.
+ *
+ * The Agent transport deliberately does not understand the payload. The
+ * build-known runtime profile selected by application composition owns its
+ * admission, prompt projection, completion protocol, and output budgets.
+ */
+export interface BrowserPiAgentDispatchV1 {
   readonly revision: 1;
-  readonly harnessReference: typeof creatorProgramHarnessReferenceV1;
-  readonly programId: string;
-  readonly submit: CreatorAgentSubmitV1;
+  readonly runtimeProfile: string;
+  readonly programPackage: InstalledProgramPackageReferenceV1;
+  /** Program identity owned by the Process Workspace; it may differ from the executing package. */
+  readonly workspaceProgramId: string;
+  readonly payload: unknown;
 }
-
-export interface BrowserPiTranslationAgentDispatchV1 {
-  readonly revision: 1;
-  readonly harnessReference: typeof translationProgramHarnessReferenceV1;
-  readonly programId: string;
-  /** Exact completion envelope selected while the immutable batch was planned. */
-  readonly requestedOutputTokens: number;
-  readonly request: TranslationBatchRequestV1;
-}
-
-export type BrowserPiAgentDispatchV1 =
-  | BrowserPiCreatorAgentDispatchV1
-  | BrowserPiTranslationAgentDispatchV1;
 
 export type BrowserPiAgentDispatchAdmissionResultV1 =
   | { readonly kind: "admitted"; readonly value: BrowserPiAgentDispatchV1 }
@@ -37,7 +27,7 @@ export type BrowserPiAgentDispatchAdmissionResultV1 =
 
 type DataRecordV1 = Readonly<Record<string, unknown>>;
 
-const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u;
 
 function exactRecordV1(value: unknown, keys: readonly string[]): DataRecordV1 | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
@@ -55,55 +45,31 @@ export function admitBrowserPiAgentDispatchV1(
 ): BrowserPiAgentDispatchAdmissionResultV1 {
   const discriminator = exactRecordV1(value, [
     "revision",
-    "harnessReference",
-    "programId",
-    "submit",
-  ]) ?? exactRecordV1(value, [
-    "revision",
-    "harnessReference",
-    "programId",
-    "requestedOutputTokens",
-    "request",
+    "runtimeProfile",
+    "programPackage",
+    "workspaceProgramId",
+    "payload",
   ]);
   if (
     discriminator === null || discriminator.revision !== 1 ||
-    !isIdentifierV1(discriminator.programId)
+    !isIdentifierV1(discriminator.runtimeProfile) ||
+    !isIdentifierV1(discriminator.workspaceProgramId)
   ) return { kind: "rejected" };
 
-  if (discriminator.harnessReference === creatorProgramHarnessReferenceV1) {
-    const admitted = admitCreatorAgentSubmitV1(discriminator.submit);
-    if (
-      admitted.kind === "rejected" || admitted.value.programId !== discriminator.programId
-    ) return { kind: "rejected" };
-    return {
-      kind: "admitted",
-      value: {
-        revision: 1,
-        harnessReference: creatorProgramHarnessReferenceV1,
-        programId: admitted.value.programId,
-        submit: admitted.value,
-      },
-    };
-  }
-
-  if (discriminator.harnessReference !== translationProgramHarnessReferenceV1) {
+  let programPackage: InstalledProgramPackageReferenceV1;
+  try {
+    programPackage = admitInstalledProgramPackageReferenceV1(discriminator.programPackage);
+  } catch {
     return { kind: "rejected" };
   }
-  if (
-    typeof discriminator.requestedOutputTokens !== "number" ||
-    !Number.isSafeInteger(discriminator.requestedOutputTokens) ||
-    discriminator.requestedOutputTokens <= 0
-  ) return { kind: "rejected" };
-  const admittedRequest = admitTranslationBatchRequestV1(discriminator.request);
-  if (admittedRequest.kind === "rejected") return { kind: "rejected" };
   return {
     kind: "admitted",
     value: {
       revision: 1,
-      harnessReference: translationProgramHarnessReferenceV1,
-      programId: discriminator.programId,
-      requestedOutputTokens: discriminator.requestedOutputTokens,
-      request: admittedRequest.request,
+      runtimeProfile: discriminator.runtimeProfile,
+      programPackage,
+      workspaceProgramId: discriminator.workspaceProgramId,
+      payload: discriminator.payload,
     },
   };
 }
@@ -119,39 +85,15 @@ export function admitBrowserPiAgentDispatchTextV1(
   }
 }
 
-function serializeDispatchV1(value: BrowserPiAgentDispatchV1): string {
-  const admitted = admitBrowserPiAgentDispatchV1(value);
-  if (admitted.kind === "rejected") {
+export function serializeBrowserPiAgentDispatchV1(value: BrowserPiAgentDispatchV1): string {
+  let text: string;
+  try {
+    text = JSON.stringify(value);
+  } catch {
     throw new TypeError("sillyos.browser_pi_agent_dispatch.invalid");
   }
-  return JSON.stringify(admitted.value);
-}
-
-export function serializeBrowserPiCreatorAgentDispatchV1(input: {
-  readonly executionCompatibilityReference: string;
-  readonly submit: CreatorAgentSubmitV1;
-}): string {
-  return serializeDispatchV1({
-    revision: 1,
-    harnessReference: input
-      .executionCompatibilityReference as typeof creatorProgramHarnessReferenceV1,
-    programId: input.submit.programId,
-    submit: input.submit,
-  });
-}
-
-export function serializeBrowserPiTranslationAgentDispatchV1(input: {
-  readonly executionCompatibilityReference: string;
-  readonly programId: string;
-  readonly requestedOutputTokens: number;
-  readonly request: TranslationBatchRequestV1;
-}): string {
-  return serializeDispatchV1({
-    revision: 1,
-    harnessReference: input
-      .executionCompatibilityReference as typeof translationProgramHarnessReferenceV1,
-    programId: input.programId,
-    requestedOutputTokens: input.requestedOutputTokens,
-    request: input.request,
-  });
+  if (admitBrowserPiAgentDispatchTextV1(text).kind === "rejected") {
+    throw new TypeError("sillyos.browser_pi_agent_dispatch.invalid");
+  }
+  return text;
 }

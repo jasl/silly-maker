@@ -7,7 +7,7 @@ export const browserNetworkDownloadChunkMaximumBytesV1 = 1 * 1_024 * 1_024;
 export const browserNetworkDownloadTotalMaximumBytesV1 = 32 * 1_024 * 1_024;
 export const browserNetworkDownloadContentTypeMaximumBytesV1 = 512;
 
-const requestIdPatternV1 = /^[A-Za-z0-9][A-Za-z0-9._:+-]{0,127}$/u;
+const requestIdPatternV1 = /^[A-Za-z0-9][A-Za-z0-9._:+-]*$/u;
 
 export interface BrowserNetworkDownloadRequestV1 {
   readonly revision: 1;

@@ -11,7 +11,7 @@ import type {
   BrowserWorkspaceHostLockLeaseV1,
   BrowserWorkspaceHostLockPortV1,
 } from "../workspace/browser-workspace-host-opfs.ts";
-import type { ProgramWorkspaceSnapshotReceiptV1 } from "../workspace/contracts.ts";
+import type { WorkspaceImmutableSnapshotReceiptV1 } from "../workspace/contracts.ts";
 
 type WorkerListenerV1 = (event: Readonly<{ data: unknown }>) => void;
 type WorkerFailureListenerV1 = (event: Event) => void;
@@ -30,8 +30,8 @@ class FakeWorkerV1 {
   readonly importRecords: Readonly<Record<string, unknown>>[] = [];
   readonly importTransfers: Transferable[][] = [];
   startExportPhase: "open" | "closed" = "open";
-  preparedSnapshot: ProgramWorkspaceSnapshotReceiptV1 | null = null;
-  retainedSnapshot: ProgramWorkspaceSnapshotReceiptV1 | null = null;
+  preparedSnapshot: WorkspaceImmutableSnapshotReceiptV1 | null = null;
+  retainedSnapshot: WorkspaceImmutableSnapshotReceiptV1 | null = null;
   terminated = false;
 
   postMessage(message: unknown, transfer: Transferable[] = []): void {
@@ -82,16 +82,16 @@ class FakeWorkerV1 {
         workspaceId: anchor.workspaceId,
         volumeId: anchor.volumeId,
         workspaceFormat: 1,
-        proposalId: request.record.proposalId as string,
-        programRevision: request.record.programRevision as number,
-        baseRepositoryRevision: request.record.baseRepositoryRevision as number,
+        publicationId: request.record.publicationId as string,
+        sourceRevision: request.record.sourceRevision as number,
+        baseRevision: request.record.baseRevision as number,
         checkpointId: request.record.expectedCheckpointId as string,
         generation: request.record.expectedGeneration as number,
         fileCount: 3,
         archiveBytes: 512,
       };
     }
-    const expected = request.record.expected as ProgramWorkspaceSnapshotReceiptV1 | undefined;
+    const expected = request.record.expected as WorkspaceImmutableSnapshotReceiptV1 | undefined;
     const exactPrepared = this.preparedSnapshot?.snapshotId === expected?.snapshotId;
     const exactRetained = this.retainedSnapshot?.snapshotId === expected?.snapshotId;
     const adoptResult = exactPrepared ? "adopted" : "already_retained";
@@ -276,8 +276,8 @@ function exportInputV1(
     workspaceSessionId: "workspace-session.preview.1",
     expectedCheckpointId: "checkpoint.preview.1",
     expectedGeneration: 1,
-    programRevision: 1,
-    repositoryRevision: 1,
+    sourceRevision: 1,
+    baseRevision: 1,
     fileName: "workspace-test.sillyos.zip",
     signal,
     onReady,
@@ -484,11 +484,11 @@ describe("SillyOS Browser Workspace Host page port", () => {
     const receipt = await port.prepareSnapshot({
       workspaceSessionId: "workspace-session.preview.1",
       snapshotId: "snapshot.preview.1",
-      proposalId: "proposal.preview.1",
+      publicationId: "proposal.preview.1",
       expectedCheckpointId: "checkpoint.preview.1",
       expectedGeneration: 1,
-      programRevision: 2,
-      baseRepositoryRevision: 4,
+      sourceRevision: 2,
+      baseRevision: 4,
     });
 
     expect(receipt).toEqual({
@@ -498,9 +498,9 @@ describe("SillyOS Browser Workspace Host page port", () => {
       workspaceId: "workspace.preview.1",
       volumeId: "volume.preview.1",
       workspaceFormat: 1,
-      proposalId: "proposal.preview.1",
-      programRevision: 2,
-      baseRepositoryRevision: 4,
+      publicationId: "proposal.preview.1",
+      sourceRevision: 2,
+      baseRevision: 4,
       checkpointId: "checkpoint.preview.1",
       generation: 1,
       fileCount: 3,
@@ -510,7 +510,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
       port.querySnapshotCandidate("workspace-session.preview.1"),
     ).resolves.toEqual(receipt);
     await expect(
-      port.captureReviewHead("workspace-session.preview.1"),
+      port.captureStableHead("workspace-session.preview.1"),
     ).resolves.toMatchObject({
       checkpointId: receipt.checkpointId,
       descriptor: { generation: receipt.generation },
@@ -557,7 +557,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
     expect(worker.methods).toEqual([
       "prepare_snapshot",
       "query_snapshot_candidate",
-      "capture_review_head",
+      "capture_stable_head",
       "resume_snapshot_publication",
       "query_retained_snapshot",
       "adopt_snapshot",
@@ -578,11 +578,11 @@ describe("SillyOS Browser Workspace Host page port", () => {
     const receipt = await port.prepareSnapshot({
       workspaceSessionId: "workspace-session.preview.1",
       snapshotId: "snapshot.discard.1",
-      proposalId: "proposal.preview.1",
+      publicationId: "proposal.preview.1",
       expectedCheckpointId: "checkpoint.preview.1",
       expectedGeneration: 1,
-      programRevision: 2,
-      baseRepositoryRevision: 4,
+      sourceRevision: 2,
+      baseRevision: 4,
     });
     await expect(port.discardSnapshot({
       workspaceSessionId: "workspace-session.preview.1",
@@ -599,11 +599,11 @@ describe("SillyOS Browser Workspace Host page port", () => {
     const input = {
       workspaceSessionId: "workspace-session.preview.1",
       snapshotId: "snapshot.preview.1",
-      proposalId: "proposal.preview.1",
+      publicationId: "proposal.preview.1",
       expectedCheckpointId: "checkpoint.preview.1",
       expectedGeneration: 1,
-      programRevision: 2,
-      baseRepositoryRevision: 4,
+      sourceRevision: 2,
+      baseRevision: 4,
     } as const;
     const expected = {
       revision: 1,
@@ -612,9 +612,9 @@ describe("SillyOS Browser Workspace Host page port", () => {
       workspaceId: "workspace.preview.1",
       volumeId: "volume.preview.1",
       workspaceFormat: 1,
-      proposalId: input.proposalId,
-      programRevision: input.programRevision,
-      baseRepositoryRevision: input.baseRepositoryRevision,
+      publicationId: input.publicationId,
+      sourceRevision: input.sourceRevision,
+      baseRevision: input.baseRevision,
       checkpointId: input.expectedCheckpointId,
       generation: input.expectedGeneration,
       fileCount: 3,
@@ -629,7 +629,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
         ["discard_snapshot", "outcome_unknown"],
         ["query_snapshot_candidate", "unavailable"],
         ["query_retained_snapshot", "unavailable"],
-        ["capture_review_head", "unavailable"],
+        ["capture_stable_head", "unavailable"],
       ] as const
     ) {
       const worker = new FakeWorkerV1();
@@ -655,7 +655,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
         ? port.querySnapshotCandidate(input.workspaceSessionId)
         : method === "query_retained_snapshot"
         ? port.queryRetainedSnapshot({ workspaceSessionId: input.workspaceSessionId, expected })
-        : port.captureReviewHead(input.workspaceSessionId);
+        : port.captureStableHead(input.workspaceSessionId);
       await Promise.resolve();
       worker.fail("messageerror");
 
@@ -665,14 +665,14 @@ describe("SillyOS Browser Workspace Host page port", () => {
     }
 
     const throwingWorker = new FakeWorkerV1();
-    throwingWorker.throwMethods.add("capture_review_head");
+    throwingWorker.throwMethods.add("capture_stable_head");
     const throwingPort = createBrowserWorkspaceHostPagePortV1({
       transport: throwingWorker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
     });
     const fatals: unknown[] = [];
     throwingPort.subscribeFatal((fatal) => fatals.push(fatal));
-    await expect(throwingPort.captureReviewHead(input.workspaceSessionId)).rejects.toMatchObject({
+    await expect(throwingPort.captureStableHead(input.workspaceSessionId)).rejects.toMatchObject({
       code: "unavailable",
     });
     expect(fatals).toEqual([{ code: "unavailable" }]);

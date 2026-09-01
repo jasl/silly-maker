@@ -310,7 +310,7 @@ class PluginScopeV1 implements CompositionPluginScopeV1 {
     }
     if (
       entry === null || typeof entry !== "object" || entryId.length === 0 ||
-      entryId.length > 128 || entryId.trim() !== entryId ||
+      entryId.trim() !== entryId ||
       hasControlCharacter
     ) {
       throw new CompositionErrorV1(

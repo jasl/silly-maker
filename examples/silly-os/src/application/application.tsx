@@ -1,11 +1,66 @@
 // SPDX-License-Identifier: MIT
 import type { WebGuiApplicationV1 } from "@sillymaker/web/gui-application";
+import { type ReactNode, useEffect, useSyncExternalStore } from "react";
 
-import { createBrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
-import { createBrowserProgramDataRepositoryV1 } from "../product/browser-program-data-repository.ts";
-import { createCreatorControllerV1 } from "../product/creator-controller.ts";
-import { createTranslationProcessControllerV1 } from "../product/translation/translation-process-controller.ts";
+import { createBrowserProgramDataRepositoryV1 } from "../application/persistence/browser-program-data-repository.ts";
 import { SillyOsAppV1, type SillyOsAgentDrainRegistryV1 } from "../ui/silly-os-app.tsx";
+import {
+  createBrowserProgramPackageServiceV1,
+  sillyOsProgramPackageZipDecodeOptionsV1,
+} from "./program-composition.ts";
+import {
+  createBrowserProgramWorkspaceAuthorityV1,
+  type BrowserProgramWorkspaceAuthorityHostV1,
+} from "./workspace/browser-program-workspace-authority.ts";
+import type { ProgramPackageServiceV1 } from "../program-platform/installation/program-package-service.ts";
+import {
+  createSillyOsProgramControllerOwnerV1,
+  type SillyOsProgramControllerOwnerV1,
+} from "./program-controller-owner.ts";
+import { loadSillyOsProgramRuntimeControllerAdapterV1 } from "./program-runtime-composition.ts";
+
+function SillyOsProductBootstrapV1({
+  programControllers,
+  workspaceAuthority,
+  programPackages,
+  agentDrainRegistry,
+  reportFailure,
+}: {
+  readonly programControllers: SillyOsProgramControllerOwnerV1;
+  readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityHostV1;
+  readonly programPackages: ProgramPackageServiceV1;
+  readonly agentDrainRegistry: SillyOsAgentDrainRegistryV1;
+  readonly reportFailure: (code: string, error: unknown) => void;
+}): ReactNode {
+  const runtime = useSyncExternalStore(
+    programControllers.subscribe,
+    programControllers.getSnapshot,
+    programControllers.getSnapshot,
+  );
+  useEffect(() => {
+    void programControllers.initialize().catch((error: unknown) => {
+      reportFailure("silly_os.program_packages_initialize_failed", error);
+    });
+  }, [programControllers, reportFailure]);
+
+  return (
+    <SillyOsAppV1
+      activeProgram={runtime.activeProgram}
+      readOnlyConversationController={runtime.readOnlyConversation}
+      workspaceAuthority={workspaceAuthority}
+      programPackages={programPackages}
+      programPackageZipDecodeOptions={sillyOsProgramPackageZipDecodeOptionsV1}
+      onLaunchProgramPackage={programControllers.launch}
+      listRecentProcesses={programControllers.listRecentProcesses}
+      onOpenRecentProcess={programControllers.openRecentProcess}
+      onOpenProgramLibrary={programControllers.openLibrary}
+      onCloseReadOnlyProcess={programControllers.closeReadOnlyProcess}
+      activeProgramRoute={runtime.activeRoute}
+      agentDrainRegistry={agentDrainRegistry}
+      reportFailure={reportFailure}
+    />
+  );
+}
 
 export interface SillyOsAgentDrainOwnerV1 {
   readonly registry: SillyOsAgentDrainRegistryV1;
@@ -104,39 +159,38 @@ export const sillyOsApplicationV1: WebGuiApplicationV1 = {
   ui: ({ reportFailure }) => {
     const repository = createBrowserProgramDataRepositoryV1();
     const workspaceAuthority = createBrowserProgramWorkspaceAuthorityV1({ repository });
-    const controller = createCreatorControllerV1({
-      repository,
-      workspace: workspaceAuthority,
-      onWorkspaceReleaseFailure: (error) => {
-        reportFailure("silly_os.browser_workspace_temporary_close_failed", error);
-      },
-    });
-    const translationController = createTranslationProcessControllerV1({
-      repository,
-      workspace: workspaceAuthority,
-    });
+    const programPackages = createBrowserProgramPackageServiceV1();
     const agentDrainOwner = createSillyOsAgentDrainOwnerV1(reportFailure);
+    const programControllers = createSillyOsProgramControllerOwnerV1({
+      repository,
+      workspace: workspaceAuthority,
+      packages: programPackages,
+      loadRuntimeControllerAdapter: loadSillyOsProgramRuntimeControllerAdapterV1,
+      reportFailure,
+    });
     let disposalPromise: Promise<void> | null = null;
     const disposeProduct = (): Promise<void> => {
-      disposalPromise ??= disposeSillyOsProductV1({
-        agentDrainOwner,
-        controller: {
-          async dispose() {
-            translationController.dispose();
-            await controller.dispose();
-          },
-        },
-        workspaceAuthority,
-        reportFailure,
-      });
+      disposalPromise ??= (async () => {
+        await disposeSillyOsProductV1({
+          agentDrainOwner,
+          controller: programControllers,
+          workspaceAuthority,
+          reportFailure,
+        });
+        try {
+          await programPackages.dispose();
+        } catch (error) {
+          reportFailure("silly_os.program_packages_dispose_failed", error);
+        }
+      })();
       return disposalPromise;
     };
     return {
       content: (
-        <SillyOsAppV1
-          controller={controller}
-          translationController={translationController}
+        <SillyOsProductBootstrapV1
+          programControllers={programControllers}
           workspaceAuthority={workspaceAuthority}
+          programPackages={programPackages}
           agentDrainRegistry={agentDrainOwner.registry}
           reportFailure={reportFailure}
         />

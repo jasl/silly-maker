@@ -42,4 +42,25 @@ describe("Experimental embedded Agent binding admission", () => {
       })
     ).toThrowError(/must contain string keys/u);
   });
+
+  it("does not impose a semantic length ceiling on trusted binding identifiers", () => {
+    const suffix = "segment".repeat(40);
+    const actionId = `action.${suffix}`;
+    const binding = admitExperimentalEmbeddedAgentBindingInternalV1({
+      configurationId: `agent.${suffix}`,
+      createClient: unusedClientV1,
+      sceneActions: {
+        [actionId]: {
+          schemaRevision: 2,
+          kind: "scene.object.set_appearance",
+          objectId: "tag.test.hero",
+          key: "expression",
+          value: "ready",
+        },
+      },
+    });
+
+    expect(binding.configurationId).toBe(`agent.${suffix}`);
+    expect(binding.allowedActionIds).toEqual([actionId]);
+  });
 });

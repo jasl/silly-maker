@@ -1,0 +1,75 @@
+/* SPDX-License-Identifier: MIT */
+
+.read-only-process-conversation {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 0;
+  color: var(--sos-ink);
+  background: var(--sos-bg);
+}
+
+.read-only-process-conversation__degradation {
+  flex: none;
+  margin: 0;
+  padding: var(--silly-space-2) var(--silly-space-4);
+  color: var(--sos-ink-muted);
+  border-block-end: 1px solid var(--sos-line);
+  background: var(--sos-surface);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.read-only-process-conversation__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  min-inline-size: 0;
+  padding: var(--silly-space-2) var(--silly-space-4);
+  gap: var(--silly-space-3);
+  border-block-end: 1px solid var(--sos-line);
+  background: var(--sos-surface-raised);
+}
+
+.read-only-process-conversation__identity {
+  display: flex;
+  align-items: baseline;
+  min-inline-size: 0;
+  gap: var(--silly-space-2);
+}
+
+.read-only-process-conversation__identity > span {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.read-only-process-conversation__identity > code {
+  overflow: hidden;
+  color: var(--sos-ink-muted);
+  font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.read-only-process-conversation__feed {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+
+.read-only-process-conversation__feed > .chat-pane {
+  block-size: 100%;
+}
+
+@media (width <= 767px) {
+  .read-only-process-conversation__header {
+    padding-inline: var(--silly-space-3);
+  }
+
+  .read-only-process-conversation__identity {
+    display: grid;
+    gap: 1px;
+  }
+}
