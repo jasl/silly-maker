@@ -61,6 +61,42 @@ describe("Translation Program settings", () => {
     expect(JSON.parse(resolved.admittedProcessOverrideJson ?? "null")).toEqual(processOverride);
   });
 
+  it("canonicalizes valid target tags and falls back from invalid or source-only targets", () => {
+    const canonical = resolveTranslationProgramSettingsV1({
+      processOverrideJson: JSON.stringify(completeSettingsV1({ targetLocale: "zh-tw" })),
+    });
+    expect(canonical.effective.targetLocale).toBe("zh-TW");
+    expect(JSON.parse(canonical.admittedProcessOverrideJson ?? "null").targetLocale).toBe(
+      "zh-TW",
+    );
+
+    for (const targetLocale of ["auto", "not a locale"]) {
+      const resolved = resolveTranslationProgramSettingsV1({
+        processOverrideJson: JSON.stringify(completeSettingsV1({ targetLocale })),
+      });
+      expect(resolved.effective.targetLocale).toBe("en");
+      expect(resolved.admittedProcessOverrideJson).toBeNull();
+      expect(resolved.diagnostics).toContainEqual({
+        source: "process_override",
+        code: "invalid_document",
+        path: "/targetLocale",
+      });
+    }
+
+    const invalidProgramDefault = resolveTranslationProgramSettingsV1({
+      programDefaultsJson: JSON.stringify(completeSettingsV1({ targetLocale: "auto" })),
+    });
+    expect(invalidProgramDefault.effective).toEqual({
+      targetLocale: "en",
+      defaultStyle: "Natural dialogue.",
+    });
+    expect(invalidProgramDefault.diagnostics).toContainEqual({
+      source: "program_defaults",
+      code: "invalid_document",
+      path: "/targetLocale",
+    });
+  });
+
   it("falls back as a whole instead of blocking on malformed JSON", () => {
     const malformedDefaults = resolveTranslationProgramSettingsV1({
       programDefaultsJson: "{not json",

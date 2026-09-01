@@ -4,6 +4,8 @@ export type TranslationDocumentFormatV1 =
   | "plain_text"
   | "markdown"
   | "subrip"
+  | "webvtt"
+  | "advanced_substation_alpha"
   | "sillyos_translation_json"
   /** Born-digital text projection only; no OCR or PDF round-trip exporter. */
   | "pdf_text_reflow"
@@ -31,6 +33,8 @@ export type TranslationCapabilityReasonV1 =
   | "format_hints_conflict"
   | "malformed_markdown"
   | "malformed_subrip"
+  | "malformed_webvtt"
+  | "malformed_advanced_substation_alpha"
   | "malformed_sillyos_translation_json"
   | "non_text_media_type"
   | "protected_token_namespace_collision";
@@ -58,6 +62,8 @@ export interface TranslationSourceUnitV1 {
   readonly context: string | null;
   /** Exact cue duration for timed subtitle units; null for untimed formats. */
   readonly durationMilliseconds: number | null;
+  /** Whether translated text may introduce or remove logical line breaks. */
+  readonly lineBreakPolicy: "forbidden" | "flexible";
   /** Translatable source with immutable structures represented by visible tokens. */
   readonly source: string;
   readonly protectedSegments: readonly TranslationProtectedSegmentV1[];
@@ -143,7 +149,6 @@ interface TokenizedTextV1 {
 interface InternalTranslationUnitV1 extends TranslationSourceUnitV1 {
   readonly start: number;
   readonly end: number;
-  readonly allowLineBreaks: boolean;
   readonly markdown: boolean;
   readonly encodeTarget: (target: string) => string;
 }
@@ -377,7 +382,7 @@ function resolvedProtectedRangesV1(
   addPatternRangesV1(
     ranges,
     text,
-    /<\/?[A-Za-z][^<>\r\n]*\/?>|<(?:https?:\/\/|mailto:)[^<>\r\n]+>/gu,
+    /<\/?[A-Za-z][^<>\r\n]*\/?>|<(?:https?:\/\/|mailto:)[^<>\r\n]+>|<(?:\d{2}:)?\d{2}:\d{2}\.\d{3}>|&(?:amp|lt|gt|lrm|rlm|nbsp);|\{\\[^{}\r\n]+\}|\\[Nnh]/gu,
     "markup_tag",
     60,
   );
@@ -409,7 +414,10 @@ function resolvedProtectedRangesV1(
   return resolved;
 }
 
-function tokenizeTranslatableTextV1(text: string, markdown: boolean): TokenizedTextV1 | null {
+function tokenizeTranslatableTextV1(
+  text: string,
+  markdown: boolean,
+): TokenizedTextV1 | null {
   if (text.includes(protectedTokenNamespaceV1)) return null;
   const ranges = resolvedProtectedRangesV1(text, markdown);
   if (ranges === null) return null;
@@ -575,7 +583,7 @@ function createInternalUnitV1(input: {
   readonly start: number;
   readonly end: number;
   readonly markdown: boolean;
-  readonly allowLineBreaks: boolean;
+  readonly lineBreakPolicy: TranslationSourceUnitV1["lineBreakPolicy"];
   readonly context?: string;
   readonly durationMilliseconds?: number;
   readonly encodeTarget?: (target: string) => string;
@@ -592,7 +600,7 @@ function createInternalUnitV1(input: {
     protectedSegments: tokenized.protectedSegments,
     start: input.start,
     end: input.end,
-    allowLineBreaks: input.allowLineBreaks,
+    lineBreakPolicy: input.lineBreakPolicy,
     markdown: input.markdown,
     encodeTarget: input.encodeTarget ?? ((target) => target),
   };
@@ -621,9 +629,84 @@ function createLineUnitV1(input: {
     start: input.line.start + prefixLength + leading,
     end: input.line.start + prefixLength + trailing,
     markdown: input.markdown,
-    allowLineBreaks: false,
+    lineBreakPolicy: "forbidden",
     ...timing,
   });
+}
+
+const timedTextSpeakerPrefixPatternV1 =
+  /^([-–—]\s*)?((?=[^:：]*\p{L})[\p{L}\p{N}][\p{L}\p{M}\p{N}'’._ -]*)([:：])(?=\s|$|["'“‘([\p{L}\p{N}])/u;
+
+/**
+ * Projects an author-written timed-text speaker prefix as its own translatable
+ * unit. The surrounding dash, colon, and whitespace remain format-owned bytes,
+ * while ordinary unit coverage makes the speaker name mandatory and lets an
+ * applicable glossary localize it.
+ */
+function createTimedTextUnitsV1(input: {
+  readonly order: number;
+  readonly locator: string;
+  readonly sourceText: string;
+  readonly start: number;
+  readonly durationMilliseconds: number;
+}): readonly InternalTranslationUnitV1[] {
+  const leading = firstNonWhitespaceOffsetV1(input.sourceText);
+  const trailing = trailingWhitespaceOffsetV1(input.sourceText);
+  if (leading >= trailing) return [];
+  const text = input.sourceText.slice(leading, trailing);
+  const absoluteStart = input.start + leading;
+  const prefix = timedTextSpeakerPrefixPatternV1.exec(text);
+  if (prefix === null) {
+    const unit = createInternalUnitV1({
+      order: input.order,
+      locator: input.locator,
+      sourceText: text,
+      start: absoluteStart,
+      end: absoluteStart + text.length,
+      markdown: false,
+      lineBreakPolicy: "forbidden",
+      durationMilliseconds: input.durationMilliseconds,
+    });
+    return unit === null ? [] : [unit];
+  }
+
+  const marker = prefix[1] ?? "";
+  const speaker = prefix[2];
+  if (speaker === undefined) return [];
+  const units: InternalTranslationUnitV1[] = [];
+  const speakerStart = absoluteStart + marker.length;
+  const speakerUnit = createInternalUnitV1({
+    order: input.order,
+    locator: `${input.locator}/speaker`,
+    sourceText: speaker,
+    start: speakerStart,
+    end: speakerStart + speaker.length,
+    markdown: false,
+    lineBreakPolicy: "forbidden",
+    context: "Timed-text speaker name.",
+    durationMilliseconds: input.durationMilliseconds,
+  });
+  if (speakerUnit !== null) units.push(speakerUnit);
+
+  const body = text.slice(prefix[0].length);
+  const bodyLeading = firstNonWhitespaceOffsetV1(body);
+  const bodyTrailing = trailingWhitespaceOffsetV1(body);
+  if (bodyLeading < bodyTrailing) {
+    const bodyStart = absoluteStart + prefix[0].length + bodyLeading;
+    const bodyUnit = createInternalUnitV1({
+      order: input.order + units.length,
+      locator: `${input.locator}/text`,
+      sourceText: body.slice(bodyLeading, bodyTrailing),
+      start: bodyStart,
+      end: absoluteStart + prefix[0].length + bodyTrailing,
+      markdown: false,
+      lineBreakPolicy: "forbidden",
+      context: `Spoken by ${speaker}.`,
+      durationMilliseconds: input.durationMilliseconds,
+    });
+    if (bodyUnit !== null) units.push(bodyUnit);
+  }
+  return units;
 }
 
 function reindexUnitsV1(
@@ -745,14 +828,13 @@ function buildSubRipUnitsV1(text: string): readonly InternalTranslationUnitV1[] 
     if (durationMilliseconds <= 0) return null;
 
     for (const [textLineIndex, line] of textLines.entries()) {
-      const unit = createLineUnitV1({
+      units.push(...createTimedTextUnitsV1({
         order: units.length,
         locator: `cue/${cueNumber}/line/${String(textLineIndex + 1)}`,
-        line,
-        markdown: false,
+        sourceText: line.text,
+        start: line.start,
         durationMilliseconds,
-      });
-      if (unit !== null) units.push(unit);
+      }));
     }
     if (blockIndex === 0 && numberLine.text.startsWith("\uFEFF") && numberLine.start !== 0) {
       return null;
@@ -760,6 +842,176 @@ function buildSubRipUnitsV1(text: string): readonly InternalTranslationUnitV1[] 
   }
 
   return units;
+}
+
+function webVttTimestampMillisecondsV1(timestamp: string): number | null {
+  const match = /^(?:(\d{2,}):)?(\d{2}):(\d{2})\.(\d{3})$/u.exec(timestamp);
+  if (match === null) return null;
+  const [, hourText, minuteText, secondText, millisecondText] = match;
+  if (minuteText === undefined || secondText === undefined || millisecondText === undefined) {
+    return null;
+  }
+  const hour = hourText === undefined ? 0 : Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  if (minute >= 60 || second >= 60) return null;
+  return hour * 3_600_000 + minute * 60_000 + second * 1_000 + Number(millisecondText);
+}
+
+function buildWebVttUnitsV1(text: string): readonly InternalTranslationUnitV1[] | null {
+  const lines = scanTextLinesV1(text);
+  const signature = lines[0];
+  if (
+    signature === undefined || signature.start !== 0 ||
+    !/^\uFEFF?WEBVTT(?:[ \t][^\r\n]*)?$/u.test(signature.text) ||
+    signature.text.includes("-->")
+  ) return null;
+
+  const headerEnd = lines.findIndex((line, index) => index > 0 && line.text.trim() === "");
+  if (headerEnd < 0) return lines.length === 1 ? [] : null;
+  if (lines.slice(1, headerEnd).some((line) => line.text.includes("-->"))) return null;
+
+  const blocks: TextLineV1[][] = [];
+  let current: TextLineV1[] = [];
+  for (const line of lines.slice(headerEnd + 1)) {
+    if (line.text.trim() === "") {
+      if (current.length > 0) blocks.push(current);
+      current = [];
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length > 0) blocks.push(current);
+
+  const units: InternalTranslationUnitV1[] = [];
+  let cueIndex = 0;
+  for (const block of blocks) {
+    const firstLine = block[0];
+    if (firstLine === undefined) continue;
+    if (/^NOTE(?:[ \t].*)?$/u.test(firstLine.text) || /^(?:STYLE|REGION)$/u.test(firstLine.text)) {
+      continue;
+    }
+
+    const timingIndex = firstLine.text.includes("-->") ? 0 : 1;
+    const timingLine = block[timingIndex];
+    const textLines = block.slice(timingIndex + 1);
+    if (timingLine === undefined || textLines.length === 0) return null;
+    if (timingIndex === 1 && firstLine.text.includes("-->")) return null;
+    const timing = /^(\S+)\s+-->\s+(\S+)(?:[ \t]+.*)?$/u.exec(timingLine.text.trim());
+    const cueStart = timing?.[1] === undefined ? null : webVttTimestampMillisecondsV1(timing[1]);
+    const cueEnd = timing?.[2] === undefined ? null : webVttTimestampMillisecondsV1(timing[2]);
+    if (cueStart === null || cueEnd === null || cueEnd <= cueStart) return null;
+
+    cueIndex += 1;
+    const durationMilliseconds = cueEnd - cueStart;
+    for (const [textLineIndex, line] of textLines.entries()) {
+      units.push(...createTimedTextUnitsV1({
+        order: units.length,
+        locator: `cue/${String(cueIndex)}/line/${String(textLineIndex + 1)}`,
+        sourceText: line.text,
+        start: line.start,
+        durationMilliseconds,
+      }));
+    }
+  }
+  return units;
+}
+
+function assTimestampMillisecondsV1(timestamp: string): number | null {
+  const match = /^(\d+):([0-5]\d):([0-5]\d)\.(\d{1,3})$/u.exec(timestamp.trim());
+  if (match === null) return null;
+  const [, hourText, minuteText, secondText, fractionText] = match;
+  if (
+    hourText === undefined || minuteText === undefined || secondText === undefined ||
+    fractionText === undefined
+  ) return null;
+  return Number(hourText) * 3_600_000 + Number(minuteText) * 60_000 +
+    Number(secondText) * 1_000 + Number(fractionText.padEnd(3, "0"));
+}
+
+function assEventFieldsV1(
+  payload: string,
+  fieldCount: number,
+): readonly { readonly value: string; readonly start: number; readonly end: number }[] | null {
+  const fields: { readonly value: string; readonly start: number; readonly end: number }[] = [];
+  let start = 0;
+  for (let index = 0; index < fieldCount - 1; index += 1) {
+    const comma = payload.indexOf(",", start);
+    if (comma < 0) return null;
+    fields.push({ value: payload.slice(start, comma), start, end: comma });
+    start = comma + 1;
+  }
+  fields.push({ value: payload.slice(start), start, end: payload.length });
+  return fields;
+}
+
+function buildAdvancedSubStationAlphaUnitsV1(
+  text: string,
+): readonly InternalTranslationUnitV1[] | null {
+  const lines = scanTextLinesV1(text);
+  let inEvents = false;
+  let sawEvents = false;
+  let eventFormat: readonly string[] | null = null;
+  let dialogueIndex = 0;
+  const units: InternalTranslationUnitV1[] = [];
+
+  for (const line of lines) {
+    const section = /^\s*\[([^\]]+)\]\s*$/u.exec(line.text.replace(/^\uFEFF/u, ""));
+    if (section !== null) {
+      inEvents = section[1]?.trim().toLowerCase() === "events";
+      if (inEvents) {
+        if (sawEvents) return null;
+        sawEvents = true;
+        eventFormat = null;
+      }
+      continue;
+    }
+    if (!inEvents || line.text.trim() === "" || /^\s*;/u.test(line.text)) continue;
+
+    const format = /^\s*Format\s*:\s*(.*)$/iu.exec(line.text);
+    if (format !== null) {
+      const fields = format[1]?.split(",").map((field) => field.trim().toLowerCase()) ?? [];
+      if (
+        fields.length === 0 || fields.some((field) => field.length === 0) ||
+        new Set(fields).size !== fields.length || fields.at(-1) !== "text" ||
+        !fields.includes("start") || !fields.includes("end")
+      ) return null;
+      eventFormat = fields;
+      continue;
+    }
+
+    const dialogue = /^(\s*Dialogue\s*:\s*)(.*)$/iu.exec(line.text);
+    if (dialogue === null) continue;
+    if (eventFormat === null) return null;
+    const prefix = dialogue[1];
+    const payload = dialogue[2];
+    if (prefix === undefined || payload === undefined) return null;
+    const fields = assEventFieldsV1(payload, eventFormat.length);
+    if (fields === null) return null;
+    const startField = fields[eventFormat.indexOf("start")];
+    const endField = fields[eventFormat.indexOf("end")];
+    const textField = fields[eventFormat.length - 1];
+    if (startField === undefined || endField === undefined || textField === undefined) return null;
+    const cueStart = assTimestampMillisecondsV1(startField.value);
+    const cueEnd = assTimestampMillisecondsV1(endField.value);
+    if (cueStart === null || cueEnd === null || cueEnd <= cueStart) return null;
+
+    dialogueIndex += 1;
+    // ASS vector drawings are code, not prose. Keep the complete event payload inert.
+    if (/\{\\p(?:bo)?[1-9]\d*[^{}]*\}/iu.test(textField.value)) continue;
+    const leading = firstNonWhitespaceOffsetV1(textField.value);
+    const trailing = trailingWhitespaceOffsetV1(textField.value);
+    if (leading >= trailing) continue;
+    units.push(...createTimedTextUnitsV1({
+      order: units.length,
+      locator: `dialogue/${String(dialogueIndex)}/text`,
+      sourceText: textField.value.slice(leading, trailing),
+      start: line.start + prefix.length + textField.start + leading,
+      durationMilliseconds: cueEnd - cueStart,
+    }));
+  }
+
+  return sawEvents && eventFormat !== null ? units : null;
 }
 
 function exactKeysV1(value: Record<string, unknown>, keys: readonly string[]): boolean {
@@ -992,7 +1244,7 @@ function buildSillyOsTranslationJsonUnitsV1(
       start: value.start,
       end: value.end,
       markdown: false,
-      allowLineBreaks: true,
+      lineBreakPolicy: "flexible",
       context,
       encodeTarget: (target) => JSON.stringify(target),
     });
@@ -1019,6 +1271,7 @@ function publicSourceUnitsV1(
     locator,
     context,
     durationMilliseconds,
+    lineBreakPolicy,
     source,
     protectedSegments,
   }) => ({
@@ -1027,6 +1280,7 @@ function publicSourceUnitsV1(
     locator,
     context,
     durationMilliseconds,
+    lineBreakPolicy,
     source,
     protectedSegments,
   }));
@@ -1091,7 +1345,7 @@ function exportTranslationV1(
     if (target === undefined) {
       return { kind: "rejected", reason: "missing_unit", unitId: unit.unitId };
     }
-    if (!unit.allowLineBreaks && /[\r\n]/u.test(target.target)) {
+    if (unit.lineBreakPolicy === "forbidden" && /[\r\n]/u.test(target.target)) {
       return { kind: "rejected", reason: "line_break_changed", unitId: unit.unitId };
     }
     const restored = restoreProtectedSegmentsV1(unit, target.target);
@@ -1140,6 +1394,7 @@ function extractionUnitsV1(text: string): readonly TranslationSourceUnitV1[] {
         locator: `line/${String(lineIndex + 1)}`,
         context: null,
         durationMilliseconds: null,
+        lineBreakPolicy: "forbidden",
         source: line.text.slice(leading, trailing),
         protectedSegments: [],
       });
@@ -1170,6 +1425,8 @@ function formatFromFileNameV1(
   if (lower.endsWith(".txt")) return "plain_text";
   if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "markdown";
   if (lower.endsWith(".srt")) return "subrip";
+  if (lower.endsWith(".vtt")) return "webvtt";
+  if (lower.endsWith(".ass")) return "advanced_substation_alpha";
   if (lower.endsWith(".json")) return "sillyos_translation_json";
   return null;
 }
@@ -1185,6 +1442,12 @@ function formatFromMediaTypeV1(
   if (normalized === "text/plain") return "plain_text";
   if (normalized === "text/markdown") return "markdown";
   if (normalized === "application/x-subrip" || normalized === "text/srt") return "subrip";
+  if (normalized === "text/vtt") return "webvtt";
+  if (
+    normalized === "text/x-ass" || normalized === "text/x-ssa" ||
+    normalized === "application/x-ass" || normalized === "application/x-ssa" ||
+    normalized === "application/x-substation-alpha"
+  ) return "advanced_substation_alpha";
   if (normalized === "application/json") return "sillyos_translation_json";
   return null;
 }
@@ -1196,11 +1459,17 @@ function buildKnownFormatUnitsV1(
   if (format === "plain_text") return buildPlainTextUnitsV1(text);
   if (format === "markdown") return buildMarkdownUnitsV1(text);
   if (format === "subrip") return buildSubRipUnitsV1(text);
+  if (format === "webvtt") return buildWebVttUnitsV1(text);
+  if (format === "advanced_substation_alpha") {
+    return buildAdvancedSubStationAlphaUnitsV1(text);
+  }
   return buildSillyOsTranslationJsonUnitsV1(text);
 }
 
 function formatSpecificityV1(format: KnownTranslationDocumentFormatV1): number {
-  if (format === "sillyos_translation_json") return 4;
+  if (format === "sillyos_translation_json") return 6;
+  if (format === "advanced_substation_alpha") return 5;
+  if (format === "webvtt") return 4;
   if (format === "subrip") return 3;
   if (format === "markdown") return 2;
   return 1;
@@ -1211,6 +1480,10 @@ function malformedFormatReasonV1(
 ): Exclude<TranslationCapabilityReasonV1, "known_format"> {
   if (format === "markdown") return "malformed_markdown";
   if (format === "subrip") return "malformed_subrip";
+  if (format === "webvtt") return "malformed_webvtt";
+  if (format === "advanced_substation_alpha") {
+    return "malformed_advanced_substation_alpha";
+  }
   return "malformed_sillyos_translation_json";
 }
 

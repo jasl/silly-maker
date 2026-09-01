@@ -26,6 +26,7 @@ import type {
   BrowserProgramExecutionV1,
   BrowserProgramHarnessToolIdV1,
 } from "./browser-program-runtime-profile.ts";
+import { createBrowserProgramPackageResourceToolV1 } from "./browser-program-package-resource-tool.ts";
 import { stageBrowserProgramWorkspaceScriptsV1 } from "./browser-program-workspace-scripts.ts";
 import {
   admitBrowserPiWorkerSessionRequestV1,
@@ -569,6 +570,8 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     let run!: ActivePiRunV1;
     const createWorkspaceToolV1 = (toolId: BrowserProgramHarnessToolIdV1) => {
       switch (toolId) {
+        case "program_resource":
+          return createBrowserProgramPackageResourceToolV1(programExecution.packageResources);
         case "read":
           return bindPiWorkspaceReadToolV1(createReadTool(), workspaceRun);
         case "write":

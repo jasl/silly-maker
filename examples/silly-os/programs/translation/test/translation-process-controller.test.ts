@@ -23,6 +23,11 @@ import type {
   InstalledProgramPackageReferenceV1,
 } from "../../../src/program-platform/package/program-package-archive.ts";
 import {
+  operationalStructuredPayloadMaximumBytesV1,
+  transcriptEntryUtf8ByteLengthV1,
+  type TranscriptEntryV1,
+} from "../../../src/program-platform/process/program-process-repository.ts";
+import {
   createTranslationPersistenceTestAdapterV1,
   type TranslationPersistenceTestAdapterV1,
 } from "./translation-persistence-test-adapter.ts";
@@ -112,9 +117,9 @@ function createTranslationProcessControllerV1(
   });
 }
 
-function createRepositoryV1(): TestRepositoryV1 {
+function createRepositoryV1(indexedDB = new IDBFactory()): TestRepositoryV1 {
   return createTranslationPersistenceTestAdapterV1({
-    indexedDB: new IDBFactory(),
+    indexedDB,
     keyRange: IDBKeyRange,
   });
 }
@@ -248,6 +253,44 @@ function deterministicIdsV1(prefix = "test"): (purpose: string) => string {
 }
 
 const textEncoderV1 = new TextEncoder();
+const translationInstructionV1 = "Translate the next batch and preserve every meaning fact.";
+
+async function appendConversationEntryV1(
+  repository: TestRepositoryV1,
+  processId: string,
+  body: string,
+): Promise<TranscriptEntryV1> {
+  const process = await repository.loadProcess(processId);
+  if (process === null) throw new Error("missing test Process");
+  const sequence = process.transcriptFrontier + 1;
+  const entryId = `entry.translation.page.${String(sequence)}`;
+  const entry: TranscriptEntryV1 = {
+    schemaVersion: 1,
+    processId,
+    sequence,
+    entryId,
+    role: sequence % 2 === 0 ? "user" : "assistant",
+    state: "committed",
+    parts: [{
+      kind: "text_markdown",
+      partId: `${entryId}.text`,
+      markdown: body,
+    }],
+  };
+  const result = await repository.appendProcessTranscript({
+    processId,
+    expectedProcessRevision: process.revision,
+    expectedTranscriptFrontier: process.transcriptFrontier,
+    commitId: `commit.translation.page.${String(sequence)}`,
+    attemptBinding: null,
+    entries: [entry],
+    checkpoint: null,
+    terminalAttemptReceipt: null,
+    updatedAt: process.updatedAt + 1,
+  });
+  if (result.kind === "conflict") throw new Error("test transcript append conflicted");
+  return entry;
+}
 
 function subtitleDocumentV1(count: number): string {
   return Array.from({ length: count }, (_, index) => {
@@ -255,7 +298,7 @@ function subtitleDocumentV1(count: number): string {
     const second = String(index % 60).padStart(2, "0");
     return `${String(cue)}\n00:00:${second},000 --> 00:00:${second},900\n字幕 ${
       String(cue)
-    }：保持原意。`;
+    }，保持原意。`;
   }).join("\n\n") + "\n";
 }
 
@@ -281,7 +324,6 @@ function translationBatchBudgetV1(): TranslationBatchBudgetV1 {
     maximumRequestBytes: 64 * 1_024,
     maximumOutputTokens: 8_192,
     outputEnvelope: {
-      reasoningReserveTokens: 256,
       fixedCandidateReserveTokens: 128,
       perUnitCandidateReserveTokens: 64,
       targetTokensPerSourceCodePoint: { numerator: 2, denominator: 1 },
@@ -410,6 +452,153 @@ describe("Translation Process Controller", () => {
       workspaceGeneration: 1,
     });
     expect(workspace.createCalls).toEqual([active.process.processId]);
+  });
+
+  it("pages older Conversation entries into a byte-bounded mounted window", async () => {
+    const repository = createRepositoryV1();
+    const workspace = createWorkspacePortV1(repository);
+    const seed = createTranslationProcessControllerV1({
+      repository,
+      workspace,
+      createId: deterministicIdsV1("transcript-pages"),
+      now: () => 10,
+    });
+    await seed.initialize();
+    await seed.createProcess();
+    const processId = seed.getSnapshot().activeProcess!.process.processId;
+    const body = "A".repeat(4_096);
+    const appended: TranscriptEntryV1[] = [];
+    for (let index = 0; index < 4; index += 1) {
+      appended.push(await appendConversationEntryV1(repository, processId, body));
+    }
+    const pageMaximumBytes = Math.max(...appended.map(transcriptEntryUtf8ByteLengthV1));
+    seed.dispose();
+
+    const controller = createTranslationProcessControllerV1({
+      repository,
+      workspace,
+      budgets: {
+        transcriptPageMaximumBytes: pageMaximumBytes,
+        transcriptWindowMaximumBytes: pageMaximumBytes * 2,
+        importAppendMaximumBytes: operationalStructuredPayloadMaximumBytesV1,
+      },
+    });
+    await controller.initialize();
+    await controller.openProcess(processId);
+    expect(controller.getSnapshot().activeProcess?.transcript).toMatchObject({
+      entries: [appended[3]],
+      nextBeforeSequence: appended[3]!.sequence,
+      newerOmitted: false,
+      phase: "ready",
+    });
+
+    expect(await controller.loadOlderTranscript()).toEqual({ kind: "completed", value: true });
+    expect(controller.getSnapshot().activeProcess?.transcript).toMatchObject({
+      entries: [appended[2], appended[3]],
+      newerOmitted: false,
+      phase: "ready",
+    });
+
+    expect(await controller.loadOlderTranscript()).toEqual({ kind: "completed", value: true });
+    expect(controller.getSnapshot().activeProcess?.transcript).toMatchObject({
+      entries: [appended[1], appended[2]],
+      nextBeforeSequence: appended[1]!.sequence,
+      newerOmitted: true,
+      phase: "ready",
+    });
+
+    expect(await controller.reloadLatestTranscript()).toEqual({
+      kind: "completed",
+      value: true,
+    });
+    expect(controller.getSnapshot().activeProcess?.transcript).toMatchObject({
+      entries: [appended[3]],
+      nextBeforeSequence: appended[3]!.sequence,
+      newerOmitted: false,
+      phase: "ready",
+    });
+  });
+
+  it("opens the Conversation when the optional Translation facet is invalid", async () => {
+    const repository = createRepositoryV1();
+    const workspace = createWorkspacePortV1(repository);
+    const seed = createTranslationProcessControllerV1({
+      repository,
+      workspace,
+      createId: deterministicIdsV1("facet-degradation"),
+      now: () => 10,
+    });
+    await seed.initialize();
+    await seed.createProcess();
+    const processId = seed.getSnapshot().activeProcess!.process.processId;
+    seed.dispose();
+
+    repository.loadTranslationWorksetHead = () =>
+      Promise.reject(createProgramDataRepositoryFailureV1(
+        "schema_invalid",
+        "invoke_program_persistence_facet",
+      ));
+    const controller = createTranslationProcessControllerV1({ repository, workspace });
+    await controller.initialize();
+
+    expect(await controller.openProcess(processId)).toEqual({ kind: "completed", value: true });
+    expect(controller.getSnapshot()).toMatchObject({
+      route: "process",
+      activeProcess: {
+        process: { processId },
+        transcript: { entries: [{ role: "system", sequence: 1 }], phase: "ready" },
+        workset: null,
+        pendingCandidate: null,
+      },
+      sourceImport: { phase: "failed", code: "schema_invalid" },
+      durability: { phase: "ready" },
+    });
+  });
+
+  it("does not publish an older Conversation page after its route is superseded", async () => {
+    const repository = createRepositoryV1();
+    const workspace = createWorkspacePortV1(repository);
+    const seed = createTranslationProcessControllerV1({
+      repository,
+      workspace,
+      createId: deterministicIdsV1("transcript-stale"),
+      now: () => 10,
+    });
+    await seed.initialize();
+    await seed.createProcess();
+    const processId = seed.getSnapshot().activeProcess!.process.processId;
+    const newest = await appendConversationEntryV1(repository, processId, "A".repeat(4_096));
+    const pageMaximumBytes = transcriptEntryUtf8ByteLengthV1(newest);
+    seed.dispose();
+    const controller = createTranslationProcessControllerV1({
+      repository,
+      workspace,
+      budgets: {
+        transcriptPageMaximumBytes: pageMaximumBytes,
+        transcriptWindowMaximumBytes: pageMaximumBytes * 2,
+        importAppendMaximumBytes: operationalStructuredPayloadMaximumBytesV1,
+      },
+    });
+    await controller.initialize();
+    await controller.openProcess(processId);
+
+    const loadTranscriptPage = repository.loadTranscriptPage.bind(repository);
+    let releaseOlderPage = (): void => {};
+    const olderPageGate = new Promise<void>((resolve) => {
+      releaseOlderPage = resolve;
+    });
+    repository.loadTranscriptPage = async (input) => {
+      if (input.beforeSequence !== null) await olderPageGate;
+      return await loadTranscriptPage(input);
+    };
+
+    const pending = controller.loadOlderTranscript();
+    expect(controller.getSnapshot().activeProcess?.transcript.phase).toBe("loading_older");
+    expect(controller.openHome()).toBe(true);
+    releaseOlderPage();
+
+    expect(await pending).toEqual({ kind: "failed", code: "superseded" });
+    expect(controller.getSnapshot()).toMatchObject({ route: "home", activeProcess: null });
   });
 
   it("creates fresh isolated Processes for reusable launches and reopens only an exact recent Process", async () => {
@@ -706,8 +895,12 @@ describe("Translation Process Controller", () => {
     if (page.kind === "page") {
       expect(page.page.rows.map((row) => row.order)).toEqual([0, 1]);
       expect(page.page.rows.map((row) => row.source)).toEqual([
-        "字幕 1：保持原意。",
-        "字幕 2：保持原意。",
+        "字幕 1，保持原意。",
+        "字幕 2，保持原意。",
+      ]);
+      expect(page.page.rows.map((row) => row.protectedSegments)).toEqual([
+        [],
+        [],
       ]);
     }
     await expect(controller.loadTranslationRowWindow({
@@ -725,12 +918,111 @@ describe("Translation Process Controller", () => {
         locator: expect.any(String),
         context: null,
         durationMilliseconds: 900,
-        source: "字幕 2：保持原意。",
+        lineBreakPolicy: "forbidden",
+        source: "字幕 2，保持原意。",
         protectedSegments: [],
         target: null,
       }],
       nextOffset: null,
     });
+  });
+
+  it("persists a timed-text speaker and dialogue as separate translatable units", async () => {
+    const repository = createRepositoryV1();
+    const controller = createTranslationProcessControllerV1({
+      repository,
+      workspace: createWorkspacePortV1(repository),
+      createId: deterministicIdsV1("speaker-units"),
+      now: () => 20,
+    });
+    await controller.initialize();
+    await controller.createProcess();
+    const processId = controller.getSnapshot().activeProcess!.process.processId;
+
+    const imported = await controller.importSource({
+      source: {
+        kind: "bytes",
+        fileName: "speaker.srt",
+        mediaType: "application/x-subrip",
+        bytes: textEncoderV1.encode(
+          "1\n00:00:01,000 --> 00:00:03,000\nMina: Keep the receiver close.\n",
+        ),
+      },
+      sourceLocale: "en",
+      targetLocale: "zh-CN",
+    });
+    expect(imported).toMatchObject({
+      kind: "completed",
+      value: { expectedUnitCount: 2, stagedUnitCount: 2 },
+    });
+    if (imported.kind !== "completed") throw new Error("expected completed import");
+
+    const page = await repository.loadTranslationWorksetUnitPage({
+      processId,
+      expectedWorksetRevision: imported.value.revision,
+      fromOrder: 0,
+      maximumRows: 20,
+      maximumBytes: 128 * 1_024,
+    });
+    expect(page).toMatchObject({
+      kind: "page",
+      page: {
+        rows: [
+          {
+            order: 0,
+            locator: "cue/1/line/1/speaker",
+            context: "Timed-text speaker name.",
+            source: "Mina",
+            protectedSegments: [],
+          },
+          {
+            order: 1,
+            locator: "cue/1/line/1/text",
+            context: "Spoken by Mina.",
+            source: "Keep the receiver close.",
+            protectedSegments: [],
+          },
+        ],
+      },
+    });
+  });
+
+  it("canonicalizes a valid target locale and rejects source-only or malformed targets", async () => {
+    const repository = createRepositoryV1();
+    const controller = createTranslationProcessControllerV1({
+      repository,
+      workspace: createWorkspacePortV1(repository),
+      createId: deterministicIdsV1("canonical-target"),
+      now: () => 20,
+    });
+    await controller.initialize();
+    await controller.createProcess();
+
+    const source = {
+      kind: "bytes" as const,
+      fileName: "source.txt",
+      mediaType: "text/plain",
+      bytes: textEncoderV1.encode("Source text.\n"),
+    };
+    expect(
+      await controller.importSource({ source, sourceLocale: "auto", targetLocale: "zh-tw" }),
+    ).toMatchObject({ kind: "completed", value: { targetLocale: "zh-TW" } });
+
+    for (const [index, targetLocale] of ["auto", "not a locale"].entries()) {
+      const isolatedRepository = createRepositoryV1();
+      const next = createTranslationProcessControllerV1({
+        repository: isolatedRepository,
+        workspace: createWorkspacePortV1(isolatedRepository),
+        createId: deterministicIdsV1(`invalid-target-${String(index)}`),
+        now: () => 30,
+      });
+      await next.initialize();
+      await next.createProcess();
+      expect(await next.importSource({ source, sourceLocale: "auto", targetLocale })).toEqual({
+        kind: "failed",
+        code: "invalid_target_locale",
+      });
+    }
   });
 
   it("publishes one pending-review candidate with the Process terminal without accepting rows", async () => {
@@ -757,14 +1049,23 @@ describe("Translation Process Controller", () => {
     });
     if (imported.kind !== "completed") throw new Error("expected ready Process work set");
 
-    const prepared = await controller.prepareAgentBatch(translationBatchBudgetV1());
+    const prepared = await controller.prepareAgentBatch(
+      translationBatchBudgetV1(),
+      translationInstructionV1,
+    );
     if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
       throw new Error(`expected prepared Translation Agent batch: ${JSON.stringify(prepared)}`);
     }
     const { run } = prepared.value;
     expect(run.programPackage).toEqual(translationProgramPackageReferenceV1);
     expect(run.programId).toBe(translationProgramPackageReferenceV1.programId);
+    expect(run.replacesCandidateId).toBeNull();
+    expect(run.instruction).toBe(translationInstructionV1);
     expect(run.batch.units.map((unit) => unit.order)).toEqual([0, 1]);
+    expect(controller.getSnapshot().activeProcess?.transcript.entries.at(-1)).toMatchObject({
+      role: "user",
+      parts: [{ kind: "text_markdown", markdown: translationInstructionV1 }],
+    });
     expect(controller.getSnapshot().activeProcess).toMatchObject({
       workset: { acceptedUnitCount: 0, acceptedBatchCount: 0, pendingCandidateId: null },
       pendingCandidate: null,
@@ -816,7 +1117,9 @@ describe("Translation Process Controller", () => {
       expect.objectContaining({ order: 0, target: null }),
       expect.objectContaining({ order: 1, target: null }),
     ]);
-    expect(await controller.prepareAgentBatch(translationBatchBudgetV1())).toEqual({
+    expect(
+      await controller.prepareAgentBatch(translationBatchBudgetV1(), translationInstructionV1),
+    ).toEqual({
       kind: "completed",
       value: { kind: "pending_review" },
     });
@@ -916,9 +1219,311 @@ describe("Translation Process Controller", () => {
       expect.objectContaining({ order: 0, target: editedTargets[0]!.target }),
       expect.objectContaining({ order: 1, target: editedTargets[1]!.target }),
     ]);
-    expect(await cold.prepareAgentBatch(translationBatchBudgetV1())).toEqual({
+    expect(
+      await cold.prepareAgentBatch(translationBatchBudgetV1(), translationInstructionV1),
+    ).toEqual({
       kind: "completed",
       value: { kind: "complete" },
+    });
+  });
+
+  it("retries one exact pending batch as explicit successor attempts without losing its predecessor", async () => {
+    const repository = createRepositoryV1();
+    let observedAt = 30;
+    const controller = createTranslationProcessControllerV1({
+      repository,
+      workspace: createWorkspacePortV1(repository),
+      createId: deterministicIdsV1("candidate-successor"),
+      now: () => observedAt,
+      processExecutionLeaseDurationMilliseconds: 20,
+    });
+    await controller.initialize();
+    await controller.createProcess();
+    const processId = controller.getSnapshot().activeProcess!.process.processId;
+    const imported = await controller.importSource({
+      source: {
+        kind: "bytes",
+        fileName: "successor.srt",
+        mediaType: "application/x-subrip",
+        bytes: textEncoderV1.encode(subtitleDocumentV1(2)),
+      },
+      sourceLocale: "ja",
+      targetLocale: "en",
+    });
+    if (imported.kind !== "completed") throw new Error("expected ready Process work set");
+
+    const prepared = await controller.prepareAgentBatch(
+      translationBatchBudgetV1(),
+      translationInstructionV1,
+    );
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected initial Translation Agent batch");
+    }
+    const initialRun = prepared.value.run;
+    expect(initialRun.replacesCandidateId).toBeNull();
+    const mechanicallyWrongCandidate = {
+      targets: candidateForRunV1(initialRun).targets.map((target) => ({
+        ...target,
+        target: target.target.replaceAll(/\d+/gu, "missing"),
+      })),
+      ambiguities: [],
+    };
+    const initialTerminal = await controller.recordAgentRunTerminal({
+      run: initialRun,
+      outcome: "completed",
+      candidate: mechanicallyWrongCandidate,
+    });
+    if (
+      initialTerminal.kind !== "completed" || initialTerminal.value.kind !== "persisted" ||
+      initialTerminal.value.candidateId === null
+    ) throw new Error("expected initial pending candidate");
+    const predecessorId = initialTerminal.value.candidateId;
+    const predecessor = await repository.loadTranslationBatchCandidate(processId, predecessorId);
+    if (predecessor === null) throw new Error("expected durable predecessor candidate");
+    expect(predecessor.findings.map((finding) => finding.code)).toContain(
+      "number_tokens_changed",
+    );
+    const reviewTargets = candidateForRunV1(initialRun).targets;
+
+    const activeBeforeInvalidDraft = controller.getSnapshot().activeProcess!;
+    expect(
+      await controller.preparePendingCandidateRetranslation(
+        translationBatchBudgetV1(),
+        {
+          expectedWorksetRevision: activeBeforeInvalidDraft.workset!.revision,
+          candidateId: predecessorId,
+          targets: reviewTargets.map((target, index) =>
+            index === 0 ? { ...target, target: `${target.target}\nforbidden` } : target
+          ),
+          instruction: null,
+        },
+      ),
+    ).toEqual({
+      kind: "completed",
+      value: { kind: "rejected", reason: "candidate_invalid" },
+    });
+    expect(await repository.loadProcess(processId)).toMatchObject({ activeAttempt: null });
+    expect(await repository.loadTranslationBatchCandidate(processId, predecessorId)).toEqual(
+      predecessor,
+    );
+
+    const prepareSuccessorV1 = async () => {
+      observedAt += 1;
+      const active = controller.getSnapshot().activeProcess;
+      if (active?.workset === null || active?.workset === undefined) {
+        throw new Error("expected active Translation workset");
+      }
+      const next = await controller.preparePendingCandidateRetranslation(
+        translationBatchBudgetV1(),
+        {
+          expectedWorksetRevision: active.workset.revision,
+          candidateId: predecessorId,
+          targets: reviewTargets,
+          instruction: null,
+        },
+      );
+      if (next.kind !== "completed" || next.value.kind !== "prepared") {
+        throw new Error(`expected candidate successor attempt: ${JSON.stringify(next)}`);
+      }
+      return next.value.run;
+    };
+
+    const failedRun = await prepareSuccessorV1();
+    expect(failedRun).toMatchObject({
+      processId,
+      replacesCandidateId: predecessorId,
+      processAttemptGeneration: initialRun.processAttemptGeneration + 1,
+    });
+    expect(failedRun.agentRunId).not.toBe(initialRun.agentRunId);
+    expect(failedRun.batch).toEqual(initialRun.batch);
+    expect(failedRun.instruction).not.toBe(translationInstructionV1);
+    expect(failedRun.instruction).toContain('"summary":{}');
+    expect(failedRun.instruction).not.toContain("number_tokens_changed");
+    expect(await repository.loadTranslationBatchCandidate(processId, predecessorId)).toEqual(
+      predecessor,
+    );
+    expect((await repository.loadTranslationWorksetHead(processId))?.pendingCandidateId).toBe(
+      predecessorId,
+    );
+    observedAt += 1;
+    expect(
+      await controller.recordAgentRunTerminal({
+        run: failedRun,
+        outcome: "failed",
+        diagnosticCode: "run_failed",
+      }),
+    ).toEqual({
+      kind: "completed",
+      value: { kind: "persisted", candidateId: null },
+    });
+    expect(await repository.loadTranslationBatchCandidate(processId, predecessorId)).toEqual(
+      predecessor,
+    );
+    expect(controller.getSnapshot().activeProcess?.pendingCandidate?.candidateId).toBe(
+      predecessorId,
+    );
+
+    const cancelledRun = await prepareSuccessorV1();
+    expect(cancelledRun).toMatchObject({
+      replacesCandidateId: predecessorId,
+      processAttemptGeneration: failedRun.processAttemptGeneration + 1,
+      batch: initialRun.batch,
+    });
+    observedAt += 1;
+    expect(
+      await controller.recordAgentRunTerminal({
+        run: cancelledRun,
+        outcome: "cancelled",
+      }),
+    ).toEqual({
+      kind: "completed",
+      value: { kind: "persisted", candidateId: null },
+    });
+    expect(await repository.loadTranslationBatchCandidate(processId, predecessorId)).toEqual(
+      predecessor,
+    );
+    expect((await repository.loadTranslationWorksetHead(processId))?.pendingCandidateId).toBe(
+      predecessorId,
+    );
+
+    const successfulRun = await prepareSuccessorV1();
+    expect(successfulRun).toMatchObject({
+      replacesCandidateId: predecessorId,
+      processAttemptGeneration: cancelledRun.processAttemptGeneration + 1,
+      batch: initialRun.batch,
+    });
+    const successorCandidate = {
+      targets: successfulRun.batch.units.map((unit) => ({
+        unitId: unit.unitId,
+        target: `Revised: ${unit.source}`,
+      })),
+      ambiguities: [],
+    };
+    observedAt += 1;
+    const successfulTerminal = await controller.recordAgentRunTerminal({
+      run: successfulRun,
+      outcome: "completed",
+      candidate: successorCandidate,
+    });
+    if (
+      successfulTerminal.kind !== "completed" ||
+      successfulTerminal.value.kind !== "persisted" ||
+      successfulTerminal.value.candidateId === null
+    ) throw new Error("expected replacement candidate");
+    const successorId = successfulTerminal.value.candidateId;
+    expect(successorId).not.toBe(predecessorId);
+    expect(await repository.loadTranslationBatchCandidate(processId, predecessorId)).toBeNull();
+    expect(await repository.loadTranslationBatchCandidate(processId, successorId)).toMatchObject({
+      candidateId: successorId,
+      baseWorksetRevision: predecessor.baseWorksetRevision + 1,
+      request: initialRun.batch,
+      targets: successorCandidate.targets,
+      attemptId: successfulRun.agentRunId,
+      generation: successfulRun.processAttemptGeneration,
+    });
+    expect(controller.getSnapshot().activeProcess).toMatchObject({
+      workset: { pendingCandidateId: successorId },
+      pendingCandidate: { candidateId: successorId, targets: successorCandidate.targets },
+    });
+
+    expect(
+      await controller.preparePendingCandidateRetranslation(
+        translationBatchBudgetV1(),
+        {
+          expectedWorksetRevision: predecessor.baseWorksetRevision + 1,
+          candidateId: predecessorId,
+          targets: reviewTargets,
+          instruction: null,
+        },
+      ),
+    ).toEqual({ kind: "completed", value: { kind: "unavailable" } });
+
+    const successorSnapshot = controller.getSnapshot().activeProcess!;
+    const editedReplacementTargets = successorCandidate.targets.map((target, index) =>
+      index === 0 ? { ...target, target: `${target.target} Human edit 999.` } : target
+    );
+    const expiring = await controller.preparePendingCandidateRetranslation(
+      translationBatchBudgetV1(),
+      {
+        expectedWorksetRevision: successorSnapshot.workset!.revision,
+        candidateId: successorId,
+        targets: editedReplacementTargets,
+        instruction: null,
+      },
+    );
+    if (expiring.kind !== "completed" || expiring.value.kind !== "prepared") {
+      throw new Error("expected expiring replacement attempt");
+    }
+    const expiredRun = expiring.value.run;
+    expect(expiredRun.instruction).toContain("Human edit 999.");
+    const expiredTrigger = (await repository.loadProcess(processId))?.activeAttempt;
+    if (expiredTrigger === null || expiredTrigger === undefined) {
+      throw new Error("expected durable replacement trigger");
+    }
+    const expiredLease = await repository.loadProcessExecutionLease(processId);
+    if (expiredLease === null) throw new Error("expected replacement execution lease");
+    observedAt = expiredLease.expiresAt + 1;
+
+    const recovered = createTranslationProcessControllerV1({
+      repository,
+      workspace: createWorkspacePortV1(repository),
+      createId: deterministicIdsV1("candidate-successor-recovered"),
+      ownerInstanceId: "owner.candidate-successor-recovered",
+      now: () => observedAt,
+      processExecutionLeaseDurationMilliseconds: 20,
+    });
+    await recovered.initialize();
+    expect(await recovered.openProcess(processId)).toEqual({ kind: "completed", value: true });
+    expect(recovered.getSnapshot().activeProcess).toMatchObject({
+      process: {
+        status: "interrupted_retryable",
+        activeAttempt: null,
+        lastTerminalAttempt: {
+          attemptId: expiredRun.agentRunId,
+          generation: expiredRun.processAttemptGeneration,
+          outcome: "interrupted",
+          interruptionDisposition: "retryable",
+        },
+      },
+      workset: { pendingCandidateId: successorId },
+      pendingCandidate: { candidateId: successorId, targets: successorCandidate.targets },
+    });
+    expect(await repository.loadTranslationBatchCandidate(processId, successorId)).not.toBeNull();
+
+    const recoveredSnapshot = recovered.getSnapshot().activeProcess!;
+    const retried = await recovered.preparePendingCandidateRetranslation(
+      translationBatchBudgetV1(),
+      {
+        expectedWorksetRevision: recoveredSnapshot.workset!.revision,
+        candidateId: successorId,
+        targets: successorCandidate.targets,
+        instruction: null,
+      },
+    );
+    if (retried.kind !== "completed" || retried.value.kind !== "prepared") {
+      throw new Error(
+        `expected explicit retry after expired replacement: ${JSON.stringify(retried)}`,
+      );
+    }
+    expect(retried.value.run).toMatchObject({
+      replacesCandidateId: successorId,
+      processAttemptGeneration: expiredRun.processAttemptGeneration + 1,
+      batch: expiredRun.batch,
+      instruction: expiredRun.instruction,
+    });
+    expect((await repository.loadProcess(processId))?.activeAttempt).toMatchObject({
+      triggerEntryId: expiredTrigger.triggerEntryId,
+      triggerSequence: expiredTrigger.triggerSequence,
+    });
+    observedAt += 1;
+    expect(
+      await recovered.recordAgentRunTerminal({
+        run: retried.value.run,
+        outcome: "cancelled",
+      }),
+    ).toEqual({
+      kind: "completed",
+      value: { kind: "persisted", candidateId: null },
     });
   });
 
@@ -944,7 +1549,10 @@ describe("Translation Process Controller", () => {
       targetLocale: "en",
     });
     if (imported.kind !== "completed") throw new Error("expected ready Process work set");
-    const prepared = await controller.prepareAgentBatch(translationBatchBudgetV1());
+    const prepared = await controller.prepareAgentBatch(
+      translationBatchBudgetV1(),
+      translationInstructionV1,
+    );
     if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
       throw new Error("expected prepared Translation Agent batch");
     }
@@ -1000,7 +1608,9 @@ describe("Translation Process Controller", () => {
     ).toEqual([
       expect.objectContaining({ order: 0, target: null }),
     ]);
-    expect(await controller.prepareAgentBatch(translationBatchBudgetV1())).toMatchObject({
+    expect(
+      await controller.prepareAgentBatch(translationBatchBudgetV1(), translationInstructionV1),
+    ).toMatchObject({
       kind: "completed",
       value: { kind: "prepared" },
     });
@@ -1030,7 +1640,10 @@ describe("Translation Process Controller", () => {
         targetLocale: "en",
       });
       if (imported.kind !== "completed") throw new Error("expected ready Process work set");
-      const prepared = await controller.prepareAgentBatch(translationBatchBudgetV1());
+      const prepared = await controller.prepareAgentBatch(
+        translationBatchBudgetV1(),
+        translationInstructionV1,
+      );
       if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
         throw new Error(`expected prepared Translation Agent batch: ${JSON.stringify(prepared)}`);
       }
@@ -1061,6 +1674,68 @@ describe("Translation Process Controller", () => {
     },
   );
 
+  it.each([
+    [
+      "candidate_structure_invalid" as const,
+      "Translation returned a malformed candidate envelope. No translation content was published.",
+    ],
+    [
+      "candidate_invalid" as const,
+      "Translation returned a candidate that did not satisfy the exact batch constraints. No translation content was published.",
+    ],
+  ])("records an explainable %s terminal without publishing a candidate", async (
+    diagnosticCode,
+    expectedMessage,
+  ) => {
+    const repository = createRepositoryV1();
+    const controller = createTranslationProcessControllerV1({
+      repository,
+      workspace: createWorkspacePortV1(repository),
+      createId: deterministicIdsV1(`terminal-${diagnosticCode}`),
+      now: () => 35,
+    });
+    await controller.initialize();
+    await controller.createProcess();
+    const processId = controller.getSnapshot().activeProcess!.process.processId;
+    const imported = await controller.importSource({
+      source: {
+        kind: "bytes",
+        fileName: `${diagnosticCode}.srt`,
+        mediaType: "application/x-subrip",
+        bytes: textEncoderV1.encode(subtitleDocumentV1(1)),
+      },
+      sourceLocale: "ja",
+      targetLocale: "en",
+    });
+    if (imported.kind !== "completed") throw new Error("expected ready Process work set");
+    const prepared = await controller.prepareAgentBatch(
+      translationBatchBudgetV1(),
+      translationInstructionV1,
+    );
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Translation Agent batch");
+    }
+
+    expect(
+      await controller.recordAgentRunTerminal({
+        run: prepared.value.run,
+        outcome: "failed",
+        diagnosticCode,
+      }),
+    ).toEqual({
+      kind: "completed",
+      value: { kind: "persisted", candidateId: null },
+    });
+    expect(controller.getSnapshot().activeProcess?.transcript.entries.at(-1)).toMatchObject({
+      role: "system",
+      parts: [{ kind: "text_markdown", markdown: expectedMessage }],
+    });
+    expect(await repository.loadTranslationWorksetHead(processId)).toMatchObject({
+      acceptedUnitCount: 0,
+      pendingCandidateId: null,
+    });
+  });
+
   it("recovers an expired ready-workset batch as retryable and fences its stale generation", async () => {
     const repository = createRepositoryV1();
     let observedAt = 40;
@@ -1085,7 +1760,10 @@ describe("Translation Process Controller", () => {
       targetLocale: "en",
     });
     if (imported.kind !== "completed") throw new Error("expected ready Process work set");
-    const firstPrepared = await predecessor.prepareAgentBatch(translationBatchBudgetV1());
+    const firstPrepared = await predecessor.prepareAgentBatch(
+      translationBatchBudgetV1(),
+      translationInstructionV1,
+    );
     if (firstPrepared.kind !== "completed" || firstPrepared.value.kind !== "prepared") {
       throw new Error(
         `expected predecessor Translation Agent batch: ${JSON.stringify(firstPrepared)}`,
@@ -1125,13 +1803,17 @@ describe("Translation Process Controller", () => {
       pendingCandidate: null,
     });
 
-    const retried = await successor.prepareAgentBatch(translationBatchBudgetV1());
+    const retried = await successor.prepareAgentBatch(
+      translationBatchBudgetV1(),
+      "This replacement text must not replace the durable retry instruction.",
+    );
     if (retried.kind !== "completed" || retried.value.kind !== "prepared") {
       throw new Error("expected retryable successor Translation Agent batch");
     }
     expect(retried.value.run).toMatchObject({
       processId: firstRun.processId,
       processAttemptGeneration: firstRun.processAttemptGeneration + 1,
+      instruction: translationInstructionV1,
     });
     expect(
       await predecessor.recordAgentRunTerminal({
@@ -2099,6 +2781,7 @@ describe("Translation Process Controller", () => {
               locator: "pdf/page/0001/line/0001",
               context: null,
               durationMilliseconds: null,
+              lineBreakPolicy: "forbidden",
               source: "Born-digital source text",
               protectedSegments: [],
             }],
@@ -2205,6 +2888,7 @@ describe("Translation Process Controller", () => {
               locator: "pdf/page/0001/line/0001",
               context: null,
               durationMilliseconds: null,
+              lineBreakPolicy: "forbidden",
               source: "Only the first page was extracted.",
               protectedSegments: [],
             }],

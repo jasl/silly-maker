@@ -485,6 +485,10 @@ export function SillyOsAppV1({
                     const result = await readOnlyConversationController.loadOlderTranscript();
                     return result.kind === "completed" && result.value;
                   }}
+                  onReloadLatestTranscript={async () => {
+                    const result = await readOnlyConversationController.reloadLatestTranscript();
+                    return result.kind === "completed" && result.value;
+                  }}
                 />
               </ActiveProcessMountBoundaryV1>
             )

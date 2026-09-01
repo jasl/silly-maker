@@ -449,6 +449,13 @@ const loadTestProgramExecutionV1: NonNullable<
       instructions: dispatch.runtimeProfile === creatorProgramRuntimeProfileV1
         ? "Create the requested Program."
         : "Translate the admitted batch faithfully.",
+      packageResources: dispatch.runtimeProfile === translationProgramRuntimeProfileV1
+        ? [{
+          path: "skills/translate/SKILL.md",
+          mediaType: "text/markdown",
+          bytes: new TextEncoder().encode("Use the exact Translation completion tool."),
+        }]
+        : [],
       workspaceScripts: [],
       runtimeProfile,
       invocation: admission.invocation,
@@ -494,7 +501,9 @@ function translationAgentRunV1(
     workspaceGeneration: 1,
     programId: submitV1.programId,
     expectedWorksetRevision: 1,
+    replacesCandidateId: null,
     requestedOutputTokens: 8_192,
+    instruction: "Translate the next batch and preserve every meaning fact.",
     batch: {
       sourceLocale: "zh-CN",
       targetLocale: "en",
@@ -509,6 +518,7 @@ function translationAgentRunV1(
         locator: "line/1",
         context: null,
         durationMilliseconds: null,
+        lineBreakPolicy: "forbidden",
         source: "欢迎回来，⟦SM:0⟧。",
         protectedSegments: [{
           token: "⟦SM:0⟧",
@@ -1891,6 +1901,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const prompts: string[] = [];
     const runtimeProfiles: string[] = [];
     const workspaceToolCounts: number[] = [];
+    const programResourceReads: string[] = [];
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
@@ -1900,6 +1911,22 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         return {
           async prompt(text) {
             prompts.push(text);
+            const readProgramResource = input.workspaceTools.find((tool) =>
+              tool.name === "sillyos_read_program_resource"
+            );
+            const resource = await readProgramResource?.execute("resource.call.1", {
+              path: "skills/translate/SKILL.md",
+            });
+            const resourceText = resource?.content[0];
+            if (
+              resourceText !== null && typeof resourceText === "object" &&
+              (resourceText as Readonly<Record<string, unknown>>).type === "text" &&
+              typeof (resourceText as Readonly<Record<string, unknown>>).text === "string"
+            ) {
+              programResourceReads.push(
+                (resourceText as Readonly<Record<string, unknown>>).text as string,
+              );
+            }
             await input.onCandidate({
               targets: [{
                 unitId: "translation.unit.000001",
@@ -1945,6 +1972,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
           programPackage: programPackageV1(submitV1.programId, "d"),
           programId: submitV1.programId,
           requestedOutputTokens: 4_608,
+          instruction: "Translate the admitted batch faithfully.",
           request: {
             sourceLocale: "zh-CN",
             targetLocale: "en",
@@ -1959,6 +1987,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
               locator: "line/1",
               context: null,
               durationMilliseconds: null,
+              lineBreakPolicy: "forbidden",
               source: "欢迎回来，⟦SM:0⟧。",
               protectedSegments: [{
                 token: "⟦SM:0⟧",
@@ -1978,11 +2007,15 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       )
     );
     expect(runtimeProfiles).toEqual([translationProgramRuntimeProfileV1]);
-    expect(workspaceToolCounts).toEqual([0]);
+    expect(workspaceToolCounts).toEqual([1]);
+    expect(programResourceReads).toEqual(["Use the exact Translation completion tool."]);
     expect(JSON.parse(prompts[0] ?? "null")).toMatchObject({
-      schema: "sillyos.translation-batch-request.v1",
-      sourceLocale: "zh-CN",
-      targetLocale: "en",
+      schema: "sillyos.translation-agent-request.v1",
+      instruction: "Translate the admitted batch faithfully.",
+      batch: {
+        sourceLocale: "zh-CN",
+        targetLocale: "en",
+      },
     });
     expect(messages).toContainEqual(expect.objectContaining({
       kind: "rpc_record",
@@ -4492,7 +4525,9 @@ describe("SillyOS Browser Pi transport and product port", () => {
               expect(input.runtimeProfile.runtimeProfile).toBe(
                 translationProgramRuntimeProfileV1,
               );
-              expect(input.workspaceTools).toEqual([]);
+              expect(input.workspaceTools.map((tool) => tool.name)).toEqual([
+                "sillyos_read_program_resource",
+              ]);
               await input.onCandidate({
                 targets: [{
                   unitId: "translation.unit.agent-port.1",

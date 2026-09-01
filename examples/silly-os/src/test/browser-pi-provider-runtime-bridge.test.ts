@@ -164,6 +164,7 @@ function translationDispatchV1() {
     workspaceProgramId: "sillyos.translation",
     payload: {
       requestedOutputTokens: 4_608,
+      instruction: "Translate the admitted batch faithfully.",
       request: {
         sourceLocale: "zh-CN",
         targetLocale: "en",
@@ -178,6 +179,7 @@ function translationDispatchV1() {
           locator: "line/1",
           context: null,
           durationMilliseconds: null,
+          lineBreakPolicy: "forbidden",
           source: "你好。",
           protectedSegments: [],
         }],

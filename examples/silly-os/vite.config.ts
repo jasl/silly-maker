@@ -226,6 +226,16 @@ export default defineConfig(async ({ command, isPreview }) => {
         "@earendil-works/pi-agent-core",
         "@earendil-works/pi-ai",
         "@earendil-works/pi-ai/providers/all",
+        "@earendil-works/pi-ai/api/anthropic-messages.lazy",
+        "@earendil-works/pi-ai/api/google-generative-ai.lazy",
+        "@earendil-works/pi-ai/api/openai-completions.lazy",
+        "@earendil-works/pi-ai/api/openai-responses.lazy",
+        "@openuidev/lang-core",
+        // Translation is a second-level lazy Program surface. Its fixed UI and
+        // Provider descendants must join the initial optimizer generation;
+        // discovering one after the click replaces the React browser graph
+        // while the mounted shell still holds the predecessor.
+        "@tanstack/react-virtual",
       ],
     },
     worker: {

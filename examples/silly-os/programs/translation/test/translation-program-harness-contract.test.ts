@@ -3,7 +3,11 @@
 import { describe, expect, it } from "vitest";
 
 import { translationProgramRuntimeProfileImplementationV1 } from "../runtime-profile/translation-runtime-profile.ts";
-import { translationProgramIdV1 } from "../distribution/bundled-package-source.ts";
+import { translationProgramAgentAdapterV1 } from "../runtime-profile/translation-agent-adapter.ts";
+import {
+  translationProgramIdV1,
+  translationProgramPackageSourceV1,
+} from "../distribution/bundled-package-source.ts";
 import { translationProgramRuntimeProfileV1 } from "../runtime-profile/translation-runtime-profile.ts";
 import {
   browserWorkspaceQuickJsRuntimeAllocatorLimitBytesV1,
@@ -21,10 +25,162 @@ describe("SillyOS Translation Program fixed-harness contract", () => {
       translationProgramRuntimeProfileV1,
     );
 
-    // Translation currently needs no package-specific workspace tool. Generic
-    // exact-package script staging and QuickJS execution remain platform
-    // capabilities and are covered independently below and in the platform tests.
-    expect(translationProgramRuntimeProfileImplementationV1.harnessToolIds).toEqual([]);
+    // The only Translation harness tool reads immutable resources from the
+    // exact Process-pinned package. It grants no Process Workspace mutation.
+    expect(translationProgramRuntimeProfileImplementationV1.harnessToolIds).toEqual([
+      "program_resource",
+    ]);
+  });
+
+  it("classifies malformed envelopes without repairing or publishing them", () => {
+    const unit = {
+      unitId: "translation.unit.000001",
+      order: 0,
+      locator: "line/1",
+      context: null,
+      durationMilliseconds: null,
+      lineBreakPolicy: "forbidden",
+      source: "Keep ⟦SM:1⟧ unchanged.",
+      protectedSegments: [{ token: "⟦SM:1⟧", kind: "placeholder", source: "{name}" }],
+    } as const;
+    const dispatch = {
+      revision: 1,
+      runtimeProfile: translationProgramRuntimeProfileV1,
+      programPackage: translationProgramPackageSourceV1.metadata.reference,
+      workspaceProgramId: translationProgramIdV1,
+      payload: {
+        requestedOutputTokens: 1_024,
+        instruction: "Translate the admitted batch faithfully.",
+        request: {
+          sourceLocale: "en",
+          targetLocale: "zh-CN",
+          documentPurpose: "A fictional dialogue.",
+          style: "Natural.",
+          glossary: [],
+          confirmedMeaningFacts: [],
+          neighboringUnits: { preceding: null, following: null },
+          units: [unit],
+        },
+      },
+    } as const;
+    const admitted = translationProgramRuntimeProfileImplementationV1.admitDispatch(dispatch);
+    if (admitted.kind === "rejected") throw new Error("Translation dispatch was rejected");
+
+    expect(admitted.invocation.admitCandidate({
+      targets: JSON.stringify([{ unitId: unit.unitId, target: "保持 ⟦SM:1⟧ 不变。" }]),
+      ambiguities: [],
+    })).toEqual({ kind: "rejected", failure: "candidate_invalid" });
+    expect(admitted.invocation.admitCandidate({
+      targets: [
+        { unitId: unit.unitId, target: "保持 ⟦SM:1⟧ 不变。" },
+        { unitId: unit.unitId, target: "保持 ⟦SM:1⟧ 不变。" },
+      ],
+      ambiguities: [],
+    })).toEqual({ kind: "rejected", failure: "candidate_invalid" });
+    expect(admitted.invocation.admitCandidate({
+      targets: [{ unitId: unit.unitId, target: "不要更改名字。" }],
+      ambiguities: [],
+    })).toEqual({ kind: "rejected", failure: "candidate_context_mismatch" });
+  });
+
+  it("projects typed-envelope rejection separately from content-constraint rejection", async () => {
+    const run = {
+      agentRunId: "translation.run.classification",
+      programPackage: translationProgramPackageSourceV1.metadata.reference,
+      processId: "process.translation.classification",
+      processAttemptGeneration: 1,
+      workspaceCheckpointId: "checkpoint.translation.classification",
+      workspaceGeneration: 1,
+      programId: translationProgramIdV1,
+      expectedWorksetRevision: 1,
+      replacesCandidateId: null,
+      requestedOutputTokens: 1_024,
+      instruction: "Translate the admitted batch faithfully.",
+      batch: {
+        sourceLocale: "en",
+        targetLocale: "zh-CN",
+        documentPurpose: "A fictional dialogue.",
+        style: "Natural.",
+        glossary: [],
+        confirmedMeaningFacts: [],
+        neighboringUnits: { preceding: null, following: null },
+        units: [{
+          unitId: "translation.unit.000001",
+          order: 0,
+          locator: "line/1",
+          context: null,
+          durationMilliseconds: null,
+          lineBreakPolicy: "forbidden",
+          source: "Hello.",
+          protectedSegments: [],
+        }],
+      },
+    } as const;
+    const prepared = await translationProgramAgentAdapterV1.prepareRun(run);
+    if (prepared.kind === "rejected") throw new Error("Translation run was rejected");
+    const malformedProjection = translationProgramAgentAdapterV1.projectStream({
+      prepared: prepared.prepared,
+      state: prepared.prepared.state,
+      event: {
+        kind: "output_data",
+        sessionId: "session.translation.classification",
+        runId: "remote.translation.classification",
+        sequence: 1,
+        value: {
+          targets: JSON.stringify([{
+            unitId: run.batch.units[0]!.unitId,
+            target: "Hello.",
+          }]),
+          ambiguities: [],
+        },
+      },
+    });
+    expect(malformedProjection).toMatchObject({
+      kind: "terminal",
+      terminal: {
+        outcome: "failed",
+        value: { outcome: "failed", diagnosticCode: "candidate_structure_invalid" },
+      },
+      cancelRemote: true,
+    });
+    if (malformedProjection.kind !== "terminal") {
+      throw new Error("Malformed candidate was not rejected");
+    }
+    expect(malformedProjection.terminal.value).not.toHaveProperty("candidate");
+
+    const eventForV1 = (remoteCode: string) => ({
+      kind: "run_failed" as const,
+      sessionId: "session.translation.classification",
+      runId: "remote.translation.classification",
+      sequence: 1,
+      diagnostic: {
+        code: "agent_session.operation_failed" as const,
+        path: `/remote/${remoteCode}`,
+      },
+    });
+
+    expect(translationProgramAgentAdapterV1.projectStream({
+      prepared: prepared.prepared,
+      state: prepared.prepared.state,
+      event: eventForV1("candidate_invalid"),
+    })).toMatchObject({
+      kind: "terminal",
+      terminal: {
+        outcome: "failed",
+        value: { outcome: "failed", diagnosticCode: "candidate_structure_invalid" },
+      },
+    });
+    expect(translationProgramAgentAdapterV1.projectStream({
+      prepared: prepared.prepared,
+      state: prepared.prepared.state,
+      event: eventForV1("candidate_context_mismatch"),
+    })).toMatchObject({
+      kind: "terminal",
+      terminal: {
+        outcome: "failed",
+        value: { outcome: "failed", diagnosticCode: "candidate_invalid" },
+      },
+    });
   });
 
   it("executes the required regular-expression forms in the fixed QuickJS runtime", async () => {

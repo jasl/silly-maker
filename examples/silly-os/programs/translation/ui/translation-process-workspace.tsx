@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { RotateCcw, Save, Settings2, X } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../../../src/content/copy.ts";
 import type { SillyOsThemeModeV1 } from "../../../src/application/preferences/browser-product-preferences-repository.ts";
@@ -9,6 +9,7 @@ import type {
   TranslationProcessControllerV1,
   TranslationSourceImportStateV1,
 } from "../runtime/translation-process-controller.ts";
+import { defaultTranslationTargetLocaleForHostV1 } from "../runtime/translation-target-language.ts";
 import type {
   ProgramRunProjectionV1,
   ProgramUiModeV1,
@@ -21,9 +22,14 @@ import {
   FieldV1,
 } from "../../../src/ui/design-system/field.tsx";
 import { TextareaV1 } from "../../../src/ui/design-system/textarea.tsx";
-import { ChatPaneV1 } from "../../../src/ui/chat-pane.tsx";
+import {
+  ChatPaneV1,
+  type ConversationViewStateV1,
+  createDefaultConversationViewStateV1,
+} from "../../../src/ui/chat-pane.tsx";
 import {
   type TranslationProgramImportRequestV1,
+  type TranslationCandidateDraftV1,
   type TranslationProgramWorkspacePropsV1,
   type TranslationProcessPresentationSourceV1,
   TranslationProgramWorkspaceV1,
@@ -44,11 +50,32 @@ export interface TranslationProcessWorkspacePropsV1 {
   readonly sourceImport: TranslationSourceImportStateV1;
   readonly onLoadTranslationRowWindow: TranslationProcessControllerV1["loadTranslationRowWindow"];
   readonly agentRun?: ProgramRunProjectionV1 | null;
-  readonly onStartTranslation?: () => void | Promise<void>;
+  readonly onSubmitInstruction?: (text: string) => boolean | void | Promise<boolean | void>;
+  readonly onLoadOlderTranscript?: () => boolean | void | Promise<boolean | void>;
+  readonly onReloadLatestTranscript?: () => boolean | void | Promise<boolean | void>;
+  readonly initialViewState?: TranslationWorkspaceSessionViewStateV1;
+  readonly onViewStateChange?: (viewState: TranslationWorkspaceSessionViewStateV1) => void;
   readonly onUpdateSettingsOverride?: TranslationProcessControllerV1["updateSettingsOverride"];
   readonly onAcceptCandidate?: TranslationProgramWorkspacePropsV1["onAcceptCandidate"];
   readonly onRejectCandidate?: TranslationProgramWorkspacePropsV1["onRejectCandidate"];
+  readonly onRetranslateCandidate?: TranslationProgramWorkspacePropsV1["onRetranslateCandidate"];
   readonly onOperationError?: (error: unknown) => void;
+}
+
+export interface TranslationWorkspaceSessionViewStateV1 {
+  readonly mode: ProgramUiModeV1;
+  readonly draft: string;
+  readonly conversation: ConversationViewStateV1;
+  readonly candidateDraft: TranslationCandidateDraftV1 | null;
+}
+
+function createDefaultTranslationWorkspaceSessionViewStateV1(): TranslationWorkspaceSessionViewStateV1 {
+  return {
+    mode: "guided",
+    draft: "",
+    conversation: createDefaultConversationViewStateV1(),
+    candidateDraft: null,
+  };
 }
 
 function translationProgramStageV1(
@@ -130,13 +157,25 @@ export function TranslationProcessWorkspaceV1({
   sourceImport,
   onLoadTranslationRowWindow,
   agentRun = null,
-  onStartTranslation,
+  onSubmitInstruction,
+  onLoadOlderTranscript,
+  onReloadLatestTranscript,
+  initialViewState,
+  onViewStateChange,
   onUpdateSettingsOverride,
   onAcceptCandidate,
   onRejectCandidate,
+  onRetranslateCandidate,
   onOperationError,
 }: TranslationProcessWorkspacePropsV1): ReactNode {
-  const [mode, setMode] = useState<ProgramUiModeV1>("guided");
+  const initialViewStateRef = useRef(
+    initialViewState ?? createDefaultTranslationWorkspaceSessionViewStateV1(),
+  );
+  const viewStateRef = useRef(initialViewStateRef.current);
+  const [mode, setMode] = useState<ProgramUiModeV1>(initialViewStateRef.current.mode);
+  const [candidateDraft, setCandidateDraft] = useState<TranslationCandidateDraftV1 | null>(
+    initialViewStateRef.current.candidateDraft,
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState("");
   const [settingsPending, setSettingsPending] = useState(false);
@@ -163,6 +202,7 @@ export function TranslationProcessWorkspaceV1({
         unitCount: activeProcess.pendingCandidate.unitCount,
         targets: activeProcess.pendingCandidate.targets,
         ambiguities: activeProcess.pendingCandidate.ambiguities,
+        findings: activeProcess.pendingCandidate.findings,
       },
       loadRowWindow: ({ offset, limit, signal }) =>
         onLoadTranslationRowWindow({
@@ -187,9 +227,55 @@ export function TranslationProcessWorkspaceV1({
     agentRun,
     sourceImport.phase === "idle" && activeProcess.process.activeAttempt !== null,
   );
-  const startTranslationDisabled = sourceImport.phase !== "idle" ||
-    activeProcess.process.activeAttempt !== null || activeProcess.pendingCandidate !== null ||
-    agentRun?.status === "running";
+  const resolvedIntakeTargetLocale = activeProcess.programPackage.settings
+      .admittedProcessOverrideJson === null
+    ? defaultTranslationTargetLocaleForHostV1(copy.locale)
+    : activeProcess.programPackage.settings.effective.targetLocale;
+  const resolvedSettingsDraft = {
+    ...activeProcess.programPackage.settings.effective,
+    targetLocale: resolvedIntakeTargetLocale,
+  };
+  const agentInteractionPending = sourceImport.phase !== "idle" ||
+    activeProcess.process.activeAttempt !== null || agentRun?.status === "running";
+  const startTranslationDisabled = agentInteractionPending ||
+    activeProcess.pendingCandidate !== null;
+  const pendingCandidate = translationSource?.pendingCandidate ?? null;
+  const visibleCandidateDraft = pendingCandidate !== null &&
+      candidateDraft?.candidateId === pendingCandidate.candidateId &&
+      candidateDraft.targets.length === pendingCandidate.targets.length &&
+      candidateDraft.targets.every((target, index) =>
+        target.unitId === pendingCandidate.targets[index]?.unitId
+      )
+    ? candidateDraft
+    : null;
+  const visibleCandidateTargets = pendingCandidate === null
+    ? null
+    : visibleCandidateDraft?.targets ?? pendingCandidate.targets;
+  const conversationSendV1 = (() => {
+    if (pendingCandidate === null) return onSubmitInstruction;
+    if (
+      translationSource === null || onRetranslateCandidate === undefined ||
+      visibleCandidateTargets === null
+    ) return undefined;
+    const expectedWorksetRevision = translationSource.revision;
+    return (instruction: string) => {
+      if (visibleCandidateTargets.some(({ target }) => target.trim().length === 0)) return false;
+      return onRetranslateCandidate({
+        expectedWorksetRevision,
+        candidateId: pendingCandidate.candidateId,
+        targets: visibleCandidateTargets,
+        instruction,
+      });
+    };
+  })();
+
+  const publishViewStateV1 = (
+    update: Partial<TranslationWorkspaceSessionViewStateV1>,
+  ): void => {
+    const next = { ...viewStateRef.current, ...update };
+    viewStateRef.current = next;
+    onViewStateChange?.(next);
+  };
 
   const settingsCopy = copy.locale === "zh-CN"
     ? {
@@ -199,12 +285,12 @@ export function TranslationProcessWorkspaceV1({
         "这是当前 Process 的完整 JSON 覆盖，只支持 targetLocale 和 defaultStyle；创建翻译工作集时会读取这两个值。",
       field: "目标语言与默认风格（JSON）",
       defaultNote:
-        "清除覆盖后会恢复这个 Program 包内的默认值。无效 JSON 不会被保存，也不会阻止对话继续。",
+        "清除覆盖后，目标语言会跟随 SillyOS 当前语言，默认风格会恢复为 Program 包内的值。无效 JSON 不会被保存，也不会阻止对话继续。",
       save: "保存覆盖",
       clear: "恢复默认值",
       close: "关闭设置",
       saved: "设置已保存；之后导入的源文件会使用这些默认值。",
-      cleared: "已恢复 Program 默认值。",
+      cleared: "已恢复当前界面语言对应的目标语言和 Program 默认风格。",
       stale: "设置已在其他页面更新，请关闭后重新打开再试。",
       failed: "设置未保存。",
       invalid: "无效设置；请检查：",
@@ -216,12 +302,12 @@ export function TranslationProcessWorkspaceV1({
         "This complete Process override supports only targetLocale and defaultStyle; both are read when the translation workset is created.",
       field: "Target locale and default style (JSON)",
       defaultNote:
-        "Clearing the override restores this Program package's defaults. Invalid JSON is not saved and never blocks the conversation.",
+        "Clearing the override follows the current SillyOS language for the target and restores the Program package's default style. Invalid JSON is not saved and never blocks the conversation.",
       save: "Save override",
       clear: "Use defaults",
       close: "Close settings",
       saved: "Settings saved. A subsequently imported source will use these defaults.",
-      cleared: "Program defaults restored.",
+      cleared: "Host-language target and Program default style restored.",
       stale: "Another page changed these settings. Close and reopen before trying again.",
       failed: "Settings were not saved.",
       invalid: "Invalid settings. Check:",
@@ -229,11 +315,11 @@ export function TranslationProcessWorkspaceV1({
 
   const openProcessSettingsV1 = (): void => {
     const current = activeProcess.programPackage.settings.admittedProcessOverrideJson;
-    const json = current ?? JSON.stringify(activeProcess.programPackage.settings.effective);
+    const json = current ?? JSON.stringify(resolvedSettingsDraft);
     try {
       setSettingsDraft(JSON.stringify(JSON.parse(json), null, 2));
     } catch {
-      setSettingsDraft(JSON.stringify(activeProcess.programPackage.settings.effective, null, 2));
+      setSettingsDraft(JSON.stringify(resolvedSettingsDraft, null, 2));
     }
     setSettingsMessage(null);
     setSettingsOpen(true);
@@ -270,8 +356,14 @@ export function TranslationProcessWorkspaceV1({
       }
       const savedJson = result.value.settings.admittedProcessOverrideJson;
       const effective = result.value.settings.effective;
+      const editorValue = savedJson === null
+        ? {
+          ...effective,
+          targetLocale: defaultTranslationTargetLocaleForHostV1(copy.locale),
+        }
+        : JSON.parse(savedJson);
       setSettingsDraft(
-        JSON.stringify(savedJson === null ? effective : JSON.parse(savedJson), null, 2),
+        JSON.stringify(editorValue, null, 2),
       );
       setSettingsMessage({
         kind: "saved",
@@ -306,7 +398,10 @@ export function TranslationProcessWorkspaceV1({
         processId={activeProcess.process.processId}
         locale={copy.locale}
         mode={mode}
-        onModeChange={setMode}
+        onModeChange={(nextMode) => {
+          setMode(nextMode);
+          publishViewStateV1({ mode: nextMode });
+        }}
         translationSource={translationSource}
         stage={stage}
         run={run}
@@ -401,21 +496,35 @@ export function TranslationProcessWorkspaceV1({
           )
           : undefined}
         initialUi={activeProcess.programPackage.initialUi}
-        defaultTargetLocale={activeProcess.programPackage.settings.effective.targetLocale}
+        defaultTargetLocale={resolvedIntakeTargetLocale}
         importPending={sourceImport.phase === "pending"}
         onImportFile={onImportFile}
         startTranslationDisabled={startTranslationDisabled}
-        {...(onStartTranslation === undefined ? {} : { onStartTranslation })}
+        candidateReviewDisabled={agentInteractionPending}
+        candidateDraft={visibleCandidateDraft}
+        onCandidateDraftChange={(nextCandidateDraft) => {
+          setCandidateDraft(nextCandidateDraft);
+          publishViewStateV1({ candidateDraft: nextCandidateDraft });
+        }}
+        {...(onSubmitInstruction === undefined ? {} : { onSubmitInstruction })}
         {...(onAcceptCandidate === undefined ? {} : { onAcceptCandidate })}
         {...(onRejectCandidate === undefined ? {} : { onRejectCandidate })}
+        {...(onRetranslateCandidate === undefined ? {} : { onRetranslateCandidate })}
         {...(onOperationError === undefined ? {} : { onOperationError })}
         conversationSurface={
           <ChatPaneV1
             copy={copy}
             agentName={title}
-            transcript={{ ...activeProcess.transcript, newerOmitted: false, phase: "ready" }}
-            onSend={() => false}
-            agentInteractionPending
+            transcript={activeProcess.transcript}
+            {...(onLoadOlderTranscript === undefined ? {} : { onLoadOlderTranscript })}
+            {...(onReloadLatestTranscript === undefined ? {} : { onReloadLatestTranscript })}
+            onSend={conversationSendV1 ?? (() => false)}
+            initialDraft={initialViewStateRef.current.draft}
+            initialConversationViewState={initialViewStateRef.current.conversation}
+            onDraftChange={(draft) => publishViewStateV1({ draft })}
+            onConversationViewStateChange={(conversation) => publishViewStateV1({ conversation })}
+            interactionReady={conversationSendV1 !== undefined && translationSource !== null}
+            agentInteractionPending={agentInteractionPending}
           />
         }
       />

@@ -22,8 +22,8 @@ function pageStreamV1(lines: readonly string[]): string {
 /** Creates a small, project-owned PDF 1.4 fixture without third-party source bytes. */
 export function createBornDigitalPdfFixtureV1(
   pages: readonly (readonly string[])[] = [
-    ["Hello PDF", "Second line"],
-    ["Final page"],
+    ["The au-", "thorized exception applies.", "Second paragraph."],
+    ["Final page."],
   ],
 ): Uint8Array {
   if (pages.length === 0) throw new TypeError("pdf_fixture_requires_page");

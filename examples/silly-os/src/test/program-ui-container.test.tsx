@@ -30,14 +30,25 @@ function ProgramUiHarnessV1({
       mode={mode}
       onModeChange={setMode}
       guidedSurface={<GuidedDraftV1 />}
-      conversationSurface={
-        <section aria-label="translation conversation">Conversation content</section>
-      }
+      conversationSurface={<ConversationDraftV1 />}
       run={run}
       toolbarActions={toolbarActions}
       overlaySurface={overlaySurface}
       locale="zh-CN"
     />
+  );
+}
+
+function ConversationDraftV1(): ReactNode {
+  const [draft, setDraft] = useState("");
+  return (
+    <section aria-label="translation conversation">
+      Conversation content
+      <label>
+        Conversation draft
+        <input value={draft} onChange={(event) => setDraft(event.currentTarget.value)} />
+      </label>
+    </section>
   );
 }
 
@@ -51,6 +62,33 @@ function GuidedDraftV1(): ReactNode {
         <input value={draft} onChange={(event) => setDraft(event.currentTarget.value)} />
       </label>
     </section>
+  );
+}
+
+function SharedProcessProjectionHarnessV1(): ReactNode {
+  const [mode, setMode] = useState<ProgramUiModeV1>("guided");
+  const [completedOperations, setCompletedOperations] = useState(0);
+  const advance = (): void => setCompletedOperations((current) => current + 1);
+  return (
+    <ProgramUiContainerV1
+      processId="process.shared.projection"
+      mode={mode}
+      onModeChange={setMode}
+      guidedSurface={
+        <section aria-label="structured Process projection">
+          <output>{completedOperations}</output>
+          <button type="button" onClick={advance}>Run shared operation</button>
+        </section>
+      }
+      conversationSurface={
+        <section aria-label="conversation Process projection">
+          <output>{completedOperations}</output>
+          <button type="button" onClick={advance}>Ask for shared operation</button>
+        </section>
+      }
+      run={null}
+      locale="en"
+    />
   );
 }
 
@@ -88,6 +126,7 @@ describe("SillyOS Program UI Container", () => {
     expect(container).toHaveAttribute("data-program-ui-mode", "guided");
     expect(screen.getByRole("region", { name: "guided translation surface" })).toBeVisible();
     expect(screen.queryByRole("region", { name: "translation conversation" })).toBeNull();
+    expect(document.querySelector('[aria-label="translation conversation"]')).toBeNull();
     expect(screen.getByRole("tabpanel")).toHaveAccessibleName("简单");
     fireEvent.change(screen.getByRole("textbox", { name: "Target draft" }), {
       target: { value: "unsaved target" },
@@ -107,11 +146,51 @@ describe("SillyOS Program UI Container", () => {
     expect(screen.queryByRole("region", { name: "guided translation surface" })).toBeNull();
     expect(screen.getByRole("region", { name: "translation conversation" })).toBeVisible();
     expect(screen.getByRole("tabpanel")).toHaveAccessibleName("对话");
+    fireEvent.change(screen.getByRole("textbox", { name: "Conversation draft" }), {
+      target: { value: "keep this conversation draft" },
+    });
 
     fireEvent.click(screen.getByRole("tab", { name: "简单" }));
     expect(screen.getByRole("textbox", { name: "Target draft" })).toHaveValue(
       "unsaved target",
     );
+    const hiddenConversation = document.querySelector<HTMLElement>(
+      '[aria-label="translation conversation"]',
+    );
+    expect(hiddenConversation).not.toBeNull();
+    expect(hiddenConversation?.querySelector("input")).toHaveValue(
+      "keep this conversation draft",
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "对话" }));
+    expect(screen.getByRole("textbox", { name: "Conversation draft" })).toHaveValue(
+      "keep this conversation draft",
+    );
+  });
+
+  it("keeps guided and Conversation as equivalent projections of one Process authority", () => {
+    render(<SharedProcessProjectionHarnessV1 />);
+
+    const container = document.querySelector<HTMLElement>("[data-program-ui-container]");
+    expect(container).toHaveAttribute("data-program-ui-process-id", "process.shared.projection");
+    fireEvent.click(screen.getByRole("button", { name: "Run shared operation" }));
+    expect(
+      within(screen.getByRole("region", { name: "structured Process projection" }))
+        .getByText("1"),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Conversation" }));
+    expect(container).toHaveAttribute("data-program-ui-process-id", "process.shared.projection");
+    expect(
+      within(screen.getByRole("region", { name: "conversation Process projection" }))
+        .getByText("1"),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Ask for shared operation" }));
+
+    fireEvent.click(screen.getByRole("tab", { name: "Guided" }));
+    expect(
+      within(screen.getByRole("region", { name: "structured Process projection" }))
+        .getByText("2"),
+    ).toBeVisible();
   });
 
   it("keeps the run strip and Program overlay inside the SillyOS-owned container", () => {

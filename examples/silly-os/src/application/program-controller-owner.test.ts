@@ -119,6 +119,8 @@ function programArchiveV1(input: {
       scripts: [],
       capabilityIds: input.runtimeProfile === creatorProgramRuntimeProfileV1
         ? ["creator.catalog"]
+        : input.runtimeProfile === translationProgramRuntimeProfileV1
+        ? ["program.resource.read"]
         : [],
     },
     files: [{

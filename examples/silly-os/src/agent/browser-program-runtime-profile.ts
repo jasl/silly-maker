@@ -5,6 +5,7 @@ import type { BrowserPiAgentDispatchV1 } from "./browser-pi-agent-dispatch.ts";
 import type { ProgramRuntimeProfileDescriptorV1 } from "../program-platform/package/program-runtime-profile-descriptor.ts";
 
 export type BrowserProgramHarnessToolIdV1 =
+  | "program_resource"
   | "read"
   | "write"
   | "edit"
@@ -69,9 +70,18 @@ export interface BrowserProgramWorkspaceScriptV1 {
   readonly bytes: Uint8Array;
 }
 
+/** One exact immutable file from the Process-pinned Program package. */
+export interface BrowserProgramPackageResourceV1 {
+  readonly path: string;
+  readonly mediaType: string;
+  readonly bytes: Uint8Array;
+}
+
 /** The exact immutable package paired with one admitted fixed runtime invocation. */
 export interface BrowserProgramExecutionV1 {
   readonly instructions: string;
+  /** Read-only package bytes available only through the fixed Program-resource tool. */
+  readonly packageResources: readonly BrowserProgramPackageResourceV1[];
   /** Package scripts staged into this Process VFS before the Agent receives control. */
   readonly workspaceScripts: readonly BrowserProgramWorkspaceScriptV1[];
   readonly runtimeProfile: BrowserProgramRuntimeProfileV1;

@@ -35,14 +35,13 @@ export interface TranslationBatchPlannerInputV1 {
 }
 
 /**
- * Explicit assumptions used to reserve one complete model output. The source
- * code-point ratio is intentionally supplied by the product instead of hidden
- * in the planner: language pair, model family, and quality policy determine
- * how much target expansion is acceptable.
+ * Explicit assumptions used to estimate one complete candidate payload. The
+ * source code-point ratio is intentionally supplied by the product instead of
+ * hidden in the planner: language pair and output policy determine how much
+ * target expansion is acceptable. Provider-side reasoning may consume the
+ * same completion cap; it is not predicted or silently covered here.
  */
 export interface TranslationBatchOutputTokenEnvelopeV1 {
-  /** Hidden/reasoning tokens observed or reserved for the selected model. */
-  readonly reasoningReserveTokens: number;
   /** Tool-call framing, candidate object, and batch-level ambiguity reserve. */
   readonly fixedCandidateReserveTokens: number;
   /** Per-unit JSON framing and one concise ambiguity reserve. */
@@ -123,16 +122,16 @@ function scaledCeilingV1(value: number, numerator: number, denominator: number):
 }
 
 /**
- * Computes the exact requested output envelope for a planned request. It is a
- * conservative policy estimate, not a tokenizer. All reserves and the target
- * expansion ratio are explicit in the supplied budget.
+ * Computes the requested candidate-output cap for a planned request. It is a
+ * conservative policy estimate, not a tokenizer or a promise that a reasoning
+ * model will leave enough of that cap for the required tool call. A turn that
+ * does not return one complete admitted candidate is a visible failed attempt.
  */
 export function translationBatchRequestedOutputTokensV1(
   request: TranslationBatchRequestV1,
   envelope: TranslationBatchOutputTokenEnvelopeV1,
 ): number {
   const ratio = envelope.targetTokensPerSourceCodePoint;
-  safeNonNegativeIntegerV1(envelope.reasoningReserveTokens, "reasoning token reserve");
   safeNonNegativeIntegerV1(envelope.fixedCandidateReserveTokens, "candidate token reserve");
   safeNonNegativeIntegerV1(
     envelope.perUnitCandidateReserveTokens,
@@ -143,10 +142,7 @@ export function translationBatchRequestedOutputTokensV1(
     !Number.isSafeInteger(ratio.denominator) || ratio.denominator <= 0
   ) throw new TypeError("Translation target token expansion ratio is invalid");
 
-  let requested = safeAddV1(
-    envelope.reasoningReserveTokens,
-    envelope.fixedCandidateReserveTokens,
-  );
+  let requested = envelope.fixedCandidateReserveTokens;
   for (const unit of request.units) {
     requested = safeAddV1(requested, envelope.perUnitCandidateReserveTokens);
     requested = safeAddV1(
@@ -168,6 +164,7 @@ function sourceUnitV1(row: TranslationWorksetUnitV1): TranslationSourceUnitV1 {
     locator: row.locator,
     context: row.context,
     durationMilliseconds: row.durationMilliseconds,
+    lineBreakPolicy: row.lineBreakPolicy,
     source: row.source,
     protectedSegments: row.protectedSegments.map((segment) => ({ ...segment })),
   };

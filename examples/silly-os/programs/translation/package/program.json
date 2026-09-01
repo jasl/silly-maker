@@ -6,13 +6,14 @@
   "runtimeProfile": "agent.translation.v1",
   "name": "Translation",
   "summary": "A reviewable, format-aware translation workbench.",
-  "instructionsPath": "prompts/translate.md",
+  "instructionsPath": "PROGRAM.md",
   "settingsSchemaPath": null,
   "settingsDefaultsPath": "settings.defaults.json",
   "initialUiPath": "initial-ui.json",
   "scripts": [],
   "capabilityIds": [
     "agent.text",
+    "program.resource.read",
     "translation.batch"
   ]
 }

@@ -97,6 +97,7 @@ describe("SillyOS Browser Pi runtime bridge", () => {
       workspaceProgramId: translationProgramPackageV1.programId,
       payload: {
         requestedOutputTokens: 4_608,
+        instruction: "Translate the admitted batch faithfully.",
         request: {
           sourceLocale: "zh-CN",
           targetLocale: "en",
@@ -111,6 +112,7 @@ describe("SillyOS Browser Pi runtime bridge", () => {
             locator: "line/1",
             context: null,
             durationMilliseconds: null,
+            lineBreakPolicy: "forbidden",
             source: "你好。",
             protectedSegments: [],
           }],
@@ -155,6 +157,7 @@ describe("SillyOS Browser Pi runtime bridge", () => {
       workspaceProgramId: translationProgramPackageV1.programId,
       payload: {
         requestedOutputTokens: 4_608,
+        instruction: "Translate the admitted batch faithfully.",
         request: {
           sourceLocale: "zh-CN",
           targetLocale: "en",
@@ -169,6 +172,7 @@ describe("SillyOS Browser Pi runtime bridge", () => {
             locator: "line/1",
             context: null,
             durationMilliseconds: null,
+            lineBreakPolicy: "forbidden",
             source: "你好，⟦SM:0⟧。",
             protectedSegments: [{
               token: "⟦SM:0⟧",

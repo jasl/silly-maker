@@ -196,6 +196,15 @@ export type ProgramUiContainerPropsV1 =
  * React/portal escape hatch or ownership of the geometry, activity strip, and
  * overlay. A Program may expose distinct guided/conversation slots or one
  * already-integrated surface without bypassing this boundary.
+ *
+ * Guided ("Simple" in the product) and Conversation are two projections of
+ * the same Process. Mode selection is presentation-only: both surfaces project
+ * the same Host-owned Process state, and equivalent actions reuse the owning
+ * operation rather than introducing a mode-specific state transition.
+ * Switching never creates, copies, advances, or retires a Process. Guided may
+ * expose stronger structured and mechanical affordances through admitted
+ * OpenUI; Conversation remains the pageable natural-language projection of
+ * that same work, with the user free to switch whenever structure is useful.
  */
 export function ProgramUiContainerV1(props: ProgramUiContainerPropsV1): ReactNode {
   const guidedPanelId = useId();
@@ -203,6 +212,14 @@ export function ProgramUiContainerV1(props: ProgramUiContainerPropsV1): ReactNod
   const conversationPanelId = useId();
   const conversationTabId = useId();
   const integrated = props.presentation === "integrated";
+  const activeConversationProcessId = !integrated && props.mode === "conversation"
+    ? props.processId
+    : null;
+  // A Process Conversation mounts on first activation and then stays mounted
+  // while hidden so drafts and scroll position survive mode switches.
+  const [activatedConversationProcessId, setActivatedConversationProcessId] = useState<
+    string | null
+  >(() => activeConversationProcessId);
   const toolbarVisible = !integrated || props.toolbarActions !== undefined;
   const guidedLabel = props.locale === "zh-CN" ? "简单" : "Guided";
   const conversationLabel = props.locale === "zh-CN" ? "对话" : "Conversation";
@@ -245,6 +262,9 @@ export function ProgramUiContainerV1(props: ProgramUiContainerPropsV1): ReactNod
               ]}
               onValueChange={(value) => {
                 if (value === "guided" || value === "conversation") {
+                  if (value === "conversation" && props.processId !== null) {
+                    setActivatedConversationProcessId(props.processId);
+                  }
                   props.onModeChange(value);
                 }
               }}
@@ -281,7 +301,9 @@ export function ProgramUiContainerV1(props: ProgramUiContainerPropsV1): ReactNod
               aria-labelledby={conversationTabId}
               hidden={props.mode !== "conversation"}
             >
-              {props.mode === "conversation" ? props.conversationSurface : null}
+              {props.mode === "conversation" || activatedConversationProcessId === props.processId
+                ? props.conversationSurface
+                : null}
             </div>
           </>
         )}

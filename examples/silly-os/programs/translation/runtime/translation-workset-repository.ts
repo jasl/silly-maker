@@ -7,7 +7,10 @@ import type {
   TranslationSourceUnitV1,
   TranslationTargetUnitV1,
 } from "./translation-document-codec.ts";
-import { operationalStructuredPayloadMaximumBytesV1 } from "../../../src/program-platform/process/program-process-repository.ts";
+import {
+  exactJsonValuesEqualV1,
+  operationalStructuredPayloadMaximumBytesV1,
+} from "../../../src/program-platform/process/program-process-repository.ts";
 import {
   normalizeProcessExecutionLeaseV1,
   type ProcessExecutionLeaseV1,
@@ -23,6 +26,10 @@ import {
   type TranslationBatchCandidateV1,
   type TranslationBatchRequestV1,
 } from "./translation-batch-protocol.ts";
+import {
+  evaluateTranslationMechanicalQaV1,
+  type TranslationMechanicalQaFindingV1,
+} from "./translation-mechanical-qa.ts";
 
 export type TranslationWorksetImportPhaseV1 = "staging" | "ready";
 
@@ -139,14 +146,18 @@ export interface TranslationWorksetFinalizeImportInputV1 {
 
 /** One immutable model result awaiting explicit human or workflow review. */
 export interface TranslationBatchCandidateRecordV1 {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly processId: string;
   readonly candidateId: string;
   readonly baseWorksetRevision: number;
   readonly firstOrder: number;
   readonly unitCount: number;
+  /** Exact admitted request that produced this bounded candidate. */
+  readonly request: TranslationBatchRequestV1;
   readonly targets: TranslationBatchCandidateV1["targets"];
   readonly ambiguities: readonly TranslationBatchAmbiguityV1[];
+  /** Deterministic, non-blocking Review projection for this exact candidate. */
+  readonly findings: readonly TranslationMechanicalQaFindingV1[];
   readonly attemptId: string;
   readonly generation: number;
   readonly createdAt: number;
@@ -158,6 +169,8 @@ export interface TranslationBatchCandidatePublishInputV1 {
   readonly lease: ProcessExecutionLeaseV1;
   readonly expectedWorksetRevision: number;
   readonly expectedFirstPendingOrder: number;
+  /** `null` publishes the first candidate; an exact ID atomically replaces it. */
+  readonly replacesCandidateId: string | null;
   readonly request: TranslationBatchRequestV1;
   readonly candidate: TranslationBatchCandidateV1;
   readonly updatedAt: number;
@@ -319,6 +332,8 @@ export function normalizeTranslationWorksetBeginImportInputV1(
       "plain_text",
       "markdown",
       "subrip",
+      "webvtt",
+      "advanced_substation_alpha",
       "sillyos_translation_json",
       "pdf_text_reflow",
       "unknown",
@@ -335,6 +350,8 @@ export function normalizeTranslationWorksetBeginImportInputV1(
       "format_hints_conflict",
       "malformed_markdown",
       "malformed_subrip",
+      "malformed_webvtt",
+      "malformed_advanced_substation_alpha",
       "malformed_sillyos_translation_json",
       "non_text_media_type",
       "protected_token_namespace_collision",
@@ -369,6 +386,9 @@ function normalizeUnitV1(value: TranslationWorksetImportUnitV1) {
   if (value.context !== null) textV1(value.context);
   textV1(value.source);
   if (value.durationMilliseconds !== null) countV1(value.durationMilliseconds);
+  if (value.lineBreakPolicy !== "forbidden" && value.lineBreakPolicy !== "flexible") {
+    throw new TypeError("invalid line-break policy");
+  }
   for (const segment of value.protectedSegments) {
     textV1(segment.token);
     textV1(segment.source);
@@ -388,23 +408,24 @@ const translationWorksetUnitKeysV1 = new Set([
   "locator",
   "context",
   "durationMilliseconds",
+  "lineBreakPolicy",
   "source",
   "protectedSegments",
   "target",
 ]);
 
-/** Admits a durable unit row; pre-review rows from the initial schema read as `target: null`. */
+/** Admits one current durable Translation unit row. */
 export function cloneTranslationWorksetUnitV1(value: unknown): TranslationWorksetUnitRecordV1 {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError("invalid Translation workset unit");
   }
-  const row = value as TranslationWorksetUnitRecordV1 & { readonly target?: string | null };
+  const row = value as TranslationWorksetUnitRecordV1;
   const keys = Reflect.ownKeys(row);
   if (
     keys.some((key) =>
       typeof key !== "string" ||
       !translationWorksetUnitKeysV1.has(key)
-    ) || keys.length !== (Object.hasOwn(row, "target") ? 9 : 8)
+    ) || keys.length !== 10
   ) throw new TypeError("invalid Translation workset unit");
   identifierV1(row.processId);
   const source = normalizeUnitV1({
@@ -413,11 +434,12 @@ export function cloneTranslationWorksetUnitV1(value: unknown): TranslationWorkse
     locator: row.locator,
     context: row.context,
     durationMilliseconds: row.durationMilliseconds,
+    lineBreakPolicy: row.lineBreakPolicy,
     source: row.source,
     protectedSegments: row.protectedSegments,
   });
   if (
-    row.target !== undefined && row.target !== null &&
+    row.target !== null &&
     (typeof row.target !== "string" || row.target.trim().length === 0)
   ) {
     throw new TypeError("invalid Translation workset target");
@@ -425,7 +447,7 @@ export function cloneTranslationWorksetUnitV1(value: unknown): TranslationWorkse
   return {
     processId: row.processId,
     ...source,
-    target: row.target ?? null,
+    target: row.target,
   };
 }
 function normalizeGlossaryV1(value: Omit<TranslationWorksetGlossaryEntryV1, "processId">) {
@@ -489,6 +511,7 @@ export function normalizeTranslationBatchCandidatePublishInputV1(
   const lease = normalizeProcessExecutionLeaseV1(value.lease);
   revisionV1(value.expectedWorksetRevision);
   countV1(value.expectedFirstPendingOrder);
+  if (value.replacesCandidateId !== null) identifierV1(value.replacesCandidateId);
   countV1(value.updatedAt);
   if (lease.processId !== value.processId || value.updatedAt >= lease.expiresAt) {
     throw new TypeError("invalid Translation candidate lease");
@@ -508,6 +531,7 @@ export function normalizeTranslationBatchCandidatePublishInputV1(
     lease,
     expectedWorksetRevision: value.expectedWorksetRevision,
     expectedFirstPendingOrder: value.expectedFirstPendingOrder,
+    replacesCandidateId: value.replacesCandidateId,
     request: requestResult.request,
     candidate: candidateResult.candidate,
     updatedAt: value.updatedAt,
@@ -583,7 +607,7 @@ export function cloneTranslationBatchCandidateRecordV1(
   const row = value as TranslationBatchCandidateRecordV1;
   if (
     row === null || typeof row !== "object" || Array.isArray(row) ||
-    Reflect.ownKeys(row).length !== 11 || row.schemaVersion !== 1
+    Reflect.ownKeys(row).length !== 13 || row.schemaVersion !== 2
   ) throw new TypeError("invalid Translation batch candidate record");
   identifierV1(row.processId);
   identifierV1(row.candidateId);
@@ -593,31 +617,42 @@ export function cloneTranslationBatchCandidateRecordV1(
   identifierV1(row.attemptId);
   revisionV1(row.generation);
   countV1(row.createdAt);
+  const admittedRequest = admitTranslationBatchRequestV1(row.request);
   if (
-    !Array.isArray(row.targets) || row.targets.length !== row.unitCount ||
-    !Array.isArray(row.ambiguities)
-  ) throw new TypeError("invalid Translation batch candidate rows");
-  const targetIds = new Set<string>();
-  for (const target of row.targets) {
-    if (
-      target === null || typeof target !== "object" || Array.isArray(target) ||
-      Reflect.ownKeys(target).length !== 2 || !identifierPatternV1.test(target.unitId) ||
-      targetIds.has(target.unitId) || typeof target.target !== "string" ||
-      target.target.trim().length === 0
-    ) throw new TypeError("invalid Translation batch candidate target");
-    targetIds.add(target.unitId);
+    admittedRequest.kind !== "admitted" || admittedRequest.request.units.length !== row.unitCount ||
+    admittedRequest.request.units[0]?.order !== row.firstOrder
+  ) {
+    throw new TypeError("invalid Translation batch candidate request");
   }
-  const ambiguityIds = new Set<string>();
-  for (const ambiguity of row.ambiguities) {
-    if (
-      ambiguity === null || typeof ambiguity !== "object" || Array.isArray(ambiguity) ||
-      Reflect.ownKeys(ambiguity).length !== 2 || !identifierPatternV1.test(ambiguity.unitId) ||
-      !targetIds.has(ambiguity.unitId) || ambiguityIds.has(ambiguity.unitId) ||
-      typeof ambiguity.question !== "string" || ambiguity.question.trim().length === 0
-    ) throw new TypeError("invalid Translation batch candidate ambiguity");
-    ambiguityIds.add(ambiguity.unitId);
+  const admittedCandidate = admitTranslationBatchCandidateV1({
+    targets: row.targets,
+    ambiguities: row.ambiguities,
+  }, admittedRequest.request);
+  if (admittedCandidate.kind !== "admitted") {
+    throw new TypeError("invalid Translation batch candidate rows");
   }
-  return structuredClone(row);
+  const findings = evaluateTranslationMechanicalQaV1(
+    admittedRequest.request,
+    admittedCandidate.candidate,
+  );
+  if (!exactJsonValuesEqualV1(row.findings, findings)) {
+    throw new TypeError("invalid Translation batch candidate findings");
+  }
+  return structuredClone({
+    schemaVersion: 2,
+    processId: row.processId,
+    candidateId: row.candidateId,
+    baseWorksetRevision: row.baseWorksetRevision,
+    firstOrder: row.firstOrder,
+    unitCount: row.unitCount,
+    request: admittedRequest.request,
+    targets: admittedCandidate.candidate.targets,
+    ambiguities: admittedCandidate.candidate.ambiguities,
+    findings,
+    attemptId: row.attemptId,
+    generation: row.generation,
+    createdAt: row.createdAt,
+  });
 }
 
 export function normalizeTranslationWorksetSourceBindingV1(

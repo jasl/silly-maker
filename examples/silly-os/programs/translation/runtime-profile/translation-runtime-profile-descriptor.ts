@@ -8,8 +8,10 @@ export const translationProgramRuntimeProfileDescriptorV1 = {
   runtimeProfile: translationProgramRuntimeProfileV1,
   capabilityIds: [
     "agent.text",
+    "program.resource.read",
     "translation.batch",
   ],
+  requiredCapabilityIds: ["program.resource.read"],
   scriptRuntimes: [],
-  initialUiSurfaceIds: ["translation.intake.v1"],
+  initialUiSurfaceIds: ["translation.workspace.v1"],
 } as const satisfies ProgramRuntimeProfileDescriptorV1;

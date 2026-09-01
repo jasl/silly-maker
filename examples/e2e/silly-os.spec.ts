@@ -49,27 +49,57 @@ function externalTranslationProgramZipV1(): Buffer {
       settingsDefaultsPath: "settings.defaults.json",
       initialUiPath: "initial-ui.json",
       scripts: [],
-      capabilityIds: ["agent.text", "translation.batch"],
+      capabilityIds: ["agent.text", "program.resource.read", "translation.batch"],
     })),
     "PROGRAM.md": encode([
       "# External Translation Review",
       "",
-      "Translate the admitted batch while preserving meaning, voice, and placeholders.",
+      "Follow skills/translate/SKILL.md and prompts/translate.md for every admitted batch.",
+    ].join("\n")),
+    "skills/translate/SKILL.md": encode([
+      "# Translate",
+      "",
+      "Read prompts/translate.md, translate the complete admitted batch, then call the completion tool once.",
+    ].join("\n")),
+    "prompts/translate.md": encode([
+      "# Translation rules",
+      "",
+      "Preserve meaning, voice, relationships, placeholders, markup, and locked terminology.",
     ].join("\n")),
     "settings.defaults.json": encode(JSON.stringify({
       targetLocale: "en",
       defaultStyle: "Faithful natural prose with preserved voice and placeholders.",
     })),
     "initial-ui.json": encode(JSON.stringify({
-      schemaVersion: 1,
-      surface: "translation.intake.v1",
+      schemaVersion: 3,
+      surface: "translation.workspace.v1",
+      defaultLocale: "en",
       locales: {
         en: {
-          title: externalTranslationInitialTitleV1,
-          description: "This copy came from the imported Program package.",
+          intakeDocument: {
+            schemaVersion: 1,
+            documentId: "external-translation.intake",
+            revision: 1,
+            source: [
+              'root = Stack([heading, description], "regular")',
+              `heading = Heading("${externalTranslationInitialTitleV1}", 1)`,
+              'description = Text("This copy came from the imported Program package.", "muted")',
+            ].join("\n"),
+          },
+          workbenchDocument: {
+            schemaVersion: 1,
+            documentId: "external-translation.workbench",
+            revision: 1,
+            source: [
+              'root = Stack([heading], "regular")',
+              'heading = Heading("External review workbench", 2)',
+            ].join("\n"),
+          },
           dropLabel: "Drop a source document for this imported Program",
           formatNote: "SillyOS still owns file admission and the runtime container.",
           chooseFileLabel: "Choose source file",
+          sourceLanguageLabel: "Source language",
+          targetLanguageLabel: "Target language",
         },
       },
     })),
@@ -2897,7 +2927,7 @@ test("the bundled Translation Program imports and cold-reopens one durable Proce
     buffer: Buffer.from([
       "1",
       "00:00:00,000 --> 00:00:01,500",
-      "第一句：保持原意。",
+      "第一句，保持原意。",
       "",
       "2",
       "00:00:02,000 --> 00:00:04,000",
@@ -2907,22 +2937,22 @@ test("the bundled Translation Program imports and cold-reopens one durable Proce
   });
   await expect(page.getByRole("heading", { name: "sound-check.srt" })).toBeVisible();
   await expect(page.getByRole("button", {
-    name: /^1 第一句：保持原意。 — Pending$/u,
+    name: /^1 第一句，保持原意。 — Pending$/u,
   })).toBeVisible();
   await expect(page.getByRole("button", {
     name: /^2 Second line with ⟦SM:\d+⟧\. — Pending$/u,
   })).toBeVisible();
 
-  await page.getByRole("button", { name: "Start translation" }).click();
+  await page.getByRole("button", { name: "Translate next batch" }).click();
   await expect(page.getByRole("heading", { name: "Review this batch" })).toBeVisible();
   const targetEditor = page.getByRole("textbox", { name: "Target" });
-  await expect(targetEditor).toHaveValue("[deterministic] 第一句：保持原意。");
-  await targetEditor.fill("First line: preserve the original meaning.");
+  await expect(targetEditor).toHaveValue("[deterministic] 第一句，保持原意。");
+  await targetEditor.fill("First line, preserve the original meaning.");
   await page.getByRole("button", { name: "Accept batch" }).click();
   await expect(page.getByText("2 / 2 translated", { exact: false })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Review this batch" })).toHaveCount(0);
   await expect(page.getByRole("button", {
-    name: /^1 第一句：保持原意。 First line: preserve the original meaning\. Committed$/u,
+    name: /^1 第一句，保持原意。 First line, preserve the original meaning\. Committed$/u,
   })).toBeVisible();
 
   await page.reload();
@@ -2939,7 +2969,7 @@ test("the bundled Translation Program imports and cold-reopens one durable Proce
   await expect(reopened).toHaveAttribute("data-process-id", processId!);
   await expect(page.getByRole("heading", { name: "sound-check.srt" })).toBeVisible();
   await expect(page.getByRole("button", {
-    name: /^1 第一句：保持原意。 First line: preserve the original meaning\. Committed$/u,
+    name: /^1 第一句，保持原意。 First line, preserve the original meaning\. Committed$/u,
   })).toBeVisible();
 });
 

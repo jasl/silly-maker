@@ -5,17 +5,22 @@ import { Type } from "@earendil-works/pi-ai";
 import {
   admitTranslationBatchCandidateV1,
   admitTranslationBatchRequestV1,
+  classifyTranslationBatchCandidateRejectionV1,
   type TranslationBatchRequestV1,
 } from "../runtime/translation-batch-protocol.ts";
-import { createTranslationBatchUserPromptV1 } from "../runtime/translation-agent-prompt.ts";
+import { createTranslationAgentUserPromptV1 } from "../runtime/translation-agent-prompt.ts";
 export { createTranslationBatchUserPromptV1 } from "../runtime/translation-agent-prompt.ts";
-import type { TranslationBatchBudgetV1 } from "../runtime/translation-batch-planner.ts";
+import type {
+  TranslationBatchBudgetV1,
+  TranslationBatchOutputTokenEnvelopeV1,
+} from "../runtime/translation-batch-planner.ts";
 import {
   serializeBrowserPiAgentDispatchV1,
   type BrowserPiAgentDispatchV1,
 } from "../../../src/agent/browser-pi-agent-dispatch.ts";
 import type { BrowserProgramRuntimeProfileV1 } from "../../../src/agent/browser-program-runtime-profile.ts";
 import type { InstalledProgramPackageReferenceV1 } from "../../../src/program-platform/package/program-package-archive.ts";
+import { translationAgentInstructionMaximumCharactersV1 } from "../runtime/translation-agent-contracts.ts";
 import {
   translationProgramRuntimeProfileDescriptorV1,
   translationProgramRuntimeProfileV1,
@@ -62,6 +67,12 @@ const translationToolDefinitionV1 = {
 const translationToolDefinitionUtf8BytesV1 =
   textEncoderV1.encode(JSON.stringify(translationToolDefinitionV1)).byteLength;
 
+const translationBatchOutputTokenEnvelopeV1: TranslationBatchOutputTokenEnvelopeV1 = {
+  fixedCandidateReserveTokens: 512,
+  perUnitCandidateReserveTokens: 96,
+  targetTokensPerSourceCodePoint: { numerator: 2, denominator: 1 },
+};
+
 /** Model-aware product policy used before a Translation Process acquires execution. */
 export function createTranslationBatchBudgetForModelV1(input: {
   readonly contextWindow: number;
@@ -82,21 +93,14 @@ export function createTranslationBatchBudgetForModelV1(input: {
   return {
     maximumRequestBytes,
     maximumOutputTokens: input.maximumOutputTokens,
-    outputEnvelope: {
-      // GLM 5.3 Flash low reasoning consumed 3,255 tokens in the Translation
-      // experiment; the reserve rounds that observed route upward.
-      reasoningReserveTokens: 4_096,
-      fixedCandidateReserveTokens: 512,
-      perUnitCandidateReserveTokens: 96,
-      targetTokensPerSourceCodePoint: { numerator: 2, denominator: 1 },
-    },
+    outputEnvelope: translationBatchOutputTokenEnvelopeV1,
   };
 }
 
 export const translationProgramRuntimeProfileImplementationV1: BrowserProgramRuntimeProfileV1 = {
   runtimeProfile: translationProgramRuntimeProfileV1,
   packageDescriptor: translationProgramRuntimeProfileDescriptorV1,
-  harnessToolIds: [],
+  harnessToolIds: ["program_resource"],
   providerTimeoutMilliseconds: 180_000,
   admitDispatch(dispatch) {
     if (dispatch.runtimeProfile !== translationProgramRuntimeProfileV1) {
@@ -105,14 +109,19 @@ export const translationProgramRuntimeProfileImplementationV1: BrowserProgramRun
     const payload = dispatch.payload;
     if (
       payload === null || typeof payload !== "object" || Array.isArray(payload) ||
-      Object.keys(payload).length !== 2 ||
-      !Object.hasOwn(payload, "requestedOutputTokens") || !Object.hasOwn(payload, "request")
+      Object.keys(payload).length !== 3 ||
+      !Object.hasOwn(payload, "requestedOutputTokens") ||
+      !Object.hasOwn(payload, "instruction") || !Object.hasOwn(payload, "request")
     ) return { kind: "rejected" };
     const payloadRecord = payload as Readonly<Record<string, unknown>>;
     const requestedOutputTokens = payloadRecord.requestedOutputTokens;
+    const instruction = payloadRecord.instruction;
     if (
       typeof requestedOutputTokens !== "number" ||
-      !Number.isSafeInteger(requestedOutputTokens) || requestedOutputTokens <= 0
+      !Number.isSafeInteger(requestedOutputTokens) || requestedOutputTokens <= 0 ||
+      typeof instruction !== "string" || instruction.length === 0 ||
+      instruction.length > translationAgentInstructionMaximumCharactersV1 ||
+      instruction !== instruction.trim()
     ) return { kind: "rejected" };
     const admittedRequest = admitTranslationBatchRequestV1(payloadRecord.request);
     if (admittedRequest.kind === "rejected") return { kind: "rejected" };
@@ -121,7 +130,7 @@ export const translationProgramRuntimeProfileImplementationV1: BrowserProgramRun
       kind: "admitted",
       invocation: {
         requestedOutputTokens,
-        userPrompt: createTranslationBatchUserPromptV1(request),
+        userPrompt: createTranslationAgentUserPromptV1({ instruction, request }),
         textOutput: { kind: "discard" },
         deterministicTest: {
           completionArguments: {
@@ -155,9 +164,20 @@ export const translationProgramRuntimeProfileImplementationV1: BrowserProgramRun
         },
         admitCandidate(value) {
           const admitted = admitTranslationBatchCandidateV1(value, request);
-          return admitted.kind === "admitted"
-            ? { kind: "admitted", candidate: admitted.candidate }
-            : { kind: "rejected", failure: "candidate_invalid" };
+          if (admitted.kind === "admitted") {
+            return { kind: "admitted", candidate: admitted.candidate };
+          }
+          // Shape/coverage failures describe a malformed completion envelope.
+          // Content failures are a well-shaped candidate that does not satisfy
+          // the exact admitted batch. Keep them distinct for truthful Product
+          // diagnostics without repairing or publishing either rejected form.
+          return {
+            kind: "rejected",
+            failure: classifyTranslationBatchCandidateRejectionV1(admitted) ===
+                "content_constraint"
+              ? "candidate_context_mismatch"
+              : "candidate_invalid",
+          };
         },
       },
     };
@@ -168,6 +188,7 @@ export function serializeBrowserPiTranslationAgentDispatchV1(input: {
   readonly programPackage: InstalledProgramPackageReferenceV1;
   readonly programId: string;
   readonly requestedOutputTokens: number;
+  readonly instruction: string;
   readonly request: TranslationBatchRequestV1;
 }): string {
   return serializeBrowserPiAgentDispatchV1(
@@ -178,6 +199,7 @@ export function serializeBrowserPiTranslationAgentDispatchV1(input: {
       workspaceProgramId: input.programId,
       payload: {
         requestedOutputTokens: input.requestedOutputTokens,
+        instruction: input.instruction,
         request: input.request,
       },
     } satisfies BrowserPiAgentDispatchV1,

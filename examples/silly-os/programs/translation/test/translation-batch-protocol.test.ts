@@ -5,9 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   admitTranslationBatchRequestV1,
   admitTranslationBatchCandidateV1,
+  classifyTranslationBatchCandidateRejectionV1,
   type TranslationBatchRequestV1,
 } from "../runtime/translation-batch-protocol.ts";
 import { createTranslationBatchUserPromptV1 } from "../runtime-profile/translation-runtime-profile.ts";
+import { cloneTranslationWorksetUnitV1 } from "../runtime/translation-workset-repository.ts";
 
 const requestV1: TranslationBatchRequestV1 = {
   sourceLocale: "zh-CN",
@@ -31,6 +33,7 @@ const requestV1: TranslationBatchRequestV1 = {
       locator: "line/1",
       context: null,
       durationMilliseconds: 2_800,
+      lineBreakPolicy: "forbidden",
       source: "欢迎回来，⟦SM:1⟧。",
       protectedSegments: [{ token: "⟦SM:1⟧", kind: "placeholder", source: "{name}" }],
     },
@@ -40,6 +43,7 @@ const requestV1: TranslationBatchRequestV1 = {
       locator: "line/2",
       context: "Project status narration.",
       durationMilliseconds: null,
+      lineBreakPolicy: "forbidden",
       source: "回声比昨天更近了。",
       protectedSegments: [],
     },
@@ -47,6 +51,27 @@ const requestV1: TranslationBatchRequestV1 = {
 };
 
 describe("SillyOS translation batch protocol", () => {
+  it("persists the explicit line-break policy without accepting the former implicit shape", () => {
+    const durableUnit = {
+      processId: "process.translation",
+      ...requestV1.units[0]!,
+      target: null,
+    };
+    expect(cloneTranslationWorksetUnitV1(durableUnit)).toEqual(durableUnit);
+
+    const missingPolicy: Record<string, unknown> = { ...durableUnit };
+    delete missingPolicy.lineBreakPolicy;
+    expect(() => cloneTranslationWorksetUnitV1(missingPolicy)).toThrow(
+      "invalid Translation workset unit",
+    );
+
+    const missingTarget: Record<string, unknown> = { ...durableUnit };
+    delete missingTarget.target;
+    expect(() => cloneTranslationWorksetUnitV1(missingTarget)).toThrow(
+      "invalid Translation workset unit",
+    );
+  });
+
   it("admits and clones the exact request structure used by every runtime boundary", () => {
     const admitted = admitTranslationBatchRequestV1(requestV1);
     expect(admitted).toEqual({ kind: "admitted", request: requestV1 });
@@ -97,6 +122,10 @@ describe("SillyOS translation batch protocol", () => {
         requestV1.units[0],
         { ...requestV1.units[1], unitId: requestV1.units[0]!.unitId },
       ],
+    }],
+    ["unknown line-break policy", {
+      ...requestV1,
+      units: [{ ...requestV1.units[0], lineBreakPolicy: "wrapped" }, requestV1.units[1]],
     }],
     ["unknown protected kind", {
       ...requestV1,
@@ -149,6 +178,7 @@ describe("SillyOS translation batch protocol", () => {
     );
     expect(JSON.parse(createTranslationBatchUserPromptV1(requestV1)).units[0]).toMatchObject({
       durationMilliseconds: 2_800,
+      lineBreakPolicy: "forbidden",
       protectedSegments: [{
         token: "⟦SM:1⟧",
         kind: "placeholder",
@@ -212,6 +242,7 @@ describe("SillyOS translation batch protocol", () => {
           locator: "line/3",
           context: null,
           durationMilliseconds: null,
+          lineBreakPolicy: "forbidden",
           source: "继续。",
           protectedSegments: [],
         },
@@ -228,6 +259,7 @@ describe("SillyOS translation batch protocol", () => {
         locator: "line/3",
         context: null,
         durationMilliseconds: null,
+        lineBreakPolicy: "forbidden",
         source: "继续。",
         protectedSegments: [],
       },
@@ -310,6 +342,37 @@ describe("SillyOS translation batch protocol", () => {
     });
   });
 
+  it("rejects a new line break for a forbidden unit as a content constraint", () => {
+    const rejected = admitTranslationBatchCandidateV1({
+      targets: [
+        { unitId: "unit.1", target: "Welcome back, ⟦SM:1⟧." },
+        { unitId: "unit.2", target: "Echo is closer.\nCome inside." },
+      ],
+      ambiguities: [],
+    }, requestV1);
+
+    expect(rejected).toEqual({
+      kind: "rejected",
+      reason: "line_break_changed",
+      unitId: "unit.2",
+    });
+    if (rejected.kind !== "rejected") throw new Error("candidate was unexpectedly admitted");
+    expect(classifyTranslationBatchCandidateRejectionV1(rejected)).toBe("content_constraint");
+  });
+
+  it("admits line-break changes when the source unit declares a flexible policy", () => {
+    const request: TranslationBatchRequestV1 = {
+      ...requestV1,
+      glossary: [],
+      units: [{ ...requestV1.units[0]!, lineBreakPolicy: "flexible" }],
+    };
+
+    expect(admitTranslationBatchCandidateV1({
+      targets: [{ unitId: "unit.1", target: "Welcome\nback, ⟦SM:1⟧." }],
+      ambiguities: [],
+    }, request)).toMatchObject({ kind: "admitted" });
+  });
+
   it("rejects a target that ignores an applicable locked glossary entry", () => {
     expect(admitTranslationBatchCandidateV1({
       targets: [
@@ -356,6 +419,7 @@ describe("SillyOS translation batch protocol", () => {
         locator: "line/1",
         context: null,
         durationMilliseconds: null,
+        lineBreakPolicy: "forbidden",
         source: "Use ⟦SM:1⟧care⟦SM:2⟧.",
         protectedSegments: [
           { token: "⟦SM:1⟧", kind: "markdown_syntax", source: "**" },
@@ -374,6 +438,65 @@ describe("SillyOS translation batch protocol", () => {
     });
   });
 
+  it("admits a translatable speaker unit, applies its glossary, and requires it", () => {
+    const speakerRequest: TranslationBatchRequestV1 = {
+      ...requestV1,
+      glossary: [{
+        entryId: "glossary.mina",
+        source: "Mina",
+        target: "米娜",
+        note: "Character name.",
+        locked: true,
+        appliesToUnitIds: ["unit.speaker"],
+      }],
+      units: [
+        {
+          unitId: "unit.speaker",
+          order: 0,
+          locator: "cue/1/line/1/speaker",
+          context: "Timed-text speaker name.",
+          durationMilliseconds: 2_000,
+          lineBreakPolicy: "forbidden",
+          source: "Mina",
+          protectedSegments: [],
+        },
+        {
+          unitId: "unit.text",
+          order: 1,
+          locator: "cue/1/line/1/text",
+          context: "Spoken by Mina.",
+          durationMilliseconds: 2_000,
+          lineBreakPolicy: "forbidden",
+          source: "Keep the receiver close.",
+          protectedSegments: [],
+        },
+      ],
+    };
+
+    expect(admitTranslationBatchRequestV1(speakerRequest)).toMatchObject({
+      kind: "admitted",
+      request: {
+        glossary: [{ target: "米娜", appliesToUnitIds: ["unit.speaker"] }],
+        units: [{ locator: "cue/1/line/1/speaker" }, { locator: "cue/1/line/1/text" }],
+      },
+    });
+    expect(admitTranslationBatchCandidateV1({
+      targets: [
+        { unitId: "unit.speaker", target: "米娜" },
+        { unitId: "unit.text", target: "请把接收机放在身边。" },
+      ],
+      ambiguities: [],
+    }, speakerRequest)).toMatchObject({ kind: "admitted" });
+    expect(admitTranslationBatchCandidateV1({
+      targets: [{ unitId: "unit.text", target: "请把接收机放在身边。" }],
+      ambiguities: [],
+    }, speakerRequest)).toEqual({
+      kind: "rejected",
+      reason: "unit_order_changed",
+      unitId: "unit.text",
+    });
+  });
+
   it("rejects moving a translated link label outside its structural token pair", () => {
     const structuralRequest: TranslationBatchRequestV1 = {
       ...requestV1,
@@ -384,6 +507,7 @@ describe("SillyOS translation batch protocol", () => {
         locator: "line/1",
         context: null,
         durationMilliseconds: null,
+        lineBreakPolicy: "forbidden",
         source: "Read ⟦SM:1⟧guide⟦SM:2⟧.",
         protectedSegments: [
           { token: "⟦SM:1⟧", kind: "link", source: "[" },
@@ -412,6 +536,7 @@ describe("SillyOS translation batch protocol", () => {
         locator: "line/1",
         context: null,
         durationMilliseconds: null,
+        lineBreakPolicy: "forbidden",
         source: "⟦SM:1⟧Balance⟦SM:2⟧",
         protectedSegments: [
           { token: "⟦SM:1⟧", kind: "markup_tag", source: "<b>" },

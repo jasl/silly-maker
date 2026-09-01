@@ -998,6 +998,7 @@ describe("Program data repository Worker boundary", () => {
             locator: "line:1",
             context: null,
             durationMilliseconds: null,
+            lineBreakPolicy: "forbidden",
             source: "x".repeat(4 * 1024 * 1024),
             protectedSegments: [],
           }],
@@ -1869,6 +1870,7 @@ describe("Program data repository Worker boundary", () => {
           locator: `line:${String(order + 1)}`,
           context: null,
           durationMilliseconds: null,
+          lineBreakPolicy: "forbidden" as const,
           source: `Source ${String(order)}`,
           protectedSegments: [],
         })),
@@ -2064,6 +2066,7 @@ describe("Program data repository Worker boundary", () => {
       locator: `line:${String(order + 1)}`,
       context: null,
       durationMilliseconds: null,
+      lineBreakPolicy: "forbidden" as const,
       source: `Source ${String(order)}`,
       protectedSegments: [],
     }));
@@ -2125,6 +2128,7 @@ describe("Program data repository Worker boundary", () => {
           lease: firstAcquire.lease,
           expectedWorksetRevision: readyWorkset.revision,
           expectedFirstPendingOrder: 0,
+          replacesCandidateId: null,
           request: firstRequest,
           candidate: {
             targets: [0, 1].map((order) => ({
@@ -2285,6 +2289,7 @@ describe("Program data repository Worker boundary", () => {
           lease: secondAcquire.lease,
           expectedWorksetRevision: acceptedHead.revision,
           expectedFirstPendingOrder: 2,
+          replacesCandidateId: null,
           request: {
             ...firstRequest,
             glossary: [],

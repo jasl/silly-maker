@@ -157,6 +157,11 @@ describe("Browser Program execution loader", () => {
 
     await expect(loader.load(dispatchV1)).resolves.toEqual({
       instructions: "Follow exact instructions.\n",
+      packageResources: [{
+        path: "PROGRAM.md",
+        mediaType: "text/markdown",
+        bytes: new TextEncoder().encode("Follow exact instructions.\n"),
+      }],
       workspaceScripts: [],
       runtimeProfile: runtimeProfileV1,
       invocation: expect.objectContaining({

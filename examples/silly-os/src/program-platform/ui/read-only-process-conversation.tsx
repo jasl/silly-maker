@@ -17,6 +17,7 @@ export interface ReadOnlyProcessConversationViewPropsV1 {
   readonly conversation: ReadOnlyProcessConversationProjectionV1;
   readonly onHome: () => void;
   readonly onLoadOlderTranscript: () => boolean | void | Promise<boolean | void>;
+  readonly onReloadLatestTranscript: () => boolean | void | Promise<boolean | void>;
 }
 
 function degradationCopyV1(
@@ -67,6 +68,7 @@ export function ReadOnlyProcessConversationViewV1({
   conversation,
   onHome,
   onLoadOlderTranscript,
+  onReloadLatestTranscript,
 }: ReadOnlyProcessConversationViewPropsV1): ReactNode {
   const packageReference = conversation.process.programPackage;
   const readOnlyLabel = copy.locale === "zh-CN" ? "只读 Conversation" : "Read-only Conversation";
@@ -105,6 +107,7 @@ export function ReadOnlyProcessConversationViewV1({
           transcript={conversation.transcript}
           readOnly
           onLoadOlderTranscript={onLoadOlderTranscript}
+          onReloadLatestTranscript={onReloadLatestTranscript}
           onSend={() => false}
         />
       </div>

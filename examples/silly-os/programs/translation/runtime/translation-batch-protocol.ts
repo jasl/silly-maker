@@ -65,10 +65,30 @@ export type TranslationBatchAdmissionResultV1 =
       | "missing_unit"
       | "unit_order_changed"
       | "empty_target"
+      | "line_break_changed"
       | "protected_content_changed"
       | "locked_glossary_changed";
     readonly unitId: string | null;
   };
+
+type TranslationBatchCandidateRejectionClassV1 = "structure" | "content_constraint";
+
+/**
+ * Classifies one already-rejected candidate without weakening admission.
+ * Structural failures describe the typed completion envelope or exact unit
+ * coverage; content constraints describe admitted fields whose values cannot
+ * be published for the current batch.
+ */
+export function classifyTranslationBatchCandidateRejectionV1(
+  rejected: Extract<TranslationBatchAdmissionResultV1, { readonly kind: "rejected" }>,
+): TranslationBatchCandidateRejectionClassV1 {
+  return rejected.reason === "empty_target" ||
+      rejected.reason === "line_break_changed" ||
+      rejected.reason === "protected_content_changed" ||
+      rejected.reason === "locked_glossary_changed"
+    ? "content_constraint"
+    : "structure";
+}
 
 function exactRecordV1(
   value: unknown,
@@ -151,6 +171,7 @@ function admitSourceUnitsV1(value: unknown): readonly TranslationSourceUnitV1[] 
       "locator",
       "context",
       "durationMilliseconds",
+      "lineBreakPolicy",
       "source",
       "protectedSegments",
     ]);
@@ -163,6 +184,7 @@ function admitSourceUnitsV1(value: unknown): readonly TranslationSourceUnitV1[] 
       (unit.durationMilliseconds !== null &&
         (typeof unit.durationMilliseconds !== "number" ||
           !Number.isSafeInteger(unit.durationMilliseconds) || unit.durationMilliseconds <= 0)) ||
+      (unit.lineBreakPolicy !== "forbidden" && unit.lineBreakPolicy !== "flexible") ||
       !nonEmptyStringV1(unit.source)
     ) return null;
     if (firstOrder === null) firstOrder = unit.order;
@@ -176,6 +198,7 @@ function admitSourceUnitsV1(value: unknown): readonly TranslationSourceUnitV1[] 
       locator: unit.locator,
       context: unit.context as string | null,
       durationMilliseconds: unit.durationMilliseconds as number | null,
+      lineBreakPolicy: unit.lineBreakPolicy as TranslationSourceUnitV1["lineBreakPolicy"],
       source: unit.source,
       protectedSegments,
     });
@@ -352,6 +375,9 @@ export function admitTranslationBatchCandidateV1(
     const targetText = target.target;
     if (targetText.trim().length === 0) {
       return { kind: "rejected", reason: "empty_target", unitId: target.unitId };
+    }
+    if (sourceUnit.lineBreakPolicy === "forbidden" && /[\r\n]/u.test(targetText)) {
+      return { kind: "rejected", reason: "line_break_changed", unitId: target.unitId };
     }
     if (!translationTargetPreservesProtectedStructureV1(sourceUnit, targetText)) {
       return { kind: "rejected", reason: "protected_content_changed", unitId: target.unitId };

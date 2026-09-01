@@ -23,9 +23,9 @@ export function loadTranslationProgramPackageArchiveV1() {
         url: new URL("../package/prompts/translate.md", import.meta.url),
       },
       {
-        path: "references/translation-rules.md",
+        path: "skills/translate/SKILL.md",
         mediaType: "text/markdown",
-        url: new URL("../package/references/translation-rules.md", import.meta.url),
+        url: new URL("../package/skills/translate/SKILL.md", import.meta.url),
       },
       {
         path: "settings.defaults.json",

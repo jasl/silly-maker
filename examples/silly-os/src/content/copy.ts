@@ -33,6 +33,8 @@ export interface SillyOsCopyV1 {
   readonly chat: string;
   readonly loadOlderTranscript: string;
   readonly loadingOlderTranscript: string;
+  readonly reloadLatestTranscript: string;
+  readonly loadingLatestTranscript: string;
   readonly transcriptUnavailable: string;
   readonly transcriptInterrupted: string;
   readonly retryInterruptedRun: string;
@@ -255,6 +257,8 @@ const englishV1: SillyOsCopyV1 = {
   chat: "Chat",
   loadOlderTranscript: "Load earlier messages",
   loadingOlderTranscript: "Loading earlier messages…",
+  reloadLatestTranscript: "Jump to latest messages",
+  loadingLatestTranscript: "Loading latest messages…",
   transcriptUnavailable: "The conversation could not be loaded.",
   transcriptInterrupted: "This response was interrupted before it completed.",
   retryInterruptedRun: "Retry interrupted run",
@@ -522,6 +526,8 @@ const chineseV1: SillyOsCopyV1 = {
   chat: "对话",
   loadOlderTranscript: "载入更早的消息",
   loadingOlderTranscript: "正在载入更早的消息……",
+  reloadLatestTranscript: "回到最新消息",
+  loadingLatestTranscript: "正在载入最新消息……",
   transcriptUnavailable: "无法载入当前对话。",
   transcriptInterrupted: "这条回复在完成前被中断。",
   retryInterruptedRun: "重试中断的运行",

@@ -164,6 +164,14 @@
     gap: 12px;
   }
 
+  .translation-intake__language-scope {
+    grid-column: 1 / -1;
+    margin: -2px 0 0;
+    color: var(--sos-ink-muted);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
   .translation-stage-rail {
     display: flex;
     min-inline-size: 0;
@@ -245,6 +253,20 @@
     color: var(--sos-ink-soft);
     font-size: 10px;
     line-height: 1.45;
+  }
+
+  .translation-candidate-review__findings {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-block-start: 6px;
+    gap: 5px 8px;
+  }
+
+  .translation-candidate-review__findings > span {
+    color: var(--sos-ink-muted);
+    font-size: 10px;
+    line-height: 1.4;
   }
 
   .translation-candidate-review__actions {
@@ -432,6 +454,10 @@
     background: var(--sos-surface-muted);
   }
 
+  .translation-unit-table__row[data-mechanical-warning="true"] {
+    box-shadow: inset 3px 0 0 var(--sos-warning);
+  }
+
   .translation-unit-table__row[data-selected="true"]::before {
     position: absolute;
     inset: 8px auto 8px 0;
@@ -541,13 +567,32 @@
   }
 
   .translation-unit-detail section.translation-unit-detail__ambiguity {
-    border-color: color-mix(in srgb, var(--sos-warning) 45%, var(--sos-line));
-    background: var(--sos-warning-soft);
+    border-color: color-mix(in srgb, var(--sos-info) 45%, var(--sos-line));
+    background: var(--sos-info-soft);
   }
 
   .translation-unit-detail section.translation-unit-detail__ambiguity h3,
   .translation-unit-detail section.translation-unit-detail__ambiguity p {
+    color: var(--sos-info);
+  }
+
+  .translation-unit-detail section.translation-unit-detail__mechanical-warnings {
+    border-color: color-mix(in srgb, var(--sos-warning) 45%, var(--sos-line));
+    background: var(--sos-warning-soft);
+  }
+
+  .translation-unit-detail__mechanical-warnings h3 {
     color: var(--sos-warning);
+  }
+
+  .translation-unit-detail__mechanical-warnings ul {
+    display: grid;
+    margin: 7px 0 0;
+    padding-inline-start: 18px;
+    gap: 4px;
+    color: var(--sos-ink-soft);
+    font-size: 11px;
+    line-height: 1.45;
   }
 
   .translation-unit-detail__readonly-note {

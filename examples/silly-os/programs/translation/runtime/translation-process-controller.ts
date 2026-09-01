@@ -23,6 +23,12 @@ import {
   type TranscriptEntryV1,
 } from "../../../src/program-platform/process/program-process-repository.ts";
 import {
+  createTranscriptWindowV1,
+  prependTranscriptWindowPageV1,
+  projectTranscriptWindowV1,
+  type TranscriptWindowV1,
+} from "../../../src/program-platform/process/transcript-window.ts";
+import {
   type AdmittedProgramPackageArchiveV1,
   type InstalledProgramPackageReferenceV1,
   type ProgramPackageManifestV1,
@@ -32,14 +38,26 @@ import {
   prepareTranslationDocumentV1,
   type PreparedTranslationDocumentV1,
 } from "./translation-document-codec.ts";
-import type {
-  TranslationAgentRunRequestV1,
-  TranslationAgentTerminalRunV1,
+import {
+  translationAgentInstructionMaximumCharactersV1,
+  type TranslationAgentRunRequestV1,
+  type TranslationAgentTerminalRunV1,
 } from "./translation-agent-contracts.ts";
+import {
+  createTranslationCandidateRetranslationInstructionV1,
+  translationAgentInstructionPromptOverheadBytesV1,
+} from "./translation-agent-prompt.ts";
 import {
   planTranslationBatchRequestV1,
   type TranslationBatchBudgetV1,
+  translationBatchRequestUtf8ByteLengthV1,
+  translationBatchRequestedOutputTokensV1,
 } from "./translation-batch-planner.ts";
+import {
+  admitTranslationBatchCandidateV1,
+  type TranslationBatchRequestV1,
+} from "./translation-batch-protocol.ts";
+import { evaluateTranslationMechanicalQaV1 } from "./translation-mechanical-qa.ts";
 import type {
   TranslationProcessRowWindowV1,
   TranslationProcessUnitProjectionV1,
@@ -69,6 +87,7 @@ import {
   resolveTranslationProgramSettingsV1,
   type TranslationProgramSettingsResolutionV1,
 } from "./translation-program-settings.ts";
+import { canonicalizeTranslationTargetLocaleV1 } from "./translation-target-language.ts";
 
 export type TranslationProcessDurabilityStateV1 =
   | { readonly phase: "ready" }
@@ -85,6 +104,8 @@ export interface TranslationProcessTranscriptProjectionV1 {
   readonly entries: readonly TranscriptEntryV1[];
   readonly byteLength: number;
   readonly nextBeforeSequence: number | null;
+  readonly newerOmitted: boolean;
+  readonly phase: "loading_older" | "ready";
 }
 
 export interface TranslationActiveProcessProjectionV1 {
@@ -129,6 +150,22 @@ export type TranslationBatchPrepareResultV1 =
   | { readonly kind: "prepared"; readonly run: TranslationAgentRunRequestV1 }
   | { readonly kind: "complete" | "pending_review" | "unavailable" }
   | {
+    readonly kind: "rejected";
+    readonly reason: "empty_message" | "message_too_long" | "candidate_invalid";
+  }
+  | {
+    readonly kind: "instruction_exceeds_budget";
+    readonly instructionByteLength: number;
+    readonly maximumRequestBytes: number;
+  }
+  | {
+    readonly kind: "batch_exceeds_budget";
+    readonly requestByteLength: number;
+    readonly maximumRequestBytes: number;
+    readonly requestedOutputTokens: number;
+    readonly maximumOutputTokens: number;
+  }
+  | {
     readonly kind: "unit_exceeds_budget";
     readonly unitId: string;
     readonly requestByteLength: number;
@@ -148,6 +185,12 @@ export interface TranslationPendingCandidateAcceptInputV1
   extends TranslationPendingCandidateReferenceV1 {
   /** Complete editable replacement for the pending candidate's ordered targets. */
   readonly targets: TranslationBatchCandidateAcceptInputV1["targets"];
+}
+
+interface TranslationPendingCandidateRetranslationInputV1
+  extends TranslationPendingCandidateAcceptInputV1 {
+  /** Exact user-authored direction in Conversation mode; null uses the guided default. */
+  readonly instruction: string | null;
 }
 
 export type TranslationPendingCandidateReviewResultV1 =
@@ -206,11 +249,21 @@ export interface TranslationProcessControllerV1 {
   openProcess(processId: string): Promise<TranslationProcessControllerResultV1<boolean>>;
   /** Refreshes the routed Process in place so passive tabs observe another owner's commit. */
   refreshActiveProcess(): Promise<TranslationProcessControllerResultV1<boolean>>;
+  /** Prepends one older durable page into the bounded mounted Conversation window. */
+  loadOlderTranscript(): Promise<TranslationProcessControllerResultV1<boolean>>;
+  /** Replaces an older mounted window with the newest durable Conversation page. */
+  reloadLatestTranscript(): Promise<TranslationProcessControllerResultV1<boolean>>;
   importSource(
     input: TranslationProcessImportInputV1,
   ): Promise<TranslationProcessControllerResultV1<TranslationWorksetHeadV1>>;
   prepareAgentBatch(
     budget: TranslationBatchBudgetV1,
+    instruction: string,
+  ): Promise<TranslationProcessControllerResultV1<TranslationBatchPrepareResultV1>>;
+  /** Starts an explicit successor attempt while retaining the predecessor until success. */
+  preparePendingCandidateRetranslation(
+    budget: TranslationBatchBudgetV1,
+    input: TranslationPendingCandidateRetranslationInputV1,
   ): Promise<TranslationProcessControllerResultV1<TranslationBatchPrepareResultV1>>;
   renewAgentRunLease(
     run: TranslationAgentRunRequestV1,
@@ -241,6 +294,8 @@ export interface TranslationProcessControllerV1 {
 
 export interface TranslationProcessControllerBudgetsV1 {
   readonly transcriptPageMaximumBytes: number;
+  /** Mounted Conversation window budget; older durable pages remain pageable. */
+  readonly transcriptWindowMaximumBytes?: number;
   /** Per-repository mutation work budget; it never limits total Process rows. */
   readonly importAppendMaximumBytes: number;
 }
@@ -253,8 +308,14 @@ type TranslationImportExecutionAcquireV1 =
   };
 
 const translationProcessDefaultPageMaximumBytesV1 = 128 * 1_024;
-const defaultBudgetsV1: TranslationProcessControllerBudgetsV1 = {
+const translationProcessDefaultWindowMaximumBytesV1 = translationProcessDefaultPageMaximumBytesV1 *
+  3;
+type ResolvedTranslationProcessControllerBudgetsV1 =
+  & TranslationProcessControllerBudgetsV1
+  & { readonly transcriptWindowMaximumBytes: number };
+const defaultBudgetsV1: ResolvedTranslationProcessControllerBudgetsV1 = {
   transcriptPageMaximumBytes: translationProcessDefaultPageMaximumBytesV1,
+  transcriptWindowMaximumBytes: translationProcessDefaultWindowMaximumBytesV1,
   importAppendMaximumBytes: operationalStructuredPayloadMaximumBytesV1,
 };
 
@@ -305,6 +366,12 @@ function trimmedRequiredV1(value: string, code: string): string {
   return trimmed;
 }
 
+function canonicalTargetLocaleV1(value: string): string {
+  const canonical = canonicalizeTranslationTargetLocaleV1(value);
+  if (canonical === null) throw controllerErrorV1("invalid_target_locale");
+  return canonical;
+}
+
 async function sha256V1(bytes: Uint8Array): Promise<string> {
   if (typeof crypto === "undefined" || crypto.subtle === undefined) {
     throw controllerErrorV1("digest_unavailable");
@@ -319,6 +386,7 @@ async function prepareImportMaterialV1(
   input: TranslationProcessImportInputV1,
   importBornDigitalPdf: TranslationBornDigitalPdfImporterV1,
 ): Promise<TranslationImportMaterialV1> {
+  const targetLocale = canonicalTargetLocaleV1(input.targetLocale);
   let fileName: string;
   let mediaType: string;
   let bytes: Uint8Array;
@@ -380,7 +448,7 @@ async function prepareImportMaterialV1(
     document,
     sourceUnits,
     sourceLocale: trimmedRequiredV1(input.sourceLocale, "invalid_source_locale"),
-    targetLocale: trimmedRequiredV1(input.targetLocale, "invalid_target_locale"),
+    targetLocale,
     title: input.title === undefined
       ? fileName
       : trimmedRequiredV1(input.title, "invalid_workset_title"),
@@ -397,6 +465,8 @@ function sourceExtensionV1(format: TranslationWorksetHeadV1["document"]["format"
   if (format === "plain_text") return "txt";
   if (format === "markdown") return "md";
   if (format === "subrip") return "srt";
+  if (format === "webvtt") return "vtt";
+  if (format === "advanced_substation_alpha") return "ass";
   if (format === "sillyos_translation_json") return "json";
   if (format === "pdf_text_reflow") return "pdf";
   throw controllerErrorV1("unsupported_document_format");
@@ -627,17 +697,31 @@ function planAppendPagesV1(input: {
 
 function validateBudgetsV1(
   budgets: TranslationProcessControllerBudgetsV1 | undefined,
-): TranslationProcessControllerBudgetsV1 {
+): ResolvedTranslationProcessControllerBudgetsV1 {
   const selected = budgets ?? defaultBudgetsV1;
+  const transcriptWindowMaximumBytes = selected.transcriptWindowMaximumBytes ?? Math.min(
+    operationalStructuredPayloadMaximumBytesV1,
+    selected.transcriptPageMaximumBytes * 3,
+  );
   if (
     !Number.isSafeInteger(selected.transcriptPageMaximumBytes) ||
     selected.transcriptPageMaximumBytes <= 0 ||
     selected.transcriptPageMaximumBytes > operationalStructuredPayloadMaximumBytesV1 ||
+    !Number.isSafeInteger(transcriptWindowMaximumBytes) ||
+    transcriptWindowMaximumBytes < selected.transcriptPageMaximumBytes ||
+    transcriptWindowMaximumBytes > operationalStructuredPayloadMaximumBytesV1 ||
     !Number.isSafeInteger(selected.importAppendMaximumBytes) ||
     selected.importAppendMaximumBytes <= 0 ||
     selected.importAppendMaximumBytes > operationalStructuredPayloadMaximumBytesV1
   ) throw new TypeError("sillyos.translation_process_controller.invalid_budgets");
-  return { ...selected };
+  return { ...selected, transcriptWindowMaximumBytes };
+}
+
+function translationTranscriptProjectionV1(
+  window: TranscriptWindowV1,
+  phase: TranslationProcessTranscriptProjectionV1["phase"],
+): TranslationProcessTranscriptProjectionV1 {
+  return { ...projectTranscriptWindowV1(window), phase };
 }
 
 function sameProgramPackageV1(
@@ -765,6 +849,8 @@ export function createTranslationProcessControllerV1(input: {
   let disposed = false;
   let routeEpoch = 0;
   let initializeEpoch = 0;
+  let transcriptWindowRevision = 0;
+  let transcriptWindow: TranscriptWindowV1 | null = null;
   let retryCommand: RetryCommandV1 | null = null;
   let snapshot: TranslationProcessControllerSnapshotV1 = {
     revision: 0,
@@ -1044,6 +1130,64 @@ export function createTranslationProcessControllerV1(input: {
     }
   };
 
+  const loadTranscriptInstructionV1 = async (binding: {
+    readonly processId: string;
+    readonly entryId: string;
+    readonly sequence: number;
+  }): Promise<string | null> => {
+    const page = await repository.loadTranscriptPage({
+      processId: binding.processId,
+      beforeSequence: binding.sequence + 1,
+      maximumBytes: budgets.transcriptPageMaximumBytes,
+    });
+    const entry = page?.entries.find((candidate) =>
+      candidate.entryId === binding.entryId && candidate.sequence === binding.sequence &&
+      candidate.role === "user"
+    );
+    const textParts = entry?.parts.filter((part) => part.kind === "text_markdown") ?? [];
+    if (entry === undefined || textParts.length !== 1) return null;
+    const instruction = textParts[0]!.markdown;
+    if (
+      instruction.length === 0 || instruction !== instruction.trim() ||
+      instruction.length > translationAgentInstructionMaximumCharactersV1
+    ) return null;
+    return instruction;
+  };
+
+  const loadOptionalTranslationProjectionV1 = async (processId: string): Promise<{
+    readonly workset: TranslationWorksetHeadV1 | null;
+    readonly pendingCandidate: TranslationBatchCandidateRecordV1 | null;
+    readonly failureCode: string | null;
+  }> => {
+    try {
+      const workset = await repository.loadTranslationWorksetHead(processId);
+      if (workset === null || workset.pendingCandidateId === null) {
+        return { workset, pendingCandidate: null, failureCode: null };
+      }
+      const pendingCandidate = await repository.loadTranslationBatchCandidate(
+        processId,
+        workset.pendingCandidateId,
+      );
+      if (
+        pendingCandidate === null || pendingCandidate.processId !== processId ||
+        pendingCandidate.candidateId !== workset.pendingCandidateId
+      ) {
+        return {
+          workset: null,
+          pendingCandidate: null,
+          failureCode: "translation_candidate_missing",
+        };
+      }
+      return { workset, pendingCandidate, failureCode: null };
+    } catch (error) {
+      return {
+        workset: null,
+        pendingCandidate: null,
+        failureCode: failureCodeV1(error),
+      };
+    }
+  };
+
   const settleExpiredAttemptV1 = async (
     process: ProcessHeadV1,
   ): Promise<ProcessHeadV1> => {
@@ -1054,10 +1198,18 @@ export function createTranslationProcessControllerV1(input: {
       lease === null || lease.attemptId !== attempt.attemptId ||
       lease.generation !== attempt.generation || now() < lease.expiresAt
     ) return process;
-    const workset = await repository.loadTranslationWorksetHead(process.processId);
+    const { pendingCandidate, workset } = await loadOptionalTranslationProjectionV1(
+      process.processId,
+    );
     const checkpoint = process.checkpoint;
     const startingCheckpoint = attempt.startingCheckpoint;
-    const retryable = workset?.phase === "ready" && workset.pendingCandidateId === null &&
+    const candidateEvidenceIsCurrent = workset !== null &&
+      (workset.pendingCandidateId === null || (pendingCandidate !== null &&
+        pendingCandidate.processId === process.processId &&
+        pendingCandidate.candidateId === workset.pendingCandidateId &&
+        pendingCandidate.baseWorksetRevision + 1 === workset.revision &&
+        pendingCandidate.firstOrder === workset.acceptedUnitCount));
+    const retryable = workset?.phase === "ready" && candidateEvidenceIsCurrent &&
       checkpoint !== null && checkpoint.checkpointId === startingCheckpoint.checkpointId &&
       checkpoint.throughSequence === startingCheckpoint.throughSequence &&
       checkpoint.workspaceId === startingCheckpoint.workspaceId &&
@@ -1089,7 +1241,9 @@ export function createTranslationProcessControllerV1(input: {
             kind: "text_markdown",
             partId: `${entryId}.text`,
             markdown: retryable
-              ? "The previous translation batch was interrupted. Its committed request can be retried from the unchanged Process Workspace checkpoint."
+              ? workset?.pendingCandidateId === null
+                ? "The previous translation batch was interrupted. Its committed request can be retried from the unchanged Process Workspace checkpoint."
+                : "Retranslation was interrupted. The previous review candidate remains available, and the exact interrupted successor attempt can be retried explicitly."
               : workset?.phase === "staging"
               ? "The previous source import stopped before the Process work set became ready. Review the incomplete import before continuing."
               : "The previous translation attempt stopped after its durable Process evidence changed or became unavailable. SillyOS will not replay it automatically.",
@@ -1180,16 +1334,14 @@ export function createTranslationProcessControllerV1(input: {
           projectionInput.workset.sourceBinding,
         ))
     ) throw controllerErrorV1("operation_reconciliation_conflict");
+    transcriptWindow = createTranscriptWindowV1(transcript);
+    transcriptWindowRevision += 1;
     publish({
       route: "process",
       activeProcess: {
         ...active,
         process,
-        transcript: {
-          entries: transcript.entries,
-          byteLength: transcript.byteLength,
-          nextBeforeSequence: transcript.nextBeforeSequence,
-        },
+        transcript: translationTranscriptProjectionV1(transcriptWindow, "ready"),
         workset: projectionInput.workset,
       },
       sourceImport: { phase: "idle" },
@@ -1205,6 +1357,10 @@ export function createTranslationProcessControllerV1(input: {
     retry: RetryCommandV1 | null,
   ): TranslationProcessControllerResultV1<boolean> => {
     retryCommand = retry;
+    if (operation !== "initialize") {
+      transcriptWindow = null;
+      transcriptWindowRevision += 1;
+    }
     publish({
       route: operation === "initialize" ? snapshot.route : "home",
       activeProcess: operation === "initialize" ? snapshot.activeProcess : null,
@@ -1215,6 +1371,8 @@ export function createTranslationProcessControllerV1(input: {
 
   const beginRouteLoadV1 = (): number => {
     const epoch = ++routeEpoch;
+    transcriptWindow = null;
+    transcriptWindowRevision += 1;
     retryCommand = null;
     publish({
       route: "process_loading",
@@ -1246,32 +1404,23 @@ export function createTranslationProcessControllerV1(input: {
           return fail("open", "process_workspace_mismatch", null, null);
         }
       }
-      const [transcript, workset, settingsOverride] = await Promise.all([
+      const [transcript, settingsOverride, translationProjection] = await Promise.all([
         repository.loadTranscriptPage({
           processId,
           beforeSequence: null,
           maximumBytes: budgets.transcriptPageMaximumBytes,
         }),
-        repository.loadTranslationWorksetHead(processId),
         repository.loadProcessSettingsOverride(processId),
+        loadOptionalTranslationProjectionV1(processId),
       ]);
       if (disposed || epoch !== routeEpoch) return { kind: "failed", code: "superseded" };
       if (transcript === null || transcript.processId !== processId) {
         return fail("open", "process_transcript_not_found", null, null);
       }
-      const pendingCandidate = workset?.pendingCandidateId === null ||
-          workset?.pendingCandidateId === undefined
-        ? null
-        : await repository.loadTranslationBatchCandidate(
-          processId,
-          workset.pendingCandidateId,
-        );
-      if (
-        workset?.pendingCandidateId !== null && workset?.pendingCandidateId !== undefined &&
-        (pendingCandidate === null || pendingCandidate.processId !== processId ||
-          pendingCandidate.candidateId !== workset.pendingCandidateId)
-      ) return fail("open", "translation_candidate_missing", null, null);
+      const { failureCode, pendingCandidate, workset } = translationProjection;
       retryCommand = null;
+      transcriptWindow = createTranscriptWindowV1(transcript);
+      transcriptWindowRevision += 1;
       publish({
         route: "process",
         activeProcess: {
@@ -1280,15 +1429,13 @@ export function createTranslationProcessControllerV1(input: {
             resolveProcessSettingsV1(settingsOverride?.overrideJson ?? null),
           ),
           workspace: inspection.workspace,
-          transcript: {
-            entries: transcript.entries,
-            byteLength: transcript.byteLength,
-            nextBeforeSequence: transcript.nextBeforeSequence,
-          },
+          transcript: translationTranscriptProjectionV1(transcriptWindow, "ready"),
           workset,
           pendingCandidate,
         },
-        sourceImport: workset?.phase === "staging"
+        sourceImport: failureCode !== null
+          ? { phase: "failed", code: failureCode }
+          : workset?.phase === "staging"
           ? { phase: "failed", code: "translation_import_incomplete" }
           : { phase: "idle" },
         durability: { phase: "ready" },
@@ -1813,6 +1960,7 @@ export function createTranslationProcessControllerV1(input: {
           locator: row.locator,
           context: row.context,
           durationMilliseconds: row.durationMilliseconds,
+          lineBreakPolicy: row.lineBreakPolicy,
           source: row.source,
           protectedSegments: row.protectedSegments.map((segment) => ({ ...segment })),
           target: row.target,
@@ -1927,12 +2075,316 @@ export function createTranslationProcessControllerV1(input: {
     }
   };
 
+  const loadOlderTranscriptV1 = async (): Promise<
+    TranslationProcessControllerResultV1<boolean>
+  > => {
+    if (disposed) return { kind: "failed", code: "disposed" };
+    const active = snapshot.activeProcess;
+    const currentWindow = transcriptWindow;
+    if (
+      snapshot.route !== "process" || active === null || currentWindow === null ||
+      currentWindow.processId !== active.process.processId ||
+      active.transcript.phase === "loading_older"
+    ) return { kind: "completed", value: false };
+    const beforeSequence = active.transcript.nextBeforeSequence;
+    if (beforeSequence === null) return { kind: "completed", value: false };
+
+    const processId = active.process.processId;
+    const epoch = routeEpoch;
+    const windowRevision = transcriptWindowRevision;
+    publish({
+      route: "process",
+      activeProcess: {
+        ...active,
+        transcript: translationTranscriptProjectionV1(currentWindow, "loading_older"),
+      },
+      durability: { phase: "ready" },
+    });
+
+    const currentActiveProcessV1 = (): TranslationActiveProcessProjectionV1 | null => {
+      const projected = snapshot.activeProcess;
+      return !disposed && routeEpoch === epoch && snapshot.route === "process" &&
+          projected?.process.processId === processId && transcriptWindow === currentWindow &&
+          transcriptWindowRevision === windowRevision
+        ? projected
+        : null;
+    };
+    const restoreReadyV1 = (): void => {
+      const projected = currentActiveProcessV1();
+      if (projected === null) return;
+      publish({
+        route: "process",
+        activeProcess: {
+          ...projected,
+          transcript: translationTranscriptProjectionV1(currentWindow, "ready"),
+        },
+        durability: { phase: "ready" },
+      });
+    };
+
+    try {
+      const page = await repository.loadTranscriptPage({
+        processId,
+        beforeSequence,
+        maximumBytes: budgets.transcriptPageMaximumBytes,
+      });
+      const projected = currentActiveProcessV1();
+      if (projected === null) return { kind: "failed", code: "superseded" };
+      if (page === null) {
+        restoreReadyV1();
+        return { kind: "failed", code: "process_transcript_not_found" };
+      }
+      if (page.processId !== processId || page.beforeSequence !== beforeSequence) {
+        restoreReadyV1();
+        return { kind: "failed", code: "process_transcript_page_mismatch" };
+      }
+      const nextWindow = prependTranscriptWindowPageV1({
+        current: currentWindow,
+        page,
+        maximumBytes: budgets.transcriptWindowMaximumBytes,
+      });
+      transcriptWindow = nextWindow;
+      transcriptWindowRevision += 1;
+      publish({
+        route: "process",
+        activeProcess: {
+          ...projected,
+          transcript: translationTranscriptProjectionV1(nextWindow, "ready"),
+        },
+        durability: { phase: "ready" },
+      });
+      return { kind: "completed", value: page.entries.length > 0 };
+    } catch (error) {
+      if (currentActiveProcessV1() === null) return { kind: "failed", code: "superseded" };
+      restoreReadyV1();
+      return { kind: "failed", code: failureCodeV1(error) };
+    }
+  };
+
+  const reloadLatestTranscriptV1 = async (): Promise<
+    TranslationProcessControllerResultV1<boolean>
+  > => {
+    if (disposed) return { kind: "failed", code: "disposed" };
+    const active = snapshot.activeProcess;
+    const currentWindow = transcriptWindow;
+    if (
+      snapshot.route !== "process" || active === null || currentWindow === null ||
+      currentWindow.processId !== active.process.processId || !active.transcript.newerOmitted
+    ) return { kind: "completed", value: false };
+
+    const processId = active.process.processId;
+    const epoch = routeEpoch;
+    const windowRevision = transcriptWindowRevision;
+    try {
+      const page = await repository.loadTranscriptPage({
+        processId,
+        beforeSequence: null,
+        maximumBytes: budgets.transcriptPageMaximumBytes,
+      });
+      const projected = snapshot.activeProcess;
+      if (
+        disposed || routeEpoch !== epoch || snapshot.route !== "process" ||
+        projected?.process.processId !== processId || transcriptWindow !== currentWindow ||
+        transcriptWindowRevision !== windowRevision
+      ) return { kind: "failed", code: "superseded" };
+      if (page === null) {
+        return { kind: "failed", code: "process_transcript_not_found" };
+      }
+      if (page.processId !== processId || page.beforeSequence !== null) {
+        return { kind: "failed", code: "process_transcript_page_mismatch" };
+      }
+      const nextWindow = createTranscriptWindowV1(page);
+      transcriptWindow = nextWindow;
+      transcriptWindowRevision += 1;
+      publish({
+        route: "process",
+        activeProcess: {
+          ...projected,
+          transcript: translationTranscriptProjectionV1(nextWindow, "ready"),
+        },
+        durability: { phase: "ready" },
+      });
+      return { kind: "completed", value: true };
+    } catch (error) {
+      if (disposed || routeEpoch !== epoch) return { kind: "failed", code: "superseded" };
+      return { kind: "failed", code: failureCodeV1(error) };
+    }
+  };
+
+  const acquireTranslationAgentRunV1 = async (acquisition: {
+    readonly active: TranslationActiveProcessProjectionV1;
+    readonly workset: TranslationWorksetHeadV1;
+    readonly process: ProcessHeadV1;
+    readonly instruction: string;
+    readonly request: TranslationBatchRequestV1;
+    readonly requestedOutputTokens: number;
+    readonly expectedPendingCandidateId: string | null;
+    readonly reuseTrigger: { readonly entryId: string; readonly sequence: number } | null;
+  }): Promise<TranslationProcessControllerResultV1<TranslationBatchPrepareResultV1>> => {
+    const durableWorkset = await repository.loadTranslationWorksetHead(
+      acquisition.process.processId,
+    );
+    const durableProcess = await repository.loadProcess(acquisition.process.processId);
+    if (
+      durableWorkset === null || durableProcess === null ||
+      durableWorkset.revision !== acquisition.workset.revision ||
+      durableWorkset.acceptedUnitCount !== acquisition.workset.acceptedUnitCount ||
+      durableWorkset.pendingCandidateId !== acquisition.expectedPendingCandidateId ||
+      durableProcess.activeAttempt !== null || durableProcess.checkpoint === null ||
+      durableProcess.revision !== acquisition.process.revision
+    ) return { kind: "completed", value: { kind: "unavailable" } };
+
+    const attemptId = createId("translation-agent-run");
+    const generation = (durableProcess.lastTerminalAttempt?.generation ?? 0) + 1;
+    const observedAt = Math.max(now(), durableProcess.updatedAt);
+    const triggerSequence = durableProcess.transcriptFrontier + 1;
+    const triggerEntryId = `${attemptId}.request`;
+    const trigger = acquisition.reuseTrigger === null
+      ? {
+        kind: "new_entry" as const,
+        entry: {
+          schemaVersion: 1 as const,
+          processId: durableProcess.processId,
+          sequence: triggerSequence,
+          entryId: triggerEntryId,
+          role: "user" as const,
+          state: "committed" as const,
+          parts: [{
+            kind: "text_markdown" as const,
+            partId: `${triggerEntryId}.text`,
+            markdown: acquisition.instruction,
+          }],
+        },
+      }
+      : {
+        kind: "existing_entry" as const,
+        entryId: acquisition.reuseTrigger.entryId,
+        sequence: acquisition.reuseTrigger.sequence,
+      };
+    const startingCheckpoint: ProcessCheckpointV1 = {
+      checkpointId: `${attemptId}.start`,
+      throughSequence: trigger.kind === "new_entry"
+        ? trigger.entry.sequence
+        : durableProcess.transcriptFrontier,
+      workspaceId: durableProcess.checkpoint.workspaceId,
+      workspaceCheckpointId: durableProcess.checkpoint.workspaceCheckpointId,
+      workspaceGeneration: durableProcess.checkpoint.workspaceGeneration,
+    };
+    const acquireInput = {
+      expectedWorksetRevision: acquisition.workset.revision,
+      expectedFirstPendingOrder: acquisition.workset.acceptedUnitCount,
+      expectedPendingCandidateId: acquisition.expectedPendingCandidateId,
+      execution: {
+        ownerInstanceId,
+        observedAt,
+        expiresAt: observedAt + processExecutionLeaseDurationMilliseconds,
+        attempt: {
+          processId: durableProcess.processId,
+          expectedProcessRevision: durableProcess.revision,
+          expectedTranscriptFrontier: durableProcess.transcriptFrontier,
+          commitId: `${attemptId}.acquire`,
+          attemptId,
+          generation,
+          trigger,
+          startingCheckpoint,
+          updatedAt: observedAt,
+        },
+      },
+    } as const;
+    const expectation = {
+      operation: "batch_execution_acquire" as const,
+      input: acquireInput,
+    };
+    let lease: ProcessExecutionLeaseV1 | null = null;
+    try {
+      const acquired = await repository.acquireTranslationBatchExecution(acquireInput);
+      if (acquired.kind === "conflict") {
+        return { kind: "completed", value: { kind: "unavailable" } };
+      }
+      lease = acquired.lease;
+    } catch (error) {
+      if (!isProgramDataRepositoryFailureV1(error) || error.code !== "outcome_unknown") {
+        throw error;
+      }
+      const queried = await repository.queryTranslationProcessOperation(expectation);
+      if (queried.kind === "mismatch") throw controllerErrorV1("operation_receipt_mismatch");
+      if (queried.kind === "absent") throw error;
+      lease = queried.receipt.lease;
+    }
+    const currentLease = await repository.loadProcessExecutionLease(durableProcess.processId);
+    if (
+      lease === null || currentLease === null || !leaseMatchesV1(lease, currentLease) ||
+      currentLease.ownerInstanceId !== ownerInstanceId ||
+      currentLease.attemptId !== attemptId || currentLease.generation !== generation
+    ) return { kind: "completed", value: { kind: "unavailable" } };
+    ownedAgentLease = currentLease;
+    await refreshProcessProjectionV1(durableProcess.processId);
+    return {
+      kind: "completed",
+      value: {
+        kind: "prepared",
+        run: {
+          agentRunId: attemptId,
+          programPackage: acquisition.active.process.programPackage,
+          processId: durableProcess.processId,
+          processAttemptGeneration: generation,
+          workspaceCheckpointId: startingCheckpoint.workspaceCheckpointId,
+          workspaceGeneration: startingCheckpoint.workspaceGeneration,
+          programId: durableProcess.programPackage.programId,
+          expectedWorksetRevision: acquisition.workset.revision,
+          replacesCandidateId: acquisition.expectedPendingCandidateId,
+          requestedOutputTokens: acquisition.requestedOutputTokens,
+          instruction: acquisition.instruction,
+          batch: acquisition.request,
+        },
+      },
+    };
+  };
+
+  const loadRetryTriggerV1 = async (
+    process: ProcessHeadV1,
+  ): Promise<
+    {
+      readonly instruction: string;
+      readonly trigger: { readonly entryId: string; readonly sequence: number };
+    } | null
+  > => {
+    const terminal = process.status === "interrupted_retryable" &&
+        process.lastTerminalAttempt?.outcome === "interrupted"
+      ? process.lastTerminalAttempt
+      : null;
+    if (terminal === null) return null;
+    const instruction = await loadTranscriptInstructionV1({
+      processId: process.processId,
+      entryId: terminal.triggerEntryId,
+      sequence: terminal.triggerSequence,
+    });
+    if (instruction === null) return null;
+    return {
+      instruction,
+      trigger: { entryId: terminal.triggerEntryId, sequence: terminal.triggerSequence },
+    };
+  };
+
   const prepareAgentBatchV1 = async (
     budget: TranslationBatchBudgetV1,
+    rawInstruction: string,
   ): Promise<TranslationProcessControllerResultV1<TranslationBatchPrepareResultV1>> => {
     if (disposed) return { kind: "failed", code: "disposed" };
     if (!Number.isSafeInteger(budget.maximumRequestBytes) || budget.maximumRequestBytes <= 0) {
       return { kind: "failed", code: "invalid_translation_request_budget" };
+    }
+    // The instruction is one durable Conversation entry, not a second
+    // guided-mode command channel. The same text reaches the Agent prompt.
+    const submittedInstruction = rawInstruction.trim();
+    if (submittedInstruction.length === 0) {
+      return { kind: "completed", value: { kind: "rejected", reason: "empty_message" } };
+    }
+    if (submittedInstruction.length > translationAgentInstructionMaximumCharactersV1) {
+      return {
+        kind: "completed",
+        value: { kind: "rejected", reason: "message_too_long" },
+      };
     }
     const active = snapshot.activeProcess;
     const workset = active?.workset ?? null;
@@ -1953,7 +2405,27 @@ export function createTranslationProcessControllerV1(input: {
     ) return { kind: "completed", value: { kind: "unavailable" } };
 
     try {
-      const planningRows = await loadBatchPlanningRowsV1(workset, budget);
+      const retryTrigger = await loadRetryTriggerV1(process);
+      if (process.status === "interrupted_retryable" && retryTrigger === null) {
+        return { kind: "completed", value: { kind: "unavailable" } };
+      }
+      const instruction = retryTrigger?.instruction ?? submittedInstruction;
+      const instructionByteLength = translationAgentInstructionPromptOverheadBytesV1(instruction);
+      if (instructionByteLength >= budget.maximumRequestBytes) {
+        return {
+          kind: "completed",
+          value: {
+            kind: "instruction_exceeds_budget",
+            instructionByteLength,
+            maximumRequestBytes: budget.maximumRequestBytes,
+          },
+        };
+      }
+      const planningBudget: TranslationBatchBudgetV1 = {
+        ...budget,
+        maximumRequestBytes: budget.maximumRequestBytes - instructionByteLength,
+      };
+      const planningRows = await loadBatchPlanningRowsV1(workset, planningBudget);
       const planned = planTranslationBatchRequestV1({
         sourceLocale: workset.sourceLocale,
         targetLocale: workset.targetLocale,
@@ -1963,130 +2435,144 @@ export function createTranslationProcessControllerV1(input: {
         glossaryRows: planningRows.glossaryRows,
         confirmedMeaningFacts: [],
         neighboringUnits: { preceding: planningRows.preceding, following: null },
-        budget,
+        budget: planningBudget,
       });
       if (planned.kind === "empty") {
         return { kind: "completed", value: { kind: "complete" } };
       }
       if (planned.kind === "unit_exceeds_budget") {
-        return { kind: "completed", value: planned };
-      }
-
-      const durableWorkset = await repository.loadTranslationWorksetHead(process.processId);
-      const durableProcess = await repository.loadProcess(process.processId);
-      if (
-        durableWorkset === null || durableProcess === null ||
-        durableWorkset.revision !== workset.revision ||
-        durableWorkset.acceptedUnitCount !== workset.acceptedUnitCount ||
-        durableWorkset.pendingCandidateId !== null || durableProcess.activeAttempt !== null ||
-        durableProcess.checkpoint === null
-      ) return { kind: "completed", value: { kind: "unavailable" } };
-
-      const attemptId = createId("translation-agent-run");
-      const generation = (durableProcess.lastTerminalAttempt?.generation ?? 0) + 1;
-      const observedAt = Math.max(now(), durableProcess.updatedAt);
-      const triggerSequence = durableProcess.transcriptFrontier + 1;
-      const triggerEntryId = `${attemptId}.request`;
-      const isRetry = durableProcess.status === "interrupted_retryable" &&
-        durableProcess.lastTerminalAttempt?.outcome === "interrupted";
-      const trigger = isRetry
-        ? {
-          kind: "existing_entry" as const,
-          entryId: durableProcess.lastTerminalAttempt!.triggerEntryId,
-          sequence: durableProcess.lastTerminalAttempt!.triggerSequence,
-        }
-        : {
-          kind: "new_entry" as const,
-          entry: {
-            schemaVersion: 1 as const,
-            processId: durableProcess.processId,
-            sequence: triggerSequence,
-            entryId: triggerEntryId,
-            role: "user" as const,
-            state: "committed" as const,
-            parts: [{
-              kind: "text_markdown" as const,
-              partId: `${triggerEntryId}.text`,
-              markdown: `Translate the next ${String(planned.request.units.length)} source units.`,
-            }],
+        return {
+          kind: "completed",
+          value: {
+            ...planned,
+            requestByteLength: planned.requestByteLength + instructionByteLength,
+            maximumRequestBytes: budget.maximumRequestBytes,
           },
         };
-      const startingCheckpoint: ProcessCheckpointV1 = {
-        checkpointId: `${attemptId}.start`,
-        throughSequence: trigger.kind === "new_entry"
-          ? trigger.entry.sequence
-          : durableProcess.transcriptFrontier,
-        workspaceId: durableProcess.checkpoint.workspaceId,
-        workspaceCheckpointId: durableProcess.checkpoint.workspaceCheckpointId,
-        workspaceGeneration: durableProcess.checkpoint.workspaceGeneration,
-      };
-      const acquireInput = {
-        expectedWorksetRevision: workset.revision,
-        expectedFirstPendingOrder: workset.acceptedUnitCount,
+      }
+
+      return await acquireTranslationAgentRunV1({
+        active,
+        workset,
+        process,
+        instruction,
+        request: planned.request,
+        requestedOutputTokens: planned.requestedOutputTokens,
         expectedPendingCandidateId: null,
-        execution: {
-          ownerInstanceId,
-          observedAt,
-          expiresAt: observedAt + processExecutionLeaseDurationMilliseconds,
-          attempt: {
-            processId: durableProcess.processId,
-            expectedProcessRevision: durableProcess.revision,
-            expectedTranscriptFrontier: durableProcess.transcriptFrontier,
-            commitId: `${attemptId}.acquire`,
-            attemptId,
-            generation,
-            trigger,
-            startingCheckpoint,
-            updatedAt: observedAt,
-          },
-        },
-      } as const;
-      const expectation = {
-        operation: "batch_execution_acquire" as const,
-        input: acquireInput,
-      };
-      let lease: ProcessExecutionLeaseV1 | null = null;
-      try {
-        const acquired = await repository.acquireTranslationBatchExecution(acquireInput);
-        if (acquired.kind === "conflict") {
+        reuseTrigger: retryTrigger?.trigger ?? null,
+      });
+    } catch (error) {
+      return { kind: "failed", code: failureCodeV1(error) };
+    }
+  };
+
+  const preparePendingCandidateRetranslationV1 = async (
+    budget: TranslationBatchBudgetV1,
+    reviewInput: TranslationPendingCandidateRetranslationInputV1,
+  ): Promise<TranslationProcessControllerResultV1<TranslationBatchPrepareResultV1>> => {
+    if (disposed) return { kind: "failed", code: "disposed" };
+    if (
+      !Number.isSafeInteger(budget.maximumRequestBytes) || budget.maximumRequestBytes <= 0 ||
+      !Number.isSafeInteger(budget.maximumOutputTokens) || budget.maximumOutputTokens <= 0
+    ) return { kind: "failed", code: "invalid_translation_request_budget" };
+    const active = snapshot.activeProcess;
+    const workset = active?.workset ?? null;
+    const candidate = active?.pendingCandidate ?? null;
+    if (
+      snapshot.route !== "process" || active === null || workset === null || candidate === null ||
+      workset.phase !== "ready" || workset.processId !== active.process.processId ||
+      workset.pendingCandidateId !== candidate.candidateId
+    ) return { kind: "completed", value: { kind: "unavailable" } };
+    if (
+      reviewInput.expectedWorksetRevision !== workset.revision ||
+      reviewInput.candidateId !== candidate.candidateId ||
+      reviewInput.targets.length !== candidate.targets.length ||
+      reviewInput.targets.some((target, index) =>
+        target.unitId !== candidate.targets[index]?.unitId || target.target.trim().length === 0
+      )
+    ) return { kind: "completed", value: { kind: "unavailable" } };
+    const process = await repository.loadProcess(active.process.processId);
+    if (
+      process === null || process.activeAttempt !== null || process.checkpoint === null ||
+      (process.status !== "active" && process.status !== "interrupted_retryable")
+    ) return { kind: "completed", value: { kind: "unavailable" } };
+
+    try {
+      const retryTrigger = await loadRetryTriggerV1(process);
+      let instruction: string;
+      if (process.status === "interrupted_retryable") {
+        if (retryTrigger === null) {
           return { kind: "completed", value: { kind: "unavailable" } };
         }
-        lease = acquired.lease;
-      } catch (error) {
-        if (!isProgramDataRepositoryFailureV1(error) || error.code !== "outcome_unknown") {
-          throw error;
+        instruction = retryTrigger.instruction;
+      } else {
+        if (reviewInput.instruction !== null) {
+          if (reviewInput.instruction.trim().length === 0) {
+            return { kind: "completed", value: { kind: "rejected", reason: "empty_message" } };
+          }
+          if (
+            reviewInput.instruction !== reviewInput.instruction.trim() ||
+            reviewInput.instruction.length > translationAgentInstructionMaximumCharactersV1
+          ) {
+            return {
+              kind: "completed",
+              value: { kind: "rejected", reason: "message_too_long" },
+            };
+          }
         }
-        const queried = await repository.queryTranslationProcessOperation(expectation);
-        if (queried.kind === "mismatch") throw controllerErrorV1("operation_receipt_mismatch");
-        if (queried.kind === "absent") throw error;
-        lease = queried.receipt.lease;
+        const admittedDraft = admitTranslationBatchCandidateV1({
+          targets: reviewInput.targets,
+          ambiguities: candidate.ambiguities,
+        }, candidate.request);
+        if (admittedDraft.kind !== "admitted") {
+          return { kind: "completed", value: { kind: "rejected", reason: "candidate_invalid" } };
+        }
+        instruction = createTranslationCandidateRetranslationInstructionV1({
+          instruction: reviewInput.instruction,
+          targets: admittedDraft.candidate.targets,
+          findings: evaluateTranslationMechanicalQaV1(
+            candidate.request,
+            admittedDraft.candidate,
+          ),
+        });
+        if (
+          instruction.length > translationAgentInstructionMaximumCharactersV1 ||
+          instruction !== instruction.trim()
+        ) {
+          return { kind: "completed", value: { kind: "rejected", reason: "message_too_long" } };
+        }
       }
-      const currentLease = await repository.loadProcessExecutionLease(durableProcess.processId);
+      const requestByteLength = translationAgentInstructionPromptOverheadBytesV1(instruction) +
+        translationBatchRequestUtf8ByteLengthV1(candidate.request);
+      const requestedOutputTokens = translationBatchRequestedOutputTokensV1(
+        candidate.request,
+        budget.outputEnvelope,
+      );
       if (
-        lease === null || currentLease === null || !leaseMatchesV1(lease, currentLease) ||
-        currentLease.ownerInstanceId !== ownerInstanceId ||
-        currentLease.attemptId !== attemptId || currentLease.generation !== generation
-      ) return { kind: "completed", value: { kind: "unavailable" } };
-      ownedAgentLease = currentLease;
-      await refreshProcessProjectionV1(durableProcess.processId);
-      return {
-        kind: "completed",
-        value: {
-          kind: "prepared",
-          run: {
-            agentRunId: attemptId,
-            programPackage: active.process.programPackage,
-            processId: durableProcess.processId,
-            processAttemptGeneration: generation,
-            workspaceCheckpointId: startingCheckpoint.workspaceCheckpointId,
-            workspaceGeneration: startingCheckpoint.workspaceGeneration,
-            programId: durableProcess.programPackage.programId,
-            expectedWorksetRevision: workset.revision,
-            requestedOutputTokens: planned.requestedOutputTokens,
-            batch: planned.request,
+        requestByteLength > budget.maximumRequestBytes ||
+        requestedOutputTokens > budget.maximumOutputTokens
+      ) {
+        return {
+          kind: "completed",
+          value: {
+            kind: "batch_exceeds_budget",
+            requestByteLength,
+            maximumRequestBytes: budget.maximumRequestBytes,
+            requestedOutputTokens,
+            maximumOutputTokens: budget.maximumOutputTokens,
           },
-        },
-      };
+        };
+      }
+      return await acquireTranslationAgentRunV1({
+        active,
+        workset,
+        process,
+        instruction,
+        request: candidate.request,
+        requestedOutputTokens,
+        expectedPendingCandidateId: candidate.candidateId,
+        reuseTrigger: retryTrigger?.trigger ?? null,
+      });
     } catch (error) {
       return { kind: "failed", code: failureCodeV1(error) };
     }
@@ -2157,6 +2643,7 @@ export function createTranslationProcessControllerV1(input: {
         !sameProgramPackageV1(process.programPackage, terminal.run.programPackage) ||
         terminal.run.programId !== process.programPackage.programId ||
         terminal.run.expectedWorksetRevision !== workset.revision ||
+        terminal.run.replacesCandidateId !== workset.pendingCandidateId ||
         attempt.attemptId !== terminal.run.agentRunId ||
         attempt.generation !== terminal.run.processAttemptGeneration ||
         attempt.startingCheckpoint.workspaceCheckpointId !==
@@ -2179,14 +2666,33 @@ export function createTranslationProcessControllerV1(input: {
       const entryId = `${terminal.run.agentRunId}.terminal.entry`;
       const outcome = terminal.outcome;
       const markdown = outcome === "completed"
-        ? `A translation candidate for ${
-          String(terminal.run.batch.units.length)
-        } units is ready for review.`
+        ? terminal.run.replacesCandidateId === null
+          ? `A translation candidate for ${
+            String(terminal.run.batch.units.length)
+          } units is ready for review.`
+          : `A replacement translation candidate for ${
+            String(terminal.run.batch.units.length)
+          } units is ready for review.`
         : outcome === "cancelled"
-        ? "Translation was cancelled before a review candidate was published."
+        ? terminal.run.replacesCandidateId === null
+          ? "Translation was cancelled before a review candidate was published."
+          : "Retranslation was cancelled. The previous review candidate remains available."
         : outcome === "replaced"
-        ? "Translation was replaced before a review candidate was published."
-        : "Translation failed before a review candidate was published.";
+        ? terminal.run.replacesCandidateId === null
+          ? "Translation was replaced before a review candidate was published."
+          : "Retranslation was replaced. The previous review candidate remains available."
+        : terminal.outcome === "failed" &&
+            terminal.diagnosticCode === "candidate_structure_invalid"
+        ? terminal.run.replacesCandidateId === null
+          ? "Translation returned a malformed candidate envelope. No translation content was published."
+          : "Retranslation returned a malformed candidate envelope. The previous review candidate remains available."
+        : terminal.outcome === "failed" && terminal.diagnosticCode === "candidate_invalid"
+        ? terminal.run.replacesCandidateId === null
+          ? "Translation returned a candidate that did not satisfy the exact batch constraints. No translation content was published."
+          : "Retranslation returned a candidate that did not satisfy the exact batch constraints. The previous review candidate remains available."
+        : terminal.run.replacesCandidateId === null
+        ? "Translation failed before a review candidate was published."
+        : "Retranslation failed. The previous review candidate remains available.";
       const terminalInput: ProcessExecutionTerminalInputV1 = {
         lease,
         observedAt,
@@ -2236,6 +2742,7 @@ export function createTranslationProcessControllerV1(input: {
           lease,
           expectedWorksetRevision: terminal.run.expectedWorksetRevision,
           expectedFirstPendingOrder: terminal.run.batch.units[0]!.order,
+          replacesCandidateId: terminal.run.replacesCandidateId,
           request: terminal.run.batch,
           candidate: terminal.candidate,
           updatedAt: observedAt,
@@ -2448,6 +2955,7 @@ export function createTranslationProcessControllerV1(input: {
     importSource: importSourceV1,
     loadTranslationRowWindow: loadTranslationRowWindowV1,
     prepareAgentBatch: prepareAgentBatchV1,
+    preparePendingCandidateRetranslation: preparePendingCandidateRetranslationV1,
     renewAgentRunLease: renewAgentRunLeaseV1,
     recordAgentRunTerminal: recordAgentRunTerminalV1,
     acceptPendingCandidate(reviewInput) {
@@ -2457,6 +2965,8 @@ export function createTranslationProcessControllerV1(input: {
       return reviewPendingCandidateV1("reject", reviewInput);
     },
     updateSettingsOverride: updateSettingsOverrideV1,
+    loadOlderTranscript: loadOlderTranscriptV1,
+    reloadLatestTranscript: reloadLatestTranscriptV1,
     openProcess(processId) {
       if (disposed) return Promise.resolve({ kind: "failed", code: "disposed" });
       return openProcessAtEpochV1(processId, beginRouteLoadV1());
@@ -2488,6 +2998,8 @@ export function createTranslationProcessControllerV1(input: {
     openHome() {
       if (disposed) return false;
       routeEpoch += 1;
+      transcriptWindow = null;
+      transcriptWindowRevision += 1;
       retryCommand = null;
       publish({
         route: "home",
@@ -2508,6 +3020,8 @@ export function createTranslationProcessControllerV1(input: {
       disposed = true;
       routeEpoch += 1;
       initializeEpoch += 1;
+      transcriptWindow = null;
+      transcriptWindowRevision += 1;
       retryCommand = null;
       ownedAgentLease = null;
       terminalizingAgentRunId = null;

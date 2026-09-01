@@ -7,7 +7,7 @@ import type { BornDigitalPdfImportResultV1 } from "../silly-os/programs/translat
 
 import { sillyOsTargetUrlV1 } from "./fixtures.ts";
 
-const bornDigitalPdfHarnessPathV1 = "programs/translation/notes/pdf-harness/index.html";
+const bornDigitalPdfHarnessPathV1 = "programs/translation/test/pdf-harness/index.html";
 
 interface BornDigitalPdfHarnessWindowV1 extends Window {
   readonly sillyOsBornDigitalPdfHarnessV1: (
@@ -55,15 +55,29 @@ test("born-digital PDF harness stays lazy and extracts stable page locators", as
       projection: "pdf_text_reflow",
       pageCount: 2,
       sourceUnits: [
-        { order: 0, locator: "pdf/page/0001/line/0001", source: "Hello PDF" },
-        { order: 1, locator: "pdf/page/0001/line/0002", source: "Second line" },
-        { order: 2, locator: "pdf/page/0002/line/0001", source: "Final page" },
+        {
+          order: 0,
+          locator: "pdf/page/0001/line/0001",
+          source: "The authorized exception applies.",
+        },
+        { order: 1, locator: "pdf/page/0001/line/0003", source: "Second paragraph." },
+        { order: 2, locator: "pdf/page/0002/line/0001", source: "Final page." },
       ],
       pageDiagnostics: [],
     },
   });
   if (result.kind !== "ready") throw new TypeError("expected ready PDF projection");
-  expect(result.document.sourceMap.map((entry) => entry.pageNumber)).toEqual([1, 1, 2]);
+  expect(
+    result.document.sourceMap.map((entry) => ({
+      pageNumber: entry.pageNumber,
+      lineStart: entry.physicalLineStart,
+      lineEndExclusive: entry.physicalLineEndExclusive,
+    })),
+  ).toEqual([
+    { pageNumber: 1, lineStart: 1, lineEndExclusive: 3 },
+    { pageNumber: 1, lineStart: 3, lineEndExclusive: 4 },
+    { pageNumber: 2, lineStart: 1, lineEndExclusive: 2 },
+  ]);
   expect(requestedUrls.some((url) => url.includes("browser-pdf-text-extractor"))).toBe(true);
   expect(requestedUrls.some((url) => url.includes("pdfjs-dist"))).toBe(true);
   expect(requestedUrls.some((url) => url.includes("pdf.worker"))).toBe(true);

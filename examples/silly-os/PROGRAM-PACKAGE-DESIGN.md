@@ -100,8 +100,9 @@ no separate mutable Program-default preference authority.
 The Program UI Container owns the outer geometry, mode switch, overlays,
 focus, and Run projection. A Program supplies admitted UI data or selects a
 supported Host surface; it does not supply arbitrary React nodes, portals, DOM
-code, or outer chrome. OpenUI remains a later admitted-data renderer inside
-this boundary. The Host also provides one non-durable session-state scope for
+code, or outer chrome. Complete package-authored OpenUI data maps through the
+current closed Host renderer inside this boundary; Agent-generated OpenUI
+publication remains later work. The Host also provides one non-durable session-state scope for
 the exact Program package. A Program may key draft, selection, and scroll state
 by Process there before its rendered subtree is released; another package
 cannot read that scope, and the scope is cleared with the application session.
@@ -164,8 +165,8 @@ The first denominator is intentionally smaller than a general plugin system:
 - Program UI only inside the SillyOS-owned container.
 
 The current formal Creator and Translation packages both declare `scripts: []`.
-Translation's fixed-script experiment remains below its source-only `notes/`
-tree and is not an archive file or production runtime input.
+Neither package ships a fixed workflow script or selects a Workspace execution
+profile.
 
 This does not add npm resolution, arbitrary same-realm JavaScript, a dependency
 solver, a marketplace, cross-Program services, automatic VFS migration, or a

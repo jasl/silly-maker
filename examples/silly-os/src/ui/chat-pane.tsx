@@ -30,6 +30,7 @@ export interface ChatPanePropsV1 {
   /** Removes every mutation affordance while retaining the rich pageable feed. */
   readonly readOnly?: boolean;
   readonly onLoadOlderTranscript?: () => boolean | void | Promise<boolean | void>;
+  readonly onReloadLatestTranscript?: () => boolean | void | Promise<boolean | void>;
   readonly interruptedRetry?: {
     readonly pending: boolean;
     readonly onRetry: () => boolean | void | Promise<boolean | void>;
@@ -252,6 +253,7 @@ export function ChatPaneV1({
   agentName,
   transcript,
   onLoadOlderTranscript,
+  onReloadLatestTranscript,
   interruptedRetry,
   feedSupplement,
   onSend,
@@ -268,6 +270,7 @@ export function ChatPaneV1({
   readOnly = false,
 }: ChatPanePropsV1): ReactNode {
   const [draft, setDraft] = useState(initialDraft);
+  const [latestReloadPending, setLatestReloadPending] = useState(false);
   const draftRef = useRef(initialDraft);
   const feedRef = useRef<HTMLDivElement>(null);
   const feedEndRef = useRef<HTMLDivElement>(null);
@@ -404,6 +407,18 @@ export function ChatPaneV1({
     });
   };
 
+  const reloadLatestV1 = (): void => {
+    if (
+      onReloadLatestTranscript === undefined || !transcript.newerOmitted ||
+      latestReloadPending
+    ) return;
+    setLatestReloadPending(true);
+    void Promise.resolve(onReloadLatestTranscript()).then(
+      () => setLatestReloadPending(false),
+      () => setLatestReloadPending(false),
+    );
+  };
+
   const submitV1 = (event?: FormEvent): void => {
     event?.preventDefault();
     const text = draft.trim();
@@ -455,6 +470,20 @@ export function ChatPaneV1({
               {transcript.phase === "loading_older"
                 ? copy.loadingOlderTranscript
                 : copy.loadOlderTranscript}
+            </Button>
+          </div>
+        )}
+        {transcript.newerOmitted && (
+          <div className="chat-pane__history-control">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              {...(latestReloadPending ? { icon: LoaderCircle } : {})}
+              disabled={latestReloadPending || onReloadLatestTranscript === undefined}
+              onClick={reloadLatestV1}
+            >
+              {latestReloadPending ? copy.loadingLatestTranscript : copy.reloadLatestTranscript}
             </Button>
           </div>
         )}

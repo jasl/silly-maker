@@ -34,7 +34,7 @@ function sourceUnitAtV1(
 
 async function corpusTextV1(fileName: string): Promise<string> {
   return await readFile(
-    new URL(`../notes/research/corpus/${fileName}`, import.meta.url),
+    new URL(`./fixtures/corpus/${fileName}`, import.meta.url),
     {
       encoding: "utf8",
     },
@@ -61,6 +61,7 @@ describe("SillyOS translation document codec", () => {
         locator: "line/1",
         context: null,
         durationMilliseconds: null,
+        lineBreakPolicy: "forbidden",
         source: "Hello ⟦SM:1⟧!",
         protectedSegments: [{ token: "⟦SM:1⟧", kind: "placeholder", source: "{name}" }],
       },
@@ -70,6 +71,7 @@ describe("SillyOS translation document codec", () => {
         locator: "line/3",
         context: null,
         durationMilliseconds: null,
+        lineBreakPolicy: "forbidden",
         source: "⟦SM:1⟧Balance:⟦SM:2⟧ ⟦SM:3⟧ / ⟦SM:4⟧",
         protectedSegments: [
           { token: "⟦SM:1⟧", kind: "markup_tag", source: "<b>" },
@@ -264,6 +266,246 @@ describe("SillyOS translation document codec", () => {
     });
   });
 
+  it.each([
+    {
+      label: "SubRip",
+      fileName: "speakers.srt",
+      text: "1\n00:00:01,000 --> 00:00:03,000\nMina: Keep the receiver close.\n",
+      speaker: "Mina",
+      translatedSpeaker: "米娜",
+      output: "1\n00:00:01,000 --> 00:00:03,000\n米娜: 请把接收机放在身边。\n",
+    },
+    {
+      label: "WebVTT",
+      fileName: "speakers.vtt",
+      text: "WEBVTT\n\n00:01.000 --> 00:03.000\nTheo: Keep the receiver close.\n",
+      speaker: "Theo",
+      translatedSpeaker: "西奥",
+      output: "WEBVTT\n\n00:01.000 --> 00:03.000\n西奥: 请把接收机放在身边。\n",
+    },
+    {
+      label: "ASS",
+      fileName: "speakers.ass",
+      text: [
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, Text",
+        "Dialogue: 0,0:00:01.00,0:00:03.00,Default,Mina,Theo: Keep the receiver close.",
+        "",
+      ].join("\n"),
+      speaker: "Theo",
+      translatedSpeaker: "西奥",
+      output: [
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, Text",
+        "Dialogue: 0,0:00:01.00,0:00:03.00,Default,Mina,西奥: 请把接收机放在身边。",
+        "",
+      ].join("\n"),
+    },
+  ])("projects $label speaker prefixes as mandatory translatable units", (fixture) => {
+    const document = roundTripV1(prepareTranslationDocumentV1({
+      fileName: fixture.fileName,
+      text: fixture.text,
+    }));
+    const speaker = sourceUnitAtV1(document.sourceUnits, 0);
+    const body = sourceUnitAtV1(document.sourceUnits, 1);
+
+    expect(speaker).toMatchObject({
+      locator: expect.stringMatching(/\/speaker$/u),
+      context: "Timed-text speaker name.",
+      source: fixture.speaker,
+      protectedSegments: [],
+    });
+    expect(body).toMatchObject({
+      locator: expect.stringMatching(/\/text$/u),
+      context: `Spoken by ${fixture.speaker}.`,
+      source: "Keep the receiver close.",
+      protectedSegments: [],
+    });
+    expect(document.exportTranslation([
+      { unitId: speaker.unitId, target: fixture.translatedSpeaker },
+      { unitId: body.unitId, target: "请把接收机放在身边。" },
+    ])).toEqual({ kind: "exported", text: fixture.output });
+    expect(document.exportTranslation([{
+      unitId: body.unitId,
+      target: "请把接收机放在身边。",
+    }])).toEqual({
+      kind: "rejected",
+      reason: "missing_unit",
+      unitId: speaker.unitId,
+    });
+  });
+
+  it("does not mistake a timed-text clock prefix for a speaker label", () => {
+    const document = roundTripV1(prepareTranslationDocumentV1({
+      fileName: "clock.srt",
+      text: "1\n00:00:01,000 --> 00:00:03,000\n12:30 is too late.\n",
+    }));
+
+    expect(sourceUnitAtV1(document.sourceUnits, 0)).toMatchObject({
+      source: "12:30 is too late.",
+      protectedSegments: [],
+    });
+  });
+
+  it("round-trips WebVTT cues while leaving headers, notes, styles, and timings inert", () => {
+    const source = [
+      "\uFEFFWEBVTT Night shift",
+      "Kind: captions",
+      "Language: en",
+      "",
+      "NOTE The following cue is used for calibration.",
+      "This note is not dialogue.",
+      "",
+      "opening",
+      "00:01.000 --> 00:03.500 line:90% position:50%",
+      "<v Mira><i>Hello &amp; welcome, {name}.</i>",
+      "Keep the receiver close.",
+      "",
+      "STYLE",
+      "::cue { color: lime; }",
+      "",
+      "00:04.000 --> 00:05.250",
+      "<00:04.500>Goodbye.",
+      "",
+    ].join("\r\n");
+    const document = roundTripV1(prepareTranslationDocumentV1({
+      fileName: "episode.vtt",
+      mediaType: "text/vtt; charset=utf-8",
+      text: source,
+    }));
+
+    expect(document.format).toBe("webvtt");
+    expect(document.sourceUnits.map((unit) => unit.locator)).toEqual([
+      "cue/1/line/1",
+      "cue/1/line/2",
+      "cue/2/line/1",
+    ]);
+    expect(document.sourceUnits.map((unit) => unit.durationMilliseconds)).toEqual([
+      2_500,
+      2_500,
+      1_250,
+    ]);
+    expect(sourceUnitAtV1(document.sourceUnits, 0).protectedSegments).toEqual([
+      { token: "⟦SM:1⟧", kind: "markup_tag", source: "<v Mira>" },
+      { token: "⟦SM:2⟧", kind: "markup_tag", source: "<i>" },
+      { token: "⟦SM:3⟧", kind: "markup_tag", source: "&amp;" },
+      { token: "⟦SM:4⟧", kind: "placeholder", source: "{name}" },
+      { token: "⟦SM:5⟧", kind: "markup_tag", source: "</i>" },
+    ]);
+    expect(sourceUnitAtV1(document.sourceUnits, 2).protectedSegments).toEqual([
+      { token: "⟦SM:1⟧", kind: "markup_tag", source: "<00:04.500>" },
+    ]);
+    expect(document.exportTranslation(unchangedTargetsV1(document.sourceUnits))).toEqual({
+      kind: "exported",
+      text: source,
+    });
+
+    const [opening, instruction, farewell] = document.sourceUnits;
+    if (opening === undefined || instruction === undefined || farewell === undefined) {
+      throw new Error("expected WebVTT units");
+    }
+    const translated = document.exportTranslation([
+      {
+        unitId: opening.unitId,
+        target: "⟦SM:1⟧⟦SM:2⟧你好，欢迎你，⟦SM:3⟧ ⟦SM:4⟧。⟦SM:5⟧",
+      },
+      { unitId: instruction.unitId, target: "请把接收机放在身边。" },
+      { unitId: farewell.unitId, target: "⟦SM:1⟧再见。" },
+    ]);
+    expect(translated).toEqual({
+      kind: "exported",
+      text: source
+        .replace(
+          "<v Mira><i>Hello &amp; welcome, {name}.</i>",
+          "<v Mira><i>你好，欢迎你，&amp; {name}。</i>",
+        )
+        .replace("Keep the receiver close.", "请把接收机放在身边。")
+        .replace("<00:04.500>Goodbye.", "<00:04.500>再见。"),
+    });
+    expect(document.exportTranslation([
+      { unitId: opening.unitId, target: "Hello without cue markup" },
+      { unitId: instruction.unitId, target: instruction.source },
+      { unitId: farewell.unitId, target: farewell.source },
+    ])).toEqual({
+      kind: "rejected",
+      reason: "protected_content_changed",
+      unitId: opening.unitId,
+    });
+  });
+
+  it("round-trips ASS dialogue text while preserving event fields and drawing commands", () => {
+    const source = [
+      "[Script Info]",
+      "Title: Night shift",
+      "ScriptType: v4.00+",
+      "",
+      "[V4+ Styles]",
+      "Format: Name, Fontname, Fontsize, PrimaryColour",
+      "Style: Default,Arial,48,&H00FFFFFF",
+      "",
+      "[Events]",
+      "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+      "Dialogue: 0,0:00:01.00,0:00:03.50,Default,Mira,0,0,0,,{\\an8}<i>Hello {name}</i>\\NSecond line",
+      "Comment: 0,0:00:03.50,0:00:04.00,Default,Director,0,0,0,,Do not translate this note",
+      "Dialogue: 0,0:00:04.00,0:00:05.00,Default,,0,0,0,,{\\p1}m 0 0 l 10 0 10 10{\\p0}",
+      "Dialogue: 0,0:00:06.00,0:00:07.25,Default,Mira,0,0,0,,Goodbye, for now",
+      "",
+    ].join("\r\n");
+    const document = roundTripV1(prepareTranslationDocumentV1({
+      fileName: "episode.ass",
+      mediaType: "application/x-substation-alpha",
+      text: source,
+    }));
+
+    expect(document.format).toBe("advanced_substation_alpha");
+    expect(document.sourceUnits.map((unit) => unit.locator)).toEqual([
+      "dialogue/1/text",
+      "dialogue/3/text",
+    ]);
+    expect(document.sourceUnits.map((unit) => unit.durationMilliseconds)).toEqual([
+      2_500,
+      1_250,
+    ]);
+    expect(sourceUnitAtV1(document.sourceUnits, 0).protectedSegments).toEqual([
+      { token: "⟦SM:1⟧", kind: "markup_tag", source: "{\\an8}" },
+      { token: "⟦SM:2⟧", kind: "markup_tag", source: "<i>" },
+      { token: "⟦SM:3⟧", kind: "placeholder", source: "{name}" },
+      { token: "⟦SM:4⟧", kind: "markup_tag", source: "</i>" },
+      { token: "⟦SM:5⟧", kind: "markup_tag", source: "\\N" },
+    ]);
+    expect(document.exportTranslation(unchangedTargetsV1(document.sourceUnits))).toEqual({
+      kind: "exported",
+      text: source,
+    });
+
+    const first = sourceUnitAtV1(document.sourceUnits, 0);
+    const second = sourceUnitAtV1(document.sourceUnits, 1);
+    expect(document.exportTranslation([
+      {
+        unitId: first.unitId,
+        target: "⟦SM:1⟧⟦SM:2⟧你好，⟦SM:3⟧⟦SM:4⟧⟦SM:5⟧第二行",
+      },
+      { unitId: second.unitId, target: "暂时再见" },
+    ])).toEqual({
+      kind: "exported",
+      text: source
+        .replace(
+          "{\\an8}<i>Hello {name}</i>\\NSecond line",
+          "{\\an8}<i>你好，{name}</i>\\N第二行",
+        )
+        .replace("Goodbye, for now", "暂时再见"),
+    });
+    expect(document.exportTranslation([
+      { unitId: first.unitId, target: "Dialogue without the ASS line-break token" },
+      { unitId: second.unitId, target: second.source },
+    ])).toEqual({
+      kind: "rejected",
+      reason: "protected_content_changed",
+      unitId: first.unitId,
+    });
+    expect(source).toContain("{\\p1}m 0 0 l 10 0 10 10{\\p0}");
+  });
+
   it("defines and preserves the exact SillyOS Translation JSON V1 schema", () => {
     const source = [
       "{",
@@ -293,6 +535,10 @@ describe("SillyOS translation document codec", () => {
       "Greeting",
       "Narration",
     ]);
+    expect(document.sourceUnits.map((unit) => unit.lineBreakPolicy)).toEqual([
+      "flexible",
+      "flexible",
+    ]);
     expect(document.exportTranslation(unchangedTargetsV1(document.sourceUnits))).toEqual({
       kind: "exported",
       text: source,
@@ -300,7 +546,7 @@ describe("SillyOS translation document codec", () => {
     const translatedTargets = document.sourceUnits.map((unit) => ({
       unitId: unit.unitId,
       target: unit.locator.endsWith("opening~11/text")
-        ? "欢迎你，⟦SM:1⟧。"
+        ? "欢迎你，⟦SM:1⟧。\n请进。"
         : "接收机低声嗡鸣。⟦SM:1⟧",
     }));
     expect(document.exportTranslation(translatedTargets)).toEqual({
@@ -322,7 +568,7 @@ describe("SillyOS translation document codec", () => {
       entries: [
         {
           id: "opening/1",
-          text: "欢迎你，{player}。",
+          text: "欢迎你，{player}。\n请进。",
           context: "Greeting",
           locked: false,
           metadata: { speaker: "mira" },
@@ -378,6 +624,25 @@ describe("SillyOS translation document codec", () => {
     })).toMatchObject({
       format: "subrip",
       capability: { grade: "ambiguous", reason: "malformed_subrip" },
+      exportTranslation: null,
+    });
+    expect(prepareTranslationDocumentV1({
+      fileName: "broken.vtt",
+      text: "WEBVTT\n\n00:01.000 --> not-a-time\nHello",
+    })).toMatchObject({
+      format: "webvtt",
+      capability: { grade: "ambiguous", reason: "malformed_webvtt" },
+      exportTranslation: null,
+    });
+    expect(prepareTranslationDocumentV1({
+      fileName: "broken.ass",
+      text: "[Events]\nDialogue: 0,0:00:01.00,0:00:02.00,Default,,,,,Hello",
+    })).toMatchObject({
+      format: "advanced_substation_alpha",
+      capability: {
+        grade: "ambiguous",
+        reason: "malformed_advanced_substation_alpha",
+      },
       exportTranslation: null,
     });
     expect(prepareTranslationDocumentV1({
@@ -474,10 +739,13 @@ describe("SillyOS translation document codec", () => {
         fileName: "platform-night.zh-CN.srt",
         format: "subrip",
         locators: [
-          "cue/1/line/1",
-          "cue/2/line/1",
+          "cue/1/line/1/speaker",
+          "cue/1/line/1/text",
+          "cue/2/line/1/speaker",
+          "cue/2/line/1/text",
           "cue/3/line/1",
-          "cue/4/line/1",
+          "cue/4/line/1/speaker",
+          "cue/4/line/1/text",
         ],
         protected: [
           ["markup_tag", "<i>"],

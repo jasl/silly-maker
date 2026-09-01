@@ -503,6 +503,7 @@ describe("Browser Pi Worker protocol", () => {
           programPackage: programPackageV1,
           programId: programIdV1,
           requestedOutputTokens: 4_608,
+          instruction: "Translate the admitted batch faithfully.",
           request: {
             sourceLocale: "zh-CN",
             targetLocale: "en",
@@ -517,6 +518,7 @@ describe("Browser Pi Worker protocol", () => {
               locator: "line/1",
               context: null,
               durationMilliseconds: null,
+              lineBreakPolicy: "forbidden",
               source: "你好。",
               protectedSegments: [],
             }],

@@ -47,6 +47,7 @@ const translationRequestV1 = {
     locator: "line/1",
     context: null,
     durationMilliseconds: 2_800,
+    lineBreakPolicy: "forbidden",
     source: "回声欢迎回来，⟦SM:0⟧。",
     protectedSegments: [{ token: "⟦SM:0⟧", kind: "placeholder", source: "{name}" }],
   }],
@@ -80,6 +81,7 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
         programPackage: translationProgramPackageV1,
         programId: translationProgramPackageV1.programId,
         requestedOutputTokens: 4_608,
+        instruction: "Translate the admitted batch faithfully.",
         request: translationRequestV1,
       }),
     );
@@ -92,6 +94,7 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
         workspaceProgramId: translationProgramPackageV1.programId,
         payload: {
           requestedOutputTokens: 4_608,
+          instruction: "Translate the admitted batch faithfully.",
           request: translationRequestV1,
         },
       },
@@ -103,6 +106,7 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
       programPackage: translationProgramPackageV1,
       programId: translationProgramPackageV1.programId,
       requestedOutputTokens: 4_608,
+      instruction: "Translate the admitted batch faithfully.",
       request: translationRequestV1,
     });
     const valid = JSON.parse(validText) as Record<string, unknown>;

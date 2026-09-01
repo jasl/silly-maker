@@ -22,7 +22,8 @@ import {
   requestIndexedDbResultV1 as requestResultV1,
 } from "../../../src/application/persistence/indexeddb-process-execution-transaction-kernel.ts";
 import type { IndexedDbProgramPersistenceFacetOperationsV1 } from "../../../src/application/persistence/program-persistence-facet.ts";
-import { translationTargetPreservesProtectedStructureV1 } from "../runtime/translation-document-codec.ts";
+import { admitTranslationBatchCandidateV1 } from "../runtime/translation-batch-protocol.ts";
+import { evaluateTranslationMechanicalQaV1 } from "../runtime/translation-mechanical-qa.ts";
 import {
   cloneTranslationBatchCandidateRecordV1,
   cloneTranslationWorksetUnitV1,
@@ -211,14 +212,10 @@ const translationReceiptTxV1 = async (
     ]),
   );
   if (row === undefined) return "absent";
-  const stored = structuredClone(row) as TranslationWorksetOperationReceiptV1 & {
-    readonly candidateId?: string | null;
-  };
-  const receipt: TranslationWorksetOperationReceiptV1 = {
-    ...stored,
-    candidateId: stored.candidateId ?? null,
-  };
+  const receipt = structuredClone(row) as TranslationWorksetOperationReceiptV1;
   if (
+    !Object.hasOwn(receipt, "candidateId") ||
+    (receipt.candidateId !== null && !identifierV1(receipt.candidateId)) ||
     receipt.processId !== expectation.input.processId ||
     receipt.operationId !== expectation.input.operationId
   ) {
@@ -307,7 +304,7 @@ const prepareTranslationCandidateV1 = async (input: {
   if (
     !leaseIsCurrent || current === null || current.phase !== "ready" ||
     current.revision !== input.value.expectedWorksetRevision ||
-    current.pendingCandidateId !== null ||
+    current.pendingCandidateId !== input.value.replacesCandidateId ||
     current.acceptedUnitCount !== input.value.expectedFirstPendingOrder ||
     request.sourceLocale !== current.sourceLocale ||
     request.targetLocale !== current.targetLocale ||
@@ -315,6 +312,21 @@ const prepareTranslationCandidateV1 = async (input: {
     request.units[0]?.order !== current.acceptedUnitCount ||
     request.units.at(-1)!.order >= current.stagedUnitCount
   ) return { kind: "conflict", current };
+
+  if (input.value.replacesCandidateId !== null) {
+    const predecessor = await loadTranslationCandidateTxV1(
+      input.transaction,
+      input.value.processId,
+      input.value.replacesCandidateId,
+      repositoryOperationV1,
+    );
+    if (
+      predecessor === null || predecessor.processId !== input.value.processId ||
+      predecessor.candidateId !== input.value.replacesCandidateId ||
+      predecessor.firstOrder !== current.acceptedUnitCount ||
+      !exactJsonValuesEqualV1(predecessor.request, request)
+    ) return { kind: "conflict", current };
+  }
 
   const unitStore = input.transaction.objectStore("translation_workset_units");
   const authoritativeRows = await Promise.all(
@@ -393,14 +405,16 @@ const prepareTranslationCandidateV1 = async (input: {
 
   const candidateId = input.value.operationId;
   const candidate: TranslationBatchCandidateRecordV1 = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     processId: input.value.processId,
     candidateId,
     baseWorksetRevision: input.value.expectedWorksetRevision,
     firstOrder: input.value.expectedFirstPendingOrder,
     unitCount: request.units.length,
+    request: structuredClone(request),
     targets: structuredClone(input.value.candidate.targets),
     ambiguities: structuredClone(input.value.candidate.ambiguities),
+    findings: evaluateTranslationMechanicalQaV1(request, input.value.candidate),
     attemptId: input.value.lease.attemptId,
     generation: input.value.lease.generation,
     createdAt: input.value.updatedAt,
@@ -423,7 +437,7 @@ const prepareTranslationCandidateV1 = async (input: {
     candidate,
     operationReceipt: receipt,
     write: async () => {
-      await Promise.all([
+      const writes: Promise<unknown>[] = [
         requestResultV1(
           input.transaction.objectStore("translation_batch_candidates").add(candidate),
         ),
@@ -433,7 +447,16 @@ const prepareTranslationCandidateV1 = async (input: {
         requestResultV1(
           input.transaction.objectStore("translation_workset_operations").add(receipt),
         ),
-      ]);
+      ];
+      if (input.value.replacesCandidateId !== null) {
+        writes.push(requestResultV1(
+          input.transaction.objectStore("translation_batch_candidates").delete([
+            input.value.processId,
+            input.value.replacesCandidateId,
+          ]),
+        ));
+      }
+      await Promise.all(writes);
     },
   };
 };
@@ -524,11 +547,15 @@ const prepareTranslationCandidateReviewV1 = async (input: {
       value.targets.length !== candidate.unitCount ||
       value.targets.some((target, index) =>
         target.unitId !== candidate.targets[index]?.unitId ||
-        target.unitId !== units[index]?.unitId ||
-        !translationTargetPreservesProtectedStructureV1(units[index]!, target.target)
+        target.unitId !== units[index]?.unitId
       )
     ) return { kind: "conflict", current };
-    acceptedTargets = value.targets;
+    const admitted = admitTranslationBatchCandidateV1({
+      targets: value.targets,
+      ambiguities: candidate.ambiguities,
+    }, candidate.request);
+    if (admitted.kind !== "admitted") return { kind: "conflict", current };
+    acceptedTargets = admitted.candidate.targets;
   }
 
   const acceptedBatchCount = input.decision === "accept_candidate"
@@ -1124,13 +1151,24 @@ export const indexedDbTranslationPersistenceFacetOperationsV1:
         const digest = await digestV1(expectation);
         return {
           storeNames: [
+            ...indexedDbProcessExecutionTransactionStoreNamesV1,
             "translation_workset_heads",
             "translation_workset_operations",
             "translation_workset_units",
             "translation_batch_candidates",
           ],
           mode: "readwrite",
-          async invoke({ transaction }) {
+          async invoke({ transaction, processExecution }) {
+            const [process, lease] = await Promise.all([
+              processExecution.loadProcess(value.processId),
+              processExecution.loadLease(value.processId),
+            ]);
+            if (process === null || process.activeAttempt !== null || lease !== null) {
+              return {
+                kind: "conflict" as const,
+                current: await loadTranslationHeadTxV1(transaction, value.processId),
+              };
+            }
             const prepared = await prepareTranslationCandidateReviewV1({
               transaction,
               value,

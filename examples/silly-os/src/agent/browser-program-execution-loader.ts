@@ -74,8 +74,19 @@ function findWorkspaceScriptsV1(
   return scripts;
 }
 
+function findPackageResourcesV1(
+  installedPackage: AdmittedProgramPackageArchiveV1,
+): BrowserProgramExecutionV1["packageResources"] {
+  return installedPackage.files.map((file) => ({
+    path: file.path,
+    mediaType: file.mediaType,
+    bytes: new Uint8Array(file.bytes.slice(0)),
+  }));
+}
+
 interface CachedProgramExecutionPackageV1 {
   readonly instructions: string;
+  readonly packageResources: BrowserProgramExecutionV1["packageResources"];
   readonly workspaceScripts: BrowserProgramExecutionV1["workspaceScripts"];
   readonly runtimeProfile: BrowserProgramRuntimeProfileV1;
 }
@@ -138,6 +149,7 @@ export function createBrowserProgramExecutionLoaderV1(
           installedPackage.manifest.harnessCompatibility !== sillyOsProgramHarnessCompatibilityV1
         ) return null;
         const instructions = findInstructionsV1(installedPackage);
+        const packageResources = findPackageResourcesV1(installedPackage);
         const workspaceScripts = findWorkspaceScriptsV1(installedPackage);
         const runtimeProfile = await loadRuntimeProfile(installedPackage.manifest.runtimeProfile);
         if (
@@ -150,7 +162,7 @@ export function createBrowserProgramExecutionLoaderV1(
               runtimeProfile.packageDescriptor,
             ).kind === "incompatible"
         ) return null;
-        return { instructions, workspaceScripts, runtimeProfile };
+        return { instructions, packageResources, workspaceScripts, runtimeProfile };
       })(),
     };
     cachedPackage = candidate;

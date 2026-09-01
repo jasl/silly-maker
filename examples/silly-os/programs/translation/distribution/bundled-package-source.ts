@@ -12,11 +12,11 @@ export const translationProgramPackageSourceV1: BundledProgramPackageSourceV1 = 
     reference: {
       programId: translationProgramIdV1,
       packageVersion: "1.0.0",
-      contentDigest: "c0bf6c31ec92d86f095952181dd87de8f601fe705fefede24bd2b83669e0be53",
+      contentDigest: "f758d1a81abfe7cff288b769746ff0f9e57a0e7f782393c80f4f106b40722aa7",
     },
     manifest: programManifestV1 as ProgramPackageManifestV1,
-    byteLength: 10_295,
-    initialUiSurfaceId: "translation.intake.v1",
+    byteLength: 12_355,
+    initialUiSurfaceId: "translation.workspace.v1",
   },
   loadArchive: async () =>
     await (await import("./bundled-package-body.ts")).loadTranslationProgramPackageArchiveV1(),

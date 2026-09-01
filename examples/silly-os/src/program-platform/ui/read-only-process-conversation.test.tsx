@@ -56,18 +56,20 @@ describe("read-only Process Conversation view", () => {
         }],
         byteLength: 128,
         nextBeforeSequence: null,
-        newerOmitted: false,
+        newerOmitted: true,
         phase: "ready",
       },
       degradation: { capability: "workspace", code: "volume_missing" },
     };
 
+    const onReloadLatestTranscript = vi.fn();
     render(
       <ReadOnlyProcessConversationViewV1
         copy={getSillyOsCopyV1("en")}
         conversation={conversation}
         onHome={vi.fn()}
         onLoadOlderTranscript={vi.fn()}
+        onReloadLatestTranscript={onReloadLatestTranscript}
       />,
     );
 
@@ -79,5 +81,7 @@ describe("read-only Process Conversation view", () => {
       "data-degradation-code",
       "volume_missing",
     );
+    screen.getByRole("button", { name: "Jump to latest messages" }).click();
+    expect(onReloadLatestTranscript).toHaveBeenCalledOnce();
   });
 });

@@ -267,8 +267,7 @@ Program package and executes only through a fixed harness-owned interpreter or
 tool boundary. Bundled and imported packages may carry admitted script bytes
 without adding an interpreter, tool implementation, dispatcher, or ambient
 authority. The current formal Creator and Translation manifests both declare
-`scripts: []`; Translation's earlier deterministic batch script remains a
-research note and is not production package content. An Agent-authored script is
+`scripts: []`; Translation ships no deterministic batch script. An Agent-authored script is
 an ordinary mutable Process Workspace artifact and may run only through an
 explicitly selected Workspace execution profile. Each form produces candidates,
 artifacts, or receipts that the product authority must admit before publication.
@@ -314,7 +313,10 @@ unresolved exchanges. Attachments, the whole Workspace, the complete glossary,
 and the complete transcript must stay addressable through structured records
 and tools rather than being appended wholesale. P5-B's context policy must
 derive capacity from admitted model-profile context metadata and an explicit
-output reserve; there is no arbitrary semantic item ceiling. If admitted
+candidate-output estimate; there is no arbitrary semantic item ceiling or
+route-specific hidden-reasoning reserve. Provider reasoning may consume the
+same completion cap, and an attempt that returns no complete admitted candidate
+fails visibly rather than growing another model-specific allowance. If admitted
 evidence does not fit, the product context planner must split the work or
 retrieve another slice rather than silently drop it.
 
@@ -4830,12 +4832,17 @@ strictly contained under `programs/<name>/`; only `package/` enters the archive,
 while runtime/profile/UI code is Host-compiled and tests/notes stay outside the
 production package. A bundled archive and a user-selected ZIP use the same
 admission, IndexedDB installation repository, exact-package loader, available
-runtime profile and Program UI Container. P5-A's research contract, clean-room
-reference boundary, dual-model matrix and staged gates remain in
-[Translation Program research](./programs/translation/notes/TRANSLATION-PROGRAM-RESEARCH.md).
+runtime profile and Program UI Container. Translation's durable product
+decisions, capability boundary and remaining gates are summarized in
+[Translation Program decisions](./programs/translation/notes/TRANSLATION-PROGRAM-RESEARCH.md).
+The one-off Provider runners, downloaded corpora, cost/cache matrices and paid
+evidence replay tooling were removed after they informed those contracts; the
+product does not maintain an LLM reproducibility system.
 This activation does not product-qualify either model route or claim a shipped
 CodeAct workflow, general Program SDK, OCR pipeline, PDF round-trip exporter,
-marketplace or OpenUI mapping.
+marketplace, generated-UI Agent tool, or general OpenUI mapping. The later P5-B
+slice has since delivered only the closed package-authored OpenUI denominator
+described below.
 
 Generalize only after Pi, storage, and a real Program reproduce the boundary. A
 Process durably pins its complete immutable
@@ -4850,23 +4857,21 @@ is reported truthfully per target. Pi remains the only Agent capability registry
 and lifecycle owner; SillyOS does not build a parallel plugin loader, dependency
 solver, tool dispatcher or session runtime.
 
-When a real Program needs generated UI, a named Pi extension tool may return one
-complete OpenUI document. A product-private adapter would first admit the whole
-document and translate only its supported component/prop/action subset into an
-ordinary candidate for the workspace-private `@sillymaker/agent/internal`
-UiArtifact path. That existing path then performs its own closed admission,
-revision/currentness handling, rendering, and UiIntent admission. The renderer
-never parses OpenUI and OpenUI types never become the engine artifact contract.
+The delivered first OpenUI denominator is package-authored data admitted and
+rendered inside the SillyOS Program UI Container. It maps only a closed
+component/prop/action vocabulary to product-owned React components. An action
+emits a readable prompt through the same Process instruction path; it does not
+call a tool, mutate the database, open an arbitrary component, or become
+executable source. Partial documents are inert, and OpenUI does not become an
+engine artifact contract.
 
-The current private UiArtifact vocabulary is exactly
-`column`/`text`/`action`; it is the initial closed denominator, not a complete
-OpenUI component system. A product authority would recheck the admitted UiIntent,
-exact artifact receipt, Program revision, and relevant workspace generation
-before mutation. Partial OpenUI is inert. No generated action directly calls a
-tool, mutates the database, opens an arbitrary component, or becomes executable
-source. A real Program that needs another generally useful UI component supplies
-the neutral second-consumer evidence for an engine handback; SillyOS does not
-build its own dynamic component registry around the gap.
+If a later real Program needs Agent-generated UI, a named Pi extension tool may
+return one complete document through the same admission and Container boundary.
+That path must retain exact Process/run currentness and re-admit the selected
+action before it reaches a typed operation. Another generally useful UI
+component still needs real second-consumer evidence before an engine handback;
+SillyOS does not build an unrestricted dynamic component registry around the
+gap.
 
 The capability view projects these real Pi and UI bindings; it is not another
 runtime. Creator (`sillyos.creator@1.0.0`) and Translation
@@ -4875,8 +4880,7 @@ runtime. Creator (`sillyos.creator@1.0.0`) and Translation
 distinct build-known runtime profiles describe different workflows; the same
 profiles are available to an admitted imported package under identical
 persistence/controller/Agent/UI rules. Both formal manifests have `scripts: []`;
-Translation's earlier deterministic QuickJS batch script remains in its
-source-only research notes and is not package or production input. Capability
+Translation ships no fixed script or Workspace execution profile. Capability
 IDs remain descriptive package data and never become a second tool-grant
 authority.
 
@@ -4896,17 +4900,17 @@ request backed by the real consumer, not permission to create a second runtime.
 
 ### P5 — translation Program
 
-**Current status (2026-08-31):** P5 remains active in P5-A through P5-D order.
-P5-A is complete with the deterministic original four-format corpus,
-round-trip laboratory, secret-safe research runner, recorded prompt-v4/v5
-model-protocol evidence, a current-versus-clean-room prompt matrix, the
-research-only Skill-like fixed-script/settings candidate, the closed Creator
-blueprint experiment, and a lazy born-digital PDF text-adapter experiment. The
-formal package is now `sillyos.translation@1.0.0` with an exact content digest,
+**Current status (2026-09-01):** P5 remains active in P5-A through P5-D order.
+P5-A used LinguaGacha, AiNiee and ainiee-translate-skill as prior art to settle
+the deterministic codec, prompt, Skill and review-assisted workflow contracts.
+Its one-off Provider runner, evaluation corpora and fixed-script experiment
+were removed after those decisions moved into the product package and formal
+tests. The formal package is now
+`sillyos.translation@1.0.0` with an exact content digest,
 `sillyos.program-harness.v1` compatibility and the build-known
 `agent.translation.v1` profile. It declares `agent.text` and
-`translation.batch`, has no Workspace/`bash`/`qjs` grant, and carries
-`scripts: []`; the fixed script remains research-only under `notes/`.
+`translation.batch`, has no mutable Workspace/`bash`/`qjs` grant, and carries
+`scripts: []`.
 The first formal P5-B UI/domain foundation is now implemented: a SillyOS-owned
 Program UI Container switches guided “Simple” and Conversation presentation for
 the same Process; a bounded run strip projects the latest one to three activity
@@ -4946,8 +4950,9 @@ global contiguous order for second and later pages.
 
 The first execution/review slice is also delivered. Batch planning starts at
 the Process's next unaccepted row, pages only the required source/glossary
-neighbors, and fits the exact dynamic prompt plus an explicit output reserve to
-the selected model envelope without a semantic item-count ceiling. Creator and
+neighbors, and fits the exact dynamic prompt plus a conservative candidate
+payload estimate to the selected model envelope without a semantic item-count
+ceiling or route-specific reasoning reserve. Creator and
 Translation share one Browser Agent Worker/Session owner behind separate typed
 facades. A completed Run publishes one admitted pending candidate and the
 Process terminal in one IndexedDB transaction; failed/cancelled runs publish no
@@ -4965,31 +4970,43 @@ journey proves import → deterministic Agent → edit → accept → reload. Th
 mechanical/product-flow evidence, not real-Provider translation-quality
 qualification.
 
+One source-aware mechanical signal now locates obvious English/Chinese target
+text that resembles model refusal rather than translation. It is non-blocking,
+suppresses the same explicit refusal when that meaning exists in the source,
+and does not claim to detect general sanitization or omission. Initial Provider
+experiments showed that strict structure and focused context were useful, but
+did not establish a reproducible quality winner or a generally successful
+reasoning policy. No model route is therefore qualified. Mechanical findings
+remain Review locators and never trigger an automatic retry loop; retry, model
+and reasoning selection stay explicit user choices. Born-digital PDF font-map,
+reading-order, page-furniture, OCR, and round-trip limitations remain visible
+Review/input gaps.
+
 The product model remains `Program -> durable Process`: each Translation
 Process directly owns its pageable/CAS workset, candidate, and review state.
 There is no independent Project identity, list, route, or lifecycle. Physical
 stores and receipts use current `translation_workset_*` terminology. Product
 Repository V16 row-blind resets any earlier preview database and retains no old
-wire, method or type alias, migration reader or compatibility fallback. A removed
-same-version optional facet store may remain physically unreachable until an
-explicit product reset; Conversation Core does not depend on it.
-The research candidate script still uses
-its own `project.json` wire format; it is laboratory input, not the product
-domain model or production persistence authority.
+wire, method or type alias, migration reader or compatibility fallback. A
+removed same-version optional facet store may remain physically unreachable
+until an explicit product reset; Conversation Core does not depend on it.
 
 The fixed QuickJS 0.32 harness separately passes real regular-expression
 coverage for ordinary expressions, Unicode property escapes, lookbehind, and
 named captures. Translation has not selected that capability: its manifest
-advertises `agent.text` and `translation.batch`, while its runtime profile
-authorizes no Workspace tools, `bash` or `qjs`.
+advertises `agent.text`, `translation.batch`, and the read-only immutable
+`program.resource.read`; its runtime profile authorizes the corresponding
+package-resource reader but no mutable Workspace tools, `bash`, or `qjs`.
 
 P5-B through P5-D remain incomplete. Import, bounded Agent batching, stale-safe
 candidate publication, editable human accept/reject, accepted-target
-persistence, and cold reopen now form one real execution/review loop. There is
-still no discovery-oriented QA beyond protected-structure admission, final
-format-preserving exporter, OpenUI renderer, Conversation-mode free follow-up,
-real-Provider product qualification, Python, or CodeAct path. See
-[Translation Program research](./programs/translation/notes/TRANSLATION-PROGRAM-RESEARCH.md).
+persistence, cold reopen, non-blocking mechanical QA, explicit successor
+retranslation, a minimal admitted OpenUI renderer/action, and Conversation-mode
+free follow-up now form one real execution/review loop. There is still no
+model-assisted semantic QA, confirmed Planning/meaning-fact workbench, final
+format-preserving exporter, complete multi-batch recovery, repeated
+product-scale Provider qualification, Python, or Translation CodeAct path. See
+[Translation Program decisions](./programs/translation/notes/TRANSLATION-PROGRAM-RESEARCH.md).
 
 Make translation the first complete product consumer. Its denominator is one
 real import-to-export journey: ordered source units, one-to-one mapping,
@@ -5005,8 +5022,8 @@ parse/extract, stable unit identity, relevant-profile selection, batching,
 checkpoint/write-back, structural QA, and export. The model proposes terminology
 and relationships, translates the current admitted batch, diagnoses semantic
 problems, and discusses human revisions. The model never receives the entire
-attachment, project profile, Workspace, or Process transcript merely because it
-exists. P5 first proves this concrete package; it does not begin by defining a
+attachment, Process translation profile, Workspace, or Process transcript merely
+because it exists. P5 first proves this concrete package; it does not begin by defining a
 generic skill manifest, workflow DSL, retrieval framework, or Program SDK.
 
 Only shared boundaries reproduced by this product may graduate into the P4 Pi

@@ -1,20 +1,45 @@
 {
-  "schemaVersion": 1,
-  "surface": "translation.intake.v1",
+  "schemaVersion": 3,
+  "surface": "translation.workspace.v1",
+  "defaultLocale": "en",
   "locales": {
     "en": {
-      "title": "Start translating",
-      "description": "Import one source file. SillyOS detects its structure, preserves the original, and prepares stable units before the Agent runs.",
-      "dropLabel": "Drop a TXT, Markdown, SRT, JSON, or born-digital PDF here",
+      "intakeDocument": {
+        "schemaVersion": 1,
+        "documentId": "translation.intake",
+        "revision": 1,
+        "source": "root = Stack([heading, description], \"regular\")\nheading = Heading(\"Start translating\", 1)\ndescription = Text(\"Import one source file. SillyOS detects its structure, preserves the original, and prepares stable units before the Agent runs.\", \"muted\")"
+      },
+      "workbenchDocument": {
+        "schemaVersion": 1,
+        "documentId": "translation.workbench",
+        "revision": 1,
+        "source": "root = Stack([heading, description, nextBatch], \"regular\")\nheading = Heading(\"Ready for the next batch\", 2)\ndescription = Text(\"Simple and Conversation modes continue the same Process. This action submits a readable instruction through the same Agent loop.\", \"muted\")\nnextBatch = ActionButton(\"translate-next-batch\", \"Translate next batch\", \"Translate the next prepared batch. Preserve meaning, relationships, terminology, formatting, and protected tokens, then return a reviewable candidate.\", \"primary\")"
+      },
+      "dropLabel": "Drop a TXT, Markdown, SRT, VTT, ASS, JSON, or born-digital PDF here",
       "formatNote": "Structure is confirmed after import; unsupported files are not sent to the model.",
-      "chooseFileLabel": "Choose file"
+      "chooseFileLabel": "Choose file",
+      "sourceLanguageLabel": "Source language",
+      "targetLanguageLabel": "Target language"
     },
     "zh-CN": {
-      "title": "开始翻译",
-      "description": "导入一个源文件。SillyOS 会先识别结构、保留原件并生成稳定条目，之后才让 Agent 工作。",
-      "dropLabel": "拖入 TXT、Markdown、SRT、JSON 或文字型 PDF",
+      "intakeDocument": {
+        "schemaVersion": 1,
+        "documentId": "translation.intake",
+        "revision": 1,
+        "source": "root = Stack([heading, description], \"regular\")\nheading = Heading(\"开始翻译\", 1)\ndescription = Text(\"导入一个源文件。SillyOS 会先识别结构、保留原件并生成稳定条目，之后才让 Agent 工作。\", \"muted\")"
+      },
+      "workbenchDocument": {
+        "schemaVersion": 1,
+        "documentId": "translation.workbench",
+        "revision": 1,
+        "source": "root = Stack([heading, description, nextBatch], \"regular\")\nheading = Heading(\"可以翻译下一批\", 2)\ndescription = Text(\"简单模式和对话模式会继续同一个进程；此操作也会通过同一个 Agent loop 提交一条可读指令。\", \"muted\")\nnextBatch = ActionButton(\"translate-next-batch\", \"翻译下一批\", \"翻译下一批已准备好的内容。保持原意、人物关系、术语、格式和受保护标记，并返回可供审阅的候选结果。\", \"primary\")"
+      },
+      "dropLabel": "拖入 TXT、Markdown、SRT、VTT、ASS、JSON 或文字型 PDF",
       "formatNote": "导入后再确认结构；不支持的文件不会直接交给模型。",
-      "chooseFileLabel": "选择文件"
+      "chooseFileLabel": "选择文件",
+      "sourceLanguageLabel": "源语言",
+      "targetLanguageLabel": "目标语言"
     }
   }
 }

@@ -23,7 +23,59 @@ import { createTranslationBatchBudgetForModelV1 } from "../runtime-profile/trans
 import { translationProgramRuntimeProfileV1 } from "../runtime-profile/translation-runtime-profile-descriptor.ts";
 import type { TranslationAgentRunRequestV1 } from "../runtime/translation-agent-contracts.ts";
 import type { TranslationProcessControllerV1 } from "../runtime/translation-process-controller.ts";
-import { TranslationProcessWorkspaceV1 } from "./translation-process-workspace.tsx";
+import {
+  TranslationProcessWorkspaceV1,
+  type TranslationWorkspaceSessionViewStateV1,
+} from "./translation-process-workspace.tsx";
+
+const translationWorkspaceViewStateSessionKeyPrefixV1 = "translation.workspace-view-state.v1:";
+
+type TranslationBatchBudgetV1 = Parameters<
+  TranslationProcessControllerV1["prepareAgentBatch"]
+>[0];
+type TranslationRunPreparationV1 = (
+  budget: TranslationBatchBudgetV1,
+) => ReturnType<TranslationProcessControllerV1["prepareAgentBatch"]>;
+
+function retainedTranslationWorkspaceViewStateV1(
+  value: unknown,
+): TranslationWorkspaceSessionViewStateV1 | undefined {
+  if (
+    typeof value !== "object" || value === null ||
+    !("mode" in value) || (value.mode !== "guided" && value.mode !== "conversation") ||
+    !("draft" in value) || typeof value.draft !== "string" ||
+    !("conversation" in value) || typeof value.conversation !== "object" ||
+    value.conversation === null
+  ) return undefined;
+  const candidateDraftValue = "candidateDraft" in value ? value.candidateDraft : null;
+  if (
+    candidateDraftValue !== null &&
+    (typeof candidateDraftValue !== "object" ||
+      !("candidateId" in candidateDraftValue) ||
+      typeof candidateDraftValue.candidateId !== "string" ||
+      !("targets" in candidateDraftValue) ||
+      !Array.isArray(candidateDraftValue.targets) ||
+      candidateDraftValue.targets.some((target) =>
+        typeof target !== "object" || target === null ||
+        !("unitId" in target) || typeof target.unitId !== "string" ||
+        !("target" in target) || typeof target.target !== "string"
+      ))
+  ) return undefined;
+  const admittedCandidateDraft = candidateDraftValue as {
+    readonly candidateId: string;
+    readonly targets: readonly { readonly unitId: string; readonly target: string }[];
+  } | null;
+  const candidateDraft = admittedCandidateDraft === null ? null : {
+    candidateId: admittedCandidateDraft.candidateId,
+    targets: admittedCandidateDraft.targets.map(({ unitId, target }) => ({ unitId, target })),
+  };
+  return {
+    mode: value.mode,
+    draft: value.draft,
+    conversation: value.conversation as TranslationWorkspaceSessionViewStateV1["conversation"],
+    candidateDraft,
+  };
+}
 
 /** Program-owned controller, typed Agent facade and Translation UI composition. */
 export function TranslationProgramSurfaceV1({
@@ -180,10 +232,14 @@ export function TranslationProgramSurfaceV1({
     if (controller.openHome()) await host.onOpenProgramLibrary();
   };
 
-  const startTranslationV1 = async (): Promise<void> => {
-    if (port === null || agentSnapshot?.phase !== "ready") return;
+  const submitPreparedTranslationRunV1 = async (
+    prepare: TranslationRunPreparationV1,
+    prepareFailureCode: string,
+  ): Promise<boolean> => {
+    if (port === null || agentSnapshot?.phase !== "ready") return false;
+    await terminalSettlementRef.current;
     const active = controller.getSnapshot().activeProcess;
-    if (active === null) return;
+    if (active === null) return false;
     const opened = await port.openWorkspace({
       processId: active.process.processId,
       programId: active.programPackage.reference.programId,
@@ -191,7 +247,7 @@ export function TranslationProgramSurfaceV1({
     });
     if (opened.kind !== "opened") {
       host.reportFailure("silly_os.browser_pi_workspace_open_failed", opened.diagnostic);
-      return;
+      return false;
     }
     const model = host.activeModel;
     const instructions = active.programPackage.instructions;
@@ -208,20 +264,20 @@ export function TranslationProgramSurfaceV1({
         programPackage: active.programPackage.reference,
         model,
       });
-      return;
+      return false;
     }
-    const prepared = await controller.prepareAgentBatch(budget);
+    const prepared = await prepare(budget);
     if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
       await port.closeWorkspace(opened.descriptor.workspaceSessionId);
       if (prepared.kind !== "completed" || prepared.value.kind !== "complete") {
-        host.reportFailure("silly_os.translation_agent_prepare_failed", prepared);
+        host.reportFailure(prepareFailureCode, prepared);
       }
-      return;
+      return false;
     }
     const run = prepared.value.run;
     ownedRuns.set(run.agentRunId, run);
     const submitted = await port.submit(run);
-    if (submitted.kind === "submitted") return;
+    if (submitted.kind === "submitted") return true;
     ownedRuns.delete(run.agentRunId);
     await controller.recordAgentRunTerminal({
       run,
@@ -235,7 +291,22 @@ export function TranslationProgramSurfaceV1({
     });
     await port.closeWorkspace(opened.descriptor.workspaceSessionId);
     host.reportFailure("silly_os.translation_agent_submit_failed", submitted.diagnostic);
+    return false;
   };
+
+  const submitTranslationV1 = (instruction: string): Promise<boolean> =>
+    submitPreparedTranslationRunV1(
+      (budget) => controller.prepareAgentBatch(budget, instruction),
+      "silly_os.translation_agent_prepare_failed",
+    );
+
+  const submitCandidateRetranslationV1 = (
+    input: Parameters<TranslationProcessControllerV1["preparePendingCandidateRetranslation"]>[1],
+  ): Promise<boolean> =>
+    submitPreparedTranslationRunV1(
+      (budget) => controller.preparePendingCandidateRetranslation(budget, input),
+      "silly_os.translation_candidate_retranslation_prepare_failed",
+    );
 
   const run: ProgramRunProjectionV1 | null = agentSnapshot === null ? null : {
     status: agentSnapshot.phase === "running"
@@ -255,12 +326,18 @@ export function TranslationProgramSurfaceV1({
   };
 
   if (snapshot.route === "process" && snapshot.activeProcess !== null) {
+    const processId = snapshot.activeProcess.process.processId;
+    const viewStateSessionKey = `${translationWorkspaceViewStateSessionKeyPrefixV1}${processId}`;
+    const initialViewState = retainedTranslationWorkspaceViewStateV1(
+      host.sessionState.read(viewStateSessionKey),
+    );
     return (
       <section
         className="program-runtime-surface"
         data-program-runtime-profile={translationProgramRuntimeProfileV1}
       >
         <TranslationProcessWorkspaceV1
+          key={processId}
           copy={host.copy}
           activeProcess={snapshot.activeProcess}
           onHome={() => void openLibraryV1()}
@@ -271,9 +348,26 @@ export function TranslationProgramSurfaceV1({
           sourceImport={snapshot.sourceImport}
           agentRun={run}
           onLoadTranslationRowWindow={controller.loadTranslationRowWindow}
+          onLoadOlderTranscript={async () => {
+            const result = await controller.loadOlderTranscript();
+            if (result.kind === "completed") return result.value;
+            host.reportFailure("silly_os.translation_transcript_load_older_failed", result);
+            return false;
+          }}
+          onReloadLatestTranscript={async () => {
+            const result = await controller.reloadLatestTranscript();
+            if (result.kind === "completed") return result.value;
+            host.reportFailure("silly_os.translation_transcript_reload_latest_failed", result);
+            return false;
+          }}
           onUpdateSettingsOverride={controller.updateSettingsOverride}
+          {...(initialViewState === undefined ? {} : { initialViewState })}
+          onViewStateChange={(next) => host.sessionState.write(viewStateSessionKey, next)}
           {...(port !== null && agentSnapshot?.phase === "ready"
-            ? { onStartTranslation: startTranslationV1 }
+            ? {
+              onSubmitInstruction: submitTranslationV1,
+              onRetranslateCandidate: submitCandidateRetranslationV1,
+            }
             : {})}
           onAcceptCandidate={async (input) => {
             const result = await controller.acceptPendingCandidate(input);

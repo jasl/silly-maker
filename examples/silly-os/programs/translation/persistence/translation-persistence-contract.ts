@@ -47,7 +47,8 @@ export interface TranslationWorksetImportExecutionAcquireInputV1 {
 export interface TranslationBatchExecutionAcquireInputV1 {
   readonly expectedWorksetRevision: number;
   readonly expectedFirstPendingOrder: number;
-  readonly expectedPendingCandidateId: null;
+  /** `null` starts a new batch; an exact ID starts an explicit replacement. */
+  readonly expectedPendingCandidateId: string | null;
   readonly execution: ProcessExecutionAcquireInputV1;
 }
 
@@ -180,12 +181,15 @@ export function normalizeTranslationBatchExecutionAcquireInputV1(
     ) || !Number.isSafeInteger(value.expectedWorksetRevision) ||
     value.expectedWorksetRevision < 1 ||
     !Number.isSafeInteger(value.expectedFirstPendingOrder) ||
-    value.expectedFirstPendingOrder < 0 || value.expectedPendingCandidateId !== null
+    value.expectedFirstPendingOrder < 0 ||
+    (value.expectedPendingCandidateId !== null &&
+      (typeof value.expectedPendingCandidateId !== "string" ||
+        !/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u.test(value.expectedPendingCandidateId)))
   ) throw new TypeError("invalid Translation batch execution acquire input");
   return {
     expectedWorksetRevision: value.expectedWorksetRevision,
     expectedFirstPendingOrder: value.expectedFirstPendingOrder,
-    expectedPendingCandidateId: null,
+    expectedPendingCandidateId: value.expectedPendingCandidateId,
     execution: normalizeProcessExecutionAcquireInputV1(value.execution),
   };
 }

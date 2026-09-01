@@ -7,6 +7,7 @@ import {
   FileText,
   Languages,
   Play,
+  RotateCcw,
   ShieldCheck,
   Upload,
   X,
@@ -29,10 +30,13 @@ import {
   type TranslationProcessRowWindowV1,
   type TranslationProcessUnitProjectionV1,
 } from "../runtime/translation-process-view.ts";
-import type { TranslationInitialUiV1 } from "../runtime/translation-package-facets.ts";
+import type {
+  TranslationInitialUiCopyV1,
+  TranslationInitialUiV1,
+} from "../runtime/translation-package-facets.ts";
 import { BadgeV1 } from "../../../src/ui/design-system/badge.tsx";
 import { ButtonV1 as Button } from "../../../src/ui/design-system/button.tsx";
-import { FieldLabelV1, FieldV1 } from "../../../src/ui/design-system/field.tsx";
+import { FieldErrorV1, FieldLabelV1, FieldV1 } from "../../../src/ui/design-system/field.tsx";
 import { InputV1 } from "../../../src/ui/design-system/input.tsx";
 import { ProgressV1 as Progress } from "../../../src/ui/design-system/progress.tsx";
 import { TextareaV1 } from "../../../src/ui/design-system/textarea.tsx";
@@ -41,6 +45,18 @@ import {
   ProgramUiContainerV1,
   type ProgramUiModeV1,
 } from "../../../src/program-platform/ui/program-ui-container.tsx";
+import {
+  type ProgramOpenUiActionIntentV1,
+  type ProgramOpenUiDocumentV1,
+} from "../../../src/program-platform/ui/openui/program-openui-document.ts";
+import { ProgramOpenUiRendererV1 } from "../../../src/program-platform/ui/openui/program-openui-renderer.tsx";
+import { resolveProgramUiLocalizationV1 } from "../../../src/program-platform/ui/program-ui-localization.ts";
+import {
+  canonicalizeTranslationTargetLocaleV1,
+  defaultTranslationTargetLocaleForHostV1,
+  translationTargetLanguageSuggestionsV1,
+} from "../runtime/translation-target-language.ts";
+import type { TranslationMechanicalQaFindingV1 } from "../runtime/translation-mechanical-qa.ts";
 import "./translation-program-workspace.css";
 
 export type TranslationProgramStageV1 =
@@ -60,6 +76,12 @@ export interface TranslationProcessRowWindowRequestV1 {
   readonly offset: number;
   readonly limit: number;
   readonly signal: AbortSignal;
+}
+
+/** Session-local human edits for one exact immutable candidate. */
+export interface TranslationCandidateDraftV1 {
+  readonly candidateId: string;
+  readonly targets: readonly { readonly unitId: string; readonly target: string }[];
 }
 
 /**
@@ -89,6 +111,7 @@ export interface TranslationProcessPresentationSourceV1 {
       readonly unitId: string;
       readonly question: string;
     }[];
+    readonly findings: readonly TranslationMechanicalQaFindingV1[];
   } | null;
   readonly loadRowWindow: (
     request: TranslationProcessRowWindowRequestV1,
@@ -110,8 +133,13 @@ export interface TranslationProgramWorkspacePropsV1 {
   readonly overlaySurface?: ReactNode;
   readonly importPending?: boolean;
   readonly onImportFile: (request: TranslationProgramImportRequestV1) => void | Promise<void>;
-  readonly onStartTranslation?: () => void | Promise<void>;
+  readonly onSubmitInstruction?: (
+    instruction: string,
+  ) => boolean | void | Promise<boolean | void>;
   readonly startTranslationDisabled?: boolean;
+  readonly candidateReviewDisabled?: boolean;
+  readonly candidateDraft?: TranslationCandidateDraftV1 | null;
+  readonly onCandidateDraftChange?: (draft: TranslationCandidateDraftV1) => void;
   readonly onAcceptCandidate?: (input: {
     readonly expectedWorksetRevision: number;
     readonly candidateId: string;
@@ -121,6 +149,13 @@ export interface TranslationProgramWorkspacePropsV1 {
     readonly expectedWorksetRevision: number;
     readonly candidateId: string;
   }) => void | Promise<void>;
+  readonly onRetranslateCandidate?: (input: {
+    readonly expectedWorksetRevision: number;
+    readonly candidateId: string;
+    readonly targets: readonly { readonly unitId: string; readonly target: string }[];
+    /** Optional direction supplied by Conversation; guided review uses the default repair loop. */
+    readonly instruction: string | null;
+  }) => boolean | void | Promise<boolean | void>;
   readonly onExport?: () => void | Promise<void>;
   readonly onOperationError?: (error: unknown) => void;
 }
@@ -134,11 +169,15 @@ const translationProgramCopyV1 = {
     importDescription:
       "Import one source file. SillyOS detects its structure, preserves the original, and prepares stable units before the Agent runs.",
     chooseFile: "Choose file",
-    dropFile: "Drop a TXT, Markdown, SRT, JSON, or born-digital PDF here",
+    dropFile: "Drop a TXT, Markdown, SRT, VTT, ASS, JSON, or born-digital PDF here",
     supportedFormats:
       "Structure is confirmed after import; unsupported files are not sent to the model.",
     sourceLanguage: "Source language",
     targetLanguage: "Target language",
+    targetLanguageScope:
+      "Translation into Chinese and English is in the quality-validation scope. Other languages are best effort and depend on the selected model.",
+    invalidTargetLanguage:
+      "Enter a BCP 47 language, script, region, or variant target such as en, zh-CN, or fr-CA; extensions and private-use tags are not targets.",
     automatic: "Detect automatically",
     units: "units",
     translated: "translated",
@@ -157,7 +196,19 @@ const translationProgramCopyV1 = {
       "Edit the bounded candidate before accepting it. Accepted progress changes only after the complete batch is committed.",
     acceptCandidate: "Accept batch",
     rejectCandidate: "Reject candidate",
-    ambiguity: "Needs clarification",
+    retranslateCandidate: "Retranslate candidate",
+    retranslationRunning:
+      "Retranslation is running. This candidate remains available until its successor is ready.",
+    mechanicalWarnings: "Mechanical review signals",
+    mechanicalWarning: "Mechanical review signal",
+    mechanicalWarningsSummary: (count: number) =>
+      `${count.toLocaleString("en")} mechanical review ${count === 1 ? "signal" : "signals"}`,
+    modelAmbiguity: "Model-reported ambiguity",
+    modelAmbiguitiesSummary: (count: number) =>
+      `${count.toLocaleString("en")} model-reported ${count === 1 ? "ambiguity" : "ambiguities"}`,
+    noMechanicalWarnings:
+      "No mechanical review signals were found. Meaning and style still require review.",
+    ambiguity: "Model asks for clarification",
     readOnlyTarget: "Accepted and pending rows are read-only until a review candidate exists.",
     startTranslation: "Start translation",
     export: "Export",
@@ -176,10 +227,14 @@ const translationProgramCopyV1 = {
     importDescription:
       "导入一个源文件。SillyOS 会先识别结构、保留原件并生成稳定条目，之后才让 Agent 工作。",
     chooseFile: "选择文件",
-    dropFile: "拖入 TXT、Markdown、SRT、JSON 或文字型 PDF",
+    dropFile: "拖入 TXT、Markdown、SRT、VTT、ASS、JSON 或文字型 PDF",
     supportedFormats: "导入后再确认结构；不支持的文件不会直接交给模型。",
     sourceLanguage: "源语言",
     targetLanguage: "目标语言",
+    targetLanguageScope:
+      "中文和英文属于翻译质量验证范围；其他语言按所选模型的能力尽力处理，不作质量保证。",
+    invalidTargetLanguage:
+      "请输入 BCP 47 语言、文字、地区或变体目标，例如 zh-CN、en 或 fr-CA；不支持扩展和私有用途标签。",
     automatic: "自动识别",
     units: "个条目",
     translated: "已翻译",
@@ -197,7 +252,15 @@ const translationProgramCopyV1 = {
     reviewDescription: "可先编辑这批候选，再整体接受。只有完整批次提交后，已翻译进度才会变化。",
     acceptCandidate: "接受批次",
     rejectCandidate: "拒绝候选",
-    ambiguity: "需要澄清",
+    retranslateCandidate: "重新翻译候选",
+    retranslationRunning: "正在重译；新候选准备好之前，当前候选会继续保留。",
+    mechanicalWarnings: "机械审查提示",
+    mechanicalWarning: "机械审查提示",
+    mechanicalWarningsSummary: (count: number) => `${count.toLocaleString("zh-CN")} 个机械审查提示`,
+    modelAmbiguity: "模型报告的歧义",
+    modelAmbiguitiesSummary: (count: number) => `${count.toLocaleString("zh-CN")} 个模型歧义`,
+    noMechanicalWarnings: "机械检查未发现审查提示；语义与文风仍需审查。",
+    ambiguity: "模型请求澄清",
     readOnlyTarget: "已接受或待处理条目为只读；出现待审查候选后才能编辑。",
     startTranslation: "开始翻译",
     export: "导出",
@@ -210,12 +273,53 @@ const translationProgramCopyV1 = {
   },
 } as const;
 
-const localeOptionsV1 = [
-  { value: "zh-CN", en: "Chinese (Simplified)", "zh-CN": "简体中文" },
-  { value: "en", en: "English", "zh-CN": "英语" },
-  { value: "ja", en: "Japanese", "zh-CN": "日语" },
-  { value: "ko", en: "Korean", "zh-CN": "韩语" },
-] as const;
+type TranslationMechanicalWarningV1 = Extract<
+  TranslationMechanicalQaFindingV1,
+  { readonly severity: "warning" }
+>;
+
+function translationMechanicalWarningTextV1(
+  finding: TranslationMechanicalWarningV1,
+  locale: "en" | "zh-CN",
+): string {
+  switch (finding.code) {
+    case "non_locked_glossary_missing":
+      return locale === "zh-CN"
+        ? `未发现预期术语“${finding.expectedTarget}”。`
+        : `Expected glossary term “${finding.expectedTarget}” was not found.`;
+    case "source_target_identical":
+      return locale === "zh-CN" ? "译文与原文完全相同。" : "Target is identical to source.";
+    case "number_tokens_changed": {
+      const source = finding.sourceTokens.length === 0 ? "∅" : finding.sourceTokens.join(", ");
+      const target = finding.targetTokens.length === 0 ? "∅" : finding.targetTokens.join(", ");
+      return locale === "zh-CN"
+        ? `数字标记发生变化：原文 ${source}；译文 ${target}。日期本地化或数字文字化可能导致合理差异，请对照审查。`
+        : `Number tokens changed: source ${source}; target ${target}. Localized dates or spelled-out numbers may be valid; compare with the source.`;
+    }
+    case "line_break_count_changed":
+      return locale === "zh-CN"
+        ? `换行数量发生变化：原文 ${String(finding.sourceCount)}；译文 ${
+          String(finding.targetCount)
+        }。`
+        : `Line-break count changed: source ${String(finding.sourceCount)}; target ${
+          String(finding.targetCount)
+        }.`;
+    case "target_looks_like_refusal":
+      return locale === "zh-CN"
+        ? "译文疑似出现明确拒绝话术，请对照原文审查。"
+        : "Target resembles an explicit refusal rather than a translation; compare it with the source.";
+  }
+  const unsupported: never = finding;
+  return unsupported;
+}
+
+function translationMechanicalWarningKeyV1(
+  finding: TranslationMechanicalWarningV1,
+): string {
+  return finding.code === "non_locked_glossary_missing"
+    ? `${finding.code}:${finding.unitId}:${finding.glossaryEntryId}`
+    : `${finding.code}:${finding.unitId}`;
+}
 
 const translationStageOrderV1: readonly TranslationProgramStageV1[] = [
   "import",
@@ -229,34 +333,55 @@ const translationTableHeaderHeightV1 = 34;
 
 function TranslationIntakeV1({
   locale,
-  initialUi,
+  packageCopy,
   defaultTargetLocale,
   pending,
   onImportFile,
   onOperationError,
 }: {
   readonly locale: "en" | "zh-CN";
-  readonly initialUi: TranslationInitialUiV1 | null;
+  readonly packageCopy: TranslationInitialUiCopyV1 | null;
   readonly defaultTargetLocale: string;
   readonly pending: boolean;
   readonly onImportFile: TranslationProgramWorkspacePropsV1["onImportFile"];
   readonly onOperationError: TranslationProgramWorkspacePropsV1["onOperationError"];
 }): ReactNode {
   const copy = translationProgramCopyV1[locale];
-  const packageCopy = initialUi?.locales[locale] ?? initialUi?.locales.en ??
-    initialUi?.locales["zh-CN"] ?? null;
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const localeSuggestionListId = useId();
+  const targetLocaleTouchedRef = useRef(false);
+  const sourceLocaleSuggestionListId = useId();
+  const targetLocaleSuggestionListId = useId();
   const [sourceLocale, setSourceLocale] = useState("auto");
-  const [targetLocale, setTargetLocale] = useState(defaultTargetLocale);
+  const canonicalDefaultTargetLocale = canonicalizeTranslationTargetLocaleV1(
+    defaultTargetLocale,
+  ) ?? defaultTranslationTargetLocaleForHostV1(locale);
+  const [targetLocale, setTargetLocale] = useState(canonicalDefaultTargetLocale);
+  const [targetLocaleError, setTargetLocaleError] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+
+  useEffect(() => {
+    if (targetLocaleTouchedRef.current) return;
+    setTargetLocale(canonicalDefaultTargetLocale);
+  }, [canonicalDefaultTargetLocale]);
+
+  const admittedTargetLocaleV1 = (): string | null => {
+    const candidate = targetLocale.trim().length === 0
+      ? canonicalDefaultTargetLocale
+      : targetLocale;
+    const canonical = canonicalizeTranslationTargetLocaleV1(candidate);
+    setTargetLocaleError(canonical === null);
+    if (canonical !== null) setTargetLocale(canonical);
+    return canonical;
+  };
 
   const submitFileV1 = (file: File | undefined): void => {
     if (file === undefined || pending) return;
+    const admittedTargetLocale = admittedTargetLocaleV1();
+    if (admittedTargetLocale === null) return;
     Promise.resolve(onImportFile({
       file,
       sourceLocale: sourceLocale.trim() || "auto",
-      targetLocale: targetLocale.trim() || defaultTargetLocale,
+      targetLocale: admittedTargetLocale,
     })).catch((error) => {
       onOperationError?.(error);
     });
@@ -274,15 +399,25 @@ function TranslationIntakeV1({
   };
 
   return (
-    <section className="translation-intake" aria-labelledby="translation-intake-title">
+    <section className="translation-intake" aria-label={copy.importTitle}>
       <div className="translation-intake__intro">
         <span className="translation-intake__mark" aria-hidden="true">
           <Languages size={22} />
         </span>
-        <div>
-          <h1 id="translation-intake-title">{packageCopy?.title ?? copy.importTitle}</h1>
-          <p>{packageCopy?.description ?? copy.importDescription}</p>
-        </div>
+        {packageCopy === null
+          ? (
+            <div>
+              <h1>{copy.importTitle}</h1>
+              <p>{copy.importDescription}</p>
+            </div>
+          )
+          : (
+            <ProgramOpenUiRendererV1
+              document={packageCopy.intakeDocument}
+              disabled
+              onAction={() => undefined}
+            />
+          )}
       </div>
 
       <div
@@ -308,7 +443,7 @@ function TranslationIntakeV1({
           type="file"
           aria-hidden="true"
           tabIndex={-1}
-          accept=".txt,.md,.markdown,.srt,.json,.pdf,text/plain,text/markdown,application/json,application/pdf"
+          accept=".txt,.md,.markdown,.srt,.vtt,.ass,.json,.pdf,text/plain,text/markdown,text/vtt,text/x-ssa,application/x-subrip,application/json,application/pdf"
           disabled={pending}
           onChange={onFileChangeV1}
         />
@@ -317,7 +452,9 @@ function TranslationIntakeV1({
           variant="primary"
           size="sm"
           disabled={pending}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            if (admittedTargetLocaleV1() !== null) fileInputRef.current?.click();
+          }}
         >
           {packageCopy?.chooseFileLabel ?? copy.chooseFile}
         </Button>
@@ -325,29 +462,46 @@ function TranslationIntakeV1({
 
       <div className="translation-intake__languages">
         <FieldV1>
-          <FieldLabelV1 htmlFor="translation-source-locale">{copy.sourceLanguage}</FieldLabelV1>
+          <FieldLabelV1 htmlFor="translation-source-locale">
+            {packageCopy?.sourceLanguageLabel ?? copy.sourceLanguage}
+          </FieldLabelV1>
           <InputV1
             id="translation-source-locale"
-            list={localeSuggestionListId}
+            list={sourceLocaleSuggestionListId}
             value={sourceLocale}
             onChange={(event) => setSourceLocale(event.currentTarget.value)}
           />
         </FieldV1>
         <FieldV1>
-          <FieldLabelV1 htmlFor="translation-target-locale">{copy.targetLanguage}</FieldLabelV1>
+          <FieldLabelV1 htmlFor="translation-target-locale">
+            {packageCopy?.targetLanguageLabel ?? copy.targetLanguage}
+          </FieldLabelV1>
           <InputV1
             id="translation-target-locale"
-            list={localeSuggestionListId}
+            list={targetLocaleSuggestionListId}
             value={targetLocale}
-            onChange={(event) => setTargetLocale(event.currentTarget.value)}
+            aria-invalid={targetLocaleError}
+            onBlur={admittedTargetLocaleV1}
+            onChange={(event) => {
+              targetLocaleTouchedRef.current = true;
+              setTargetLocaleError(false);
+              setTargetLocale(event.currentTarget.value);
+            }}
           />
+          {targetLocaleError ? <FieldErrorV1>{copy.invalidTargetLanguage}</FieldErrorV1> : null}
         </FieldV1>
-        <datalist id={localeSuggestionListId}>
+        <datalist id={sourceLocaleSuggestionListId}>
           <option value="auto">{copy.automatic}</option>
-          {localeOptionsV1.map((option) => (
-            <option value={option.value} key={option.value}>{option[locale]}</option>
+          {translationTargetLanguageSuggestionsV1.map((option) => (
+            <option value={option.locale} key={option.locale}>{option.labels[locale]}</option>
           ))}
         </datalist>
+        <datalist id={targetLocaleSuggestionListId}>
+          {translationTargetLanguageSuggestionsV1.map((option) => (
+            <option value={option.locale} key={option.locale}>{option.labels[locale]}</option>
+          ))}
+        </datalist>
+        <p className="translation-intake__language-scope">{copy.targetLanguageScope}</p>
       </div>
     </section>
   );
@@ -393,10 +547,15 @@ function TranslationProcessWorkbenchV1({
   locale,
   translationSource,
   stage,
-  onStartTranslation,
+  openUiDocument,
+  onSubmitInstruction,
   startTranslationDisabled,
+  candidateReviewDisabled,
+  candidateDraft,
+  onCandidateDraftChange,
   onAcceptCandidate,
   onRejectCandidate,
+  onRetranslateCandidate,
   onExport,
   onOperationError,
 }:
@@ -406,14 +565,21 @@ function TranslationProcessWorkbenchV1({
     | "locale"
     | "translationSource"
     | "stage"
-    | "onStartTranslation"
+    | "onSubmitInstruction"
     | "startTranslationDisabled"
+    | "candidateReviewDisabled"
+    | "candidateDraft"
+    | "onCandidateDraftChange"
     | "onAcceptCandidate"
     | "onRejectCandidate"
+    | "onRetranslateCandidate"
     | "onExport"
     | "onOperationError"
   >
-  & { readonly translationSource: TranslationProcessPresentationSourceV1 }): ReactNode {
+  & {
+    readonly translationSource: TranslationProcessPresentationSourceV1;
+    readonly openUiDocument: ProgramOpenUiDocumentV1 | null;
+  }): ReactNode {
   const copy = translationProgramCopyV1[locale];
   const candidate = translationSource.pendingCandidate;
   const initialCandidateTargetByUnitId = useMemo(
@@ -427,16 +593,35 @@ function TranslationProcessWorkbenchV1({
     () => new Map(candidate?.ambiguities.map(({ unitId, question }) => [unitId, question]) ?? []),
     [candidate],
   );
-  const [candidateDraft, setCandidateDraft] = useState<
-    {
-      readonly candidateId: string;
-      readonly targets: ReadonlyMap<string, string>;
-    } | null
-  >(null);
-  const candidateTargetByUnitId =
-    candidate !== null && candidateDraft?.candidateId === candidate.candidateId
-      ? candidateDraft.targets
-      : initialCandidateTargetByUnitId;
+  const mechanicalWarnings = useMemo(
+    () =>
+      candidate?.findings.filter(
+        (finding): finding is TranslationMechanicalWarningV1 => finding.severity === "warning",
+      ) ?? [],
+    [candidate],
+  );
+  const mechanicalWarningsByUnitId = useMemo(() => {
+    const grouped = new Map<string, TranslationMechanicalWarningV1[]>();
+    for (const finding of mechanicalWarnings) {
+      const current = grouped.get(finding.unitId) ?? [];
+      current.push(finding);
+      grouped.set(finding.unitId, current);
+    }
+    return grouped;
+  }, [mechanicalWarnings]);
+  const candidateDraftMatches = candidate !== null &&
+    candidateDraft?.candidateId === candidate.candidateId &&
+    candidateDraft.targets.length === candidate.targets.length &&
+    candidateDraft.targets.every((target, index) =>
+      target.unitId === candidate.targets[index]?.unitId
+    );
+  const candidateTargetByUnitId = useMemo(
+    () =>
+      candidateDraftMatches
+        ? new Map(candidateDraft.targets.map(({ unitId, target }) => [unitId, target]))
+        : initialCandidateTargetByUnitId,
+    [candidateDraft, candidateDraftMatches, initialCandidateTargetByUnitId],
+  );
   const progressPhase = translationSource.totalUnitCount === 0
     ? "empty"
     : translationSource.committedUnitCount === 0
@@ -607,6 +792,9 @@ function TranslationProcessWorkbenchV1({
   const selectedAmbiguity = selectedUnitId === null
     ? undefined
     : ambiguityByUnitId.get(selectedUnitId);
+  const selectedMechanicalWarnings = selectedUnitId === null
+    ? []
+    : mechanicalWarningsByUnitId.get(selectedUnitId) ?? [];
 
   const loadingRows = rowCache.pending.size > 0;
   const failedRows = Array.from(rowCache.failures.values());
@@ -624,32 +812,42 @@ function TranslationProcessWorkbenchV1({
     Promise.resolve(operation()).catch((error) => onOperationError?.(error));
   };
 
-  const startTranslationV1 = (): void => {
+  const submitInstructionV1 = (instruction: string): void => {
     if (
-      onStartTranslation === undefined || startTranslationDisabled === true || startPending ||
+      onSubmitInstruction === undefined || startTranslationDisabled === true || startPending ||
       progressPhase === "empty" || stage === "translate" || stage === "review"
     ) return;
     setStartPending(true);
-    Promise.resolve(onStartTranslation()).catch((error) => {
+    Promise.resolve(onSubmitInstruction(instruction)).catch((error) => {
       onOperationError?.(error);
     }).finally(() => setStartPending(false));
   };
 
+  const onOpenUiActionV1 = (intent: ProgramOpenUiActionIntentV1): void => {
+    submitInstructionV1(intent.prompt);
+  };
+
   const editCandidateTargetV1 = (unitId: string, target: string): void => {
-    if (candidate === null || !initialCandidateTargetByUnitId.has(unitId)) return;
-    setCandidateDraft((current) => {
-      const targets = new Map(
-        current?.candidateId === candidate.candidateId
-          ? current.targets
-          : initialCandidateTargetByUnitId,
-      );
-      targets.set(unitId, target);
-      return { candidateId: candidate.candidateId, targets };
+    if (
+      candidate === null || onCandidateDraftChange === undefined ||
+      !initialCandidateTargetByUnitId.has(unitId)
+    ) return;
+    onCandidateDraftChange({
+      candidateId: candidate.candidateId,
+      targets: candidate.targets.map((candidateTarget) => ({
+        unitId: candidateTarget.unitId,
+        target: candidateTarget.unitId === unitId
+          ? target
+          : candidateTargetByUnitId.get(candidateTarget.unitId) ?? candidateTarget.target,
+      })),
     });
   };
 
   const acceptCandidateV1 = (): void => {
-    if (candidate === null || onAcceptCandidate === undefined || reviewPending) return;
+    if (
+      candidate === null || onAcceptCandidate === undefined || reviewPending ||
+      candidateReviewDisabled === true
+    ) return;
     const targets = candidate.targets.map(({ unitId }) => ({
       unitId,
       target: candidateTargetByUnitId.get(unitId) ?? "",
@@ -666,11 +864,35 @@ function TranslationProcessWorkbenchV1({
   };
 
   const rejectCandidateV1 = (): void => {
-    if (candidate === null || onRejectCandidate === undefined || reviewPending) return;
+    if (
+      candidate === null || onRejectCandidate === undefined || reviewPending ||
+      candidateReviewDisabled === true
+    ) return;
     setReviewPending(true);
     Promise.resolve(onRejectCandidate({
       expectedWorksetRevision: translationSource.revision,
       candidateId: candidate.candidateId,
+    })).catch((error) => {
+      onOperationError?.(error);
+    }).finally(() => setReviewPending(false));
+  };
+
+  const retranslateCandidateV1 = (): void => {
+    if (
+      candidate === null || onRetranslateCandidate === undefined || reviewPending ||
+      candidateReviewDisabled === true
+    ) return;
+    const targets = candidate.targets.map(({ unitId }) => ({
+      unitId,
+      target: candidateTargetByUnitId.get(unitId) ?? "",
+    }));
+    if (targets.some(({ target }) => target.trim().length === 0)) return;
+    setReviewPending(true);
+    Promise.resolve(onRetranslateCandidate({
+      expectedWorksetRevision: translationSource.revision,
+      candidateId: candidate.candidateId,
+      targets,
+      instruction: null,
     })).catch((error) => {
       onOperationError?.(error);
     }).finally(() => setReviewPending(false));
@@ -684,6 +906,16 @@ function TranslationProcessWorkbenchV1({
   return (
     <section className="translation-workbench" data-translation-stage={stage}>
       <TranslationStageRailV1 locale={locale} stage={stage} />
+
+      {progressPhase === "complete" || openUiDocument === null ? null : (
+        <ProgramOpenUiRendererV1
+          document={openUiDocument}
+          disabled={onSubmitInstruction === undefined || startTranslationDisabled ||
+            startPending || progressPhase === "empty" || stage === "translate" ||
+            stage === "review"}
+          onAction={onOpenUiActionV1}
+        />
+      )}
 
       <header className="translation-workbench__summary">
         <div className="translation-workbench__identity">
@@ -704,7 +936,8 @@ function TranslationProcessWorkbenchV1({
           <span className="translation-workbench__locale">{translationSource.targetLocale}</span>
         </div>
         <div className="translation-workbench__actions">
-          {progressPhase !== "complete" && onStartTranslation !== undefined && (
+          {progressPhase !== "complete" && openUiDocument === null &&
+            onSubmitInstruction !== undefined && (
             <Button
               type="button"
               size="sm"
@@ -713,7 +946,12 @@ function TranslationProcessWorkbenchV1({
               disabled={progressPhase === "empty" || startTranslationDisabled === true ||
                 startPending ||
                 stage === "translate" || stage === "review"}
-              onClick={startTranslationV1}
+              onClick={() =>
+                submitInstructionV1(
+                  locale === "zh-CN"
+                    ? "请按照当前设置翻译下一批内容，并在提交候选前检查术语、人物关系、否定和指代。"
+                    : "Translate the next batch using the current settings, and check terminology, relationships, negation, and references before submitting the candidate.",
+                )}
             >
               {copy.startTranslation}
             </Button>
@@ -767,6 +1005,23 @@ function TranslationProcessWorkbenchV1({
           <div>
             <h2 id="translation-candidate-review-title">{copy.reviewTitle}</h2>
             <p>{copy.reviewDescription}</p>
+            <div className="translation-candidate-review__findings" aria-live="polite">
+              {mechanicalWarnings.length === 0
+                ? <span>{copy.noMechanicalWarnings}</span>
+                : (
+                  <BadgeV1 variant="warning">
+                    {copy.mechanicalWarningsSummary(mechanicalWarnings.length)}
+                  </BadgeV1>
+                )}
+              {candidate.ambiguities.length === 0 ? null : (
+                <BadgeV1 variant="neutral">
+                  {copy.modelAmbiguitiesSummary(candidate.ambiguities.length)}
+                </BadgeV1>
+              )}
+              {candidateReviewDisabled === true
+                ? <span role="status">{copy.retranslationRunning}</span>
+                : null}
+            </div>
           </div>
           <div className="translation-candidate-review__actions">
             <Button
@@ -774,7 +1029,8 @@ function TranslationProcessWorkbenchV1({
               size="sm"
               variant="secondary"
               icon={X}
-              disabled={onRejectCandidate === undefined || reviewPending}
+              disabled={onRejectCandidate === undefined || reviewPending ||
+                candidateReviewDisabled === true}
               onClick={rejectCandidateV1}
             >
               {copy.rejectCandidate}
@@ -782,9 +1038,21 @@ function TranslationProcessWorkbenchV1({
             <Button
               type="button"
               size="sm"
+              variant="secondary"
+              icon={RotateCcw}
+              disabled={onRetranslateCandidate === undefined || reviewPending ||
+                candidateReviewDisabled === true || !candidateTargetsComplete}
+              onClick={retranslateCandidateV1}
+            >
+              {copy.retranslateCandidate}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               variant="primary"
               icon={Check}
               disabled={onAcceptCandidate === undefined || reviewPending ||
+                candidateReviewDisabled === true ||
                 !candidateTargetsComplete}
               onClick={acceptCandidateV1}
             >
@@ -825,6 +1093,8 @@ function TranslationProcessWorkbenchV1({
                     if (unit === undefined) return null;
                     const candidateTarget = candidateTargetByUnitId.get(unit.unitId);
                     const target = candidateTarget ?? unit.target;
+                    const unitHasMechanicalWarning = mechanicalWarningsByUnitId.has(unit.unitId);
+                    const unitHasModelAmbiguity = ambiguityByUnitId.has(unit.unitId);
                     const status = candidateTarget === undefined
                       ? unit.target === null ? "pending" : "committed"
                       : "candidate";
@@ -836,6 +1106,7 @@ function TranslationProcessWorkbenchV1({
                         data-selected={selectedOrder === unit.order ? "true" : "false"}
                         aria-pressed={selectedOrder === unit.order}
                         data-translation-unit-status={status}
+                        data-mechanical-warning={unitHasMechanicalWarning ? "true" : "false"}
                         style={{
                           blockSize: `${String(virtualRow.size)}px`,
                           transform: `translateY(${
@@ -861,7 +1132,11 @@ function TranslationProcessWorkbenchV1({
                             : "neutral"}
                         >
                           {status === "candidate"
-                            ? copy.awaitingReview
+                            ? unitHasMechanicalWarning
+                              ? copy.mechanicalWarning
+                              : unitHasModelAmbiguity
+                              ? copy.modelAmbiguity
+                              : copy.awaitingReview
                             : status === "committed"
                             ? copy.committed
                             : copy.pending}
@@ -930,6 +1205,21 @@ function TranslationProcessWorkbenchV1({
                   <h3>{copy.source}</h3>
                   <p>{selectedUnit.source}</p>
                 </section>
+                {selectedMechanicalWarnings.length === 0 ? null : (
+                  <section
+                    className="translation-unit-detail__mechanical-warnings"
+                    aria-label={copy.mechanicalWarnings}
+                  >
+                    <h3>{copy.mechanicalWarnings}</h3>
+                    <ul>
+                      {selectedMechanicalWarnings.map((finding) => (
+                        <li key={translationMechanicalWarningKeyV1(finding)}>
+                          {translationMechanicalWarningTextV1(finding, locale)}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
                 {selectedAmbiguity === undefined ? null : (
                   <section
                     className="translation-unit-detail__ambiguity"
@@ -946,17 +1236,22 @@ function TranslationProcessWorkbenchV1({
                     rows={7}
                     value={selectedUnitTarget}
                     placeholder={copy.targetPlaceholder}
-                    readOnly={selectedUnitCandidateTarget === undefined}
-                    aria-describedby={selectedUnitCandidateTarget === undefined
+                    readOnly={selectedUnitCandidateTarget === undefined ||
+                      onCandidateDraftChange === undefined}
+                    aria-describedby={selectedUnitCandidateTarget === undefined ||
+                        onCandidateDraftChange === undefined
                       ? "translation-target-readonly-note"
                       : undefined}
                     onChange={(event) => {
-                      if (selectedUnitCandidateTarget === undefined) return;
+                      if (
+                        selectedUnitCandidateTarget === undefined ||
+                        onCandidateDraftChange === undefined
+                      ) return;
                       editCandidateTargetV1(selectedUnit.unitId, event.currentTarget.value);
                     }}
                   />
                 </FieldV1>
-                {selectedUnitCandidateTarget === undefined
+                {selectedUnitCandidateTarget === undefined || onCandidateDraftChange === undefined
                   ? (
                     <p
                       id="translation-target-readonly-note"
@@ -1000,19 +1295,26 @@ export function TranslationProgramWorkspaceV1({
   run,
   conversationSurface,
   initialUi = null,
-  defaultTargetLocale = "zh-CN",
+  defaultTargetLocale,
   toolbarActions,
   overlaySurface,
   importPending = false,
   onImportFile,
-  onStartTranslation,
+  onSubmitInstruction,
   startTranslationDisabled = false,
+  candidateReviewDisabled = false,
+  candidateDraft = null,
+  onCandidateDraftChange,
   onAcceptCandidate,
   onRejectCandidate,
+  onRetranslateCandidate,
   onExport,
   onOperationError,
 }: TranslationProgramWorkspacePropsV1): ReactNode {
   const copy = translationProgramCopyV1[locale];
+  const packageCopy = resolveProgramUiLocalizationV1(initialUi, locale);
+  const intakeDefaultTargetLocale = defaultTargetLocale ??
+    defaultTranslationTargetLocaleForHostV1(locale);
   return (
     <ProgramUiContainerV1
       processId={processId}
@@ -1024,9 +1326,10 @@ export function TranslationProgramWorkspaceV1({
       guidedSurface={translationSource === null
         ? (
           <TranslationIntakeV1
+            key={processId}
             locale={locale}
-            initialUi={initialUi}
-            defaultTargetLocale={defaultTargetLocale}
+            packageCopy={packageCopy}
+            defaultTargetLocale={intakeDefaultTargetLocale}
             pending={importPending}
             onImportFile={onImportFile}
             onOperationError={onOperationError}
@@ -1038,10 +1341,15 @@ export function TranslationProgramWorkspaceV1({
             locale={locale}
             translationSource={translationSource}
             stage={stage}
-            {...(onStartTranslation === undefined ? {} : { onStartTranslation })}
+            openUiDocument={packageCopy?.workbenchDocument ?? null}
+            {...(onSubmitInstruction === undefined ? {} : { onSubmitInstruction })}
             startTranslationDisabled={startTranslationDisabled}
+            candidateReviewDisabled={candidateReviewDisabled}
+            candidateDraft={candidateDraft}
+            {...(onCandidateDraftChange === undefined ? {} : { onCandidateDraftChange })}
             {...(onAcceptCandidate === undefined ? {} : { onAcceptCandidate })}
             {...(onRejectCandidate === undefined ? {} : { onRejectCandidate })}
+            {...(onRetranslateCandidate === undefined ? {} : { onRetranslateCandidate })}
             {...(onExport === undefined ? {} : { onExport })}
             {...(onOperationError === undefined ? {} : { onOperationError })}
           />

@@ -6,8 +6,13 @@ import {
   type ProcessHeadV1,
   type ProgramProcessRepositoryV1,
   type TranscriptEntryV1,
-  type TranscriptPageV1,
 } from "./program-process-repository.ts";
+import {
+  createTranscriptWindowV1,
+  prependTranscriptWindowPageV1,
+  projectTranscriptWindowV1,
+  type TranscriptWindowV1,
+} from "./transcript-window.ts";
 
 export interface ReadOnlyProcessConversationTranscriptV1 {
   /** Chronological entries in the currently mounted window only. */
@@ -73,18 +78,6 @@ export interface ReadOnlyProcessConversationBudgetsV1 {
 const defaultTranscriptPageMaximumBytesV1 = 128 * 1_024;
 const defaultTranscriptWindowMaximumBytesV1 = defaultTranscriptPageMaximumBytesV1 * 3;
 
-interface TranscriptWindowPageV1 {
-  readonly entries: readonly TranscriptEntryV1[];
-  readonly byteLength: number;
-  readonly nextBeforeSequence: number | null;
-}
-
-interface TranscriptWindowV1 {
-  readonly processId: string;
-  readonly pages: readonly TranscriptWindowPageV1[];
-  readonly newerOmitted: boolean;
-}
-
 type ConversationRepositoryV1 = Pick<
   ProgramProcessRepositoryV1,
   "loadProcess" | "loadTranscriptPage"
@@ -116,41 +109,11 @@ function failureCodeV1(error: unknown): string {
   return "repository_failed";
 }
 
-function transcriptPageV1(page: TranscriptPageV1): TranscriptWindowPageV1 {
-  return {
-    entries: page.entries,
-    byteLength: page.byteLength,
-    nextBeforeSequence: page.nextBeforeSequence,
-  };
-}
-
 function transcriptProjectionV1(
   window: TranscriptWindowV1,
   phase: ReadOnlyProcessConversationTranscriptV1["phase"],
 ): ReadOnlyProcessConversationTranscriptV1 {
-  return {
-    entries: window.pages.flatMap((page) => page.entries),
-    byteLength: window.pages.reduce((sum, page) => sum + page.byteLength, 0),
-    nextBeforeSequence: window.pages[0]?.nextBeforeSequence ?? null,
-    newerOmitted: window.newerOmitted,
-    phase,
-  };
-}
-
-function prependTranscriptPageV1(input: {
-  readonly current: TranscriptWindowV1;
-  readonly page: TranscriptPageV1;
-  readonly maximumBytes: number;
-}): TranscriptWindowV1 {
-  const pages = [transcriptPageV1(input.page), ...input.current.pages];
-  let byteLength = pages.reduce((sum, page) => sum + page.byteLength, 0);
-  let newerOmitted = input.current.newerOmitted;
-  while (pages.length > 1 && byteLength > input.maximumBytes) {
-    const removed = pages.pop();
-    if (removed !== undefined) byteLength -= removed.byteLength;
-    newerOmitted = true;
-  }
-  return { processId: input.current.processId, pages, newerOmitted };
+  return { ...projectTranscriptWindowV1(window), phase };
 }
 
 /**
@@ -228,11 +191,7 @@ export function createReadOnlyProcessConversationControllerV1(input: {
       });
       if (disposed || epoch !== operationEpoch) return { kind: "failed", code: "superseded" };
       if (page === null) return failedV1("open", "process_transcript_not_found", null);
-      transcriptWindow = {
-        processId,
-        pages: [transcriptPageV1(page)],
-        newerOmitted: false,
-      };
+      transcriptWindow = createTranscriptWindowV1(page);
       publishV1({
         phase: "ready",
         conversation: {
@@ -279,7 +238,7 @@ export function createReadOnlyProcessConversationControllerV1(input: {
       if (page === null) {
         return failedV1("load_older", "process_transcript_not_found", conversation);
       }
-      transcriptWindow = prependTranscriptPageV1({
+      transcriptWindow = prependTranscriptWindowPageV1({
         current: currentWindow,
         page,
         maximumBytes: budgets.transcriptWindowMaximumBytes,

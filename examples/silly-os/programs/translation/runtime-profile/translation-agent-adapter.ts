@@ -14,9 +14,11 @@ import type {
   TranslationAgentTerminalDiagnosticCodeV1,
   TranslationAgentTerminalRunV1,
 } from "../runtime/translation-agent-contracts.ts";
+import { translationAgentInstructionMaximumCharactersV1 } from "../runtime/translation-agent-contracts.ts";
 import {
   admitTranslationBatchCandidateV1,
   admitTranslationBatchRequestV1,
+  classifyTranslationBatchCandidateRejectionV1,
   type TranslationBatchCandidateV1,
   type TranslationBatchRequestV1,
 } from "../runtime/translation-batch-protocol.ts";
@@ -75,7 +77,9 @@ function prepareTranslationRunV1(value: unknown): BrowserProgramAgentPreparedRun
     "workspaceGeneration",
     "programId",
     "expectedWorksetRevision",
+    "replacesCandidateId",
     "requestedOutputTokens",
+    "instruction",
     "batch",
   ]);
   if (
@@ -92,8 +96,14 @@ function prepareTranslationRunV1(value: unknown): BrowserProgramAgentPreparedRun
     typeof record.programId !== "string" || !identifierPatternV1.test(record.programId) ||
     typeof record.expectedWorksetRevision !== "number" ||
     !Number.isSafeInteger(record.expectedWorksetRevision) || record.expectedWorksetRevision <= 0 ||
+    (record.replacesCandidateId !== null &&
+      (typeof record.replacesCandidateId !== "string" ||
+        !identifierPatternV1.test(record.replacesCandidateId))) ||
     typeof record.requestedOutputTokens !== "number" ||
-    !Number.isSafeInteger(record.requestedOutputTokens) || record.requestedOutputTokens <= 0
+    !Number.isSafeInteger(record.requestedOutputTokens) || record.requestedOutputTokens <= 0 ||
+    typeof record.instruction !== "string" || record.instruction.length === 0 ||
+    record.instruction.length > translationAgentInstructionMaximumCharactersV1 ||
+    record.instruction !== record.instruction.trim()
   ) return null;
   const admitted = admitTranslationBatchRequestV1(record.batch);
   if (admitted.kind === "rejected") return null;
@@ -112,7 +122,9 @@ function prepareTranslationRunV1(value: unknown): BrowserProgramAgentPreparedRun
     workspaceGeneration: record.workspaceGeneration,
     programId: record.programId,
     expectedWorksetRevision: record.expectedWorksetRevision,
+    replacesCandidateId: record.replacesCandidateId,
     requestedOutputTokens: record.requestedOutputTokens,
+    instruction: record.instruction,
     batch: admitted.request,
   });
   return Object.freeze({
@@ -121,6 +133,7 @@ function prepareTranslationRunV1(value: unknown): BrowserProgramAgentPreparedRun
       programPackage,
       programId: run.programId,
       requestedOutputTokens: run.requestedOutputTokens,
+      instruction: run.instruction,
       request: admitted.request,
     }),
     requireWorkspaceGeneration: true,
@@ -157,25 +170,31 @@ function remoteFailureV1(
     return terminalV1(Object.freeze({ run, outcome: remoteCode }));
   }
   const diagnosticCode: TranslationAgentTerminalDiagnosticCodeV1 =
-    remoteCode === "candidate_invalid" || remoteCode === "candidate_context_mismatch" ||
-      remoteCode === "candidate_duplicate"
+    remoteCode === "candidate_invalid" || remoteCode === "candidate_duplicate"
+      ? "candidate_structure_invalid"
+      : remoteCode === "candidate_context_mismatch"
       ? "candidate_invalid"
       : remoteCode === "candidate_missing"
       ? "protocol_invalid"
       : "run_failed";
   return terminalV1(
     Object.freeze({ run, outcome: "failed", diagnosticCode }),
-    diagnosticV1(diagnosticCode, value.path),
+    diagnosticV1(
+      diagnosticCode === "candidate_structure_invalid" ? "candidate_invalid" : diagnosticCode,
+      value.path,
+    ),
   );
 }
 
 const translationProgramAgentAdapterImplementationV1: BrowserProgramAgentAdapterV1 = {
-  async prepareRun(input) {
+  prepareRun(input) {
     try {
       const prepared = prepareTranslationRunV1(input);
-      return prepared === null ? { kind: "rejected" } : { kind: "admitted", prepared };
+      return Promise.resolve(
+        prepared === null ? { kind: "rejected" } : { kind: "admitted", prepared },
+      );
     } catch {
-      return { kind: "rejected" };
+      return Promise.resolve({ kind: "rejected" });
     }
   },
   projectStream({ prepared, state, event }) {
@@ -187,10 +206,15 @@ const translationProgramAgentAdapterImplementationV1: BrowserProgramAgentAdapter
       case "output_data": {
         const admitted = admitTranslationBatchCandidateV1(event.value, current.request);
         if (admitted.kind === "rejected" || current.candidate !== null) {
+          const diagnosticCode: TranslationAgentTerminalDiagnosticCodeV1 =
+            current.candidate !== null || admitted.kind === "rejected" &&
+                classifyTranslationBatchCandidateRejectionV1(admitted) === "structure"
+              ? "candidate_structure_invalid"
+              : "candidate_invalid";
           return {
             kind: "terminal",
             terminal: terminalV1(
-              Object.freeze({ run, outcome: "failed", diagnosticCode: "candidate_invalid" }),
+              Object.freeze({ run, outcome: "failed", diagnosticCode }),
               diagnosticV1("candidate_invalid", "/candidate"),
             ),
             cancelRemote: true,

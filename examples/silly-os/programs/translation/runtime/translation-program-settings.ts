@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 
+import { canonicalizeTranslationTargetLocaleV1 } from "./translation-target-language.ts";
+
 export interface TranslationProgramSettingsV1 {
   readonly targetLocale: string;
   readonly defaultStyle: string;
@@ -93,6 +95,22 @@ function fieldValueV1(input: {
   return { value: candidate, accepted: true };
 }
 
+function targetLocaleFieldValueV1(input: {
+  readonly value: DataRecordV1;
+  readonly fallback: string;
+  readonly source: SettingsSourceV1;
+  readonly diagnostics: TranslationProgramSettingsDiagnosticV1[];
+}): { readonly value: string; readonly accepted: boolean } {
+  const canonical = canonicalizeTranslationTargetLocaleV1(input.value.targetLocale);
+  if (!Object.hasOwn(input.value, "targetLocale") || canonical === null) {
+    input.diagnostics.push(
+      diagnosticV1(input.source, "invalid_document", "/targetLocale"),
+    );
+    return { value: input.fallback, accepted: false };
+  }
+  return { value: canonical, accepted: true };
+}
+
 function interpretSettingsValueV1(input: {
   readonly source: SettingsSourceV1;
   readonly value: unknown;
@@ -108,11 +126,9 @@ function interpretSettingsValueV1(input: {
     };
   }
 
-  const targetLocale = fieldValueV1({
+  const targetLocale = targetLocaleFieldValueV1({
     value: input.value,
-    key: "targetLocale",
     fallback: input.fallback.targetLocale,
-    path: "/targetLocale",
     source: input.source,
     diagnostics,
   });

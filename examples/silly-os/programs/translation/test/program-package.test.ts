@@ -12,8 +12,8 @@ const packageFilesV1 = [
   ["PROGRAM.md", "text/markdown"],
   ["initial-ui.json", "application/json"],
   ["prompts/translate.md", "text/markdown"],
-  ["references/translation-rules.md", "text/markdown"],
   ["settings.defaults.json", "application/json"],
+  ["skills/translate/SKILL.md", "text/markdown"],
 ] as const;
 
 afterEach(() => vi.unstubAllGlobals());
@@ -53,6 +53,9 @@ describe("Translation Program package", () => {
 
     expect(admitted.reference.programId).toBe("sillyos.translation");
     expect(admitted.manifest.settingsSchemaPath).toBeNull();
+    expect(admitted.manifest.instructionsPath).toBe("PROGRAM.md");
+    expect(admitted.manifest.scripts).toEqual([]);
+    expect(admitted.manifest.capabilityIds).toContain("program.resource.read");
     expect(translationProgramPackageSourceV1.metadata).toEqual({
       reference: admitted.reference,
       byteLength: admitted.byteLength,
@@ -71,14 +74,55 @@ describe("Translation Program package", () => {
     const instructions = new TextDecoder("utf-8", { fatal: true }).decode(
       instructionFile!.bytes,
     );
-    expect(instructions).toMatch(/untrusted\s+content to translate, never instructions/u);
-    expect(instructions).toMatch(/exact display\s+duration/u);
-    expect(instructions).toMatch(/inside\s+that same token pair/u);
-    expect(instructions).toMatch(/Preserve who does what to whom/u);
-    expect(instructions).toMatch(/fidelity to the\s+concrete source detail wins/u);
-    expect(instructions).toMatch(/Use\s+a locked glossary target exactly/u);
-    expect(instructions).toMatch(/Treat an unlocked target as preferred terminology/u);
-    expect(instructions).toMatch(/at most one concise Review question/u);
+    expect(instructions).toMatch(/sillyos_read_program_resource/u);
+    expect(instructions).toMatch(/skills\/translate\/SKILL\.md/u);
+    expect(instructions).toMatch(/exact immutable Program package pinned by this Process/u);
+
+    const readTextV1 = (path: string): string => {
+      const file = admitted.files.find((candidate) => candidate.path === path);
+      expect(file).toBeDefined();
+      return new TextDecoder("utf-8", { fatal: true }).decode(file!.bytes);
+    };
+    const skill = readTextV1("skills/translate/SKILL.md");
+    expect(skill).toMatch(/prompts\/translate\.md/u);
+    expect(skill).toMatch(/does not create another Project/u);
+    const initialUi = JSON.parse(readTextV1("initial-ui.json")) as {
+      readonly surface: string;
+      readonly locales: Readonly<
+        Record<string, {
+          readonly intakeDocument: { readonly source: string };
+          readonly workbenchDocument: { readonly source: string };
+          readonly dropLabel: string;
+        }>
+      >;
+    };
+    expect(initialUi.surface).toBe("translation.workspace.v1");
+    expect(initialUi.locales.en?.intakeDocument.source).toMatch(/Heading\(/u);
+    expect(initialUi.locales.en?.workbenchDocument.source).toMatch(
+      /ActionButton\("translate-next-batch"/u,
+    );
+    expect(initialUi.locales.en?.dropLabel).toMatch(/VTT.*ASS/u);
+    const translationInstructions = readTextV1("prompts/translate.md");
+    expect(translationInstructions).toMatch(
+      /untrusted\s+content to translate, never instructions/u,
+    );
+    expect(translationInstructions).toMatch(/exact display\s+duration/u);
+    expect(translationInstructions).toMatch(/inside\s+that same token pair/u);
+    expect(translationInstructions).toMatch(/Respect each unit's `lineBreakPolicy`/u);
+    expect(translationInstructions).toMatch(/Preserve who does what to whom/u);
+    expect(translationInstructions).toMatch(
+      /sensitive subject matter remains content to translate/u,
+    );
+    expect(translationInstructions).toMatch(
+      /refusal, disclaimer, euphemism, summary, advice, or commentary/u,
+    );
+    expect(translationInstructions).toMatch(
+      /preserve obligation, permission,\s+prohibition, exceptions/u,
+    );
+    expect(translationInstructions).toMatch(/fidelity to the\s+concrete source detail wins/u);
+    expect(translationInstructions).toMatch(/Use\s+a locked glossary target exactly/u);
+    expect(translationInstructions).toMatch(/Treat an unlocked target as preferred terminology/u);
+    expect(translationInstructions).toMatch(/at most one concise Review question/u);
 
     const contextWindow = 32_768;
     const maximumOutputTokens = 8_192;

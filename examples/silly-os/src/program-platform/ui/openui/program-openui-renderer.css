@@ -1,0 +1,58 @@
+/* SPDX-License-Identifier: MIT */
+
+.program-openui-document {
+  min-inline-size: 0;
+  color: var(--sos-ink);
+  font: inherit;
+}
+
+.program-openui-stack {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+}
+
+.program-openui-stack[data-gap="compact"] {
+  gap: var(--silly-space-2);
+}
+
+.program-openui-stack[data-gap="regular"] {
+  gap: var(--silly-space-3);
+}
+
+.program-openui-stack[data-gap="spacious"] {
+  gap: var(--silly-space-4);
+}
+
+.program-openui-heading,
+.program-openui-text {
+  max-inline-size: 72ch;
+  margin: 0;
+}
+
+.program-openui-heading {
+  color: var(--sos-ink);
+  font-size: clamp(1.05rem, 0.98rem + 0.35vw, 1.35rem);
+  font-weight: 650;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.program-openui-text {
+  color: var(--sos-ink);
+  line-height: var(--silly-line-height-readable);
+  overflow-wrap: anywhere;
+}
+
+.program-openui-text[data-tone="muted"] {
+  color: var(--sos-ink-soft);
+}
+
+.program-openui-callout {
+  max-inline-size: 72ch;
+}
+
+.program-openui-callout .sos-status__description {
+  font-size: inherit;
+  line-height: var(--silly-line-height-readable);
+}

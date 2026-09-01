@@ -24,13 +24,14 @@ function transcriptV1(
   options: {
     readonly phase?: ConversationTranscriptWindowProjectionV1["phase"];
     readonly nextBeforeSequence?: number | null;
+    readonly newerOmitted?: boolean;
   } = {},
 ): ConversationTranscriptWindowProjectionV1 {
   return {
     entries,
     byteLength: 1,
     nextBeforeSequence: options.nextBeforeSequence ?? null,
-    newerOmitted: false,
+    newerOmitted: options.newerOmitted ?? false,
     phase: options.phase ?? "ready",
   };
 }
@@ -219,6 +220,22 @@ describe("SillyOS rich Process transcript", () => {
     expect(feed.scrollTop).toBe(260);
     expect(screen.getByText("Earlier")).toBeVisible();
     expect(screen.queryByRole("button", { name: copyV1.loadOlderTranscript })).toBeNull();
+  });
+
+  it("offers an explicit return to the newest durable window after newer pages are evicted", () => {
+    const onReloadLatestTranscript = vi.fn();
+    render(
+      <ChatPaneV1
+        copy={copyV1}
+        agentName="Agent"
+        transcript={transcriptV1([], { newerOmitted: true })}
+        onSend={vi.fn()}
+        onReloadLatestTranscript={onReloadLatestTranscript}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: copyV1.reloadLatestTranscript }));
+    expect(onReloadLatestTranscript).toHaveBeenCalledOnce();
   });
 
   it("captures and restores a Conversation anchor and composer selection across unmount", () => {

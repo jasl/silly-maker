@@ -22,6 +22,7 @@ function unitV1(order: number, source = `Source ${String(order)}`): TranslationW
     locator: `line/${String(order + 1)}`,
     context: null,
     durationMilliseconds: null,
+    lineBreakPolicy: "forbidden",
     source,
     protectedSegments: [],
   };
@@ -67,7 +68,6 @@ function budgetV1(
     maximumRequestBytes: 1_000_000,
     maximumOutputTokens: 1_000_000,
     outputEnvelope: {
-      reasoningReserveTokens: 40,
       fixedCandidateReserveTokens: 20,
       perUnitCandidateReserveTokens: 5,
       targetTokensPerSourceCodePoint: { numerator: 1, denominator: 1 },
@@ -225,7 +225,6 @@ describe("SillyOS Translation batch planner", () => {
         maximumRequestBytes: 1_000_000,
         maximumOutputTokens: 50,
         outputEnvelope: {
-          reasoningReserveTokens: 10,
           fixedCandidateReserveTokens: 10,
           perUnitCandidateReserveTokens: 5,
           targetTokensPerSourceCodePoint: { numerator: 1, denominator: 1 },
@@ -236,7 +235,7 @@ describe("SillyOS Translation batch planner", () => {
     expect(result.kind).toBe("planned");
     if (result.kind !== "planned") throw new Error("output-bounded request was not planned");
     expect(result.request.units.map(({ order }) => order)).toEqual([0, 1]);
-    expect(result.requestedOutputTokens).toBe(50);
+    expect(result.requestedOutputTokens).toBe(40);
     expect(result.nextOrder).toBe(2);
   });
 
@@ -244,9 +243,8 @@ describe("SillyOS Translation batch planner", () => {
     const result = planTranslationBatchRequestV1(inputV1([unitV1(0, "1234567890")], {
       budget: {
         maximumRequestBytes: 1_000_000,
-        maximumOutputTokens: 34,
+        maximumOutputTokens: 24,
         outputEnvelope: {
-          reasoningReserveTokens: 10,
           fixedCandidateReserveTokens: 10,
           perUnitCandidateReserveTokens: 5,
           targetTokensPerSourceCodePoint: { numerator: 1, denominator: 1 },
@@ -257,8 +255,8 @@ describe("SillyOS Translation batch planner", () => {
     expect(result).toMatchObject({
       kind: "unit_exceeds_budget",
       unitId: "unit.0",
-      requestedOutputTokens: 35,
-      maximumOutputTokens: 34,
+      requestedOutputTokens: 25,
+      maximumOutputTokens: 24,
     });
   });
 
@@ -268,7 +266,6 @@ describe("SillyOS Translation batch planner", () => {
         maximumRequestBytes: 1_000_000,
         maximumOutputTokens: 3,
         outputEnvelope: {
-          reasoningReserveTokens: 0,
           fixedCandidateReserveTokens: 0,
           perUnitCandidateReserveTokens: 0,
           targetTokensPerSourceCodePoint: { numerator: 3, denominator: 2 },
@@ -282,7 +279,7 @@ describe("SillyOS Translation batch planner", () => {
     expect(translationBatchRequestedOutputTokensV1(
       baseline.request,
       budgetV1().outputEnvelope,
-    )).toBe(67);
+    )).toBe(27);
   });
 
   it("rejects discontinuous source windows and non-immediate boundary rows", () => {

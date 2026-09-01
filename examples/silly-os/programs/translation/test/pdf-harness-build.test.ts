@@ -41,7 +41,7 @@ describe("SillyOS born-digital PDF research build", () => {
       build: {
         write: false,
         rollupOptions: {
-          input: new URL("programs/translation/notes/pdf-harness/index.html", appRoot).pathname,
+          input: new URL("programs/translation/test/pdf-harness/index.html", appRoot).pathname,
         },
       },
     });
