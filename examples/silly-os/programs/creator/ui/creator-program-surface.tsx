@@ -8,6 +8,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -15,7 +16,10 @@ import {
 } from "react";
 
 import type { ProcessNetworkAccessV1 } from "../../../src/program-platform/capabilities/process-network-access.ts";
-import type { ProgramRuntimeSurfacePropsV1 } from "../../../src/program-platform/ui/program-runtime-surface.ts";
+import {
+  type ProgramRuntimeSurfacePropsV1,
+  shouldRetryProgramWorkspaceCleanupV1,
+} from "../../../src/program-platform/ui/program-runtime-surface.ts";
 import { ProgramUiContainerV1 } from "../../../src/program-platform/ui/program-ui-container.tsx";
 import { useProcessExecutionMonitorV1 } from "../../../src/program-platform/ui/use-process-execution-monitor.ts";
 import { CollectionStateV1 } from "../../../src/ui/collection-state.tsx";
@@ -24,7 +28,11 @@ import {
   recoverLostAgentRunExecutionV1,
 } from "../../../src/ui/agent-run-lease-monitor.ts";
 import { ButtonV1 } from "../../../src/ui/design-system/button.tsx";
-import { createCreatorProgramAgentPortV1 } from "../runtime-profile/browser-creator-agent-port.ts";
+import {
+  createCreatorProgramAgentPortV1,
+  type CreatorAgentPortV1,
+  type CreatorAgentSnapshotV1,
+} from "../runtime-profile/browser-creator-agent-port.ts";
 import { creatorProgramRuntimeProfileV1 } from "../runtime-profile/creator-runtime-profile-descriptor.ts";
 import type {
   CreatorControllerV1,
@@ -32,6 +40,7 @@ import type {
 } from "../runtime/creator-controller.ts";
 import { creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1 } from "../runtime/creator-controller.ts";
 import type { CreatorAgentRunRequestV1 } from "../runtime/contracts.ts";
+import { acknowledgeAppliedAgentTerminalV1 } from "./agent-terminal-acknowledgement.ts";
 import { getCreatorProgramCopyV1 } from "./creator-program-copy.ts";
 import type { ProgramWorkspaceSessionViewStateV1 } from "./program-workspace.tsx";
 import { useCreatorWorkspaceExportV1 } from "./use-creator-workspace-export.ts";
@@ -121,6 +130,359 @@ function storageOperationV1(value: CreatorDurabilityStateV1): string {
   return value.phase === "saving" || value.phase === "failed" ? value.operation : "none";
 }
 
+type CreatorProgramSurfaceDrainPortV1 = Pick<
+  ReturnType<typeof createCreatorProgramAgentPortV1>,
+  "getSnapshot" | "closeWorkspace" | "dispose"
+>;
+
+type CreatorProgramSurfaceDrainBlockerV1 =
+  | "active_run"
+  | "retained_terminal"
+  | "terminal_settlement";
+
+/** Derives exact-port work even before submit has published an active snapshot. */
+export function readCreatorProgramSurfaceDrainBlockerV1(input: {
+  readonly port: Pick<CreatorAgentPortV1, "getSnapshot">;
+  readonly ownsRun: (agentRunId: string) => boolean;
+  readonly ownsAnyRun: () => boolean;
+  readonly terminalSettlementPending: boolean;
+}): CreatorProgramSurfaceDrainBlockerV1 | null {
+  if (input.terminalSettlementPending) return "terminal_settlement";
+  if (
+    input.port.getSnapshot().terminalRuns.some(({ run }) => input.ownsRun(run.agentRunId))
+  ) return "retained_terminal";
+  return input.ownsAnyRun() ? "active_run" : null;
+}
+
+interface CreatorOwnedAgentRunV1 {
+  readonly run: CreatorAgentRunRequestV1;
+  readonly port: CreatorAgentPortV1;
+}
+
+interface CreatorAgentSubmissionFenceV1 {
+  readonly port: CreatorAgentPortV1;
+}
+
+type CreatorAgentTerminalSettlementV1 =
+  | { readonly kind: "released" }
+  | {
+    readonly kind: "retained";
+    readonly reason: "persistence";
+    readonly persistence: Awaited<ReturnType<CreatorControllerV1["recordAgentRunTerminal"]>>;
+  }
+  | {
+    readonly kind: "retained";
+    readonly reason: "workspace_unavailable";
+    readonly diagnostic: unknown;
+  };
+
+interface CreatorWorkspaceCleanupV1 {
+  readonly workspaceSessionId: string;
+  readonly retryRevision: number;
+}
+
+/** One terminal attempt; retained results are retried by the Surface lease cadence. */
+export async function settleCreatorOwnedAgentTerminalV1(input: {
+  readonly agentRunId: string;
+  readonly leaseWasLost: boolean;
+  readonly persist: () => ReturnType<CreatorControllerV1["recordAgentRunTerminal"]>;
+  readonly acknowledgeTerminal: CreatorAgentPortV1["acknowledgeTerminal"];
+}): Promise<CreatorAgentTerminalSettlementV1> {
+  if (input.leaseWasLost) {
+    const acknowledged = await input.acknowledgeTerminal(input.agentRunId);
+    return acknowledged.kind === "workspace_unavailable"
+      ? {
+        kind: "retained",
+        reason: "workspace_unavailable",
+        diagnostic: acknowledged.diagnostic,
+      }
+      : { kind: "released" };
+  }
+
+  const persistence = await input.persist();
+  const acknowledged = await acknowledgeAppliedAgentTerminalV1({
+    persistence,
+    agentRunId: input.agentRunId,
+    acknowledgeTerminal: input.acknowledgeTerminal,
+  });
+  if (acknowledged.kind === "retained") {
+    return { kind: "retained", reason: "persistence", persistence };
+  }
+  if (acknowledged.kind === "workspace_unavailable") {
+    return {
+      kind: "retained",
+      reason: "workspace_unavailable",
+      diagnostic: acknowledged.diagnostic,
+    };
+  }
+  return { kind: "released" };
+}
+
+/** Keeps terminal retry cadence independent from unrelated Agent publications. */
+export function useCreatorOwnedAgentTerminalSettlementV1(input: {
+  readonly port: CreatorAgentPortV1 | null;
+  readonly terminalAgentRunId: string | null;
+  readonly latestAgentSnapshotRef: { current: CreatorAgentSnapshotV1 | null };
+  readonly ownedRuns: Map<string, CreatorOwnedAgentRunV1>;
+  readonly leaseLostRuns: Set<string>;
+  readonly terminalSettlingRuns: Map<string, CreatorAgentPortV1>;
+  readonly terminalSettlementRef: { current: Promise<void> };
+  readonly recordAgentRunTerminal: CreatorControllerV1["recordAgentRunTerminal"];
+  readonly requestWorkspaceCleanup: (workspaceSessionId: string) => void;
+  readonly reportFailure: (code: string, error: unknown) => void;
+  readonly retryIntervalMilliseconds?: number;
+}): void {
+  const [retryRevision, setRetryRevision] = useState(0);
+  const {
+    latestAgentSnapshotRef,
+    leaseLostRuns,
+    ownedRuns,
+    port,
+    recordAgentRunTerminal,
+    reportFailure,
+    requestWorkspaceCleanup,
+    terminalAgentRunId,
+    terminalSettlementRef,
+    terminalSettlingRuns,
+  } = input;
+  const retryIntervalMilliseconds = input.retryIntervalMilliseconds ??
+    creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1;
+
+  useEffect(() => {
+    if (port === null || terminalAgentRunId === null) return undefined;
+    const terminal = latestAgentSnapshotRef.current?.terminalRuns.find(({ run }) =>
+      run.agentRunId === terminalAgentRunId
+    );
+    if (terminal === undefined) return undefined;
+    const ownership = ownedRuns.get(terminal.run.agentRunId);
+    if (
+      ownership?.port !== port ||
+      terminalSettlingRuns.get(terminal.run.agentRunId) === port
+    ) return undefined;
+    const agentRunId = terminal.run.agentRunId;
+    const leaseWasLost = leaseLostRuns.has(agentRunId);
+    terminalSettlingRuns.set(agentRunId, port);
+    let current = true;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retained = false;
+    const settlement = terminalSettlementRef.current.then(async () => {
+      try {
+        const result = await settleCreatorOwnedAgentTerminalV1({
+          agentRunId,
+          leaseWasLost,
+          persist: () => recordAgentRunTerminal(terminal),
+          acknowledgeTerminal: (exactAgentRunId) => port.acknowledgeTerminal(exactAgentRunId),
+        });
+        if (result.kind === "retained") {
+          retained = true;
+          if (result.reason === "workspace_unavailable") {
+            reportFailure(
+              "silly_os.browser_pi_workspace_receipt_acknowledge_failed",
+              result.diagnostic,
+            );
+          } else if (result.persistence.kind !== "busy") {
+            reportFailure(
+              "silly_os.browser_pi_terminal_rejected",
+              result.persistence,
+            );
+          }
+          return;
+        }
+        const currentOwnership = ownedRuns.get(agentRunId);
+        if (currentOwnership?.port !== port) return;
+        ownedRuns.delete(agentRunId);
+        leaseLostRuns.delete(agentRunId);
+        const workspace = port.getSnapshot().workspace;
+        if (workspace.descriptor !== null) {
+          requestWorkspaceCleanup(workspace.descriptor.workspaceSessionId);
+        }
+      } catch (error) {
+        reportFailure("silly_os.browser_pi_terminal_rejected", error);
+        retained = true;
+      }
+    }).finally(() => {
+      if (terminalSettlingRuns.get(agentRunId) === port) {
+        terminalSettlingRuns.delete(agentRunId);
+      }
+      if (current && retained && ownedRuns.get(agentRunId)?.port === port) {
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          if (!current) return;
+          setRetryRevision((revision) => revision + 1);
+        }, retryIntervalMilliseconds);
+      }
+    });
+    terminalSettlementRef.current = settlement;
+    void settlement;
+    return () => {
+      current = false;
+      if (retryTimer !== null) clearTimeout(retryTimer);
+    };
+  }, [
+    latestAgentSnapshotRef,
+    leaseLostRuns,
+    ownedRuns,
+    port,
+    recordAgentRunTerminal,
+    reportFailure,
+    requestWorkspaceCleanup,
+    retryIntervalMilliseconds,
+    retryRevision,
+    terminalAgentRunId,
+    terminalSettlementRef,
+    terminalSettlingRuns,
+  ]);
+}
+
+/** Releases only the requested still-current Workspace session. */
+export async function settleCreatorWorkspaceCleanupV1(input: {
+  readonly port: Pick<CreatorProgramSurfaceDrainPortV1, "getSnapshot" | "closeWorkspace">;
+  readonly workspaceSessionId: string;
+  readonly reportFailure: (code: string, error: unknown) => void;
+}): Promise<"released" | "retry" | "blocked"> {
+  const workspace = input.port.getSnapshot().workspace;
+  if (
+    workspace.descriptor === null ||
+    ["closed", "forgotten", "disposed"].includes(workspace.phase) ||
+    workspace.descriptor.workspaceSessionId !== input.workspaceSessionId
+  ) return "released";
+  const closed = await input.port.closeWorkspace(input.workspaceSessionId);
+  if (closed.kind !== "unavailable") return "released";
+  input.reportFailure(
+    "silly_os.browser_pi_workspace_close_failed",
+    closed.diagnostic,
+  );
+  return shouldRetryProgramWorkspaceCleanupV1(closed.diagnostic) ? "retry" : "blocked";
+}
+
+/**
+ * Quiesces transient work without retiring the still-mounted Agent port. A
+ * controller close may decline after quiescence, so each later attempt checks
+ * and closes the then-current Workspace again. Retirement is final and is only
+ * called after route commit or Surface unmount.
+ */
+export function createCreatorProgramSurfaceLifecycleV1(input: {
+  readonly port: CreatorProgramSurfaceDrainPortV1;
+  readonly drainWorkspaceExport: () => Promise<void>;
+  readonly readBlocker: () => CreatorProgramSurfaceDrainBlockerV1 | null;
+  readonly runWorkspaceCloseExclusive: <T>(operation: () => Promise<T>) => Promise<T>;
+  readonly reportFailure: (code: string, error: unknown) => void;
+}): {
+  readonly quiesce: () => Promise<void>;
+  readonly retire: () => Promise<void>;
+} {
+  let quiesceSettlement: Promise<void> | null = null;
+  let retireSettlement: Promise<void> | null = null;
+  const quiesce = (): Promise<void> => {
+    if (quiesceSettlement !== null) return quiesceSettlement;
+    const settlement = (async (): Promise<void> => {
+      const initialBlocker = input.readBlocker();
+      if (initialBlocker !== null) {
+        throw new Error(`Creator Agent port still owns ${initialBlocker}`);
+      }
+      await input.drainWorkspaceExport();
+      const afterExportBlocker = input.readBlocker();
+      if (afterExportBlocker !== null) {
+        throw new Error(`Creator Agent port still owns ${afterExportBlocker}`);
+      }
+      const workspace = input.port.getSnapshot().workspace;
+      const workspaceSessionId = workspace.descriptor?.workspaceSessionId ?? null;
+      if (workspaceSessionId !== null) {
+        const released = await input.runWorkspaceCloseExclusive(() =>
+          settleCreatorWorkspaceCleanupV1({
+            port: input.port,
+            workspaceSessionId,
+            reportFailure: input.reportFailure,
+          })
+        );
+        if (released !== "released") {
+          throw new Error("Creator Agent Workspace close failed", {
+            cause: input.port.getSnapshot().workspace.diagnostic,
+          });
+        }
+      }
+      const afterCloseBlocker = input.readBlocker();
+      if (afterCloseBlocker !== null) {
+        throw new Error(`Creator Agent port acquired ${afterCloseBlocker} while closing`);
+      }
+    })();
+    quiesceSettlement = settlement;
+    void settlement.finally(() => {
+      if (quiesceSettlement === settlement) quiesceSettlement = null;
+    }).catch(() => undefined);
+    return settlement;
+  };
+  const retire = (): Promise<void> => {
+    if (retireSettlement !== null) return retireSettlement;
+    const settlement = input.port.dispose();
+    retireSettlement = settlement;
+    void settlement.catch(() => {
+      if (retireSettlement === settlement) retireSettlement = null;
+    });
+    return settlement;
+  };
+  return { quiesce, retire };
+}
+
+/** Owns the exact lazy Creator Agent port outside React render. */
+export function useCreatorProgramAgentPortOwnerV1(input: {
+  readonly agentHost: ProgramRuntimeSurfacePropsV1["host"]["agentHost"];
+  readonly registerAgentDrain: (drain: () => Promise<void>) => () => void;
+  readonly registerProgramDrain: ProgramRuntimeSurfacePropsV1["host"]["registerProgramDrain"];
+  readonly readWorkspaceExportDrain: () => () => Promise<void>;
+  readonly readPortDrainBlocker: (
+    port: CreatorAgentPortV1,
+  ) => CreatorProgramSurfaceDrainBlockerV1 | null;
+  readonly revokePortOwnership: (port: CreatorAgentPortV1) => void;
+  readonly runWorkspaceCloseExclusive: <T>(operation: () => Promise<T>) => Promise<T>;
+  readonly reportFailure: (code: string, error: unknown) => void;
+}): CreatorAgentPortV1 | null {
+  const [port, setPort] = useState<CreatorAgentPortV1 | null>(null);
+  const {
+    agentHost,
+    registerAgentDrain,
+    registerProgramDrain,
+    readWorkspaceExportDrain,
+    readPortDrainBlocker,
+    revokePortOwnership,
+    runWorkspaceCloseExclusive,
+    reportFailure,
+  } = input;
+  useLayoutEffect(() => {
+    if (agentHost === null) {
+      setPort(null);
+      return undefined;
+    }
+    const ownedPort = createCreatorProgramAgentPortV1(agentHost);
+    const lifecycle = createCreatorProgramSurfaceLifecycleV1({
+      port: ownedPort,
+      drainWorkspaceExport: () => readWorkspaceExportDrain()(),
+      readBlocker: () => readPortDrainBlocker(ownedPort),
+      runWorkspaceCloseExclusive,
+      reportFailure,
+    });
+    const unregisterAgentDrain = registerAgentDrain(lifecycle.retire);
+    const unregisterProgramDrain = registerProgramDrain(lifecycle);
+    setPort(ownedPort);
+    return () => {
+      revokePortOwnership(ownedPort);
+      setPort((current) => current === ownedPort ? null : current);
+      unregisterProgramDrain();
+      unregisterAgentDrain();
+    };
+  }, [
+    agentHost,
+    readPortDrainBlocker,
+    readWorkspaceExportDrain,
+    registerAgentDrain,
+    registerProgramDrain,
+    reportFailure,
+    revokePortOwnership,
+    runWorkspaceCloseExclusive,
+  ]);
+  return port;
+}
+
 /** Program-owned controller, Agent facade, recovery and UI composition. */
 export function CreatorProgramSurfaceV1({
   controller: opaqueController,
@@ -143,15 +505,6 @@ export function CreatorProgramSurfaceV1({
     host.sessionState.write(creatorWorkspaceViewStateSessionKeyV1, created);
     return created;
   });
-  const port = useMemo(
-    () => host.agentHost === null ? null : createCreatorProgramAgentPortV1(host.agentHost),
-    [host.agentHost],
-  );
-  const agentSnapshot = useSyncExternalStore(
-    port?.subscribe ?? (() => () => undefined),
-    port?.getSnapshot ?? (() => null),
-    port?.getSnapshot ?? (() => null),
-  );
   const [processNetworkAccess, setProcessNetworkAccess] = useState<ProcessNetworkAccessV1 | null>(
     null,
   );
@@ -160,17 +513,113 @@ export function CreatorProgramSurfaceV1({
   const networkAccessMutationPendingRef = useRef(false);
   const [conversationRestorePending, setConversationRestorePending] = useState(false);
   const conversationRestoreEpochRef = useRef(0);
-  const [ownedRuns] = useState(() => new Map<string, CreatorAgentRunRequestV1>());
+  const [ownedRuns] = useState(() => new Map<string, CreatorOwnedAgentRunV1>());
+  const [agentSubmissionFences] = useState(
+    () => new Set<CreatorAgentSubmissionFenceV1>(),
+  );
   const [leaseLostRuns] = useState(() => new Set<string>());
+  const [terminalSettlingRuns] = useState(() => new Map<string, CreatorAgentPortV1>());
+  const [workspaceCleanup, setWorkspaceCleanup] = useState<CreatorWorkspaceCleanupV1 | null>(null);
+  const workspaceCleanupSessionIdRef = useRef<string | null>(null);
   const terminalSettlementRef = useRef<Promise<void>>(Promise.resolve());
+  const workspaceExportDrainRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const workspaceCloseTailRef = useRef<Promise<void>>(Promise.resolve());
   const registerAgentDrain = host.registerAgentDrain;
+  const registerProgramDrain = host.registerProgramDrain;
   const reportFailure = host.reportFailure;
+  const readWorkspaceExportDrainV1 = useCallback(() => workspaceExportDrainRef.current, []);
+  const runWorkspaceCloseExclusiveV1 = useCallback(async <T,>(
+    operation: () => Promise<T>,
+  ): Promise<T> => {
+    const predecessor = workspaceCloseTailRef.current;
+    let release!: () => void;
+    workspaceCloseTailRef.current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await predecessor;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
+  }, []);
+  const readPortDrainBlockerV1 = useCallback((exactPort: CreatorAgentPortV1) => {
+    return readCreatorProgramSurfaceDrainBlockerV1({
+      port: exactPort,
+      ownsRun: (agentRunId) => ownedRuns.get(agentRunId)?.port === exactPort,
+      ownsAnyRun: () => {
+        for (const fence of agentSubmissionFences) {
+          if (fence.port === exactPort) return true;
+        }
+        for (const ownership of ownedRuns.values()) {
+          if (ownership.port === exactPort) return true;
+        }
+        return false;
+      },
+      terminalSettlementPending: [...terminalSettlingRuns.values()].some((settlingPort) =>
+        settlingPort === exactPort
+      ),
+    });
+  }, [agentSubmissionFences, ownedRuns, terminalSettlingRuns]);
+  const revokePortOwnershipV1 = useCallback((exactPort: CreatorAgentPortV1): void => {
+    for (const fence of agentSubmissionFences) {
+      if (fence.port === exactPort) agentSubmissionFences.delete(fence);
+    }
+    for (const [agentRunId, ownership] of ownedRuns) {
+      if (ownership.port !== exactPort) continue;
+      ownedRuns.delete(agentRunId);
+      leaseLostRuns.delete(agentRunId);
+    }
+  }, [agentSubmissionFences, leaseLostRuns, ownedRuns]);
+  const port = useCreatorProgramAgentPortOwnerV1({
+    agentHost: host.agentHost,
+    registerAgentDrain,
+    registerProgramDrain,
+    readWorkspaceExportDrain: readWorkspaceExportDrainV1,
+    readPortDrainBlocker: readPortDrainBlockerV1,
+    revokePortOwnership: revokePortOwnershipV1,
+    runWorkspaceCloseExclusive: runWorkspaceCloseExclusiveV1,
+    reportFailure,
+  });
+  const agentSnapshot = useSyncExternalStore(
+    port?.subscribe ?? (() => () => undefined),
+    port?.getSnapshot ?? (() => null),
+    port?.getSnapshot ?? (() => null),
+  );
+  const latestAgentSnapshotRef = useRef(agentSnapshot);
+  useLayoutEffect(() => {
+    latestAgentSnapshotRef.current = agentSnapshot;
+  }, [agentSnapshot]);
+  const terminalAgentRunId = agentSnapshot?.terminalRuns[0]?.run.agentRunId ?? null;
+  const requestWorkspaceCleanupV1 = useCallback((workspaceSessionId: string): void => {
+    workspaceCleanupSessionIdRef.current = workspaceSessionId;
+    setWorkspaceCleanup((current) =>
+      current?.workspaceSessionId === workspaceSessionId
+        ? { ...current, retryRevision: current.retryRevision + 1 }
+        : { workspaceSessionId, retryRevision: 0 }
+    );
+  }, []);
+  const clearWorkspaceCleanupV1 = useCallback((workspaceSessionId: string): void => {
+    if (workspaceCleanupSessionIdRef.current === workspaceSessionId) {
+      workspaceCleanupSessionIdRef.current = null;
+    }
+    setWorkspaceCleanup((current) =>
+      current?.workspaceSessionId === workspaceSessionId ? null : current
+    );
+  }, []);
   const processNetworkAccessCapability = host.processNetworkAccess;
   const activeAttemptId = snapshot.activeProcess?.process.activeAttempt?.attemptId ?? null;
-  const ownedRun = activeAttemptId === null ? null : ownedRuns.get(activeAttemptId) ?? null;
+  const ownedRunOwnership = activeAttemptId === null
+    ? null
+    : ownedRuns.get(activeAttemptId) ?? null;
+  const ownedRun = ownedRunOwnership?.port === port ? ownedRunOwnership.run : null;
+  const ownsAttemptV1 = useCallback(
+    (attemptId: string): boolean => port !== null && ownedRuns.get(attemptId)?.port === port,
+    [ownedRuns, port],
+  );
   const unownedProcessExecutionActive = hasUnownedProcessExecutionV1({
     activeAttemptId,
-    ownsAttempt: (attemptId) => ownedRuns.has(attemptId),
+    ownsAttempt: ownsAttemptV1,
   });
   const workspaceExportTarget = useMemo(() => {
     const active = snapshot.activeProcess;
@@ -189,11 +638,16 @@ export function CreatorProgramSurfaceV1({
     target: workspaceExportTarget,
     enabled: snapshot.durability.phase === "ready" && agentSnapshot?.phase === "ready" &&
       agentSnapshot.terminalRuns.length === 0 && !unownedProcessExecutionActive &&
+      workspaceCleanup === null &&
       agentSnapshot.workspace.phase !== "opening" &&
       agentSnapshot.workspace.phase !== "closing",
     reportFailure,
   });
   const drainWorkspaceExport = workspaceExport.drain;
+
+  useLayoutEffect(() => {
+    workspaceExportDrainRef.current = drainWorkspaceExport;
+  }, [drainWorkspaceExport]);
 
   useEffect(() => {
     const epoch = networkAccessEpochRef.current + 1;
@@ -213,60 +667,63 @@ export function CreatorProgramSurfaceV1({
   }, [activeProcessId, processNetworkAccessCapability, reportFailure]);
 
   useEffect(() => {
-    if (port === null) return undefined;
-    return registerAgentDrain(async () => {
-      const workspaceExportSettlement = drainWorkspaceExport();
-      await Promise.all([
-        terminalSettlementRef.current.catch(() => undefined),
-        workspaceExportSettlement,
-      ]);
-      await port.dispose();
-    });
-  }, [drainWorkspaceExport, port, registerAgentDrain]);
-
-  useEffect(() => {
-    if (port === null || agentSnapshot === null) return;
-    const terminal = agentSnapshot.terminalRuns[0];
-    if (terminal === undefined || !ownedRuns.has(terminal.run.agentRunId)) return;
-    const leaseWasLost = leaseLostRuns.delete(terminal.run.agentRunId);
-    ownedRuns.delete(terminal.run.agentRunId);
-    const settlement = terminalSettlementRef.current.then(async () => {
-      try {
-        if (leaseWasLost) {
-          const acknowledged = await port.acknowledgeTerminal(terminal.run.agentRunId);
-          if (acknowledged.kind === "workspace_unavailable") {
-            host.reportFailure(
-              "silly_os.browser_pi_workspace_receipt_acknowledge_failed",
-              acknowledged.diagnostic,
-            );
-          }
-          return;
-        }
-        const persisted = await controller.recordAgentRunTerminal(terminal);
-        if (persisted.kind === "busy") return;
-        if (persisted.kind !== "completed") {
-          host.reportFailure("silly_os.browser_pi_terminal_rejected", persisted);
-          return;
-        }
-        const acknowledged = await port.acknowledgeTerminal(terminal.run.agentRunId);
-        if (acknowledged.kind === "workspace_unavailable") {
-          host.reportFailure(
-            "silly_os.browser_pi_workspace_receipt_acknowledge_failed",
-            acknowledged.diagnostic,
-          );
-          return;
-        }
-        const workspace = port.getSnapshot().workspace;
-        if (workspace.descriptor !== null) {
-          await port.closeWorkspace(workspace.descriptor.workspaceSessionId);
-        }
-      } catch (error) {
-        host.reportFailure("silly_os.browser_pi_terminal_rejected", error);
+    if (port === null || workspaceCleanup === null) return undefined;
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const retryV1 = () => {
+      if (cancelled || retryTimer !== null) return;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        setWorkspaceCleanup((current) =>
+          current?.workspaceSessionId === workspaceCleanup.workspaceSessionId
+            ? { ...current, retryRevision: current.retryRevision + 1 }
+            : current
+        );
+      }, creatorProcessExecutionLeaseRenewalIntervalMillisecondsV1);
+    };
+    void runWorkspaceCloseExclusiveV1(() =>
+      settleCreatorWorkspaceCleanupV1({
+        port,
+        workspaceSessionId: workspaceCleanup.workspaceSessionId,
+        reportFailure,
+      })
+    ).then((result) => {
+      if (cancelled) return;
+      if (result === "retry") {
+        retryV1();
+        return;
       }
+      if (result === "released") {
+        clearWorkspaceCleanupV1(workspaceCleanup.workspaceSessionId);
+      }
+    }).catch((error: unknown) => {
+      if (cancelled) return;
+      reportFailure("silly_os.browser_pi_workspace_close_failed", error);
     });
-    terminalSettlementRef.current = settlement;
-    void settlement;
-  }, [agentSnapshot, controller, host, leaseLostRuns, ownedRuns, port]);
+    return () => {
+      cancelled = true;
+      if (retryTimer !== null) clearTimeout(retryTimer);
+    };
+  }, [
+    clearWorkspaceCleanupV1,
+    port,
+    reportFailure,
+    runWorkspaceCloseExclusiveV1,
+    workspaceCleanup,
+  ]);
+
+  useCreatorOwnedAgentTerminalSettlementV1({
+    port,
+    terminalAgentRunId,
+    latestAgentSnapshotRef,
+    ownedRuns,
+    leaseLostRuns,
+    terminalSettlingRuns,
+    terminalSettlementRef,
+    recordAgentRunTerminal: controller.recordAgentRunTerminal,
+    requestWorkspaceCleanup: requestWorkspaceCleanupV1,
+    reportFailure,
+  });
 
   const recoverLostOwnedRunV1 = useCallback(async (
     run: CreatorAgentRunRequestV1,
@@ -320,7 +777,7 @@ export function CreatorProgramSurfaceV1({
       },
       recoverLost: () => recoverLostOwnedRunV1(ownedRun),
     },
-    isOwnedAttempt: (attemptId) => ownedRuns.has(attemptId),
+    isOwnedAttempt: ownsAttemptV1,
     readProjection: () => {
       const current = controller.getSnapshot().activeProcess?.process ?? null;
       return current === null ? null : {
@@ -354,89 +811,156 @@ export function CreatorProgramSurfaceV1({
   };
 
   const submitPreparedAgentRunV1 = async (
+    exactPort: CreatorAgentPortV1,
     run: CreatorAgentRunRequestV1,
     workspaceSessionId: string,
   ): Promise<boolean> => {
-    if (port === null) return false;
-    ownedRuns.set(run.agentRunId, run);
-    const submitted = await port.submit(run);
-    if (submitted.kind === "submitted") return true;
-    ownedRuns.delete(run.agentRunId);
-    await controller.recordAgentRunTerminal({
-      run,
-      outcome: "failed",
-      diagnosticCode: submitted.diagnostic.code,
-    });
-    await port.closeWorkspace(workspaceSessionId);
-    host.reportFailure("silly_os.browser_pi_submit_failed", submitted.diagnostic);
-    return false;
+    ownedRuns.set(run.agentRunId, { run, port: exactPort });
+    let terminalAttempted = false;
+    try {
+      const submitted = await exactPort.submit(run);
+      if (submitted.kind === "submitted") return true;
+      if (ownedRuns.get(run.agentRunId)?.port === exactPort) {
+        ownedRuns.delete(run.agentRunId);
+      }
+      terminalAttempted = true;
+      await controller.recordAgentRunTerminal({
+        run,
+        outcome: "failed",
+        diagnosticCode: submitted.diagnostic.code,
+      });
+      host.reportFailure("silly_os.browser_pi_submit_failed", submitted.diagnostic);
+      return false;
+    } catch (error) {
+      if (ownedRuns.get(run.agentRunId)?.port === exactPort) {
+        ownedRuns.delete(run.agentRunId);
+      }
+      if (!terminalAttempted) {
+        try {
+          await controller.recordAgentRunTerminal({
+            run,
+            outcome: "failed",
+            diagnosticCode: "run_failed",
+          });
+        } catch (terminalError) {
+          host.reportFailure("silly_os.browser_pi_terminal_rejected", terminalError);
+        }
+      }
+      host.reportFailure("silly_os.browser_pi_submit_failed", error);
+      return false;
+    } finally {
+      if (ownedRuns.get(run.agentRunId)?.port !== exactPort) {
+        requestWorkspaceCleanupV1(workspaceSessionId);
+      }
+    }
   };
 
   const submitAgentRunV1 = async (text: string): Promise<boolean> => {
     if (port === null || agentSnapshot?.phase !== "ready") return false;
-    await terminalSettlementRef.current;
-    const active = controller.getSnapshot().activeProcess;
-    const process = active?.process ?? null;
-    const program = active?.subject?.currentProgram ?? null;
-    const workspaceId = process?.checkpoint?.workspaceId ?? null;
-    if (process === null || program === null || workspaceId === null) return false;
-    const opened = await port.openWorkspace({
-      processId: process.processId,
-      programId: program.programId,
-      workspaceId,
-    });
-    if (opened.kind !== "opened") {
-      host.reportFailure("silly_os.browser_pi_workspace_open_failed", opened.diagnostic);
+    const exactPort = port;
+    const fence: CreatorAgentSubmissionFenceV1 = { port: exactPort };
+    let workspaceSessionId: string | null = null;
+    let submitted = false;
+    agentSubmissionFences.add(fence);
+    try {
+      await terminalSettlementRef.current;
+      const cleanupPending = await runWorkspaceCloseExclusiveV1(() =>
+        Promise.resolve(workspaceCleanupSessionIdRef.current !== null)
+      );
+      if (cleanupPending) return false;
+      const active = controller.getSnapshot().activeProcess;
+      const process = active?.process ?? null;
+      const program = active?.subject?.currentProgram ?? null;
+      const workspaceId = process?.checkpoint?.workspaceId ?? null;
+      if (process === null || program === null || workspaceId === null) return false;
+      const opened = await exactPort.openWorkspace({
+        processId: process.processId,
+        programId: program.programId,
+        workspaceId,
+      });
+      if (opened.kind !== "opened") {
+        host.reportFailure("silly_os.browser_pi_workspace_open_failed", opened.diagnostic);
+        return false;
+      }
+      workspaceSessionId = opened.descriptor.workspaceSessionId;
+      const prepared = await controller.prepareAgentRun(text);
+      if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+        host.reportFailure("silly_os.browser_pi_submit_rejected", prepared);
+        return false;
+      }
+      submitted = await submitPreparedAgentRunV1(
+        exactPort,
+        prepared.value.run,
+        opened.descriptor.workspaceSessionId,
+      );
+      return submitted;
+    } catch (error) {
+      host.reportFailure("silly_os.browser_pi_submit_rejected", error);
       return false;
+    } finally {
+      if (!submitted && workspaceSessionId !== null) {
+        requestWorkspaceCleanupV1(workspaceSessionId);
+      }
+      agentSubmissionFences.delete(fence);
     }
-    const prepared = await controller.prepareAgentRun(text);
-    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
-      await port.closeWorkspace(opened.descriptor.workspaceSessionId);
-      host.reportFailure("silly_os.browser_pi_submit_rejected", prepared);
-      return false;
-    }
-    return await submitPreparedAgentRunV1(
-      prepared.value.run,
-      opened.descriptor.workspaceSessionId,
-    );
   };
 
   const retryInterruptedAgentRunV1 = async (): Promise<boolean> => {
     if (port === null || agentSnapshot?.phase !== "ready") return false;
-    await terminalSettlementRef.current;
-    const active = controller.getSnapshot().activeProcess;
-    const process = active?.process ?? null;
-    const program = active?.subject?.currentProgram ?? null;
-    const workspaceId = process?.checkpoint?.workspaceId ?? null;
-    if (
-      process === null || process.status !== "interrupted_retryable" || program === null ||
-      workspaceId === null
-    ) return false;
-    const opened = await port.openWorkspace({
-      processId: process.processId,
-      programId: program.programId,
-      workspaceId,
-    });
-    if (opened.kind !== "opened") {
-      host.reportFailure("silly_os.browser_pi_workspace_open_failed", opened.diagnostic);
+    const exactPort = port;
+    const fence: CreatorAgentSubmissionFenceV1 = { port: exactPort };
+    let workspaceSessionId: string | null = null;
+    let submitted = false;
+    agentSubmissionFences.add(fence);
+    try {
+      await terminalSettlementRef.current;
+      const cleanupPending = await runWorkspaceCloseExclusiveV1(() =>
+        Promise.resolve(workspaceCleanupSessionIdRef.current !== null)
+      );
+      if (cleanupPending) return false;
+      const active = controller.getSnapshot().activeProcess;
+      const process = active?.process ?? null;
+      const program = active?.subject?.currentProgram ?? null;
+      const workspaceId = process?.checkpoint?.workspaceId ?? null;
+      if (
+        process === null || process.status !== "interrupted_retryable" || program === null ||
+        workspaceId === null
+      ) return false;
+      const opened = await exactPort.openWorkspace({
+        processId: process.processId,
+        programId: program.programId,
+        workspaceId,
+      });
+      if (opened.kind !== "opened") {
+        host.reportFailure("silly_os.browser_pi_workspace_open_failed", opened.diagnostic);
+        return false;
+      }
+      workspaceSessionId = opened.descriptor.workspaceSessionId;
+      const refreshed = await controller.reloadLatestTranscript();
+      if (refreshed.kind === "failed") {
+        host.reportFailure("silly_os.process_execution_recovery_failed", refreshed);
+        return false;
+      }
+      const prepared = await controller.retryInterruptedAgentRun();
+      if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+        host.reportFailure("silly_os.browser_pi_submit_rejected", prepared);
+        return false;
+      }
+      submitted = await submitPreparedAgentRunV1(
+        exactPort,
+        prepared.value.run,
+        opened.descriptor.workspaceSessionId,
+      );
+      return submitted;
+    } catch (error) {
+      host.reportFailure("silly_os.process_execution_recovery_failed", error);
       return false;
+    } finally {
+      if (!submitted && workspaceSessionId !== null) {
+        requestWorkspaceCleanupV1(workspaceSessionId);
+      }
+      agentSubmissionFences.delete(fence);
     }
-    const refreshed = await controller.reloadLatestTranscript();
-    if (refreshed.kind === "failed") {
-      await port.closeWorkspace(opened.descriptor.workspaceSessionId);
-      host.reportFailure("silly_os.process_execution_recovery_failed", refreshed);
-      return false;
-    }
-    const prepared = await controller.retryInterruptedAgentRun();
-    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
-      await port.closeWorkspace(opened.descriptor.workspaceSessionId);
-      host.reportFailure("silly_os.browser_pi_submit_rejected", prepared);
-      return false;
-    }
-    return await submitPreparedAgentRunV1(
-      prepared.value.run,
-      opened.descriptor.workspaceSessionId,
-    );
   };
 
   const setProcessNetworkAccessV1 = async (enabled: boolean): Promise<boolean> => {
@@ -482,7 +1006,7 @@ export function CreatorProgramSurfaceV1({
   };
 
   const onHomeV1 = async (): Promise<void> => {
-    if (await controller.openHome()) await host.onOpenProgramLibrary();
+    await host.onOpenProgramLibrary();
   };
   const openProgramV1 = useCallback((programId: string): void => {
     const epoch = conversationRestoreEpochRef.current + 1;
@@ -614,7 +1138,7 @@ export function CreatorProgramSurfaceV1({
                       decisionPending={snapshot.durability.phase === "saving"}
                       agentInteractionPending={snapshot.durability.phase === "saving" ||
                         agentSnapshot?.phase === "running" || unownedProcessExecutionActive ||
-                        workspaceExport.pending}
+                        workspaceExport.pending || workspaceCleanup !== null}
                       {...(!workspaceExport.available ? {} : {
                         workspaceExport: workspaceExport.state,
                         workspaceExportDisabled: workspaceExport.disabled,

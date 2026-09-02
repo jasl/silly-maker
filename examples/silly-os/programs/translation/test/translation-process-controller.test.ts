@@ -139,6 +139,12 @@ function createWorkspacePortV1(
       processId: string,
       inspection: BrowserProcessWorkspaceInspectionV1 | null,
     ) => Promise<BrowserProcessWorkspaceInspectionV1 | null>;
+    readonly captureHead?: (
+      input: Parameters<
+        TranslationProcessControllerWorkspacePortV1["captureProcessWorkspaceHead"]
+      >[0],
+      head: { readonly checkpointId: string; readonly generation: number },
+    ) => Promise<{ readonly checkpointId: string; readonly generation: number }>;
     readonly importFile?: (
       input: Parameters<
         TranslationProcessControllerWorkspacePortV1["importProcessWorkspaceFile"]
@@ -209,6 +215,23 @@ function createWorkspacePortV1(
       return options.inspect === undefined
         ? inspection
         : await options.inspect(processId, inspection);
+    },
+    async captureProcessWorkspaceHead(input) {
+      const [process, binding] = await Promise.all([
+        repository.loadProcess(input.processId),
+        repository.loadProcessWorkspaceBinding(input.processId),
+      ]);
+      const checkpoint = process?.checkpoint ?? null;
+      if (
+        checkpoint === null || binding === null ||
+        binding.workspaceId !== input.workspaceId ||
+        checkpoint.workspaceId !== input.workspaceId
+      ) throw new Error("missing Process Workspace head");
+      const head = {
+        checkpointId: checkpoint.workspaceCheckpointId,
+        generation: checkpoint.workspaceGeneration,
+      };
+      return options.captureHead === undefined ? head : await options.captureHead(input, head);
     },
     async importProcessWorkspaceFile(input) {
       importCalls.push({ ...input, bytes: new Uint8Array(input.bytes) });
@@ -1067,7 +1090,10 @@ describe("Translation Process Controller", () => {
 
   it("publishes one pending-review candidate with the Process terminal without accepting rows", async () => {
     const repository = createRepositoryV1();
-    const workspace = createWorkspacePortV1(repository);
+    let settledHead: { readonly checkpointId: string; readonly generation: number } | null = null;
+    const workspace = createWorkspacePortV1(repository, {
+      captureHead: async (_input, current) => settledHead ?? current,
+    });
     const controller = createTranslationProcessControllerV1({
       repository,
       workspace,
@@ -1112,6 +1138,10 @@ describe("Translation Process Controller", () => {
       pendingCandidate: null,
     });
 
+    settledHead = {
+      checkpointId: `workspace-checkpoint.${processId}.memory`,
+      generation: run.workspaceGeneration + 1,
+    };
     const persisted = await controller.recordAgentRunTerminal({
       run,
       outcome: "completed",
@@ -1130,6 +1160,10 @@ describe("Translation Process Controller", () => {
     expect(active).toMatchObject({
       process: {
         activeAttempt: null,
+        checkpoint: {
+          workspaceCheckpointId: settledHead.checkpointId,
+          workspaceGeneration: settledHead.generation,
+        },
         lastTerminalAttempt: {
           attemptId: run.agentRunId,
           generation: run.processAttemptGeneration,
@@ -1580,7 +1614,7 @@ describe("Translation Process Controller", () => {
       await controller.recordAgentRunTerminal({
         run: failedRun,
         outcome: "failed",
-        diagnosticCode: "run_failed",
+        diagnosticCode: "output_limit",
       }),
     ).toEqual({
       kind: "completed",
@@ -1592,6 +1626,14 @@ describe("Translation Process Controller", () => {
     expect(controller.getSnapshot().activeProcess?.pendingCandidate?.candidateId).toBe(
       predecessorId,
     );
+    expect(controller.getSnapshot().activeProcess?.transcript.entries.at(-1)).toMatchObject({
+      role: "system",
+      parts: [{
+        kind: "text_markdown",
+        markdown:
+          "Retranslation exhausted the model output budget. The previous review candidate remains available.",
+      }],
+    });
 
     const cancelledRun = await prepareSuccessorV1();
     expect(cancelledRun).toMatchObject({
@@ -1905,6 +1947,70 @@ describe("Translation Process Controller", () => {
     },
   );
 
+  it("serializes an in-flight monitor renewal before terminal renewal", async () => {
+    const repository = createRepositoryV1();
+    const controller = createTranslationProcessControllerV1({
+      repository,
+      workspace: createWorkspacePortV1(repository),
+      createId: deterministicIdsV1("terminal-renewal-race"),
+      now: () => 30,
+    });
+    await controller.initialize();
+    await controller.createProcess();
+    const imported = await controller.importSource({
+      source: {
+        kind: "bytes",
+        fileName: "terminal-renewal-race.srt",
+        mediaType: "application/x-subrip",
+        bytes: textEncoderV1.encode(subtitleDocumentV1(1)),
+      },
+      sourceLocale: "ja",
+      targetLocale: "en",
+    });
+    if (imported.kind !== "completed") throw new Error("expected ready Process work set");
+    const prepared = await controller.prepareAgentBatch(
+      translationBatchBudgetV1(),
+      translationInstructionV1,
+    );
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      throw new Error("expected prepared Translation Agent batch");
+    }
+
+    const renewProcessExecutionLease = repository.renewProcessExecutionLease.bind(repository);
+    let releaseMonitorRenewal!: () => void;
+    const monitorRenewalReleased = new Promise<void>((resolve) => {
+      releaseMonitorRenewal = resolve;
+    });
+    let observeMonitorRenewal!: () => void;
+    const monitorRenewalObserved = new Promise<void>((resolve) => {
+      observeMonitorRenewal = resolve;
+    });
+    let renewalCount = 0;
+    repository.renewProcessExecutionLease = async (input) => {
+      renewalCount += 1;
+      if (renewalCount === 1) {
+        observeMonitorRenewal();
+        await monitorRenewalReleased;
+      }
+      return await renewProcessExecutionLease(input);
+    };
+
+    const monitorRenewal = controller.renewAgentRunLease(prepared.value.run);
+    await monitorRenewalObserved;
+    const terminal = controller.recordAgentRunTerminal({
+      run: prepared.value.run,
+      outcome: "cancelled",
+    });
+    releaseMonitorRenewal();
+
+    expect(await monitorRenewal).toEqual({ kind: "completed", value: "idle" });
+    expect(await terminal).toEqual({
+      kind: "completed",
+      value: { kind: "persisted", candidateId: null },
+    });
+    expect(renewalCount).toBe(2);
+  });
+
   it.each([
     [
       "candidate_structure_invalid" as const,
@@ -1913,6 +2019,10 @@ describe("Translation Process Controller", () => {
     [
       "candidate_invalid" as const,
       "Translation returned a candidate that did not satisfy the exact batch constraints. No translation content was published.",
+    ],
+    [
+      "output_limit" as const,
+      "Translation exhausted the model output budget before a review candidate was published.",
     ],
   ])("records an explainable %s terminal without publishing a candidate", async (
     diagnosticCode,
@@ -2003,11 +2113,17 @@ describe("Translation Process Controller", () => {
     const firstRun = requireTranslationBatchRunV1(firstPrepared.value.run);
     const frontierBeforeRecovery = (await repository.loadProcess(firstRun.processId))!
       .transcriptFrontier;
+    const settledWorkspaceHead = {
+      checkpointId: `${firstRun.workspaceCheckpointId}.memory`,
+      generation: firstRun.workspaceGeneration + 1,
+    };
 
     observedAt = 61;
     const successor = createTranslationProcessControllerV1({
       repository,
-      workspace: createWorkspacePortV1(repository),
+      workspace: createWorkspacePortV1(repository, {
+        captureHead: async () => settledWorkspaceHead,
+      }),
       createId: deterministicIdsV1("batch-successor"),
       ownerInstanceId: "owner.batch.successor",
       now: () => observedAt,
@@ -2022,6 +2138,10 @@ describe("Translation Process Controller", () => {
       status: "interrupted_retryable",
       transcriptFrontier: frontierBeforeRecovery + 1,
       activeAttempt: null,
+      checkpoint: {
+        workspaceCheckpointId: settledWorkspaceHead.checkpointId,
+        workspaceGeneration: settledWorkspaceHead.generation,
+      },
       lastTerminalAttempt: {
         attemptId: firstRun.agentRunId,
         generation: firstRun.processAttemptGeneration,
@@ -2045,6 +2165,8 @@ describe("Translation Process Controller", () => {
       processId: firstRun.processId,
       processAttemptGeneration: firstRun.processAttemptGeneration + 1,
       instruction: translationInstructionV1,
+      workspaceCheckpointId: settledWorkspaceHead.checkpointId,
+      workspaceGeneration: settledWorkspaceHead.generation,
     });
     expect(
       await predecessor.recordAgentRunTerminal({
@@ -2333,11 +2455,14 @@ describe("Translation Process Controller", () => {
       stagedUnitCount: 0,
       pendingCandidateId: null,
     });
+    const checkpointBeforeRecovery = (await repository.loadProcess(processId))?.checkpoint;
     currentTime = 50;
 
     const restart = createTranslationProcessControllerV1({
       repository,
-      workspace: createWorkspacePortV1(repository),
+      workspace: createWorkspacePortV1(repository, {
+        captureHead: () => Promise.reject(new Error("Workspace is still held by predecessor")),
+      }),
       createId: deterministicIdsV1("restart-after-expiry"),
       now: () => currentTime + 1,
     });
@@ -2350,6 +2475,7 @@ describe("Translation Process Controller", () => {
     expect(await repository.loadProcess(processId)).toMatchObject({
       activeAttempt: null,
       status: "interrupted_unrecoverable",
+      checkpoint: checkpointBeforeRecovery,
       lastTerminalAttempt: { outcome: "interrupted" },
     });
     expect(await restart.createProcess()).toEqual({

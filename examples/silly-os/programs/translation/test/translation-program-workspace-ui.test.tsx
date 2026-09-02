@@ -206,6 +206,11 @@ function renderProcessV1(
     ) => boolean | void | Promise<boolean | void>;
     readonly candidateReviewDisabled?: boolean;
     readonly onOperationError?: (error: unknown) => void;
+    readonly onCandidateDraftChange?: (
+      draft: NonNullable<
+        ComponentProps<typeof TranslationProgramWorkspaceV1>["candidateDraft"]
+      >,
+    ) => void;
   } = {},
 ) {
   function ControlledCandidateDraftHarnessV1() {
@@ -224,7 +229,10 @@ function renderProcessV1(
         conversationSurface={<div>Conversation</div>}
         onImportFile={vi.fn()}
         candidateDraft={candidateDraft}
-        onCandidateDraftChange={setCandidateDraft}
+        onCandidateDraftChange={(nextCandidateDraft) => {
+          setCandidateDraft(nextCandidateDraft);
+          options.onCandidateDraftChange?.(nextCandidateDraft);
+        }}
         {...(options.onAcceptCandidate === undefined
           ? {}
           : { onAcceptCandidate: options.onAcceptCandidate })}
@@ -454,6 +462,7 @@ function renderReadyTranslationProcessWorkspaceV1(input: {
     typeof TranslationProcessWorkspaceV1
   >["onViewStateChange"];
   readonly piAgentRun?: ComponentProps<typeof TranslationProcessWorkspaceV1>["piAgentRun"];
+  readonly providerModel?: ComponentProps<typeof TranslationProcessWorkspaceV1>["providerModel"];
 }) {
   const activeProcess = input.activeProcess ??
     (input.pendingCandidate ? readyActiveProcessWithPendingCandidateV1() : readyActiveProcessV1());
@@ -508,6 +517,7 @@ function renderReadyTranslationProcessWorkspaceV1(input: {
       )}
       onSubmitInstruction={input.onSubmitInstruction}
       {...(input.piAgentRun === undefined ? {} : { piAgentRun: input.piAgentRun })}
+      {...(input.providerModel === undefined ? {} : { providerModel: input.providerModel })}
       {...(input.onRetranslateCandidate === undefined
         ? {}
         : { onRetranslateCandidate: input.onRetranslateCandidate })}
@@ -522,6 +532,42 @@ function renderReadyTranslationProcessWorkspaceV1(input: {
 }
 
 describe("SillyOS Translation Program workspace", () => {
+  it("keeps Host model selection available across guided and Conversation modes", async () => {
+    const onSelect = vi.fn();
+    renderReadyTranslationProcessWorkspaceV1({
+      locale: "en",
+      onSubmitInstruction: vi.fn(() => true),
+      providerModel: {
+        status: "required",
+        selectedValue: null,
+        options: [{
+          value: "deepseek:deepseek-v4-flash",
+          modelName: "DeepSeek V4 Flash",
+          providerName: "DeepSeek",
+        }],
+        reasoningEffort: {
+          status: "ready",
+          selectedValue: "medium",
+          options: ["off", "medium"],
+          onSelect: vi.fn(),
+        },
+        onSelect,
+        onOpenSettings: vi.fn(),
+      },
+    });
+
+    const modelSelector = screen.getByRole("combobox", { name: "Program Agent model" });
+    expect(modelSelector).toHaveTextContent("Select model");
+    expect(screen.getByRole("button", { name: "Start translation" })).toBeDisabled();
+
+    fireEvent.click(modelSelector);
+    fireEvent.click(screen.getByRole("option", { name: /DeepSeek V4 Flash/u }));
+    expect(onSelect).toHaveBeenCalledWith("deepseek:deepseek-v4-flash");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Conversation" }));
+    expect(screen.getByRole("combobox", { name: "Program Agent model" })).toBeVisible();
+  });
+
   it("routes the admitted package OpenUI action through the ordinary instruction callback", async () => {
     const process = tenThousandUnitProcessV1();
     const { source } = presentationSourceV1(process);
@@ -676,7 +722,7 @@ describe("SillyOS Translation Program workspace", () => {
       .not.toBeNull();
   });
 
-  it("restores the visible candidate draft when the same workspace session reopens", async () => {
+  it("stores only sparse candidate overrides and clears them when the Process view closes", async () => {
     type ViewStateV1 = NonNullable<
       ComponentProps<typeof TranslationProcessWorkspaceV1>["initialViewState"]
     >;
@@ -695,25 +741,21 @@ describe("SillyOS Translation Program workspace", () => {
       target: { value: "Session-local reviewed target." },
     });
     await waitFor(() =>
-      expect(retainedViewState?.candidateDraft?.targets[0]?.target).toBe(
-        "Session-local reviewed target.",
-      )
+      expect(retainedViewState?.candidateDraft).toEqual({
+        candidateId: "candidate.translation.ready",
+        overrides: [{
+          unitId: "unit.translation.ready",
+          target: "Session-local reviewed target.",
+        }],
+      })
     );
+    expect(retainedViewState?.candidateDraft).not.toHaveProperty("targets");
     first.unmount();
-
-    renderReadyTranslationProcessWorkspaceV1({
-      locale: "en",
-      pendingCandidate: true,
-      onSubmitInstruction: vi.fn(() => true),
-      onRetranslateCandidate: vi.fn(() => true),
-      initialViewState: retainedViewState,
-    });
-    expect(await screen.findByRole("textbox", { name: "Target" })).toHaveValue(
-      "Session-local reviewed target.",
-    );
+    expect(retainedViewState?.candidateDraft).toBeNull();
   });
 
   it("does not apply a session draft to a successor candidate ID", async () => {
+    const onViewStateChange = vi.fn();
     renderReadyTranslationProcessWorkspaceV1({
       locale: "en",
       activeProcess: readyActiveProcessWithPendingCandidateV1(
@@ -722,6 +764,7 @@ describe("SillyOS Translation Program workspace", () => {
       ),
       onSubmitInstruction: vi.fn(() => true),
       onRetranslateCandidate: vi.fn(() => true),
+      onViewStateChange,
       initialViewState: {
         mode: "guided",
         draft: "",
@@ -732,7 +775,7 @@ describe("SillyOS Translation Program workspace", () => {
         },
         candidateDraft: {
           candidateId: "candidate.translation.predecessor",
-          targets: [{
+          overrides: [{
             unitId: "unit.translation.ready",
             target: "Stale predecessor edit.",
           }],
@@ -742,6 +785,11 @@ describe("SillyOS Translation Program workspace", () => {
 
     expect(await screen.findByRole("textbox", { name: "Target" })).toHaveValue(
       "Successor target.",
+    );
+    await waitFor(() =>
+      expect(onViewStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({ candidateDraft: null }),
+      )
     );
   });
 
@@ -1047,6 +1095,37 @@ describe("SillyOS Translation Program workspace", () => {
     );
     expect(loadRowWindow).toHaveBeenCalled();
     expect(loadRowWindow.mock.calls[0]![0].limit).toBeLessThan(100);
+  });
+
+  it("records one edited row as a sparse override instead of copying the candidate", async () => {
+    const process = tenThousandUnitProcessV1();
+    const firstUnit = process.units[0]!;
+    const secondUnit = process.units[1]!;
+    const { source } = presentationSourceV1(process, {
+      pendingCandidate: {
+        candidateId: "candidate.batch.sparse-draft",
+        firstOrder: 0,
+        unitCount: 2,
+        targets: [{ unitId: firstUnit.unitId, target: "First candidate." }, {
+          unitId: secondUnit.unitId,
+          target: "Second candidate.",
+        }],
+        ambiguities: [],
+        findings: [],
+      },
+    });
+    const onCandidateDraftChange = vi.fn();
+    renderProcessV1(source, { onCandidateDraftChange });
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "译文" }), {
+      target: { value: "Edited first candidate." },
+    });
+
+    expect(onCandidateDraftChange).toHaveBeenLastCalledWith({
+      candidateId: "candidate.batch.sparse-draft",
+      overrides: [{ unitId: firstUnit.unitId, target: "Edited first candidate." }],
+    });
+    expect(onCandidateDraftChange.mock.lastCall?.[0]).not.toHaveProperty("targets");
   });
 
   it("separates mechanical warnings from model ambiguities and retranslates the edited candidate", async () => {

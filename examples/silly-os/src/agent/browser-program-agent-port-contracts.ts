@@ -36,6 +36,7 @@ export type BrowserProgramAgentDiagnosticCodeV1 =
   | "submit_invalid"
   | "candidate_invalid"
   | "draft_too_large"
+  | "output_limit"
   | "run_failed"
   | "disposed";
 

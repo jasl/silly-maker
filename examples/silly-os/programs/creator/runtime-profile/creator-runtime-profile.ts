@@ -93,7 +93,7 @@ export const creatorProgramRuntimeProfileImplementationV1: BrowserProgramRuntime
                     type: "text",
                     text: "Program revision candidate recorded for review.",
                   }],
-                  details: candidate,
+                  details: { recorded: true },
                 };
               },
             };

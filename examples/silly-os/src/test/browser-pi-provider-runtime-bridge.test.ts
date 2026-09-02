@@ -20,6 +20,21 @@ const harnessV1 = vi.hoisted(() => {
     name: "GPT-4.1 mini",
     reasoning: true,
   });
+  const numericBudgetModel = Object.freeze({
+    ...sameRouteModel,
+    id: "gpt-numeric-budget",
+    name: "GPT numeric budget fixture",
+    api: "openai-completions",
+    compat: Object.freeze({ supportsThinkingTokenBudget: true }),
+  });
+  const requiredReasoningModel = Object.freeze({
+    ...sameRouteModel,
+    id: "gemini-3-flash",
+    name: "Gemini 3 Flash fixture",
+    api: "google-generative-ai",
+    baseUrl: "https://generativelanguage.googleapis.com",
+    thinkingLevelMap: Object.freeze({ off: null }),
+  });
   const unavailableModel = Object.freeze({
     ...model,
     id: "gpt-4o-mini",
@@ -51,6 +66,8 @@ const harnessV1 = vi.hoisted(() => {
   return {
     model,
     sameRouteModel,
+    numericBudgetModel,
+    requiredReasoningModel,
     unavailableModel,
     state,
     streamSimple,
@@ -61,7 +78,13 @@ const harnessV1 = vi.hoisted(() => {
       id: "openai",
       name: "OpenAI",
       baseUrl: "https://api.openai.com/v1",
-      getModels: () => [model, sameRouteModel, unavailableModel],
+      getModels: () => [
+        model,
+        sameRouteModel,
+        numericBudgetModel,
+        requiredReasoningModel,
+        unavailableModel,
+      ],
       streamSimple,
     }),
   };
@@ -252,6 +275,22 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
     expect(browserPiAgentMaximumOutputTokensV1(translationInvocation, 3_000)).toBe(3_000);
   });
 
+  it("treats the Program output request as answer room when reasoning is enabled", () => {
+    const translationDispatch = translationDispatchV1();
+    const invocation = invocationV1(
+      translationProgramRuntimeProfileImplementationV1,
+      {
+        ...translationDispatch,
+        payload: { ...translationDispatch.payload, requestedOutputTokens: 8_704 },
+      },
+    );
+
+    expect(browserPiAgentMaximumOutputTokensV1(invocation, 32_768, "off")).toBe(8_704);
+    expect(browserPiAgentMaximumOutputTokensV1(invocation, 32_768, "low")).toBe(10_752);
+    expect(browserPiAgentMaximumOutputTokensV1(invocation, 32_768, "high")).toBe(25_088);
+    expect(browserPiAgentMaximumOutputTokensV1(invocation, 10_000, "high")).toBe(10_000);
+  });
+
   it("projects Pi-native reasoning support and clamps one global preference per route", () => {
     const catalog = projectBrowserPiProviderCatalogV1() as BrowserPiProviderCatalogWireV1;
     expect(
@@ -269,6 +308,16 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
       {
         id: "gpt-4.1-mini",
         supportedReasoningEfforts: ["off", "minimal", "low", "medium", "high"],
+        defaultReasoningEffort: "medium",
+      },
+      {
+        id: "gpt-numeric-budget",
+        supportedReasoningEfforts: ["off", "minimal", "low", "medium", "high"],
+        defaultReasoningEffort: "medium",
+      },
+      {
+        id: "gemini-3-flash",
+        supportedReasoningEfforts: ["minimal", "low", "medium", "high"],
         defaultReasoningEffort: "medium",
       },
       {
@@ -351,10 +400,109 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
       expect.anything(),
       expect.objectContaining({ toolChoice: "none" }),
     );
+    expect(harnessV1.streamSimple).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      expect.anything(),
+      expect.not.objectContaining({ thinkingBudgets: expect.anything() }),
+    );
+  });
+
+  it("uses honest candidate ceilings for effort-only and numeric-budget reasoning", () => {
+    const dispatch = creatorDispatchV1({
+      proposalId: "proposal.thinking-budget.1",
+      programId: "program.thinking-budget.1",
+      baseProgramRevision: 1,
+      text: "Reserve answer room independently from thinking.",
+    });
+    const invocation = invocationV1(creatorProgramRuntimeProfileImplementationV1, dispatch);
+    const commonInput = {
+      apiKey: "thinking-budget-key",
+      instructions: "Create the requested Program.",
+      runtimeProfile: creatorProgramRuntimeProfileImplementationV1,
+      harnessToolIds: creatorProgramRuntimeProfileImplementationV1.harnessToolIds,
+      fetch,
+      selection: {
+        kind: "builtin" as const,
+        providerId: "openai",
+        modelId: "gpt-4.1-mini",
+        ...openAISelectionRouteV1,
+      },
+      invocation,
+      workspaceTools: Object.freeze([]),
+      onCandidate: vi.fn(),
+      onTextDelta: vi.fn(),
+    };
+
+    createBrowserPiProviderAgentV1({ ...commonInput, reasoningEffort: "high" });
+    createBrowserPiProviderAgentV1({
+      ...commonInput,
+      selection: {
+        kind: "builtin" as const,
+        providerId: "openai",
+        modelId: "gpt-numeric-budget",
+        api: "openai-completions" as const,
+        baseUrl: openAISelectionRouteV1.baseUrl,
+      },
+      reasoningEffort: "high",
+    });
+    createBrowserPiProviderAgentV1({
+      ...commonInput,
+      selection: {
+        kind: "builtin" as const,
+        providerId: "openai",
+        modelId: "gemini-3-flash",
+        api: "google-generative-ai" as const,
+        baseUrl: "https://generativelanguage.googleapis.com",
+      },
+      reasoningEffort: "high",
+    });
+    const [effortOnlyInput, numericBudgetInput, requiredReasoningInput] = harnessV1
+      .createdInputs as CapturedAgentInputV1[];
+    expect(effortOnlyInput?.model).toMatchObject({ maxTokens: 2_048 });
+    expect(effortOnlyInput?.reasoningEffort).toBe("off");
+    expect(numericBudgetInput?.model).toMatchObject({ maxTokens: 4_096 });
+    expect(numericBudgetInput?.reasoningEffort).toBe("high");
+    expect(requiredReasoningInput?.model).toMatchObject({ maxTokens: 4_096 });
+    expect(requiredReasoningInput?.reasoningEffort).toBe("minimal");
+
+    effortOnlyInput?.streamFn(effortOnlyInput.model, { messages: [] }, { reasoning: "off" });
+    numericBudgetInput?.streamFn(
+      numericBudgetInput.model,
+      { messages: [] },
+      { reasoning: "high" },
+    );
+    requiredReasoningInput?.streamFn(
+      requiredReasoningInput.model,
+      { messages: [] },
+      { reasoning: "minimal" },
+    );
+    expect(harnessV1.streamSimple).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      { messages: [] },
+      expect.not.objectContaining({ thinkingBudgets: expect.anything() }),
+    );
+    expect(harnessV1.streamSimple).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      { messages: [] },
+      expect.objectContaining({ thinkingBudgets: { high: 2_048 } }),
+    );
+    expect(harnessV1.streamSimple).toHaveBeenNthCalledWith(
+      3,
+      expect.anything(),
+      { messages: [] },
+      expect.not.objectContaining({ thinkingBudgets: expect.anything() }),
+    );
   });
 
   it("keeps the Translation instructions unchanged when the package has no overlays", () => {
-    const dispatch = translationDispatchV1();
+    const baselineDispatch = translationDispatchV1();
+    const dispatch = {
+      ...baselineDispatch,
+      payload: { ...baselineDispatch.payload, requestedOutputTokens: 4_096 },
+    };
     createBrowserPiProviderAgentV1({
       apiKey: "translation-test-key",
       instructions: "Translate the admitted batch faithfully.",
@@ -568,6 +716,8 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
       .toEqual([
         { id: "gpt-4.1-nano", availability: "available" },
         { id: "gpt-4.1-mini", availability: "available" },
+        { id: "gpt-numeric-budget", availability: "available" },
+        { id: "gemini-3-flash", availability: "available" },
         { id: "gpt-4o-mini", availability: "unavailable" },
       ]);
 
@@ -618,7 +768,7 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
       provider: "openai",
       api: "openai-responses",
     });
-    expect(captured?.reasoningEffort).toBe("medium");
+    expect(captured?.reasoningEffort).toBe("off");
 
     const unavailableSelection = {
       kind: "builtin",

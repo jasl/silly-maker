@@ -10,8 +10,16 @@ export const translationProgramRuntimeProfileDescriptorV1 = {
     "agent.text",
     "program.resource.read",
     "translation.batch",
+    "workspace.read",
+    "workspace.search",
+    "workspace.write",
   ],
-  requiredCapabilityIds: ["program.resource.read"],
+  requiredCapabilityIds: [
+    "program.resource.read",
+    "workspace.read",
+    "workspace.search",
+    "workspace.write",
+  ],
   scriptRuntimes: [],
   initialUiSurfaceIds: ["translation.workspace.v1"],
 } as const satisfies ProgramRuntimeProfileDescriptorV1;

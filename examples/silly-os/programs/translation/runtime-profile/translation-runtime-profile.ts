@@ -108,7 +108,7 @@ export function createTranslationBatchBudgetForModelV1(input: {
 export const translationProgramRuntimeProfileImplementationV1: BrowserProgramRuntimeProfileV1 = {
   runtimeProfile: translationProgramRuntimeProfileV1,
   packageDescriptor: translationProgramRuntimeProfileDescriptorV1,
-  harnessToolIds: ["program_resource"],
+  harnessToolIds: ["program_resource", "read", "write", "edit", "grep"],
   providerTimeoutMilliseconds: 180_000,
   admitDispatch(dispatch) {
     if (dispatch.runtimeProfile !== translationProgramRuntimeProfileV1) {
@@ -192,7 +192,7 @@ export const translationProgramRuntimeProfileImplementationV1: BrowserProgramRun
                 await input.onCandidate(candidate);
                 return {
                   content: [{ type: "text", text: "Translation batch candidate recorded." }],
-                  details: candidate,
+                  details: { recorded: true },
                 };
               },
             };

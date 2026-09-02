@@ -45,6 +45,10 @@ describe("SillyOS fixed Browser Program runtime profiles", () => {
     expect(translationProgramRuntimeProfileV1).toBe("agent.translation.v1");
     expect(translationProgramRuntimeProfileImplementationV1.harnessToolIds).toEqual([
       "program_resource",
+      "read",
+      "write",
+      "edit",
+      "grep",
     ]);
     expect(creatorProgramRuntimeProfileImplementationV1.packageDescriptor).toBe(
       creatorProgramRuntimeProfileDescriptorV1,

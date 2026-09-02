@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 .silly-os {
+  position: relative;
   inline-size: 100%;
   block-size: 100%;
   min-inline-size: 0;
@@ -18,12 +19,23 @@
   display: none !important;
 }
 
-.silly-os > .program-runtime-surface {
+.silly-os-route-layer,
+.silly-os-route-layer > .program-runtime-surface {
   inline-size: 100%;
   block-size: 100%;
   min-inline-size: 0;
   min-block-size: 0;
   overflow: hidden;
+}
+
+.program-settings-overlay {
+  position: absolute;
+  z-index: 40;
+  inset: 0;
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden;
+  background: var(--sos-bg);
 }
 
 .silly-os-visually-hidden {

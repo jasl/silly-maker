@@ -10,6 +10,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { browserPiDistributionIdentityV1 } from "../agent/browser-pi-distribution.ts";
 import {
+  admitBrowserProgramCandidateArtifactHandleV1,
+  browserProgramCandidateArtifactRelativePathV1,
+} from "../agent/browser-program-candidate-artifact.ts";
+import {
   createDefaultBrowserPiWorkerV1,
   createBrowserPiWorkerConnectorV1,
   type BrowserPiWorkerLikeV1,
@@ -559,6 +563,30 @@ function rpcRequestV1(
     : { revision: 1, kind: "rpc_request", requestId, record, execution };
 }
 
+function visibleWorkspaceReceiptsV1(
+  messages: readonly BrowserPiWorkerAnyOutboundMessageV1[],
+) {
+  return messages.flatMap((message) =>
+    message.kind === "workspace_receipt" &&
+      !message.receipt.toolCallId.startsWith("sillyos.candidate-artifact.")
+      ? [message.receipt]
+      : []
+  );
+}
+
+function jsonNodeCountV1(value: unknown): number {
+  if (Array.isArray(value)) {
+    return 1 + value.reduce((count, item) => count + jsonNodeCountV1(item), 0);
+  }
+  if (value !== null && typeof value === "object") {
+    return 1 + Object.values(value).reduce(
+      (count, item) => count + jsonNodeCountV1(item),
+      0,
+    );
+  }
+  return 1;
+}
+
 function workspaceRequestV1(
   requestId: number,
   record: Readonly<Record<string, unknown>>,
@@ -1100,6 +1128,21 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     return null;
   }
 
+  async captureProcessWorkspaceHead(input: {
+    readonly processId: string;
+    readonly workspaceId: string;
+  }): Promise<{ readonly checkpointId: string; readonly generation: number }> {
+    if (
+      !input.processId.startsWith("process.") ||
+      input.workspaceId !== this.anchor?.workspaceId
+    ) throw new Error("test Process Workspace identity mismatch");
+    const snapshot = await this.queryWorkspace(workspaceSessionIdV1);
+    return {
+      checkpointId: snapshot.checkpointId,
+      generation: snapshot.descriptor.generation,
+    };
+  }
+
   async probeProcessWorkspace(): Promise<boolean> {
     return true;
   }
@@ -1108,8 +1151,34 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     throw new Error("test Process Workspace import is unavailable");
   }
 
-  async readProcessWorkspaceFile(): Promise<never> {
-    throw new Error("test Process Workspace read is unavailable");
+  async readProcessWorkspaceFile(
+    input: Parameters<BrowserProgramWorkspaceAuthorityV1["readProcessWorkspaceFile"]>[0],
+  ): ReturnType<BrowserProgramWorkspaceAuthorityV1["readProcessWorkspaceFile"]> {
+    if (!input.processId.startsWith("process.") || input.workspaceId !== this.anchor?.workspaceId) {
+      throw new Error("test Process Workspace identity mismatch");
+    }
+    const initial = await this.queryWorkspace(workspaceSessionIdV1);
+    const response = await this.control({
+      method: "read_file",
+      workspaceSessionId: workspaceSessionIdV1,
+      expectedCheckpointId: initial.checkpointId,
+      expectedGeneration: initial.descriptor.generation,
+      path: input.path,
+    });
+    if (response.method !== "read_file") throw new Error("test read response mismatch");
+    return {
+      bytes: response.bytes,
+      source: {
+        revision: 1,
+        processId: input.processId,
+        workspaceId: input.workspaceId,
+        volumeId: this.anchor.volumeId,
+        workspaceFormat: this.anchor.workspaceFormat,
+        path: input.path,
+        checkpointId: response.snapshot.checkpointId,
+        generation: response.snapshot.descriptor.generation,
+      },
+    };
   }
 
   get readFileRangeRequests(): TestBrowserWorkspaceVolumeStateV1["readFileRangeRequests"] {
@@ -1142,7 +1211,9 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     );
     const response = this.controls.find((message) => message.requestId === requestId);
     if (response === undefined || !response.ok) {
-      throw new Error(`test Workspace Host rejected ${record.method}`);
+      throw new Error(
+        `test Workspace Host rejected ${record.method}: ${JSON.stringify(response ?? null)}`,
+      );
     }
     return response.response;
   }
@@ -1916,6 +1987,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const runtimeProfiles: string[] = [];
     const workspaceToolCounts: number[] = [];
     const programResourceReads: string[] = [];
+    const workingMemoryReads: string[] = [];
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
@@ -1939,6 +2011,25 @@ describe("SillyOS Browser Pi Worker runtime", () => {
             ) {
               programResourceReads.push(
                 (resourceText as Readonly<Record<string, unknown>>).text as string,
+              );
+            }
+            const write = input.workspaceTools.find((tool) => tool.name === "write");
+            const read = input.workspaceTools.find((tool) => tool.name === "read");
+            await write?.execute("memory.write.1", {
+              path: "/workspace/memory/MEMORY.md",
+              content: "# Translation working memory\n\n## Voice and style\n\nConcise.\n",
+            });
+            const memory = await read?.execute("memory.read.1", {
+              path: "/workspace/memory/MEMORY.md",
+            });
+            const memoryText = memory?.content[0];
+            if (
+              memoryText !== null && typeof memoryText === "object" &&
+              (memoryText as Readonly<Record<string, unknown>>).type === "text" &&
+              typeof (memoryText as Readonly<Record<string, unknown>>).text === "string"
+            ) {
+              workingMemoryReads.push(
+                (memoryText as Readonly<Record<string, unknown>>).text as string,
               );
             }
             await input.onCandidate({
@@ -2021,8 +2112,11 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       )
     );
     expect(runtimeProfiles).toEqual([translationProgramRuntimeProfileV1]);
-    expect(workspaceToolCounts).toEqual([1]);
+    expect(workspaceToolCounts).toEqual([5]);
     expect(programResourceReads).toEqual(["Use the exact Translation completion tool."]);
+    expect(workingMemoryReads).toEqual([
+      "# Translation working memory\n\n## Voice and style\n\nConcise.\n",
+    ]);
     expect(JSON.parse(prompts[0] ?? "null")).toMatchObject({
       schema: "sillyos.translation-agent-request.v1",
       instruction: "Translate the admitted batch faithfully.",
@@ -2031,19 +2125,32 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         targetLocale: "en",
       },
     });
-    expect(messages).toContainEqual(expect.objectContaining({
-      kind: "rpc_record",
-      record: expect.objectContaining({
-        kind: "output_data",
-        value: {
-          targets: [{
-            unitId: "translation.unit.000001",
-            target: "Welcome back, ⟦SM:0⟧.",
-          }],
-          ambiguities: [],
-        },
-      }),
-    }));
+    const outputData = messages.find((message) =>
+      message.kind === "rpc_record" &&
+      (message.record as Readonly<Record<string, unknown>>).kind === "output_data"
+    );
+    const handle = outputData?.kind === "rpc_record"
+      ? admitBrowserProgramCandidateArtifactHandleV1(
+        (outputData.record as Readonly<Record<string, unknown>>).value,
+      )
+      : null;
+    expect(handle).toMatchObject({
+      kind: "sillyos.program_candidate_artifact",
+      path: browserProgramCandidateArtifactRelativePathV1,
+      workspaceGeneration: 3,
+    });
+    expect(JSON.parse(
+      workspaceAuthority.workspaceText(browserProgramCandidateArtifactRelativePathV1) ?? "null",
+    )).toMatchObject({
+      kind: "sillyos.program_candidate_artifact",
+      candidate: {
+        targets: [{
+          unitId: "translation.unit.000001",
+          target: "Welcome back, ⟦SM:0⟧.",
+        }],
+        ambiguities: [],
+      },
+    });
     expect(messages.some((message) =>
       message.kind === "rpc_record" &&
       (message.record as Readonly<Record<string, unknown>>).kind === "output_text_delta"
@@ -3228,9 +3335,12 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       records.map((_record, index) => index + 1),
     );
     expect(records.filter((record) => record.kind === "output_text_delta")).toHaveLength(1);
-    expect(records.find((record) => record.kind === "output_data")?.value).toEqual({
-      ...submitV1,
-      requirement: submitV1.text,
+    expect(admitBrowserProgramCandidateArtifactHandleV1(
+      records.find((record) => record.kind === "output_data")?.value,
+    )).toMatchObject({
+      kind: "sillyos.program_candidate_artifact",
+      path: browserProgramCandidateArtifactRelativePathV1,
+      workspaceGeneration: 3,
     });
     expect(records.at(-1)?.kind).toBe("run_completed");
 
@@ -3246,7 +3356,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
           text: persistenceProbe,
         }),
       },
-    }, { ...execution, expectedGeneration: 2 }));
+    }, { ...execution, expectedGeneration: 3 }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_record" &&
@@ -3254,9 +3364,13 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
       )
     );
-    expect(messages.filter((message) => message.kind === "workspace_receipt")).toHaveLength(1);
+    expect(visibleWorkspaceReceiptsV1(messages)).toHaveLength(1);
     const roundTripByteLength = new TextEncoder().encode(submitV1.text).byteLength;
-    expect(workspaceAuthority.sourceReadRequests).toEqual([
+    expect(
+      workspaceAuthority.sourceReadRequests.filter(({ path }) =>
+        path !== browserProgramCandidateArtifactRelativePathV1
+      ),
+    ).toEqual([
       {
         path: roundTripArtifactRelativePathV1,
         offset: 0,
@@ -3335,9 +3449,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       record: { kind: "run_completed" },
     });
 
-    const receipts = messages.flatMap((message) =>
-      message.kind === "workspace_receipt" ? [message.receipt] : []
-    );
+    const receipts = visibleWorkspaceReceiptsV1(messages);
     expect(receipts).toHaveLength(2);
     expect(receipts[0]).toMatchObject({
       sequence: 1,
@@ -3365,7 +3477,11 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const marker = "SillyOS native edit checkpoint pending:\n";
     const markedBytes = new TextEncoder().encode(marker + editText).byteLength;
     const finalBytes = new TextEncoder().encode(editText).byteLength;
-    expect(workspaceAuthority.sourceReadRequests).toEqual([
+    expect(
+      workspaceAuthority.sourceReadRequests.filter(({ path }) =>
+        path !== browserProgramCandidateArtifactRelativePathV1
+      ),
+    ).toEqual([
       {
         path: roundTripArtifactRelativePathV1,
         offset: 0,
@@ -3453,9 +3569,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       record: { kind: "run_completed" },
     });
 
-    const receipts = messages.flatMap((message) =>
-      message.kind === "workspace_receipt" ? [message.receipt] : []
-    );
+    const receipts = visibleWorkspaceReceiptsV1(messages);
     expect(receipts).toHaveLength(2);
     expect(receipts[0]).toMatchObject({
       sequence: 1,
@@ -3490,7 +3604,11 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const bashRoundTripBytes = new TextEncoder().encode("SillyOS native bash checkpoint\n")
       .byteLength;
     const bashSetupBytes = new TextEncoder().encode(bashText).byteLength;
-    expect(workspaceAuthority.sourceReadRequests).toEqual([
+    expect(
+      workspaceAuthority.sourceReadRequests.filter(({ path }) =>
+        path !== browserProgramCandidateArtifactRelativePathV1
+      ),
+    ).toEqual([
       {
         path: roundTripArtifactRelativePathV1,
         offset: 0,
@@ -3588,9 +3706,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       ".sillyos/file-ops/copied-tree/nested/source.txt",
       ".sillyos/file-ops/kept-empty.txt",
     ];
-    const receipts = messages.flatMap((message) =>
-      message.kind === "workspace_receipt" ? [message.receipt] : []
-    );
+    const receipts = visibleWorkspaceReceiptsV1(messages);
     expect(receipts).toHaveLength(1);
     expect(receipts[0]).toMatchObject({
       sequence: 1,
@@ -3678,9 +3794,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       record: { kind: "run_completed" },
     });
 
-    expect(
-      messages.flatMap((message) => message.kind === "workspace_receipt" ? [message.receipt] : []),
-    ).toEqual([
+    expect(visibleWorkspaceReceiptsV1(messages)).toEqual([
       expect.objectContaining({
         sequence: 1,
         runId: "sillyos.run.1",
@@ -4130,13 +4244,23 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       8,
       "sillyos.session.1",
       "workspace.preview.1.proposal.network.durable.2",
-      execution,
+      { ...execution, expectedGeneration: execution.expectedGeneration + 1 },
     );
     await waitUntilV1(() =>
       brokerRequests.length === 2 && messages.some((message) =>
         message.kind === "rpc_record" &&
         (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.2" &&
         (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
+      )
+    );
+    runtime.receive(workspaceRequestV1(90, {
+      method: "acknowledge_workspace_receipts",
+      workspaceSessionId: execution.workspaceSessionId,
+      throughSequence: 2,
+    }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "workspace_response" && message.requestId === 90 && message.ok
       )
     );
     runtime.receive(workspaceRequestV1(9, {
@@ -4263,6 +4387,155 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       kind: "rpc_record",
       record: expect.objectContaining({ kind: "run_failed", code: "candidate_missing" }),
     }));
+
+    runtime.dispose();
+    brokerLease.terminate();
+    await workspaceAuthority.dispose();
+  });
+
+  it("reports output_limit when the model exhausts output before producing a candidate", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const brokerLease = createTestNetworkBrokerLeaseV1();
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+      createProviderAgent: () => ({
+        prompt: () => Promise.resolve({ stopReason: "length" as const }),
+        abort() {},
+        dispose() {},
+      }),
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "pi_provider",
+      selection: availableSelectionV1,
+      preferredReasoningEffort: "medium",
+      credential: { kind: "api_key", value: "sentinel-output-limit-key" },
+    }, [brokerLease.agentPort]);
+    const execution = await attachRuntimeWorkspaceV1(
+      runtime,
+      messages,
+      workspaceAuthority,
+      2,
+    );
+    runtime.receive(rpcRequestV1(3, { revision: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 3 && message.ok
+      )
+    );
+    runtime.receive(rpcRequestV1(4, {
+      revision: 1,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          proposalId: "workspace.preview.1.proposal.output-limit",
+          text: "Exercise truthful output-limit reporting.",
+        }),
+      },
+    }, execution));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_failed"
+      )
+    );
+
+    expect(messages).toContainEqual(expect.objectContaining({
+      kind: "rpc_record",
+      record: expect.objectContaining({ kind: "run_failed", code: "output_limit" }),
+    }));
+
+    runtime.dispose();
+    brokerLease.terminate();
+    await workspaceAuthority.dispose();
+  });
+
+  it("preserves an admitted candidate when a trailing model turn exhausts output", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const brokerLease = createTestNetworkBrokerLeaseV1();
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const submit = {
+      ...submitV1,
+      proposalId: "workspace.preview.1.proposal.trailing-output-limit",
+      text: "Keep the admitted candidate when the trailing model turn reaches its limit.",
+    };
+    const candidate = {
+      revision: 1 as const,
+      proposalId: submit.proposalId,
+      programId: submit.programId,
+      baseProgramRevision: submit.baseProgramRevision,
+      text: submit.text,
+      requirement: "Keep the completed candidate available for review.",
+    };
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+      createProviderAgent: (input) => ({
+        async prompt() {
+          await input.onCandidate(candidate);
+          return { stopReason: "length" as const };
+        },
+        abort() {},
+        dispose() {},
+      }),
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "pi_provider",
+      selection: availableSelectionV1,
+      preferredReasoningEffort: "medium",
+      credential: { kind: "api_key", value: "sentinel-trailing-output-limit-key" },
+    }, [brokerLease.agentPort]);
+    const execution = await attachRuntimeWorkspaceV1(
+      runtime,
+      messages,
+      workspaceAuthority,
+      2,
+    );
+    runtime.receive(rpcRequestV1(3, { revision: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 3 && message.ok
+      )
+    );
+    runtime.receive(rpcRequestV1(4, {
+      revision: 1,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1(submit),
+      },
+    }, execution));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
+      )
+    );
+
+    expect(messages.some((message) =>
+      message.kind === "rpc_record" &&
+      (message.record as Readonly<Record<string, unknown>>).kind === "run_failed"
+    )).toBe(false);
+    const outputData = messages.find((message) =>
+      message.kind === "rpc_record" &&
+      (message.record as Readonly<Record<string, unknown>>).kind === "output_data"
+    );
+    const handle = outputData?.kind === "rpc_record"
+      ? admitBrowserProgramCandidateArtifactHandleV1(
+        (outputData.record as Readonly<Record<string, unknown>>).value,
+      )
+      : null;
+    expect(handle).not.toBeNull();
+    expect(JSON.parse(
+      workspaceAuthority.workspaceText(browserProgramCandidateArtifactRelativePathV1) ?? "null",
+    )).toMatchObject({ candidate });
 
     runtime.dispose();
     brokerLease.terminate();
@@ -4500,6 +4773,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     );
     const url = "https://example.test/reference.txt?revision=1";
     const fetchText = `${deterministicFetchUrlProbePrefixV1}${url}`;
+    let expectedGeneration = execution.expectedGeneration;
     const submitFetchV1 = (requestId: number, proposalId: string): void => {
       runtime.receive(rpcRequestV1(requestId, {
         revision: 1,
@@ -4508,7 +4782,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
           sessionId: "sillyos.session.1",
           text: serializeCreatorAgentSubmitV1({ ...submitV1, proposalId, text: fetchText }),
         },
-      }, execution));
+      }, { ...execution, expectedGeneration }));
     };
 
     submitFetchV1(4, "workspace.preview.1.proposal.network.1");
@@ -4519,6 +4793,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
       )
     );
+    expectedGeneration += 1;
     expect(brokerRequests).toEqual([]);
 
     runtime.receive(workspaceRequestV1(5, {
@@ -4540,6 +4815,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
       )
     );
+    expectedGeneration += 1;
     expect(brokerRequests).toEqual([url]);
     expect(JSON.stringify(brokerMessages)).not.toContain("sentinel-network-key");
 
@@ -4551,6 +4827,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
       )
     );
+    expectedGeneration += 1;
     expect(brokerRequests).toEqual([url, url]);
     runtime.dispose();
     brokerLease.terminate();
@@ -4582,6 +4859,10 @@ describe("SillyOS Browser Pi transport and product port", () => {
               );
               expect(input.workspaceTools.map((tool) => tool.name)).toEqual([
                 "sillyos_read_program_resource",
+                "read",
+                "write",
+                "edit",
+                "grep",
               ]);
               await input.onCandidate({
                 targets: [{
@@ -4646,6 +4927,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const failedRun = translationAgentRunV1({
       agentRunId: "agent.run.translation.failed",
       processAttemptGeneration: 2,
+      workspaceGeneration: 2,
     });
     await expect(ports.translation.submit(failedRun)).resolves.toEqual({
       kind: "submitted",
@@ -4670,6 +4952,83 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(ports.translation.getSnapshot().workspace.phase).toBe("closed");
     await ports.host.dispose();
     expect(ports.translation.getSnapshot().phase).toBe("disposed");
+  });
+
+  it("hands a Translation candidate beyond the public record byte and node bounds through Workspace", async () => {
+    const baseRun = translationAgentRunV1();
+    const units = Array.from({ length: 900 }, (_value, index) => ({
+      unitId: `translation.unit.large.${String(index).padStart(4, "0")}`,
+      order: index,
+      locator: `line/${String(index + 1)}`,
+      context: null,
+      durationMilliseconds: null,
+      lineBreakPolicy: "forbidden" as const,
+      source: `原文 ${String(index + 1)}`,
+      protectedSegments: [],
+    }));
+    const candidate = {
+      targets: units.map((unit) => ({
+        unitId: unit.unitId,
+        target: `Translated ${String(unit.order + 1)} ${"detail ".repeat(8).trim()}`,
+      })),
+      ambiguities: [],
+    };
+    expect(new TextEncoder().encode(JSON.stringify(candidate)).byteLength).toBeGreaterThan(65_536);
+    expect(jsonNodeCountV1(candidate)).toBeGreaterThan(2_048);
+
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const ports = createTestProgramAgentPortsV1({
+      runtime: "pi_provider",
+      selection: availableSelectionV1,
+      workspaceAuthority,
+      openNetworkBroker: openTestNetworkBrokerV1,
+      workerFactory: () =>
+        new InMemoryBrowserPiWorkerV1({
+          createProviderAgent: (input) => ({
+            async prompt() {
+              await input.onCandidate(candidate);
+              return { stopReason: "stop" as const };
+            },
+            abort() {},
+            dispose() {},
+          }),
+        }),
+    });
+    await expect(ports.translation.configureCredential("translation-large-candidate-key")).resolves
+      .toMatchObject({ kind: "configured" });
+    await expect(ports.translation.openWorkspace({
+      processId: baseRun.processId,
+      programId: baseRun.programId,
+      workspaceId: workspaceIdV1,
+    })).resolves.toMatchObject({ kind: "opened" });
+    const run: TranslationBatchAgentRunRequestV1 = {
+      ...baseRun,
+      agentRunId: "agent.run.translation.large-candidate",
+      batch: { ...baseRun.batch, units },
+    };
+    await expect(ports.translation.submit(run)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: run.agentRunId,
+    });
+    await waitUntilV1(() => ports.translation.getSnapshot().terminalRuns.length === 1);
+    const terminal = ports.translation.getSnapshot().terminalRuns[0];
+    if (
+      terminal?.outcome !== "completed" || !("candidate" in terminal)
+    ) throw new Error("expected the large Translation batch candidate to complete");
+    expect(ports.translation.getSnapshot()).toMatchObject({
+      phase: "completed",
+      terminalRuns: [{
+        outcome: "completed",
+        candidate: { targets: expect.arrayContaining([candidate.targets[899]]) },
+      }],
+    });
+    expect(terminal.candidate.targets).toHaveLength(900);
+    expect(
+      new TextEncoder().encode(
+        workspaceAuthority.workspaceText(browserProgramCandidateArtifactRelativePathV1) ?? "",
+      ).byteLength,
+    ).toBeGreaterThan(65_536);
+    await ports.host.dispose();
   });
 
   it("fences Translation by the opened Process Workspace and projects shared connection loss", async () => {
@@ -4986,6 +5345,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
           input.operation(createDefaultProcessNetworkAccessV1(input.processId)),
         createProcessWorkspace: repositoryUnavailable,
         inspectProcessWorkspace: () => Promise.resolve(null),
+        captureProcessWorkspaceHead: repositoryUnavailable,
         probeProcessWorkspace: () => Promise.resolve(true),
         importProcessWorkspaceFile: repositoryUnavailable,
         readProcessWorkspaceFile: repositoryUnavailable,
@@ -5677,7 +6037,10 @@ describe("SillyOS Browser Pi transport and product port", () => {
       "run_completed",
     ]);
     const data = events.find((event) => event.kind === "output_data");
-    expect(data?.value).toEqual({ ...submitV1, requirement: submitV1.text });
+    expect(admitBrowserProgramCandidateArtifactHandleV1(data?.value)).toMatchObject({
+      kind: "sillyos.program_candidate_artifact",
+      path: browserProgramCandidateArtifactRelativePathV1,
+    });
     expect(worker).not.toBeNull();
     const posted = (worker as unknown as InMemoryBrowserPiWorkerV1).posted;
     expect(posted.filter((message) => JSON.stringify(message).includes("sentinel-browser-key")))
@@ -5959,7 +6322,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const workspace = port.getSnapshot().workspace;
     expect(workspace).toMatchObject({
       phase: "open",
-      descriptor: { generation: 2 },
+      descriptor: { generation: 3 },
       receipts: [],
       lastReceipt: {
         revision: 1,
@@ -6458,5 +6821,34 @@ describe("SillyOS Browser Pi transport and product port", () => {
       phase: "forgotten",
       workspace: { phase: "forgotten", descriptor: null },
     });
+  });
+
+  it("closes the exact Host Workspace after its Worker connector has retired", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority,
+      workerFactory: () => worker,
+    });
+    await openProductWorkspaceV1(port);
+
+    port.revokeCredential();
+
+    expect(worker.terminated).toBe(true);
+    await expect(port.closeWorkspace(workspaceSessionIdV1)).resolves.toEqual({
+      kind: "closed",
+      descriptor: {
+        revision: 1,
+        programId: submitV1.programId,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId: workspaceSessionIdV1,
+        generation: 1,
+      },
+    });
+    expect(workspaceAuthority.detachWorkspaceEnvironmentCalls).toEqual([workspaceSessionIdV1]);
+    expect(workspaceAuthority.closeWorkspaceCalls).toBe(1);
+    await expect(port.closeWorkspace(workspaceSessionIdV1)).resolves.toEqual({ kind: "idle" });
+    await port.dispose();
   });
 });

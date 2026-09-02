@@ -3,6 +3,7 @@
 import type { ComponentType } from "react";
 
 import type { BrowserProgramAgentHostV1 } from "../../agent/browser-program-agent-host-contracts.ts";
+import type { BrowserProgramAgentWorkspaceDiagnosticV1 } from "../../agent/browser-program-agent-port-contracts.ts";
 import type { BrowserPiReasoningEffortV1 } from "../../agent/browser-pi-worker-protocol.ts";
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../../content/copy.ts";
 import {
@@ -99,6 +100,11 @@ export interface ProgramSurfaceHostV1 {
   readonly onThemeChange: (theme: ProgramSurfaceThemeModeV1) => void;
   readonly onOpenSettings: (surface?: "home" | "workspace") => void;
   readonly onOpenProgramLibrary: () => Promise<boolean>;
+  /** Joins lazy Surface resources to exact Program close and later retirement. */
+  readonly registerProgramDrain: (resource: {
+    readonly quiesce: () => Promise<void>;
+    readonly retire: () => Promise<void>;
+  }) => () => void;
   readonly registerAgentDrain: (drain: () => Promise<void>) => () => void;
   readonly reportFailure: (code: string, error: unknown) => void;
 }
@@ -111,4 +117,16 @@ export interface ProgramRuntimeSurfacePropsV1 {
 
 export interface ProgramRuntimeSurfaceModuleV1 {
   readonly Surface: ComponentType<ProgramRuntimeSurfacePropsV1>;
+}
+
+/**
+ * Only transient Host/Workspace contention is eligible for automatic cleanup
+ * retry. A Program keeps permanent failures visible for explicit recovery
+ * instead of starting an unbounded timer loop.
+ */
+export function shouldRetryProgramWorkspaceCleanupV1(
+  diagnostic: BrowserProgramAgentWorkspaceDiagnosticV1,
+): boolean {
+  return diagnostic.code === "request_failed" ||
+    diagnostic.code === "workspace_busy";
 }

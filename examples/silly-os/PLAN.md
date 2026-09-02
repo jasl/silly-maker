@@ -279,7 +279,9 @@ Pi `bash` plus lazy `qjs` Workspace primitives suitable for testing a first
 CodeAct slice on admitted Creator paths: guest
 JavaScript runs synchronously in a fresh bounded Worker over explicitly staged
 files, with no DOM, ambient network, Provider credentials, or program data repository
-access. Translation currently selects no Workspace tools. A later real workflow
+access. Translation now selects only bounded `read`/`write`/`edit`/`grep`
+Workspace tools for advisory Process-local working memory; it still selects no
+`bash` or `qjs`. A later real workflow
 may end a semantic attempt and start a fenced successor with a CodeAct profile,
 but this slice adds no structured CodeAct request, stage transition, fixed-script
 asset, or CodeAct package profile. Existing time, memory, file, and diff budgets
@@ -314,11 +316,17 @@ and the complete transcript must stay addressable through structured records
 and tools rather than being appended wholesale. P5-B's context policy must
 derive capacity from admitted model-profile context metadata and an explicit
 candidate-output estimate; there is no arbitrary semantic item ceiling or
-route-specific hidden-reasoning reserve. Provider reasoning may consume the
-same completion cap, and an attempt that returns no complete admitted candidate
-fails visibly rather than growing another model-specific allowance. If admitted
-evidence does not fit, the product context planner must split the work or
-retrieve another slice rather than silently drop it.
+route-specific hidden-reasoning reserve. The candidate estimate remains the
+Program planner's requested candidate-size estimate rather than an exact
+Provider answer guarantee. A Provider route with an enforceable numeric
+thinking budget caps it after that estimate. An effort-only route executes at
+`off` when supported; a mandatory-thinking model uses Pi's lowest available
+effort and the full admitted output ceiling, so its candidate room remains
+best-effort. Text completions likewise remain best-effort. This adds no
+Translation- or model-specific reserve. An attempt that returns no complete
+admitted candidate fails visibly. If admitted evidence does not fit, the
+product context planner must split the work or retrieve another slice rather
+than silently drop it.
 
 Any cached context projection must be rebuildable from authoritative product
 records and exact source references; it is not a second truth source or an
@@ -1063,6 +1071,14 @@ This handoff changes no user-visible workflow and adds no new SillyMaker API.
 The fixed Pi loop, Provider/model/tool authority, Browser Worker protocol,
 Program semantics, and Workspace execution remain product-owned adapters around
 the neutral Engine Session seam.
+
+The current public Session admission distinguishes traffic direction. Outbound
+semantic submit uses one exact descriptor-safe scalar record and carries no
+arbitrary 8,192-character or 65,536-byte transport ceiling; the caller's product
+planner and selected model envelope own usable input capacity. Inbound connector
+responses and stream records remain getter-free canonical data under explicit
+byte, depth, and node limits so one invalid or oversized record still retires
+the ordered connector.
 
 Final downstream evidence is 77 SillyOS test files / 640 tests, 51 passing
 Chromium + WebKit product E2E cases with one expected runner-conditional
@@ -4880,13 +4896,18 @@ runtime. Creator (`sillyos.creator@1.0.0`) and Translation
 distinct build-known runtime profiles describe different workflows; the same
 profiles are available to an admitted imported package under identical
 persistence/controller/Agent/UI rules. Both formal manifests have `scripts: []`;
-Translation ships no fixed script or Workspace execution profile. Capability
+Translation ships no fixed script or interpreter execution profile. Capability
 IDs remain descriptive package data and never become a second tool-grant
 authority.
 
 The exact package and runtime profile are acquired lazily and released with the
-owning Process runtime. The current Vite graph does not claim one network chunk
-per package, and package files cannot carry same-realm TypeScript or React. This
+owning Process runtime. A mounted Surface first performs repeatable reversible
+quiescence: it aborts/drains Surface work such as export, rejects while active
+or unpersisted Agent work is still owned, and closes the exact Workspace without
+retiring the Agent port. If controller close declines, the still-usable
+predecessor remains current. Final retirement happens only after close succeeds
+and the route commits, or during terminal unmount/disposal. The current Vite graph does not
+claim one network chunk per package, and package files cannot carry same-realm TypeScript or React. This
 slice adds no npm resolver, dependency solver, workflow language, arbitrary
 post-release code, fixed-script registry, CodeAct activation or third Agent
 runtime. Its current contract is recorded in
@@ -4911,9 +4932,11 @@ were removed after those decisions moved into the product package and formal
 tests. The formal package is now
 `sillyos.translation@1.0.0` with an exact content digest,
 `sillyos.program-harness.v1` compatibility and the build-known
-`agent.translation.v1` profile. It declares `agent.text` and
-`translation.batch`, has no mutable Workspace/`bash`/`qjs` grant, and carries
-`scripts: []`.
+`agent.translation.v1` profile. It declares `agent.text`,
+`program.resource.read`, `translation.batch`, and bounded Workspace
+read/search/write capabilities. The fixed profile exposes `read`, `write`,
+`edit`, and `grep` for advisory Process-local working memory, but no `bash` or
+`qjs`; the package carries `scripts: []`.
 The first formal P5-B UI/domain foundation is now implemented: a SillyOS-owned
 Program UI Container switches guided “Simple” and Conversation presentation for
 the same Process; a bounded run strip projects the latest one to three activity
@@ -4955,13 +4978,26 @@ The first execution/review slice is also delivered. Batch planning starts at
 the Process's next unaccepted row, pages only the required source/glossary
 neighbors, and fits the exact dynamic prompt plus a conservative candidate
 payload estimate to the selected model envelope without a semantic item-count
-ceiling or route-specific reasoning reserve. Creator and
+ceiling or route-specific reasoning reserve. The fixed Provider bridge treats
+that value as a candidate-size estimate: numeric-budget routes bound reasoning,
+effort-only routes use `off` when available, and mandatory-thinking routes use
+the lowest supported effort plus the full model output ceiling with visible
+`output_limit` fallback. Creator and
 Translation share one Browser Agent Worker/Session owner behind separate typed
-facades. A completed Run publishes one admitted pending candidate and the
-Process terminal in one IndexedDB transaction; failed/cancelled runs publish no
-candidate. Process/attempt/generation/lease fencing prevents a stale page from
-publishing, while an expired Run is retryable only when the exact Workspace
-checkpoint/source binding is unchanged and no pending candidate exists.
+facades. The fixed Worker writes each admitted full candidate to the single
+reserved Process Workspace staging slot and sends Session only an exact
+receipt/Run/Workspace-generation/byte-length/SHA-256 handle. The Host verifies
+and re-admits those bytes before a completed Run publishes its pending candidate
+and Process terminal in one IndexedDB transaction. The mutable staging slot is
+an integrity-bound handoff, not candidate persistence or provenance authority.
+It is overwritten rather than accumulated. A staged candidate survives a
+trailing model `length` stop; output exhaustion before a candidate reports
+`output_limit`. Failed/cancelled runs publish no candidate.
+Process/attempt/generation/lease fencing prevents a stale page from
+publishing, while an expired Run is retryable only when its Process evidence is
+unchanged, the Authority captures an exact durable Workspace head at or after
+the source binding, and any referenced candidate remains exact. The captured
+head is adopted as the explicit retry checkpoint.
 
 Review keeps candidate drafts in presentation state keyed by candidate ID. An
 accept submits the complete edited target set against the exact candidate ID
@@ -5001,10 +5037,11 @@ until an explicit product reset; Conversation Core does not depend on it.
 
 The fixed QuickJS 0.32 harness separately passes real regular-expression
 coverage for ordinary expressions, Unicode property escapes, lookbehind, and
-named captures. Translation has not selected that capability: its manifest
-advertises `agent.text`, `translation.batch`, and the read-only immutable
-`program.resource.read`; its runtime profile authorizes the corresponding
-package-resource reader but no mutable Workspace tools, `bash`, or `qjs`.
+named captures. Translation has not selected that interpreter capability. Its
+manifest advertises `agent.text`, `translation.batch`, the read-only immutable
+`program.resource.read`, and bounded Workspace read/search/write capabilities.
+Its runtime profile exposes `read`, `write`, `edit`, and `grep` for compact,
+rebuildable Process-local working memory, but no `bash` or `qjs`.
 
 The package contract now also provides two optional, origin-neutral model
 hints. Ordered `modelPromptOverlays` append immutable Program instructions for

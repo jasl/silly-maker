@@ -161,6 +161,7 @@ export type TranslationAgentTerminalDiagnosticCodeV1 =
   | "candidate_structure_invalid"
   | "candidate_invalid"
   | "connection_failed"
+  | "output_limit"
   | "protocol_invalid"
   | "run_failed";
 

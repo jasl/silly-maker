@@ -20,7 +20,6 @@ const projectionLimitsInternalV1: BoundedCanonicalJsonLimitsInternalV1 = {
   maxNodes: 2_048 as BoundedCanonicalJsonLimitsInternalV1["maxNodes"],
 };
 const identifierPatternInternalV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u;
-const maxTextLengthInternalV1 = 8_192;
 
 export type AgentSessionAdmissionResultInternalV1<TValue> =
   | { readonly kind: "admitted"; readonly value: TValue }
@@ -50,6 +49,35 @@ function exactRecordInternalV1(
   return value as CanonicalRecordInternalV1;
 }
 
+function exactOwnDataRecordInternalV1(
+  value: unknown,
+  keys: readonly string[],
+): CanonicalRecordInternalV1 | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return null;
+    if (Object.getOwnPropertySymbols(value).length !== 0) return null;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if (
+      Object.keys(descriptors).length !== keys.length ||
+      !keys.every((key) => Object.hasOwn(descriptors, key))
+    ) return null;
+    const entries: [string, unknown][] = [];
+    for (const key of keys) {
+      const descriptor = descriptors[key];
+      if (
+        descriptor === undefined || !descriptor.enumerable ||
+        !Object.hasOwn(descriptor, "value")
+      ) return null;
+      entries.push([key, descriptor.value]);
+    }
+    return Object.fromEntries(entries);
+  } catch {
+    return null;
+  }
+}
+
 function projectInternalV1(value: unknown): AgentSessionAdmissionResultInternalV1<unknown> {
   let projected: ReturnType<typeof projectBoundedCanonicalJsonInternalV1>;
   try {
@@ -77,15 +105,16 @@ function validSequenceInternalV1(value: unknown): value is number {
 }
 
 function validTextInternalV1(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0 && value.length <= maxTextLengthInternalV1;
+  return typeof value === "string" && value.length > 0;
 }
 
 export function admitAgentSessionSubmitInputInternalV1(
   value: AgentSessionSubmitInputV1,
 ): AgentSessionAdmissionResultInternalV1<AgentSessionSubmitInputV1> {
-  const projection = projectInternalV1(value);
-  if (projection.kind === "rejected") return projection;
-  const record = exactRecordInternalV1(projection.value, ["sessionId", "text"]);
+  // Submit is an outbound, typed caller value. Admit its exact scalar shape
+  // without imposing the bounded canonical budget reserved for untrusted
+  // connector responses and stream records.
+  const record = exactOwnDataRecordInternalV1(value, ["sessionId", "text"]);
   if (record === null || !validIdentifierInternalV1(record.sessionId)) {
     return rejectionInternalV1("agent_session.record_invalid", "/sessionId");
   }
@@ -98,9 +127,7 @@ export function admitAgentSessionSubmitInputInternalV1(
 export function admitAgentSessionCancelInputInternalV1(
   value: AgentSessionCancelInputV1,
 ): AgentSessionAdmissionResultInternalV1<AgentSessionCancelInputV1> {
-  const projection = projectInternalV1(value);
-  if (projection.kind === "rejected") return projection;
-  const record = exactRecordInternalV1(projection.value, ["sessionId", "runId"]);
+  const record = exactOwnDataRecordInternalV1(value, ["sessionId", "runId"]);
   if (record === null || !validIdentifierInternalV1(record.sessionId)) {
     return rejectionInternalV1("agent_session.record_invalid", "/sessionId");
   }

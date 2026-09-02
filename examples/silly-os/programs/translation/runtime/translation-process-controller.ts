@@ -224,6 +224,7 @@ export type TranslationProcessControllerWorkspacePortV1 = Pick<
   BrowserProgramWorkspaceAuthorityV1,
   | "createProcessWorkspace"
   | "inspectProcessWorkspace"
+  | "captureProcessWorkspaceHead"
   | "importProcessWorkspaceFile"
   | "readProcessWorkspaceFile"
 >;
@@ -398,7 +399,15 @@ function translationTerminalMarkdownV1(terminal: TranslationAgentTerminalRunV1):
         : "Retranslation was replaced. The previous review candidate remains available.";
     case "failed":
       if (terminal.run.kind === "follow_up") {
+        if (terminal.diagnosticCode === "output_limit") {
+          return "The follow-up exhausted the model output budget before an answer was published.";
+        }
         return "The follow-up failed before an answer was published.";
+      }
+      if (terminal.diagnosticCode === "output_limit") {
+        return terminal.run.replacesCandidateId === null
+          ? "Translation exhausted the model output budget before a review candidate was published."
+          : "Retranslation exhausted the model output budget. The previous review candidate remains available.";
       }
       if (terminal.diagnosticCode === "candidate_structure_invalid") {
         return terminal.run.replacesCandidateId === null
@@ -990,6 +999,7 @@ export function createTranslationProcessControllerV1(input: {
   };
   let ownedAgentLease: ProcessExecutionLeaseV1 | null = null;
   let terminalizingAgentRunId: string | null = null;
+  let leaseRenewalTail: Promise<void> = Promise.resolve();
 
   const leaseMatchesV1 = (
     left: ProcessExecutionLeaseV1,
@@ -997,6 +1007,20 @@ export function createTranslationProcessControllerV1(input: {
   ): boolean =>
     left.processId === right.processId && left.ownerInstanceId === right.ownerInstanceId &&
     left.attemptId === right.attemptId && left.generation === right.generation;
+
+  const serializeLeaseRenewalV1 = async <T>(operation: () => Promise<T>): Promise<T> => {
+    const predecessor = leaseRenewalTail;
+    let release!: () => void;
+    leaseRenewalTail = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await predecessor;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
+  };
 
   const acquireImportLeaseV1 = async (
     process: ProcessHeadV1,
@@ -1332,6 +1356,14 @@ export function createTranslationProcessControllerV1(input: {
     );
     const checkpoint = process.checkpoint;
     const startingCheckpoint = attempt.startingCheckpoint;
+    const settledWorkspaceHead = await workspace.captureProcessWorkspaceHead({
+      processId: process.processId,
+      workspaceId: startingCheckpoint.workspaceId,
+    }).catch(() => null);
+    const workspaceHeadCanBeAdopted = settledWorkspaceHead !== null &&
+      (settledWorkspaceHead.generation > startingCheckpoint.workspaceGeneration ||
+        (settledWorkspaceHead.generation === startingCheckpoint.workspaceGeneration &&
+          settledWorkspaceHead.checkpointId === startingCheckpoint.workspaceCheckpointId));
     const candidateEvidenceIsCurrent = workset !== null &&
       (workset.pendingCandidateId === null || (pendingCandidate !== null &&
         pendingCandidate.processId === process.processId &&
@@ -1344,9 +1376,9 @@ export function createTranslationProcessControllerV1(input: {
       checkpoint.workspaceId === startingCheckpoint.workspaceId &&
       checkpoint.workspaceCheckpointId === startingCheckpoint.workspaceCheckpointId &&
       checkpoint.workspaceGeneration === startingCheckpoint.workspaceGeneration &&
+      workspaceHeadCanBeAdopted &&
       workset.sourceBinding.workspaceId === startingCheckpoint.workspaceId &&
-      workset.sourceBinding.checkpointId === startingCheckpoint.workspaceCheckpointId &&
-      workset.sourceBinding.generation === startingCheckpoint.workspaceGeneration;
+      workset.sourceBinding.generation <= settledWorkspaceHead.generation;
     const observedAt = Math.max(now(), lease.expiresAt, process.updatedAt);
     const sequence = process.transcriptFrontier + 1;
     const entryId = createId("translation-attempt-interrupted-entry");
@@ -1371,14 +1403,22 @@ export function createTranslationProcessControllerV1(input: {
             partId: `${entryId}.text`,
             markdown: retryable
               ? workset?.pendingCandidateId === null
-                ? "The previous translation batch was interrupted. Its committed request can be retried from the unchanged Process Workspace checkpoint."
+                ? "The previous translation batch was interrupted. Its committed request can be retried from the last stable Process Workspace checkpoint."
                 : "Retranslation was interrupted. The previous review candidate remains available, and the exact interrupted successor attempt can be retried explicitly."
               : workset?.phase === "staging"
               ? "The previous source import stopped before the Process work set became ready. Review the incomplete import before continuing."
               : "The previous translation attempt stopped after its durable Process evidence changed or became unavailable. SillyOS will not replay it automatically.",
           }],
         }],
-        checkpoint: null,
+        checkpoint: workspaceHeadCanBeAdopted
+          ? {
+            checkpointId: `${attempt.attemptId}.interrupted-checkpoint`,
+            throughSequence: sequence,
+            workspaceId: startingCheckpoint.workspaceId,
+            workspaceCheckpointId: settledWorkspaceHead.checkpointId,
+            workspaceGeneration: settledWorkspaceHead.generation,
+          }
+          : null,
         terminalAttemptReceipt: {
           schemaVersion: 1,
           processId: process.processId,
@@ -2509,7 +2549,9 @@ export function createTranslationProcessControllerV1(input: {
         sequence: acquisition.reuseTrigger.sequence,
       };
     const startingCheckpoint: ProcessCheckpointV1 = {
-      checkpointId: `${attemptId}.start`,
+      checkpointId: trigger.kind === "new_entry"
+        ? `${attemptId}.start`
+        : durableProcess.checkpoint.checkpointId,
       throughSequence: trigger.kind === "new_entry"
         ? trigger.entry.sequence
         : durableProcess.transcriptFrontier,
@@ -2670,7 +2712,9 @@ export function createTranslationProcessControllerV1(input: {
         sequence: acquisition.reuseTrigger.sequence,
       };
     const startingCheckpoint: ProcessCheckpointV1 = {
-      checkpointId: `${attemptId}.start`,
+      checkpointId: trigger.kind === "new_entry"
+        ? `${attemptId}.start`
+        : durableProcess.checkpoint.checkpointId,
       throughSequence: trigger.kind === "new_entry"
         ? trigger.entry.sequence
         : durableProcess.transcriptFrontier,
@@ -3020,48 +3064,107 @@ export function createTranslationProcessControllerV1(input: {
 
   const renewAgentRunLeaseV1 = async (
     run: TranslationAgentRunRequestV1,
-  ): Promise<TranslationProcessControllerResultV1<"renewed" | "lost" | "idle">> => {
-    if (disposed) return { kind: "failed", code: "disposed" };
-    if (terminalizingAgentRunId === run.agentRunId) {
-      return { kind: "completed", value: "idle" };
-    }
-    const lease = ownedAgentLease;
-    if (
-      lease === null || lease.processId !== run.processId ||
-      lease.attemptId !== run.agentRunId ||
-      lease.generation !== run.processAttemptGeneration
-    ) return { kind: "completed", value: "lost" };
-    const observedAt = now();
-    if (observedAt >= lease.expiresAt) {
-      ownedAgentLease = null;
-      return { kind: "completed", value: "lost" };
-    }
-    const expiresAt = Math.max(
-      observedAt + processExecutionLeaseDurationMilliseconds,
-      lease.expiresAt + 1,
-    );
-    try {
-      const renewed = await repository.renewProcessExecutionLease({ lease, observedAt, expiresAt });
-      if (renewed.kind === "conflict") {
+  ): Promise<TranslationProcessControllerResultV1<"renewed" | "lost" | "idle">> =>
+    await serializeLeaseRenewalV1(async () => {
+      if (disposed) return { kind: "failed", code: "disposed" };
+      if (terminalizingAgentRunId === run.agentRunId) {
+        return { kind: "completed", value: "idle" };
+      }
+      const lease = ownedAgentLease;
+      if (
+        lease === null || lease.processId !== run.processId ||
+        lease.attemptId !== run.agentRunId ||
+        lease.generation !== run.processAttemptGeneration
+      ) return { kind: "completed", value: "lost" };
+      const observedAt = now();
+      if (observedAt >= lease.expiresAt) {
         ownedAgentLease = null;
         return { kind: "completed", value: "lost" };
       }
-      ownedAgentLease = renewed.lease;
-      return { kind: "completed", value: "renewed" };
-    } catch (error) {
-      if (isProgramDataRepositoryFailureV1(error) && error.code === "outcome_unknown") {
-        const current = await repository.loadProcessExecutionLease(run.processId).catch(() => null);
-        if (
-          current !== null && leaseMatchesV1(current, lease) && current.expiresAt >= expiresAt
-        ) {
-          ownedAgentLease = current;
-          return { kind: "completed", value: "renewed" };
+      const expiresAt = Math.max(
+        observedAt + processExecutionLeaseDurationMilliseconds,
+        lease.expiresAt + 1,
+      );
+      try {
+        const renewed = await repository.renewProcessExecutionLease({
+          lease,
+          observedAt,
+          expiresAt,
+        });
+        if (renewed.kind === "conflict") {
+          if (terminalizingAgentRunId === run.agentRunId) {
+            return { kind: "completed", value: "idle" };
+          }
+          ownedAgentLease = null;
+          return { kind: "completed", value: "lost" };
         }
+        ownedAgentLease = renewed.lease;
+        return terminalizingAgentRunId === run.agentRunId
+          ? { kind: "completed", value: "idle" }
+          : { kind: "completed", value: "renewed" };
+      } catch (error) {
+        if (terminalizingAgentRunId === run.agentRunId) {
+          return { kind: "completed", value: "idle" };
+        }
+        if (isProgramDataRepositoryFailureV1(error) && error.code === "outcome_unknown") {
+          const current = await repository.loadProcessExecutionLease(run.processId).catch(() =>
+            null
+          );
+          if (
+            current !== null && leaseMatchesV1(current, lease) && current.expiresAt >= expiresAt
+          ) {
+            ownedAgentLease = current;
+            return { kind: "completed", value: "renewed" };
+          }
+        }
+        ownedAgentLease = null;
+        return { kind: "failed", code: failureCodeV1(error) };
       }
-      ownedAgentLease = null;
-      return { kind: "failed", code: failureCodeV1(error) };
-    }
-  };
+    });
+
+  const renewTerminalLeaseV1 = async (
+    run: TranslationAgentRunRequestV1,
+  ): Promise<ProcessExecutionLeaseV1 | null> =>
+    await serializeLeaseRenewalV1(async () => {
+      const ownedLease = ownedAgentLease;
+      if (
+        ownedLease === null || ownedLease.ownerInstanceId !== ownerInstanceId ||
+        ownedLease.processId !== run.processId || ownedLease.attemptId !== run.agentRunId ||
+        ownedLease.generation !== run.processAttemptGeneration
+      ) return null;
+      const current = await repository.loadProcessExecutionLease(run.processId);
+      if (
+        current === null || !leaseMatchesV1(current, ownedLease) ||
+        current.ownerInstanceId !== ownerInstanceId
+      ) return null;
+      const observedAt = now();
+      if (observedAt >= current.expiresAt) return null;
+      const expiresAt = Math.max(
+        observedAt + processExecutionLeaseDurationMilliseconds,
+        current.expiresAt + 1,
+      );
+      try {
+        const renewed = await repository.renewProcessExecutionLease({
+          lease: current,
+          observedAt,
+          expiresAt,
+        });
+        if (renewed.kind === "conflict") return null;
+        ownedAgentLease = renewed.lease;
+        return renewed.lease;
+      } catch (error) {
+        if (!isProgramDataRepositoryFailureV1(error) || error.code !== "outcome_unknown") {
+          throw error;
+        }
+        const reconciled = await repository.loadProcessExecutionLease(run.processId);
+        if (
+          reconciled === null || !leaseMatchesV1(reconciled, current) ||
+          reconciled.expiresAt < expiresAt
+        ) throw error;
+        ownedAgentLease = reconciled;
+        return reconciled;
+      }
+    });
 
   const recordAgentRunTerminalV1 = async (
     terminal: TranslationAgentTerminalRunV1,
@@ -3077,9 +3180,9 @@ export function createTranslationProcessControllerV1(input: {
         repository.loadTranslationWorksetHead(terminal.run.processId),
       ]);
       const attempt = process?.activeAttempt ?? null;
-      const lease = ownedAgentLease;
+      const ownedLease = ownedAgentLease;
       if (
-        process === null || workset === null || attempt === null || lease === null ||
+        process === null || workset === null || attempt === null || ownedLease === null ||
         !sameProgramPackageV1(process.programPackage, terminal.run.programPackage) ||
         terminal.run.programId !== process.programPackage.programId ||
         terminal.run.expectedWorksetRevision !== workset.revision ||
@@ -3093,14 +3196,23 @@ export function createTranslationProcessControllerV1(input: {
         attempt.startingCheckpoint.workspaceCheckpointId !==
           terminal.run.workspaceCheckpointId ||
         attempt.startingCheckpoint.workspaceGeneration !== terminal.run.workspaceGeneration ||
-        !leaseMatchesV1(lease, {
+        !leaseMatchesV1(ownedLease, {
           processId: terminal.run.processId,
-          ownerInstanceId: lease.ownerInstanceId,
+          ownerInstanceId: ownedLease.ownerInstanceId,
           attemptId: terminal.run.agentRunId,
           generation: terminal.run.processAttemptGeneration,
-          expiresAt: lease.expiresAt,
+          expiresAt: ownedLease.expiresAt,
         })
       ) return { kind: "completed", value: { kind: "stale" } };
+      const lease = await renewTerminalLeaseV1(terminal.run);
+      if (lease === null) {
+        ownedAgentLease = null;
+        return { kind: "completed", value: { kind: "stale" } };
+      }
+      const settledWorkspaceHead = await workspace.captureProcessWorkspaceHead({
+        processId: process.processId,
+        workspaceId: attempt.startingCheckpoint.workspaceId,
+      });
       const observedAt = now();
       if (observedAt >= lease.expiresAt) {
         ownedAgentLease = null;
@@ -3137,15 +3249,13 @@ export function createTranslationProcessControllerV1(input: {
             state: "committed",
             parts: [{ kind: "text_markdown", partId: `${entryId}.text`, markdown }],
           }],
-          checkpoint: outcome === "completed"
-            ? {
-              checkpointId: `${terminal.run.agentRunId}.terminal-checkpoint`,
-              throughSequence: sequence,
-              workspaceId: attempt.startingCheckpoint.workspaceId,
-              workspaceCheckpointId: attempt.startingCheckpoint.workspaceCheckpointId,
-              workspaceGeneration: attempt.startingCheckpoint.workspaceGeneration,
-            }
-            : null,
+          checkpoint: {
+            checkpointId: `${terminal.run.agentRunId}.terminal-checkpoint`,
+            throughSequence: sequence,
+            workspaceId: attempt.startingCheckpoint.workspaceId,
+            workspaceCheckpointId: settledWorkspaceHead.checkpointId,
+            workspaceGeneration: settledWorkspaceHead.generation,
+          },
           terminalAttemptReceipt: {
             schemaVersion: 1,
             processId: process.processId,

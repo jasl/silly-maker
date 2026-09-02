@@ -5,6 +5,10 @@ import {
   createProvider,
   getSupportedThinkingLevels,
 } from "@earendil-works/pi-ai";
+import {
+  adjustMaxTokensForThinking,
+  clampReasoning,
+} from "@earendil-works/pi-ai/api/simple-options";
 import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
 import { googleGenerativeAIApi } from "@earendil-works/pi-ai/api/google-generative-ai.lazy";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
@@ -29,15 +33,113 @@ export function browserPiAgentProviderTimeoutMillisecondsV1(runtimeProfile) {
   return runtimeProfile.providerTimeoutMilliseconds;
 }
 
-/** Cap the selected package's request envelope by the exact model capability. */
-export function browserPiAgentMaximumOutputTokensV1(
+function browserPiAgentTokenBudgetV1(
   invocation,
   modelMaximumTokens,
+  reasoningEffort,
+  supportsNumericThinkingBudget,
+  supportsReasoningOff,
+  lowestReasoningEffort,
 ) {
   if (!Number.isSafeInteger(modelMaximumTokens) || modelMaximumTokens <= 0) {
     throw new TypeError("Pi model maximum output tokens are invalid");
   }
-  return Math.min(modelMaximumTokens, invocation.requestedOutputTokens);
+  const requestedOutputTokens = Math.min(
+    modelMaximumTokens,
+    invocation.requestedOutputTokens,
+  );
+  if (invocation.completion.kind === "candidate" && !supportsNumericThinkingBudget) {
+    if (!supportsReasoningOff) {
+      return {
+        maxTokens: modelMaximumTokens,
+        reasoningEffort: lowestReasoningEffort,
+        thinkingBudgets: null,
+      };
+    }
+    return {
+      maxTokens: requestedOutputTokens,
+      reasoningEffort: "off",
+      thinkingBudgets: null,
+    };
+  }
+  if (
+    reasoningEffort === "off"
+  ) {
+    return {
+      maxTokens: requestedOutputTokens,
+      reasoningEffort: "off",
+      thinkingBudgets: null,
+    };
+  }
+  const adjusted = adjustMaxTokensForThinking(
+    requestedOutputTokens,
+    modelMaximumTokens,
+    reasoningEffort,
+  );
+  const thinkingBudget = Math.min(
+    adjusted.thinkingBudget,
+    modelMaximumTokens - requestedOutputTokens,
+  );
+  if (thinkingBudget === 0) {
+    if (!supportsReasoningOff) {
+      return {
+        maxTokens: modelMaximumTokens,
+        reasoningEffort: lowestReasoningEffort,
+        thinkingBudgets: null,
+      };
+    }
+    return {
+      maxTokens: requestedOutputTokens,
+      reasoningEffort: "off",
+      thinkingBudgets: null,
+    };
+  }
+  return {
+    maxTokens: requestedOutputTokens + thinkingBudget,
+    reasoningEffort,
+    thinkingBudgets: {
+      [clampReasoning(reasoningEffort)]: thinkingBudget,
+    },
+  };
+}
+
+/** Only a Provider-enforced numeric budget can reserve answer room within one ceiling. */
+function supportsNumericThinkingBudgetV1(model) {
+  if (model.api === "anthropic-messages") {
+    return model.compat?.forceAdaptiveThinking !== true;
+  }
+  if (model.api === "openai-completions") {
+    return model.compat?.supportsThinkingTokenBudget === true ||
+      typeof model.compat?.thinkingTokenBudgetField === "string";
+  }
+  if (model.api === "google-generative-ai") {
+    const modelId = model.id.toLowerCase();
+    return !/gemini-3(?:\.\d+)?-(?:pro|flash)/.test(modelId) &&
+      modelId !== "gemini-flash-latest" &&
+      modelId !== "gemini-flash-lite-latest" &&
+      !/gemma-?4/.test(modelId);
+  }
+  return false;
+}
+
+/**
+ * Projects the Program's candidate-size estimate into a Provider output
+ * ceiling. Only routes with an enforceable numeric thinking budget can reserve
+ * that estimate from reasoning; effort-only routes remain best-effort.
+ */
+export function browserPiAgentMaximumOutputTokensV1(
+  invocation,
+  modelMaximumTokens,
+  reasoningEffort = "off",
+) {
+  return browserPiAgentTokenBudgetV1(
+    invocation,
+    modelMaximumTokens,
+    reasoningEffort,
+    true,
+    true,
+    "minimal",
+  ).maxTokens;
 }
 
 function providersV1() {
@@ -229,12 +331,20 @@ export function createBrowserPiProviderAgentV1(input) {
     input.selection,
     input.reasoningEffort,
   );
+  const supportedReasoningEfforts = getSupportedThinkingLevels(resolved.model);
+  const lowestReasoningEffort = supportedReasoningEfforts.find((effort) => effort !== "off") ??
+    "off";
+  const tokenBudget = browserPiAgentTokenBudgetV1(
+    input.invocation,
+    resolved.model.maxTokens,
+    effectiveReasoningEffort,
+    supportsNumericThinkingBudgetV1(resolved.model),
+    supportedReasoningEfforts.includes("off"),
+    lowestReasoningEffort,
+  );
   const boundedModel = {
     ...resolved.model,
-    maxTokens: browserPiAgentMaximumOutputTokensV1(
-      input.invocation,
-      resolved.model.maxTokens,
-    ),
+    maxTokens: tokenBudget.maxTokens,
   };
   const instructions = composeProgramModelPromptOverlaysV1({
     instructions: input.instructions,
@@ -259,6 +369,12 @@ export function createBrowserPiProviderAgentV1(input) {
         );
       return resolved.provider.streamSimple(selectedModel, context, {
         ...options,
+        ...(tokenBudget.thinkingBudgets === null ? {} : {
+          thinkingBudgets: {
+            ...options.thinkingBudgets,
+            ...tokenBudget.thinkingBudgets,
+          },
+        }),
         maxRetries: 0,
         timeoutMs: browserPiAgentProviderTimeoutMillisecondsV1(
           input.runtimeProfile,
@@ -272,7 +388,7 @@ export function createBrowserPiProviderAgentV1(input) {
     },
     getApiKey: (providerId) => providerId === resolved.provider.id ? apiKey : undefined,
     model: boundedModel,
-    reasoningEffort: effectiveReasoningEffort,
+    reasoningEffort: tokenBudget.reasoningEffort,
   });
   return {
     prompt: agent.prompt,

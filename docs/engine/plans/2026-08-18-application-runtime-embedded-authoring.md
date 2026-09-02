@@ -465,6 +465,14 @@ conversation/task/artifact storage、permission UI、Mutation gateway 或 Effect
   dispose 和 reconnect 后的 late record；request failure 后的 replacement connect 先关闭 predecessor
   connection，reconnect 不重提既有 request/chunk，本地 dispose 只关闭本地 connection，不声称回滚
   远端 effect；
+
+Post-closure correction（2026-09-02）：上段记录的是 AR4 当时的 private 双向 RPC denominator，
+不是当前 public `@sillymaker/agent/session` 的 outbound submit 合同。当前 outbound semantic submit
+只做 exact descriptor-safe scalar admission，不再施加任意 8,192-character 或 65,536-byte transport
+ceiling；产品 planner 与所选模型 envelope 拥有可用输入容量。Inbound connector response/stream
+record 仍做 getter-free canonical projection 并保留 byte/depth/node bounds。该修订不激活 Program
+context、Provider budget 或大 Artifact transport Engine API。
+
 - 一个 observable Agent Host 作为独立 sibling owner 持有 readiness、session、active run、transient
   draft、diagnostic 与本地 Artifact revision history。取消先把 active run/draft 切为
   `cancel_requested/cancelled`，随后到达的 stream 不再匹配 active run；旧 run 的迟到 event、

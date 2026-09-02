@@ -29,7 +29,9 @@ export const deterministicOversizedReadProbeV1:
   "Verify the qualification workspace rejects an oversized native Pi read.";
 
 export interface PiAgentPortV1 {
-  prompt(text: string): Promise<{ readonly stopReason: "stop" | "error" | "aborted" }>;
+  prompt(text: string): Promise<{
+    readonly stopReason: "stop" | "length" | "error" | "aborted";
+  }>;
   abort(): void;
   dispose(): void;
 }

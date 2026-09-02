@@ -4,6 +4,7 @@ import type {
   ActiveProgramRuntimeHandleV1,
   ProgramRuntimeControllerAdapterV1,
 } from "../../../src/application/program-runtime-controller.ts";
+import { createProgramRuntimeSurfaceDrainOwnerV1 } from "../../../src/application/program-runtime-controller.ts";
 import { createCreatorControllerV1 } from "../runtime/creator-controller.ts";
 import { createCreatorProgramDataRepositoryV1 } from "../persistence/creator-program-data-repository.ts";
 import { createBrowserCreatorProgramWorkspaceAuthorityV1 } from "../persistence/browser-creator-program-workspace-authority.ts";
@@ -12,6 +13,7 @@ import { creatorProgramRuntimeProfileV1 } from "./creator-runtime-profile-descri
 export const creatorProgramRuntimeControllerAdapterV1: ProgramRuntimeControllerAdapterV1 = {
   runtimeProfile: creatorProgramRuntimeProfileV1,
   async create(input): Promise<ActiveProgramRuntimeHandleV1> {
+    const surfaceDrainOwner = createProgramRuntimeSurfaceDrainOwnerV1();
     const repository = createCreatorProgramDataRepositoryV1(input.repository);
     const workspace = createBrowserCreatorProgramWorkspaceAuthorityV1({
       repository,
@@ -42,6 +44,7 @@ export const creatorProgramRuntimeControllerAdapterV1: ProgramRuntimeControllerA
     return {
       programPackage: input.programPackage,
       controller,
+      surfaceDrainOwner,
       getSnapshot: controller.getSnapshot,
       subscribe: controller.subscribe,
       loadSurface: async () => {

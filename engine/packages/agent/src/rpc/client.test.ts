@@ -105,6 +105,32 @@ describe("createAgentSessionClientV1", () => {
     expect(client.getSnapshot()).toMatchObject({ status: { kind: "ready" }, diagnostic: null });
   });
 
+  it("keeps caller-local input rejection out of connection health and forwards large text", async () => {
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+    const client = createAgentSessionClientV1({ connector: fake.connector });
+    await client.connect();
+    await client.start();
+    const before = client.getSnapshot();
+
+    await expect(client.submit({ sessionId: "session.1", text: "" })).resolves.toMatchObject({
+      kind: "unavailable",
+      diagnostic: { code: "agent_session.record_invalid", path: "/text" },
+    });
+    expect(client.getSnapshot()).toBe(before);
+
+    const text = `译${'\\"\n'.repeat(30_000)}`;
+    await expect(client.submit({ sessionId: "session.1", text })).resolves.toEqual({
+      kind: "submitted",
+      runId: "run.1",
+    });
+    expect(fake.getOperations().at(-1)).toEqual({
+      connection: 1,
+      operation: "submit",
+      input: { sessionId: "session.1", text },
+    });
+    expect(client.getSnapshot()).toMatchObject({ status: { kind: "ready" }, diagnostic: null });
+  });
+
   it("admits one ordered stream across reconnect without duplicate output or resubmission", async () => {
     const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
     const client = createAgentSessionClientV1({ connector: fake.connector });

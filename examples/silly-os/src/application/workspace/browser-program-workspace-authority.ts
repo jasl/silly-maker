@@ -110,6 +110,17 @@ export interface BrowserProgramWorkspaceAuthorityV1 {
     options?: { readonly hostAccess?: "required" | "active_only" },
   ): Promise<BrowserProcessWorkspaceInspectionV1 | null>;
   /**
+   * Requires the Process Workspace to be idle and captures its exact
+   * already-durable stable head.
+   * Program controllers use this on the terminal cold path after all Agent
+   * tool calls have settled, before committing the corresponding Process
+   * checkpoint.
+   */
+  captureProcessWorkspaceHead(input: {
+    readonly processId: string;
+    readonly workspaceId: string;
+  }): Promise<{ readonly checkpointId: string; readonly generation: number }>;
+  /**
    * Verifies that the exact durable volume bound to a Process can be opened.
    * A session acquired only for this probe is closed before the operation
    * settles; the probe never attaches an execution environment.
@@ -777,6 +788,30 @@ export function createBrowserProgramWorkspaceAuthorityV1(
           }
         }
         throw authorityErrorV1("repository_pair_changed");
+      });
+    },
+
+    captureProcessWorkspaceHead(input) {
+      return serializeV1(async () => {
+        const pair = await requirePairV1(input.processId, input.workspaceId);
+        const predecessorSessionId = matchingSessionV1(pair);
+        const sessionId = predecessorSessionId ?? await ensureSessionV1(pair);
+        try {
+          const snapshot = validateSnapshotV1(
+            await host.captureStableHead(sessionId),
+            pair,
+            sessionId,
+          );
+          return {
+            checkpointId: snapshot.checkpointId,
+            generation: snapshot.descriptor.generation,
+          };
+        } finally {
+          if (predecessorSessionId === null) {
+            await host.closeWorkspace(sessionId);
+            if (active?.workspaceSessionId === sessionId) active = null;
+          }
+        }
       });
     },
 

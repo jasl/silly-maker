@@ -26,6 +26,13 @@ import type {
   BrowserProgramExecutionV1,
   BrowserProgramHarnessToolIdV1,
 } from "./browser-program-runtime-profile.ts";
+import {
+  browserProgramCandidateArtifactPathV1,
+  browserProgramCandidateArtifactToolCallIdV1,
+  createBrowserProgramCandidateArtifactHandleV1,
+  serializeBrowserProgramCandidateArtifactV1,
+  type BrowserProgramCandidateArtifactHandleV1,
+} from "./browser-program-candidate-artifact.ts";
 import { createBrowserProgramPackageResourceToolV1 } from "./browser-program-package-resource-tool.ts";
 import { stageBrowserProgramWorkspaceScriptsV1 } from "./browser-program-workspace-scripts.ts";
 import {
@@ -76,6 +83,7 @@ type RunFailureCodeV1 =
   | "cancelled"
   | "replaced"
   | "draft_limit"
+  | "output_limit"
   | "candidate_missing"
   | "candidate_invalid"
   | "candidate_context_mismatch"
@@ -97,7 +105,7 @@ interface ActivePiRunV1 {
   draft: string;
   readonly dispatch: BrowserPiAgentDispatchV1;
   readonly programExecution: BrowserProgramExecutionV1;
-  candidate: object | null;
+  candidate: BrowserProgramCandidateArtifactHandleV1 | null;
   candidateFailure:
     | "candidate_invalid"
     | "candidate_context_mismatch"
@@ -109,7 +117,9 @@ interface ActivePiRunV1 {
 }
 
 interface PiAgentPortV1 {
-  prompt(text: string): Promise<{ readonly stopReason: "stop" | "error" | "aborted" }>;
+  prompt(text: string): Promise<{
+    readonly stopReason: "stop" | "length" | "error" | "aborted";
+  }>;
   abort(): void;
   dispose(): void;
 }
@@ -367,6 +377,10 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     }
     if (failure === null && outcome?.stopReason === "aborted") failure = "cancelled";
     if (
+      failure === null && outcome?.stopReason === "length" &&
+      (run.programExecution.invocation.completion.kind === "text" || run.candidate === null)
+    ) failure = "output_limit";
+    if (
       failure === null && run.programExecution.invocation.completion.kind === "candidate" &&
       run.candidate === null
     ) failure = "candidate_missing";
@@ -613,7 +627,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       harnessToolIds: runtimeProfile.harnessToolIds,
       workspaceTools,
       reasoningEffort: resolveBrowserPiReasoningEffortV1(selection, preferredReasoningEffort),
-      onCandidate(value: unknown): void {
+      async onCandidate(value: unknown): Promise<void> {
         if (activeRun !== run || run.terminal || run.requestedFailure !== null) {
           throw new Error("Agent run was cancelled");
         }
@@ -630,7 +644,38 @@ export function createBrowserPiWorkerRuntimeV1(input: {
           run.candidateFailure = admitted.failure;
           throw new TypeError(`Invalid Agent completion candidate: ${admitted.failure}`);
         }
-        run.candidate = admitted.candidate;
+        const artifact = await serializeBrowserProgramCandidateArtifactV1({
+          binding: {
+            sessionId: run.sessionId,
+            runId: run.runId,
+            processId: run.processId,
+            programId: run.programId,
+            workspaceId: run.workspaceId,
+            workspaceSessionId: run.workspaceSessionId,
+          },
+          candidate: admitted.candidate,
+        });
+        const toolCallId = browserProgramCandidateArtifactToolCallIdV1(run.runId);
+        await run.workspaceRun.executeWriteCall({
+          toolCallId,
+          invoke: async (signal) => {
+            const written = await run.workspaceRun.env.writeFile(
+              browserProgramCandidateArtifactPathV1,
+              artifact.bytes,
+              signal,
+            );
+            if (!written.ok) throw written.error;
+          },
+        });
+        if (activeRun !== run || run.terminal || run.requestedFailure !== null) {
+          throw new Error("Agent run was cancelled");
+        }
+        run.candidate = createBrowserProgramCandidateArtifactHandleV1({
+          runId: run.runId,
+          workspaceGeneration: run.workspaceRun.getGenerationCursor(),
+          byteLength: artifact.bytes.byteLength,
+          sha256: artifact.sha256,
+        });
       },
       onTextDelta(delta: string): void {
         if (invocation.textOutput.kind === "discard") return;

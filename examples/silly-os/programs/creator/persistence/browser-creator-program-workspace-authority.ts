@@ -501,6 +501,7 @@ export function createBrowserCreatorProgramWorkspaceAuthorityV1(
   return {
     initialize: () => hostAuthority.initialize(),
     createProcessWorkspace: (input) => hostAuthority.createProcessWorkspace(input),
+    captureProcessWorkspaceHead: (input) => hostAuthority.captureProcessWorkspaceHead(input),
     probeProcessWorkspace: (processId) => hostAuthority.probeProcessWorkspace(processId),
     importProcessWorkspaceFile: (input) => hostAuthority.importProcessWorkspaceFile(input),
     readProcessWorkspaceFile: (input) => hostAuthority.readProcessWorkspaceFile(input),

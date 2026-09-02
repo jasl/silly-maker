@@ -339,6 +339,7 @@ export function createBrowserPiWorkerConnectorV1({
     ? null
     : credentialVaultBindingForSelectionV2(selection);
   let activeState: ConnectionStateV1 | null = null;
+  const retiredWorkspaces = new Map<string, BrowserPiWorkspaceSnapshotWireV1>();
   let credentialRevoked = false;
   let workspaceEnvironmentDetachSettlement = Promise.resolve();
   const workspaceReceiptListeners = new Set<
@@ -364,9 +365,9 @@ export function createBrowserPiWorkerConnectorV1({
     state.closed = true;
     state.activeWorkspaceProcessId = null;
     state.resolveClosed();
-    const workspaceSessionId = state.activeWorkspace?.phase === "open"
-      ? state.activeWorkspace.workspaceSessionId
-      : null;
+    const workspace = state.activeWorkspace?.phase === "open" ? state.activeWorkspace : null;
+    const workspaceSessionId = workspace?.workspaceSessionId ?? null;
+    if (workspace !== null) retiredWorkspaces.set(workspace.workspaceSessionId, workspace);
     if (state.cancelSetupTimer !== null) {
       state.cancelSetupTimer();
       state.cancelSetupTimer = null;
@@ -1162,16 +1163,36 @@ export function createBrowserPiWorkerConnectorV1({
         piSnapshot = await workspaceRequestV1({ method: "close_workspace", workspaceSessionId });
       } catch (error) {
         const state = activeState;
-        if (state !== null) closeState(state, "workspace_close_failed");
+        const stateWorkspace = state?.activeWorkspace;
+        const closeCandidate = stateWorkspace?.workspaceSessionId === workspaceSessionId
+          ? stateWorkspace
+          : retiredWorkspaces.get(workspaceSessionId) ?? null;
+        if (state !== null && stateWorkspace?.workspaceSessionId === workspaceSessionId) {
+          closeState(state, "workspace_close_failed");
+        }
         await workspaceEnvironmentDetachSettlement;
-        await workspaceAuthority.closeWorkspace(workspaceSessionId).catch(() => undefined);
-        throw error;
+        let hostSnapshot: BrowserWorkspaceHostSnapshotWireV1;
+        try {
+          hostSnapshot = await workspaceAuthority.closeWorkspace(workspaceSessionId);
+        } catch {
+          throw error;
+        }
+        const closedCandidate = closeCandidate === null
+          ? null
+          : Object.freeze({ ...closeCandidate, phase: "closed" as const });
+        if (
+          closedCandidate === null ||
+          !hostDescriptorMatchesPiSnapshotV1(hostSnapshot, closedCandidate)
+        ) throw transportErrorV1("workspace_close_mismatch");
+        retiredWorkspaces.delete(workspaceSessionId);
+        return closedCandidate;
       }
       await detachWorkspaceEnvironment(workspaceSessionId);
       const hostSnapshot = await workspaceAuthority.closeWorkspace(workspaceSessionId);
       if (!hostDescriptorMatchesPiSnapshotV1(hostSnapshot, piSnapshot)) {
         throw transportErrorV1("workspace_close_mismatch");
       }
+      retiredWorkspaces.delete(workspaceSessionId);
       const state = activeState;
       if (state !== null && !state.closed) state.activeWorkspaceProcessId = null;
       return piSnapshot;

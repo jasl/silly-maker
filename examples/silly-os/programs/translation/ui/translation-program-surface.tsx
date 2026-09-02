@@ -5,25 +5,32 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
-  useMemo,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
 } from "react";
 
 import { defaultProcessExecutionLeaseRenewalIntervalMillisecondsV1 } from "../../../src/program-platform/process/process-execution-repository.ts";
-import type { ProgramRuntimeSurfacePropsV1 } from "../../../src/program-platform/ui/program-runtime-surface.ts";
+import {
+  type ProgramRuntimeSurfacePropsV1,
+  shouldRetryProgramWorkspaceCleanupV1,
+} from "../../../src/program-platform/ui/program-runtime-surface.ts";
 import type { ProgramRunProjectionV1 } from "../../../src/program-platform/ui/program-ui-container.tsx";
 import { useProcessExecutionMonitorV1 } from "../../../src/program-platform/ui/use-process-execution-monitor.ts";
 import { CollectionStateV1 } from "../../../src/ui/collection-state.tsx";
 import { recoverLostAgentRunExecutionV1 } from "../../../src/ui/agent-run-lease-monitor.ts";
 import { ButtonV1 } from "../../../src/ui/design-system/button.tsx";
-import { createTranslationProgramAgentPortV1 } from "../runtime-profile/browser-translation-agent-port.ts";
+import {
+  createTranslationProgramAgentPortV1,
+  type TranslationAgentPortV1,
+} from "../runtime-profile/browser-translation-agent-port.ts";
 import { createTranslationBatchBudgetForModelV1 } from "../runtime-profile/translation-runtime-profile.ts";
 import { translationProgramRuntimeProfileV1 } from "../runtime-profile/translation-runtime-profile-descriptor.ts";
 import type { TranslationAgentRunRequestV1 } from "../runtime/translation-agent-contracts.ts";
 import type { TranslationProcessExportArtifactV1 } from "../runtime/translation-process-export.ts";
 import type { TranslationProcessControllerV1 } from "../runtime/translation-process-controller.ts";
+import { acknowledgeTranslationAgentTerminalV1 } from "./agent-terminal-acknowledgement.ts";
 import {
   TranslationProcessWorkspaceV1,
   type TranslationWorkspaceSessionViewStateV1,
@@ -56,6 +63,20 @@ type TranslationRunPreparationV1 = (
   budget: TranslationBatchBudgetV1,
 ) => ReturnType<TranslationProcessControllerV1["prepareAgentBatch"]>;
 
+interface TranslationWorkspaceCleanupV1 {
+  readonly workspaceSessionId: string;
+  readonly retryRevision: number;
+}
+
+interface OwnedTranslationRunV1 {
+  readonly port: TranslationAgentPortV1;
+  readonly run: TranslationAgentRunRequestV1;
+}
+
+interface TranslationAgentSubmissionFenceV1 {
+  readonly port: TranslationAgentPortV1;
+}
+
 function retainedTranslationWorkspaceViewStateV1(
   value: unknown,
 ): TranslationWorkspaceSessionViewStateV1 | undefined {
@@ -72,21 +93,23 @@ function retainedTranslationWorkspaceViewStateV1(
     (typeof candidateDraftValue !== "object" ||
       !("candidateId" in candidateDraftValue) ||
       typeof candidateDraftValue.candidateId !== "string" ||
-      !("targets" in candidateDraftValue) ||
-      !Array.isArray(candidateDraftValue.targets) ||
-      candidateDraftValue.targets.some((target) =>
-        typeof target !== "object" || target === null ||
-        !("unitId" in target) || typeof target.unitId !== "string" ||
-        !("target" in target) || typeof target.target !== "string"
-      ))
+      !("overrides" in candidateDraftValue) ||
+      !Array.isArray(candidateDraftValue.overrides) ||
+      candidateDraftValue.overrides.some((override) =>
+        typeof override !== "object" || override === null ||
+        !("unitId" in override) || typeof override.unitId !== "string" ||
+        !("target" in override) || typeof override.target !== "string"
+      ) ||
+      new Set(candidateDraftValue.overrides.map((override) => override.unitId)).size !==
+        candidateDraftValue.overrides.length)
   ) return undefined;
   const admittedCandidateDraft = candidateDraftValue as {
     readonly candidateId: string;
-    readonly targets: readonly { readonly unitId: string; readonly target: string }[];
+    readonly overrides: readonly { readonly unitId: string; readonly target: string }[];
   } | null;
   const candidateDraft = admittedCandidateDraft === null ? null : {
     candidateId: admittedCandidateDraft.candidateId,
-    targets: admittedCandidateDraft.targets.map(({ unitId, target }) => ({ unitId, target })),
+    overrides: admittedCandidateDraft.overrides.map(({ unitId, target }) => ({ unitId, target })),
   };
   return {
     mode: value.mode,
@@ -107,70 +130,324 @@ export function TranslationProgramSurfaceV1({
     controller.getSnapshot,
     controller.getSnapshot,
   );
-  const port = useMemo(
-    () => host.agentHost === null ? null : createTranslationProgramAgentPortV1(host.agentHost),
-    [host.agentHost],
-  );
+  const [port, setPort] = useState<TranslationAgentPortV1 | null>(null);
   const agentSnapshot = useSyncExternalStore(
     port?.subscribe ?? (() => () => undefined),
     port?.getSnapshot ?? (() => null),
     port?.getSnapshot ?? (() => null),
   );
-  const [ownedRuns] = useState(() => new Map<string, TranslationAgentRunRequestV1>());
+  const latestAgentSnapshotRef = useRef(agentSnapshot);
+  useLayoutEffect(() => {
+    latestAgentSnapshotRef.current = agentSnapshot;
+  }, [agentSnapshot]);
+  const terminalAgentRunId = agentSnapshot?.terminalRuns[0]?.run.agentRunId ?? null;
+  const [ownedRuns] = useState(() => new Map<string, OwnedTranslationRunV1>());
+  const [agentSubmissionFences] = useState(
+    () => new Set<TranslationAgentSubmissionFenceV1>(),
+  );
   const [leaseLostRuns] = useState(() => new Set<string>());
+  const [terminalSettlingRuns] = useState(() => new Set<string>());
+  const [terminalRetryRevision, setTerminalRetryRevision] = useState(0);
+  const [workspaceCleanup, setWorkspaceCleanup] = useState<TranslationWorkspaceCleanupV1 | null>(
+    null,
+  );
+  const workspaceCleanupSessionIdRef = useRef<string | null>(null);
   const terminalSettlementRef = useRef<Promise<void>>(Promise.resolve());
+  const workspaceCloseTailRef = useRef<Promise<void>>(Promise.resolve());
   const registerAgentDrain = host.registerAgentDrain;
-
-  useEffect(() => {
-    if (port === null) return undefined;
-    return registerAgentDrain(async () => {
-      await terminalSettlementRef.current.catch(() => undefined);
-      await port.dispose();
+  const registerProgramDrain = host.registerProgramDrain;
+  const reportFailure = host.reportFailure;
+  const requestWorkspaceCleanupV1 = useCallback((workspaceSessionId: string): void => {
+    workspaceCleanupSessionIdRef.current = workspaceSessionId;
+    setWorkspaceCleanup((current) =>
+      current?.workspaceSessionId === workspaceSessionId
+        ? { ...current, retryRevision: current.retryRevision + 1 }
+        : { workspaceSessionId, retryRevision: 0 }
+    );
+  }, []);
+  const clearWorkspaceCleanupV1 = useCallback((workspaceSessionId: string): void => {
+    if (workspaceCleanupSessionIdRef.current === workspaceSessionId) {
+      workspaceCleanupSessionIdRef.current = null;
+    }
+    setWorkspaceCleanup((current) =>
+      current?.workspaceSessionId === workspaceSessionId ? null : current
+    );
+  }, []);
+  const runWorkspaceCloseExclusiveV1 = useCallback(async <T,>(
+    operation: () => Promise<T>,
+  ): Promise<T> => {
+    const predecessor = workspaceCloseTailRef.current;
+    let release!: () => void;
+    workspaceCloseTailRef.current = new Promise<void>((resolve) => {
+      release = resolve;
     });
-  }, [port, registerAgentDrain]);
+    await predecessor;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    if (host.agentHost === null) {
+      setPort(null);
+      return undefined;
+    }
+    const exactPort = createTranslationProgramAgentPortV1(host.agentHost);
+    let quiesceSettlement: Promise<void> | null = null;
+    let retireSettlement: Promise<void> | null = null;
+    const quiesceV1 = (): Promise<void> => {
+      if (quiesceSettlement !== null) return quiesceSettlement;
+      const settlement = (async (): Promise<void> => {
+        await terminalSettlementRef.current;
+        const assertSettledV1 = (): void => {
+          if ([...agentSubmissionFences].some((fence) => fence.port === exactPort)) {
+            throw new Error("Translation Agent preparation is still pending");
+          }
+          const exactSnapshot = exactPort.getSnapshot();
+          const ownedRunIds = new Set(
+            [...ownedRuns]
+              .filter(([, owned]) => owned.port === exactPort)
+              .map(([agentRunId]) => agentRunId),
+          );
+          if (
+            (exactSnapshot.activeRunId !== null && ownedRunIds.has(exactSnapshot.activeRunId)) ||
+            exactSnapshot.terminalRuns.some(({ run }) => ownedRunIds.has(run.agentRunId)) ||
+            ownedRunIds.size > 0
+          ) {
+            throw new Error("Translation Agent terminal is still pending");
+          }
+        };
+        assertSettledV1();
+        await runWorkspaceCloseExclusiveV1(async () => {
+          const workspace = exactPort.getSnapshot().workspace;
+          if (
+            workspace.descriptor === null ||
+            ["closed", "disposed", "forgotten"].includes(workspace.phase)
+          ) return;
+          const closed = await exactPort.closeWorkspace(
+            workspace.descriptor.workspaceSessionId,
+          );
+          if (closed.kind === "unavailable") {
+            reportFailure(
+              "silly_os.translation_agent_workspace_close_failed",
+              closed.diagnostic,
+            );
+            throw new Error("Translation Agent Workspace close failed", {
+              cause: closed.diagnostic,
+            });
+          }
+          // closeWorkspace must not manufacture an unpersisted terminal. A
+          // future automatic-cancel policy needs an explicit
+          // cancel -> persist/ack -> close contract instead.
+          assertSettledV1();
+        });
+      })();
+      quiesceSettlement = settlement;
+      void settlement.finally(() => {
+        if (quiesceSettlement === settlement) quiesceSettlement = null;
+      }).catch(() => undefined);
+      return settlement;
+    };
+    const retireV1 = (): Promise<void> => {
+      if (retireSettlement !== null) return retireSettlement;
+      const settlement = exactPort.dispose();
+      retireSettlement = settlement;
+      void settlement.catch(() => {
+        if (retireSettlement === settlement) retireSettlement = null;
+      });
+      return settlement;
+    };
+    const unregisterAgentDrain = registerAgentDrain(retireV1);
+    const unregisterProgramDrain = registerProgramDrain({
+      quiesce: quiesceV1,
+      retire: retireV1,
+    });
+    setPort(exactPort);
+    return () => {
+      for (const fence of agentSubmissionFences) {
+        if (fence.port === exactPort) agentSubmissionFences.delete(fence);
+      }
+      for (const [agentRunId, owned] of ownedRuns) {
+        if (owned.port !== exactPort) continue;
+        ownedRuns.delete(agentRunId);
+        leaseLostRuns.delete(agentRunId);
+        terminalSettlingRuns.delete(agentRunId);
+      }
+      setPort((current) => current === exactPort ? null : current);
+      unregisterProgramDrain();
+      unregisterAgentDrain();
+    };
+  }, [
+    agentSubmissionFences,
+    host.agentHost,
+    leaseLostRuns,
+    ownedRuns,
+    registerAgentDrain,
+    registerProgramDrain,
+    reportFailure,
+    runWorkspaceCloseExclusiveV1,
+    terminalSettlingRuns,
+  ]);
 
   useEffect(() => {
-    if (port === null || agentSnapshot === null) return;
-    const terminal = agentSnapshot.terminalRuns[0];
-    if (terminal === undefined || !ownedRuns.has(terminal.run.agentRunId)) return;
-    const leaseWasLost = leaseLostRuns.delete(terminal.run.agentRunId);
-    ownedRuns.delete(terminal.run.agentRunId);
+    if (port === null || workspaceCleanup === null) return undefined;
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const retryV1 = () => {
+      if (cancelled || retryTimer !== null) return;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        setWorkspaceCleanup((current) =>
+          current?.workspaceSessionId === workspaceCleanup.workspaceSessionId
+            ? { ...current, retryRevision: current.retryRevision + 1 }
+            : current
+        );
+      }, defaultProcessExecutionLeaseRenewalIntervalMillisecondsV1);
+    };
+    void runWorkspaceCloseExclusiveV1(async () => {
+      const workspace = port.getSnapshot().workspace;
+      if (
+        workspace.descriptor === null ||
+        ["closed", "disposed", "forgotten"].includes(workspace.phase) ||
+        workspace.descriptor.workspaceSessionId !== workspaceCleanup.workspaceSessionId
+      ) {
+        clearWorkspaceCleanupV1(workspaceCleanup.workspaceSessionId);
+        return "released" as const;
+      }
+      const closed = await port.closeWorkspace(workspaceCleanup.workspaceSessionId);
+      if (closed.kind === "unavailable") {
+        reportFailure(
+          "silly_os.translation_agent_workspace_close_failed",
+          closed.diagnostic,
+        );
+        return shouldRetryProgramWorkspaceCleanupV1(closed.diagnostic)
+          ? "retry" as const
+          : "blocked" as const;
+      }
+      clearWorkspaceCleanupV1(workspaceCleanup.workspaceSessionId);
+      return "released" as const;
+    }).then((result) => {
+      if (cancelled) return;
+      if (result === "retry") {
+        retryV1();
+        return;
+      }
+    }).catch((error: unknown) => {
+      if (cancelled) return;
+      reportFailure("silly_os.translation_agent_workspace_close_failed", error);
+    });
+    return () => {
+      cancelled = true;
+      if (retryTimer !== null) clearTimeout(retryTimer);
+    };
+  }, [
+    clearWorkspaceCleanupV1,
+    port,
+    reportFailure,
+    runWorkspaceCloseExclusiveV1,
+    workspaceCleanup,
+  ]);
+
+  useEffect(() => {
+    if (port === null || terminalAgentRunId === null) return undefined;
+    const terminal = latestAgentSnapshotRef.current?.terminalRuns.find(({ run }) =>
+      run.agentRunId === terminalAgentRunId
+    );
+    if (
+      terminal === undefined || ownedRuns.get(terminal.run.agentRunId)?.port !== port ||
+      terminalSettlingRuns.has(terminal.run.agentRunId)
+    ) return undefined;
+    terminalSettlingRuns.add(terminal.run.agentRunId);
+    let current = true;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRetryV1 = () => {
+      if (!current || retryTimer !== null) return;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        if (!current) return;
+        setTerminalRetryRevision((revision) => revision + 1);
+      }, defaultProcessExecutionLeaseRenewalIntervalMillisecondsV1);
+    };
+    const leaseWasLost = leaseLostRuns.has(terminal.run.agentRunId);
     const settlement = terminalSettlementRef.current.then(async () => {
       try {
         if (leaseWasLost) {
           const acknowledged = await port.acknowledgeTerminal(terminal.run.agentRunId);
           if (acknowledged.kind === "workspace_unavailable") {
-            host.reportFailure(
+            reportFailure(
               "silly_os.translation_agent_workspace_receipt_acknowledge_failed",
               acknowledged.diagnostic,
             );
+            scheduleRetryV1();
+            return;
+          }
+          leaseLostRuns.delete(terminal.run.agentRunId);
+          if (ownedRuns.get(terminal.run.agentRunId)?.port === port) {
+            ownedRuns.delete(terminal.run.agentRunId);
           }
           return;
         }
         const persisted = await controller.recordAgentRunTerminal(terminal);
-        if (persisted.kind !== "completed") {
-          host.reportFailure("silly_os.translation_agent_terminal_rejected", persisted);
+        const acknowledged = await acknowledgeTranslationAgentTerminalV1({
+          persistence: persisted,
+          agentRunId: terminal.run.agentRunId,
+          recover: async () => {
+            const recovered = await controller.refreshActiveProcess();
+            if (recovered.kind === "failed") {
+              throw new Error("Translation Process terminal recovery failed", {
+                cause: recovered,
+              });
+            }
+          },
+          acknowledgeTerminal: (agentRunId) => port.acknowledgeTerminal(agentRunId),
+        });
+        if (acknowledged.kind === "retained") {
+          reportFailure("silly_os.translation_agent_terminal_rejected", persisted);
+          scheduleRetryV1();
           return;
         }
-        const acknowledged = await port.acknowledgeTerminal(terminal.run.agentRunId);
         if (acknowledged.kind === "workspace_unavailable") {
-          host.reportFailure(
+          reportFailure(
             "silly_os.translation_agent_workspace_receipt_acknowledge_failed",
             acknowledged.diagnostic,
           );
+          scheduleRetryV1();
           return;
+        }
+        leaseLostRuns.delete(terminal.run.agentRunId);
+        if (ownedRuns.get(terminal.run.agentRunId)?.port === port) {
+          ownedRuns.delete(terminal.run.agentRunId);
         }
         const workspace = port.getSnapshot().workspace;
         if (workspace.descriptor !== null) {
-          await port.closeWorkspace(workspace.descriptor.workspaceSessionId);
+          requestWorkspaceCleanupV1(workspace.descriptor.workspaceSessionId);
         }
       } catch (error) {
-        host.reportFailure("silly_os.translation_agent_terminal_rejected", error);
+        reportFailure("silly_os.translation_agent_terminal_rejected", error);
+        scheduleRetryV1();
+      } finally {
+        terminalSettlingRuns.delete(terminal.run.agentRunId);
       }
     });
     terminalSettlementRef.current = settlement;
     void settlement;
-  }, [agentSnapshot, controller, host, leaseLostRuns, ownedRuns, port]);
+    return () => {
+      current = false;
+      if (retryTimer !== null) clearTimeout(retryTimer);
+    };
+  }, [
+    controller,
+    leaseLostRuns,
+    ownedRuns,
+    port,
+    reportFailure,
+    requestWorkspaceCleanupV1,
+    terminalAgentRunId,
+    terminalSettlingRuns,
+    terminalRetryRevision,
+  ]);
 
   const recoverLostOwnedRunV1 = useCallback(async (
     run: TranslationAgentRunRequestV1,
@@ -215,7 +492,8 @@ export function TranslationProgramSurfaceV1({
 
   const activeProcessId = snapshot.activeProcess?.process.processId ?? null;
   const activeAttemptId = snapshot.activeProcess?.process.activeAttempt?.attemptId ?? null;
-  const ownedRun = activeAttemptId === null ? null : ownedRuns.get(activeAttemptId) ?? null;
+  const owned = activeAttemptId === null ? null : ownedRuns.get(activeAttemptId) ?? null;
+  const ownedRun = owned?.port === port ? owned.run : null;
   useProcessExecutionMonitorV1({
     processId: activeProcessId,
     activeAttemptId,
@@ -248,7 +526,7 @@ export function TranslationProgramSurfaceV1({
   });
 
   const openLibraryV1 = async (): Promise<void> => {
-    if (controller.openHome()) await host.onOpenProgramLibrary();
+    await host.onOpenProgramLibrary();
   };
 
   const submitPreparedTranslationRunV1 = async (
@@ -256,59 +534,96 @@ export function TranslationProgramSurfaceV1({
     prepareFailureCode: string,
   ): Promise<boolean> => {
     if (port === null || agentSnapshot?.phase !== "ready") return false;
-    await terminalSettlementRef.current;
-    const active = controller.getSnapshot().activeProcess;
-    if (active === null) return false;
-    const opened = await port.openWorkspace({
-      processId: active.process.processId,
-      programId: active.programPackage.reference.programId,
-      workspaceId: active.workspace.workspaceId,
-    });
-    if (opened.kind !== "opened") {
-      host.reportFailure("silly_os.browser_pi_workspace_open_failed", opened.diagnostic);
-      return false;
-    }
-    const model = host.activeModel;
-    const instructions = active.programPackage.instructions;
-    const budget = model === null || instructions === null
-      ? null
-      : createTranslationBatchBudgetForModelV1({
-        contextWindow: model.contextWindow,
-        maximumOutputTokens: model.maximumOutputTokens,
-        instructions,
+    const exactPort = port;
+    const fence: TranslationAgentSubmissionFenceV1 = { port: exactPort };
+    let workspaceSessionId: string | null = null;
+    let run: TranslationAgentRunRequestV1 | null = null;
+    let submitted = false;
+    let terminalAttempted = false;
+    agentSubmissionFences.add(fence);
+    try {
+      await terminalSettlementRef.current;
+      const cleanupPending = await runWorkspaceCloseExclusiveV1(async () =>
+        workspaceCleanupSessionIdRef.current !== null
+      );
+      if (cleanupPending || exactPort.getSnapshot().phase !== "ready") return false;
+      const active = controller.getSnapshot().activeProcess;
+      if (active === null) return false;
+      const opened = await exactPort.openWorkspace({
+        processId: active.process.processId,
+        programId: active.programPackage.reference.programId,
+        workspaceId: active.workspace.workspaceId,
       });
-    if (budget === null) {
-      await port.closeWorkspace(opened.descriptor.workspaceSessionId);
-      host.reportFailure("silly_os.translation_agent_budget_unavailable", {
-        programPackage: active.programPackage.reference,
-        model,
+      if (opened.kind !== "opened") {
+        host.reportFailure("silly_os.browser_pi_workspace_open_failed", opened.diagnostic);
+        return false;
+      }
+      workspaceSessionId = opened.descriptor.workspaceSessionId;
+      const model = host.activeModel;
+      const instructions = active.programPackage.instructions;
+      const budget = model === null || instructions === null
+        ? null
+        : createTranslationBatchBudgetForModelV1({
+          contextWindow: model.contextWindow,
+          maximumOutputTokens: model.maximumOutputTokens,
+          instructions,
+        });
+      if (budget === null) {
+        host.reportFailure("silly_os.translation_agent_budget_unavailable", {
+          programPackage: active.programPackage.reference,
+          model,
+        });
+        return false;
+      }
+      const prepared = await prepare(budget);
+      if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+        host.reportFailure(prepareFailureCode, prepared);
+        return false;
+      }
+      run = prepared.value.run;
+      ownedRuns.set(run.agentRunId, { port: exactPort, run });
+      const submission = await exactPort.submit(run);
+      if (submission.kind === "submitted") {
+        submitted = true;
+        return true;
+      }
+      if (ownedRuns.get(run.agentRunId)?.port === exactPort) ownedRuns.delete(run.agentRunId);
+      terminalAttempted = true;
+      await controller.recordAgentRunTerminal({
+        run,
+        outcome: "failed",
+        diagnosticCode: submission.diagnostic.code === "connection_failed"
+          ? "connection_failed"
+          : submission.diagnostic.code === "protocol_invalid" ||
+              submission.diagnostic.code === "submit_invalid"
+          ? "protocol_invalid"
+          : "run_failed",
       });
+      host.reportFailure("silly_os.translation_agent_submit_failed", submission.diagnostic);
       return false;
-    }
-    const prepared = await prepare(budget);
-    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
-      await port.closeWorkspace(opened.descriptor.workspaceSessionId);
-      host.reportFailure(prepareFailureCode, prepared);
+    } catch (error) {
+      if (run !== null && ownedRuns.get(run.agentRunId)?.port === exactPort) {
+        ownedRuns.delete(run.agentRunId);
+      }
+      if (run !== null && !terminalAttempted) {
+        try {
+          await controller.recordAgentRunTerminal({
+            run,
+            outcome: "failed",
+            diagnosticCode: "run_failed",
+          });
+        } catch (terminalError) {
+          host.reportFailure("silly_os.translation_agent_terminal_rejected", terminalError);
+        }
+      }
+      host.reportFailure("silly_os.translation_agent_submit_failed", error);
       return false;
+    } finally {
+      if (!submitted && workspaceSessionId !== null) {
+        requestWorkspaceCleanupV1(workspaceSessionId);
+      }
+      agentSubmissionFences.delete(fence);
     }
-    const run = prepared.value.run;
-    ownedRuns.set(run.agentRunId, run);
-    const submitted = await port.submit(run);
-    if (submitted.kind === "submitted") return true;
-    ownedRuns.delete(run.agentRunId);
-    await controller.recordAgentRunTerminal({
-      run,
-      outcome: "failed",
-      diagnosticCode: submitted.diagnostic.code === "connection_failed"
-        ? "connection_failed"
-        : submitted.diagnostic.code === "protocol_invalid" ||
-            submitted.diagnostic.code === "submit_invalid"
-        ? "protocol_invalid"
-        : "run_failed",
-    });
-    await port.closeWorkspace(opened.descriptor.workspaceSessionId);
-    host.reportFailure("silly_os.translation_agent_submit_failed", submitted.diagnostic);
-    return false;
   };
 
   const submitTranslationV1 = (instruction: string): Promise<boolean> =>
@@ -364,6 +679,7 @@ export function TranslationProgramSurfaceV1({
           onOpenSettings={() => host.onOpenSettings("workspace")}
           sourceImport={snapshot.sourceImport}
           agentRun={run}
+          {...(host.deterministicAgent ? {} : { providerModel: host.providerModel("workspace") })}
           {...(agentSnapshot === null ? {} : {
             piAgentRun: {
               runtime: host.deterministicAgent
@@ -404,7 +720,7 @@ export function TranslationProgramSurfaceV1({
           onUpdateSettingsOverride={controller.updateSettingsOverride}
           {...(initialViewState === undefined ? {} : { initialViewState })}
           onViewStateChange={(next) => host.sessionState.write(viewStateSessionKey, next)}
-          {...(port !== null && agentSnapshot?.phase === "ready"
+          {...(port !== null && agentSnapshot?.phase === "ready" && workspaceCleanup === null
             ? {
               onSubmitInstruction: submitTranslationV1,
               onRetranslateCandidate: submitCandidateRetranslationV1,

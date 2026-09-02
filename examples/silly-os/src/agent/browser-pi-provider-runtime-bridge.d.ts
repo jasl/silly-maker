@@ -42,6 +42,7 @@ export function browserPiAgentProviderTimeoutMillisecondsV1(
 export function browserPiAgentMaximumOutputTokensV1(
   invocation: BrowserProgramRuntimeInvocationV1,
   modelMaximumTokens: number,
+  reasoningEffort?: BrowserPiReasoningEffortV1,
 ): number;
 
 export function createBrowserPiProviderAgentV1(

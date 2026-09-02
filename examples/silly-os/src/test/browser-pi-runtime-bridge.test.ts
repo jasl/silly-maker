@@ -6,6 +6,7 @@ import {
   createDeterministicPiAgentV1,
   createPiAgentV1,
 } from "../agent/browser-pi-runtime-bridge.js";
+import { Type, type AgentTool } from "../agent/pi-workspace-runtime-bridge.js";
 import {
   creatorProgramRuntimeProfileImplementationV1,
   creatorProgramRuntimeProfileV1,
@@ -27,6 +28,54 @@ const translationProgramPackageV1 = {
   packageVersion: "1.0.0",
   contentDigest: "d".repeat(64),
 } as const;
+
+function createTranslationWorkspaceToolsV1(): readonly AgentTool[] {
+  const files = new Map<string, string>();
+  const inertTool = (name: string): AgentTool => ({
+    name,
+    label: name,
+    description: `${name} test tool`,
+    parameters: Type.Object({}),
+    async execute() {
+      return { content: [{ type: "text", text: "" }], details: undefined };
+    },
+  });
+  return [
+    inertTool("sillyos_read_program_resource"),
+    {
+      name: "read",
+      label: "read",
+      description: "read test file",
+      parameters: Type.Object({ path: Type.String() }),
+      async execute(_toolCallId, params) {
+        const path = (params as { readonly path: string }).path;
+        return {
+          content: [{ type: "text", text: files.get(path) ?? "" }],
+          details: undefined,
+        };
+      },
+    },
+    {
+      name: "write",
+      label: "write",
+      description: "write test file",
+      parameters: Type.Object({ path: Type.String(), content: Type.String() }),
+      async execute(_toolCallId, params) {
+        const { path, content } = params as {
+          readonly path: string;
+          readonly content: string;
+        };
+        files.set(path, content);
+        return {
+          content: [{ type: "text", text: `Wrote ${path}` }],
+          details: undefined,
+        };
+      },
+    },
+    inertTool("edit"),
+    inertTool("grep"),
+  ];
+}
 
 describe("SillyOS Browser Pi runtime bridge", () => {
   it("passes the effective reasoning effort through Pi Agent to the Provider request", async () => {
@@ -71,6 +120,27 @@ describe("SillyOS Browser Pi runtime bridge", () => {
 
     await expect(agent.prompt("Run once.")).resolves.toEqual({ stopReason: "stop" });
     expect(observedReasoning).toBe("high");
+
+    agent.dispose();
+  });
+
+  it("preserves a Provider output-length stop reason", async () => {
+    const faux = fauxProvider({
+      models: [{ id: "length-limited-model" }],
+      tokensPerSecond: 0,
+    });
+    faux.setResponses([fauxAssistantMessage("Partial output", { stopReason: "length" })]);
+    const agent = createPiAgentV1({
+      instructions: "Return a bounded answer.",
+      workspaceTools: [],
+      completionTool: null,
+      onTextDelta: () => {},
+      reasoningEffort: "off",
+      streamFn: faux.provider.streamSimple,
+      model: faux.getModel(),
+    });
+
+    await expect(agent.prompt("Run once.")).resolves.toEqual({ stopReason: "length" });
 
     agent.dispose();
   });
@@ -196,7 +266,7 @@ describe("SillyOS Browser Pi runtime bridge", () => {
       runtimeProfile: translationProgramRuntimeProfileImplementationV1,
       invocation: admission.invocation,
       harnessToolIds: translationProgramRuntimeProfileImplementationV1.harnessToolIds,
-      workspaceTools: [],
+      workspaceTools: createTranslationWorkspaceToolsV1(),
       onCandidate: (candidate: unknown) => {
         candidates.push(candidate);
       },

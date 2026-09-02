@@ -342,7 +342,6 @@ export function createAgentSessionClientV1(input: {
     async submit(callInput): Promise<AgentSessionSubmitResultV1> {
       const admittedInput = admitAgentSessionSubmitInputInternalV1(callInput);
       if (admittedInput.kind === "rejected") {
-        report(admittedInput.diagnostic);
         return unavailableInternalV1(admittedInput.diagnostic);
       }
       pendingSubmitOperations += 1;
@@ -378,7 +377,6 @@ export function createAgentSessionClientV1(input: {
     async cancel(callInput): Promise<AgentSessionCancelResultV1> {
       const admittedInput = admitAgentSessionCancelInputInternalV1(callInput);
       if (admittedInput.kind === "rejected") {
-        report(admittedInput.diagnostic);
         return unavailableInternalV1(admittedInput.diagnostic);
       }
       const result = await invoke("cancel", (active) => active.cancel(admittedInput.value));

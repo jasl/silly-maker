@@ -71,10 +71,18 @@ export function useCreatorWorkspaceExportV1({
   const epochRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const settlementRef = useRef<Promise<void>>(Promise.resolve());
+  const mountedRef = useRef(true);
 
   const processId = target?.processId ?? null;
   const programId = target?.programId ?? null;
   const workspaceId = target?.workspaceId ?? null;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     epochRef.current += 1;
@@ -92,6 +100,7 @@ export function useCreatorWorkspaceExportV1({
     epochRef.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
+    if (mountedRef.current) setState({ phase: "idle" });
     await settlementRef.current.catch(() => undefined);
   }, []);
 

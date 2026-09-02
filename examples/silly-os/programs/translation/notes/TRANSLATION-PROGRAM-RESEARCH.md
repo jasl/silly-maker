@@ -49,16 +49,18 @@ The package is organized as:
 - `PROGRAM.md`: task, trust and Host-capability boundary;
 - `skills/translate/SKILL.md`: workflow and resource-loading order;
 - `prompts/translate.md`: the single translation-rule authority;
+- `prompts/working-memory.md`: the advisory Process-local memory convention;
 - `initial-ui.json`: package-authored initial OpenUI data;
 - `settings.defaults.json`: optional best-effort preferences;
 - `program.json`: package manifest and compatibility declaration.
 
 The package declares `scripts: []`. Its runtime profile exposes the immutable
-Program-resource reader and typed Translation completion tool, but no mutable
-Workspace tool, `bash` or `qjs`. The static Harness may support those execution
+Program-resource reader, typed Translation completion tool, and bounded
+Workspace `read`, `write`, `edit`, and `grep` tools for advisory working memory.
+It exposes no `bash` or `qjs`. The static Harness may support those execution
 environments for other Programs; Translation will select CodeAct only after a
-real workflow needs a reusable transformation that the shipped operations cannot
-express.
+real workflow needs a reusable transformation that the shipped operations
+cannot express.
 
 Package resources are read from the exact package pinned by the Process. They
 are not copied into the mutable Process Workspace, and a newer installed package
@@ -102,13 +104,66 @@ every model request. The planner supplies only:
 Unit order is global across the Process. The planner pages from the next
 unaccepted row and creates the largest request that fits the admitted model
 context and a conservative candidate-output estimate. There is no arbitrary
-semantic item-count ceiling and no model-specific hidden-reasoning reserve.
-Provider reasoning may consume the same output cap; a turn that fails to return
-one complete typed candidate fails visibly instead of publishing partial data.
+semantic item-count ceiling and no model-specific hidden-reasoning reserve. The
+candidate estimate remains the planner's requested candidate size, not a
+Provider guarantee. A candidate route keeps reasoning when its Provider API can
+enforce a numeric thinking budget and caps that budget after the requested
+candidate estimate. An effort-only route executes at `off` when the model
+supports it. A mandatory-thinking model instead uses Pi's lowest supported
+effort and the full admitted model output ceiling; its remaining candidate room
+is explicitly best-effort. This is a generic Provider constraint, not a
+Translation- or model-specific reserve. A turn that fails to return one
+complete typed candidate fails visibly instead of publishing partial data.
 
 Changing model or reasoning effort and retrying are explicit user decisions.
 SillyOS does not promise one-shot completion or automatically grow token budgets
 until a model succeeds.
+
+### Workflow orchestration experiment
+
+A research run separated two questions that must not be conflated:
+
+- whether an experiment-prepared context snapshot reduces semantic Review work; and
+- whether identical frozen batch requests can execute concurrently and still
+  join through one ordered admission owner.
+
+The serial/parallel pair used byte-identical dynamic prompts. Workers returned
+only raw candidates; a single coordinator restored source order, admitted each
+complete candidate and ran mechanical QA. The experiment did not run
+`pi-workflow` inside the Browser product and is not end-to-end Program evidence.
+Bounded fan-out materially reduced elapsed time for one Provider, while another
+Provider omitted completion-tool calls for several batches. Failed coverage
+remained explicit and successful batches still joined in source order. A fixed
+concurrency is therefore not a portable model default: a future workflow needs
+per-batch failure records, cancellation, a user-visible retry queue and a single
+publication owner.
+
+For context quality, prepared scene facts produced mixed changes: some local
+fidelity improvements, one regression, and extra ambiguity Review items. They
+did not consistently reduce human Review work when the same facts were already
+recoverable from the current batch or adjacent source. Context selection
+remains promising for long or discontinuous material, but it needs
+representative distant-dependency cases rather than more Prompt accumulation.
+
+The first product design therefore remains Conversation-driven. The stable
+Program Prompt tells the Agent to analyze before translating and to maintain
+compact, rebuildable Process-local working memory in the existing Workspace.
+Locked glossary entries remain workset authority; character relationships,
+style, ambiguity and user corrections may be advisory memory. Missing or
+damaged memory degrades to re-analysis rather than blocking the Process.
+Deterministic parsing, batching, typed candidate admission, mechanical QA and
+explicit Review remain Host-owned. Bounded fan-out is retained only as evidence
+for a later measured workflow experiment, not as a second journal, fixed stage
+machine or current product default.
+
+A later local Chromium validation used DeepSeek through the ordinary Program
+path. One progressive-memory journey completed two accepted batches covering
+42/42 units, updating and reusing compact Process-local memory between batches.
+A separate historical one-batch journey completed 42/42 units with the then-
+selected high-reasoning route. That observation predates the current candidate
+reasoning policy and is not evidence for its present execution semantics.
+Neither journey qualifies a public origin, establishes
+repeatability, or demonstrates generally acceptable translation quality.
 
 ## Translation rules
 
@@ -168,13 +223,22 @@ the workset by exact checkpoint and digest.
 
 Process execution uses the shared renewable lease and monotonic generation
 fence. A stale or resumed page cannot publish after a successor has taken
-ownership. Candidate publication and the completed Process terminal share one
-IndexedDB transaction. Lost responses reconcile by operation identity rather
-than replaying Provider work.
+ownership. The fixed Worker stages an admitted full candidate at the single
+reserved `.sillyos-agent-candidate.v1.json` Process Workspace path and sends
+Session only a handle bound to the exact receipt, Run, Process, Workspace
+generation, byte length and SHA-256. The Host reads and re-admits those bytes
+before candidate publication and the completed Process terminal share one
+IndexedDB transaction. The mutable staging file is only an integrity-bound
+handoff—not another durable candidate or provenance authority—and later Runs
+replace it. Lost responses reconcile by operation identity rather than
+replaying Provider work. A staged candidate survives a trailing model output
+limit; exhaustion before candidate completion fails visibly.
 
-An expired attempt is retryable only when the exact source/Workspace binding is
-unchanged and no pending candidate exists. Otherwise the Process exposes an
-explicit unrecoverable state for Review. Browser suspension is not described as
+An expired attempt is retryable only when its Process evidence is unchanged,
+the Workspace Authority captures an exact durable head at or after the bound
+source generation, and any referenced candidate remains exact. That captured
+head becomes the explicit retry checkpoint. Otherwise the Process exposes an
+unrecoverable state for Review. Browser suspension is not described as
 continuous progress or guaranteed rollback.
 
 ## UI and scale
@@ -232,6 +296,26 @@ another research framework:
    Browser/Desktop/accessibility/packaging qualification;
 5. additional formats, OCR/multimodal routing, Python and CodeAct only after a
    concrete product need demonstrates the boundary.
+
+The local `pi-dynamic-workflows` reference is closer to the intended future
+CodeAct model than the heavier static `pi-workflow`: an Agent writes a small
+JavaScript program and composes semantic calls with `agent`, `parallel` and
+`pipeline`, while ordinary code owns enumeration, stable identity, ordering and
+termination. Its implementation is not reusable in SillyOS because it depends
+on Node VM/filesystem/Pi sessions and owns its own run journal, persistence and
+mutable shared store. Those would duplicate Process authority, and the current
+QuickJS mechanical-script Harness intentionally does not host pending async
+jobs.
+
+If Creator or Writing later proves the need, the next experiment should be a
+Program-local, capability-limited workflow with no persistence authority:
+stable work IDs, typed Agent calls, ordered results including explicit failures,
+bounded `parallel`/`pipeline`, cancellation and generation fencing. It should
+query existing Process receipts for recovery and return structured results to
+the Host coordinator. Translation should keep its main path fixed and use
+dynamic CodeAct only for uncertain parsing, terminology/context extraction or
+targeted repair. No generic workflow runtime is activated by the current
+experiment.
 
 Metrics should focus on final Review effort, accepted-result quality, recovery
 and token return on investment—not weak-model one-shot pass rate.

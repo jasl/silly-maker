@@ -9,6 +9,7 @@ import type {
   ActiveProgramRuntimeHandleV1,
   LoadProgramRuntimeControllerAdapterV1,
 } from "./program-runtime-controller.ts";
+import { createProgramRuntimeSurfaceDrainOwnerV1 } from "./program-runtime-controller.ts";
 import {
   createIndexedDbProgramPackageInstallationRepositoryV1,
 } from "../program-platform/installation/indexeddb-program-package-installation-repository.ts";
@@ -57,6 +58,7 @@ function createRuntimeHandleV1(
   const handle: ActiveProgramRuntimeHandleV1 = {
     programPackage: input.programPackage as ActiveProgramRuntimeHandleV1["programPackage"],
     controller: { runtimeProfile },
+    surfaceDrainOwner: createProgramRuntimeSurfaceDrainOwnerV1(),
     getSnapshot: () => ({ runtimeProfile }),
     subscribe: () => () => {},
     loadSurface: async () => ({
@@ -120,7 +122,12 @@ function programArchiveV1(input: {
       capabilityIds: input.runtimeProfile === creatorProgramRuntimeProfileV1
         ? ["creator.catalog"]
         : input.runtimeProfile === translationProgramRuntimeProfileV1
-        ? ["program.resource.read"]
+        ? [
+          "program.resource.read",
+          "workspace.read",
+          "workspace.search",
+          "workspace.write",
+        ]
         : [],
     },
     files: [{
@@ -160,7 +167,10 @@ interface OwnerFixtureV1 {
   readonly reportFailure: ReturnType<typeof vi.fn>;
 }
 
-async function ownerFixtureV1(): Promise<OwnerFixtureV1> {
+async function ownerFixtureV1(
+  loadRuntimeControllerAdapter: LoadProgramRuntimeControllerAdapterV1 =
+    loadRuntimeControllerAdapterV1,
+): Promise<OwnerFixtureV1> {
   const archives = bundledArchivesV1();
   const [creatorMetadata, translationMetadata] = await Promise.all(
     [archives.creator, archives.translation].map(async (archive) => {
@@ -236,7 +246,7 @@ async function ownerFixtureV1(): Promise<OwnerFixtureV1> {
     repository,
     workspace,
     packages,
-    loadRuntimeControllerAdapter: loadRuntimeControllerAdapterV1,
+    loadRuntimeControllerAdapter,
     reportFailure,
   });
   cleanupV1.push(async () => {
@@ -247,6 +257,48 @@ async function ownerFixtureV1(): Promise<OwnerFixtureV1> {
 }
 
 describe("SillyOS Program controller owner", () => {
+  it("joins each Surface retirement once across owner retirement and React unregister", async () => {
+    const surfaceDrainOwner = createProgramRuntimeSurfaceDrainOwnerV1();
+    const quiesce = vi.fn(async () => undefined);
+    const retire = vi.fn(async () => undefined);
+    const unregister = surfaceDrainOwner.register({ quiesce, retire });
+
+    await surfaceDrainOwner.quiesce();
+    await surfaceDrainOwner.retire();
+    unregister();
+    await Promise.resolve();
+
+    expect(quiesce).toHaveBeenCalledTimes(1);
+    expect(retire).toHaveBeenCalledTimes(1);
+  });
+
+  it("shares an in-flight Surface quiesce with unregister and still retires after failure", async () => {
+    const surfaceDrainOwner = createProgramRuntimeSurfaceDrainOwnerV1();
+    let releaseFirstDrain!: () => void;
+    const firstDrainReleased = new Promise<void>((resolve) => {
+      releaseFirstDrain = resolve;
+    });
+    let attempt = 0;
+    const quiesce = vi.fn(async () => {
+      attempt += 1;
+      if (attempt === 1) {
+        await firstDrainReleased;
+        throw new Error("temporary Surface cleanup failure");
+      }
+    });
+    const retire = vi.fn(async () => undefined);
+    const unregister = surfaceDrainOwner.register({ quiesce, retire });
+    const first = surfaceDrainOwner.quiesce();
+    await Promise.resolve();
+    unregister();
+    releaseFirstDrain();
+
+    await expect(first).rejects.toThrow("temporary Surface cleanup failure");
+    await expect(surfaceDrainOwner.retire()).resolves.toBeUndefined();
+    expect(quiesce).toHaveBeenCalledTimes(1);
+    expect(retire).toHaveBeenCalledTimes(1);
+  });
+
   it("starts at the Library and initializes storage without loading a privileged Program", async () => {
     const fixture = await ownerFixtureV1();
 
@@ -298,6 +350,137 @@ describe("SillyOS Program controller owner", () => {
     expect(fixture.owner.getSnapshot().activeRoute).toBe("library");
   });
 
+  it("keeps the active Program mounted until its lazy Surface cleanup settles", async () => {
+    const fixture = await ownerFixtureV1();
+    await fixture.owner.initialize();
+    const creator = (await fixture.packages.listLibrary()).find(({ reference }) =>
+      reference.programId === creatorProgramIdV1
+    );
+    if (creator === undefined) throw new Error("Creator unavailable");
+    await fixture.owner.launch(creator.reference);
+    const active = runtimeRecordsV1[0]!;
+    let releaseSurfaceDrain!: () => void;
+    const surfaceDrainReleased = new Promise<void>((resolve) => {
+      releaseSurfaceDrain = resolve;
+    });
+    let observeSurfaceDrain!: () => void;
+    const surfaceDrainObserved = new Promise<void>((resolve) => {
+      observeSurfaceDrain = resolve;
+    });
+    active.handle.surfaceDrainOwner.register({
+      quiesce: async () => {
+        observeSurfaceDrain();
+        await surfaceDrainReleased;
+      },
+      retire: async () => undefined,
+    });
+
+    const openingLibrary = fixture.owner.openLibrary();
+    await surfaceDrainObserved;
+    expect(fixture.owner.getSnapshot().activeProgram).toBe(active.handle);
+    expect(active.dispose).not.toHaveBeenCalled();
+
+    releaseSurfaceDrain();
+    await expect(openingLibrary).resolves.toBe(true);
+    expect(fixture.owner.getSnapshot().activeProgram).toBeNull();
+    expect(active.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("drains the active Surface before closing and disposing its runtime", async () => {
+    const fixture = await ownerFixtureV1();
+    await fixture.owner.initialize();
+    const creator = (await fixture.packages.listLibrary()).find(({ reference }) =>
+      reference.programId === creatorProgramIdV1
+    );
+    if (creator === undefined) throw new Error("Creator unavailable");
+    await fixture.owner.launch(creator.reference);
+    const active = runtimeRecordsV1[0]!;
+    const order: string[] = [];
+    active.handle.surfaceDrainOwner.register({
+      quiesce: async () => {
+        order.push("quiesce");
+      },
+      retire: async () => {
+        order.push("retire");
+      },
+    });
+    active.close.mockImplementation(async () => {
+      order.push("close");
+      return true;
+    });
+    active.dispose.mockImplementation(async () => {
+      order.push("dispose");
+    });
+
+    await expect(fixture.owner.openLibrary()).resolves.toBe(true);
+
+    expect(order).toEqual(["quiesce", "close", "retire", "dispose"]);
+    expect(fixture.owner.getSnapshot()).toMatchObject({
+      activeRoute: "library",
+      activeProgram: null,
+    });
+  });
+
+  it("retains the active Program without closing it when Surface drain fails", async () => {
+    const fixture = await ownerFixtureV1();
+    await fixture.owner.initialize();
+    const creator = (await fixture.packages.listLibrary()).find(({ reference }) =>
+      reference.programId === creatorProgramIdV1
+    );
+    if (creator === undefined) throw new Error("Creator unavailable");
+    await fixture.owner.launch(creator.reference);
+    const active = runtimeRecordsV1[0]!;
+    const before = fixture.owner.getSnapshot();
+    const quiesce = vi.fn()
+      .mockRejectedValueOnce(new Error("temporary Surface cleanup failure"))
+      .mockResolvedValueOnce(undefined);
+    active.handle.surfaceDrainOwner.register({
+      quiesce,
+      retire: async () => undefined,
+    });
+
+    await expect(fixture.owner.openLibrary()).resolves.toBe(false);
+
+    expect(fixture.owner.getSnapshot()).toBe(before);
+    expect(active.close).not.toHaveBeenCalled();
+    expect(active.dispose).not.toHaveBeenCalled();
+    expect(fixture.reportFailure).toHaveBeenCalledWith(
+      "silly_os.program_library_open_failed",
+      expect.objectContaining({ message: "temporary Surface cleanup failure" }),
+    );
+
+    await expect(fixture.owner.openLibrary()).resolves.toBe(true);
+    expect(quiesce).toHaveBeenCalledTimes(2);
+    expect(active.close).toHaveBeenCalledTimes(1);
+    expect(active.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a quiesced predecessor usable when controller close declines", async () => {
+    const fixture = await ownerFixtureV1();
+    const creator = (await fixture.packages.listLibrary()).find(({ reference }) =>
+      reference.programId === creatorProgramIdV1
+    );
+    if (creator === undefined) throw new Error("Creator unavailable");
+    await fixture.owner.launch(creator.reference);
+    const active = runtimeRecordsV1[0]!;
+    const quiesce = vi.fn(async () => undefined);
+    const retire = vi.fn(async () => undefined);
+    active.handle.surfaceDrainOwner.register({ quiesce, retire });
+    active.close.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    await expect(fixture.owner.openLibrary()).resolves.toBe(false);
+
+    expect(fixture.owner.getSnapshot().activeProgram).toBe(active.handle);
+    expect(quiesce).toHaveBeenCalledTimes(1);
+    expect(retire).not.toHaveBeenCalled();
+    expect(active.dispose).not.toHaveBeenCalled();
+
+    await expect(fixture.owner.openLibrary()).resolves.toBe(true);
+    expect(quiesce).toHaveBeenCalledTimes(2);
+    expect(retire).toHaveBeenCalledTimes(1);
+    expect(active.dispose).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps committed navigation when predecessor disposal reports a cleanup failure", async () => {
     const fixture = await ownerFixtureV1();
     const [creator, translation] = await fixture.packages.listLibrary();
@@ -323,6 +506,135 @@ describe("SillyOS Program controller owner", () => {
       "silly_os.program_library_predecessor_dispose_failed",
       expect.any(Error),
     );
+  });
+
+  it("still disposes the controller when committed Surface retirement fails", async () => {
+    const fixture = await ownerFixtureV1();
+    const creator = (await fixture.packages.listLibrary()).find(({ reference }) =>
+      reference.programId === creatorProgramIdV1
+    );
+    if (creator === undefined) throw new Error("Creator unavailable");
+    await fixture.owner.launch(creator.reference);
+    const active = runtimeRecordsV1[0]!;
+    active.handle.surfaceDrainOwner.register({
+      quiesce: async () => undefined,
+      retire: async () => {
+        throw new Error("Surface retirement failed");
+      },
+    });
+
+    await expect(fixture.owner.openLibrary()).resolves.toBe(true);
+
+    expect(active.dispose).toHaveBeenCalledTimes(1);
+    expect(fixture.reportFailure).toHaveBeenCalledWith(
+      "silly_os.program_library_predecessor_dispose_failed",
+      expect.objectContaining({ message: "Surface retirement failed" }),
+    );
+  });
+
+  it("reports terminal cleanup failures while continuing exact resource retirement", async () => {
+    const fixture = await ownerFixtureV1();
+    const creator = (await fixture.packages.listLibrary()).find(({ reference }) =>
+      reference.programId === creatorProgramIdV1
+    );
+    if (creator === undefined) throw new Error("Creator unavailable");
+    await fixture.owner.launch(creator.reference);
+    const active = runtimeRecordsV1[0]!;
+    const quiesceFailure = new Error("terminal quiesce failed");
+    const retireFailure = new Error("terminal retirement failed");
+    const runtimeFailure = new Error("terminal runtime disposal failed");
+    const quiesce = vi.fn(async () => {
+      throw quiesceFailure;
+    });
+    const retire = vi.fn(async () => {
+      throw retireFailure;
+    });
+    active.handle.surfaceDrainOwner.register({ quiesce, retire });
+    active.dispose.mockRejectedValueOnce(runtimeFailure);
+
+    await expect(fixture.owner.dispose()).resolves.toBeUndefined();
+
+    expect(quiesce).toHaveBeenCalledTimes(1);
+    expect(retire).toHaveBeenCalledTimes(1);
+    expect(active.dispose).toHaveBeenCalledTimes(1);
+    for (const failure of [quiesceFailure, retireFailure, runtimeFailure]) {
+      expect(fixture.reportFailure).toHaveBeenCalledWith(
+        "silly_os.program_terminal_dispose_failed",
+        failure,
+      );
+    }
+  });
+
+  it("lets an admitted launch publish before terminal disposal retires its candidate", async () => {
+    let observeCreate!: () => void;
+    const createObserved = new Promise<void>((resolve) => {
+      observeCreate = resolve;
+    });
+    let releaseCreate!: () => void;
+    const createReleased = new Promise<void>((resolve) => {
+      releaseCreate = resolve;
+    });
+    const loadAdapter: LoadProgramRuntimeControllerAdapterV1 = async (runtimeProfile) => ({
+      runtimeProfile,
+      async create(input) {
+        observeCreate();
+        await createReleased;
+        return createRuntimeHandleV1(runtimeProfile, input);
+      },
+    });
+    const fixture = await ownerFixtureV1(loadAdapter);
+    const creator = (await fixture.packages.listLibrary()).find(({ reference }) =>
+      reference.programId === creatorProgramIdV1
+    );
+    if (creator === undefined) throw new Error("Creator unavailable");
+
+    const launch = fixture.owner.launch(creator.reference);
+    await createObserved;
+    const disposal = fixture.owner.dispose();
+    await expect(fixture.owner.launch(creator.reference)).rejects.toThrow(
+      "sillyos.program_controller.disposed",
+    );
+    releaseCreate();
+
+    await expect(launch).resolves.toBe("program");
+    await expect(disposal).resolves.toBeUndefined();
+    expect(runtimeRecordsV1).toHaveLength(1);
+    expect(runtimeRecordsV1[0]!.dispose).toHaveBeenCalledOnce();
+  });
+
+  it("does not release a stale active handle twice when Library navigation races disposal", async () => {
+    const fixture = await ownerFixtureV1();
+    const creator = (await fixture.packages.listLibrary()).find(({ reference }) =>
+      reference.programId === creatorProgramIdV1
+    );
+    if (creator === undefined) throw new Error("Creator unavailable");
+    await fixture.owner.launch(creator.reference);
+    const active = runtimeRecordsV1[0]!;
+    let observeClose!: () => void;
+    const closeObserved = new Promise<void>((resolve) => {
+      observeClose = resolve;
+    });
+    let releaseClose!: () => void;
+    const closeReleased = new Promise<void>((resolve) => {
+      releaseClose = resolve;
+    });
+    active.close.mockImplementation(async () => {
+      observeClose();
+      await closeReleased;
+      return true;
+    });
+
+    const openingLibrary = fixture.owner.openLibrary();
+    await closeObserved;
+    const disposal = fixture.owner.dispose();
+    await expect(fixture.owner.openLibrary()).resolves.toBe(false);
+    releaseClose();
+
+    await expect(openingLibrary).resolves.toBe(true);
+    await expect(disposal).resolves.toBeUndefined();
+    expect(active.close).toHaveBeenCalledOnce();
+    expect(active.dispose).toHaveBeenCalledOnce();
+    expect(fixture.owner.getSnapshot().activeProgram).toBeNull();
   });
 
   it("constructs bundled and external exact packages through the same runtime-profile path", async () => {

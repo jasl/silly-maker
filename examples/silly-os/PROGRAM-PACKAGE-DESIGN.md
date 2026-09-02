@@ -81,6 +81,13 @@ and domain-data namespace. No mutable singleton may be shared between
 Processes. SillyOS-owned Provider credentials and global product preferences
 remain outside Program data and do not weaken Process isolation.
 
+The fixed Browser harness reserves `.sillyos-agent-candidate.v1.json` at the
+root of each Process Workspace as its single mutable completion-candidate
+staging slot. A successful admission does not delete the slot; a later Run
+overwrites it. Program scripts must not treat this Host-owned name as durable
+Program data, and the slot never becomes a second candidate or Conversation
+authority.
+
 The Creator Catalog is an explicit Host-shared library of Programs produced by
 Creator, analogous to the installed-package library rather than to Process
 mutable state. A package must explicitly request `creator.catalog`, and the
@@ -200,16 +207,28 @@ The first denominator is intentionally smaller than a general plugin system:
 - bundled and imported packages persisted by the same repository;
 - exact Process package pinning and read-only degraded reopen;
 - fixed-harness compatibility admission;
-- lazy package/runtime acquisition and deterministic release;
+- lazy package/runtime acquisition plus two-phase deterministic release;
 - process-scoped Workspace and mutable domain state;
 - optional scripts only through shipped interpreters;
 - optional ordered model-ID-pattern recommendations as soft selection input;
 - optional immutable model-ID prompt overlays selected for each Run;
 - Program UI only inside the SillyOS-owned container.
 
-The current formal Creator and Translation packages both declare `scripts: []`.
-Neither package ships a fixed workflow script or selects a Workspace execution
-profile.
+The current formal Creator and Translation packages both declare `scripts: []`
+and ship no package-owned workflow script. Creator's build-known profile exposes
+the fixed `bash` and QJS Harness tools. Translation's `agent.translation.v1`
+profile selects only bounded Workspace `read`, `write`, `edit`, and `grep` tools
+for advisory working memory and no interpreter.
+
+A mounted Program Surface registers exact lazy resources with its runtime. A
+route change first performs a repeatable, reversible quiesce: it aborts and
+drains transient Surface work such as export, declines while an active or
+unpersisted Agent terminal is still owned, and closes the exact Workspace while
+the Program's Agent port remains usable. Controller close may still decline, in
+which case the mounted predecessor remains current and a later close can retry.
+Only a successful close and committed route change—or terminal unmount/disposal—
+retires the registered resources and disposes the port. This is a small product
+lifecycle join point, not another service container or package privilege.
 
 This does not add npm resolution, arbitrary same-realm JavaScript, a dependency
 solver, a marketplace, cross-Program services, automatic VFS migration, or a

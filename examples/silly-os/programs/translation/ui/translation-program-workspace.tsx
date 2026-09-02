@@ -81,7 +81,8 @@ export interface TranslationProcessRowWindowRequestV1 {
 /** Session-local human edits for one exact immutable candidate. */
 export interface TranslationCandidateDraftV1 {
   readonly candidateId: string;
-  readonly targets: readonly { readonly unitId: string; readonly target: string }[];
+  /** Only values that differ from the immutable candidate. */
+  readonly overrides: readonly { readonly unitId: string; readonly target: string }[];
 }
 
 /**
@@ -610,18 +611,20 @@ function TranslationProcessWorkbenchV1({
     return grouped;
   }, [mechanicalWarnings]);
   const candidateDraftMatches = candidate !== null &&
-    candidateDraft?.candidateId === candidate.candidateId &&
-    candidateDraft.targets.length === candidate.targets.length &&
-    candidateDraft.targets.every((target, index) =>
-      target.unitId === candidate.targets[index]?.unitId
-    );
-  const candidateTargetByUnitId = useMemo(
+    candidateDraft?.candidateId === candidate.candidateId;
+  const candidateOverrideByUnitId = useMemo(
     () =>
       candidateDraftMatches
-        ? new Map(candidateDraft.targets.map(({ unitId, target }) => [unitId, target]))
-        : initialCandidateTargetByUnitId,
-    [candidateDraft, candidateDraftMatches, initialCandidateTargetByUnitId],
+        ? new Map(candidateDraft.overrides.map(({ unitId, target }) => [unitId, target]))
+        : new Map<string, string>(),
+    [candidateDraft, candidateDraftMatches],
   );
+  const initialCandidateTargetsComplete = useMemo(
+    () => candidate?.targets.every(({ target }) => target.trim().length > 0) ?? false,
+    [candidate],
+  );
+  const candidateTargetForUnitIdV1 = (unitId: string): string | undefined =>
+    candidateOverrideByUnitId.get(unitId) ?? initialCandidateTargetByUnitId.get(unitId);
   const progressPhase = translationSource.totalUnitCount === 0
     ? "empty"
     : translationSource.committedUnitCount === 0
@@ -787,7 +790,7 @@ function TranslationProcessWorkbenchV1({
   const selectedUnitId = selectedUnit?.unitId ?? null;
   const selectedUnitCandidateTarget = selectedUnitId === null
     ? undefined
-    : candidateTargetByUnitId.get(selectedUnitId);
+    : candidateTargetForUnitIdV1(selectedUnitId);
   const selectedUnitTarget = selectedUnitCandidateTarget ?? selectedUnit?.target ?? "";
   const selectedAmbiguity = selectedUnitId === null
     ? undefined
@@ -832,15 +835,18 @@ function TranslationProcessWorkbenchV1({
       candidate === null || onCandidateDraftChange === undefined ||
       !initialCandidateTargetByUnitId.has(unitId)
     ) return;
-    onCandidateDraftChange({
-      candidateId: candidate.candidateId,
-      targets: candidate.targets.map((candidateTarget) => ({
-        unitId: candidateTarget.unitId,
-        target: candidateTarget.unitId === unitId
-          ? target
-          : candidateTargetByUnitId.get(candidateTarget.unitId) ?? candidateTarget.target,
-      })),
-    });
+    const original = initialCandidateTargetByUnitId.get(unitId);
+    const currentOverrides = candidateDraftMatches ? candidateDraft.overrides : [];
+    const existingIndex = currentOverrides.findIndex((override) => override.unitId === unitId);
+    const overrides = [...currentOverrides];
+    if (target === original) {
+      if (existingIndex >= 0) overrides.splice(existingIndex, 1);
+    } else if (existingIndex >= 0) {
+      overrides[existingIndex] = { unitId, target };
+    } else {
+      overrides.push({ unitId, target });
+    }
+    onCandidateDraftChange({ candidateId: candidate.candidateId, overrides });
   };
 
   const acceptCandidateV1 = (): void => {
@@ -850,7 +856,7 @@ function TranslationProcessWorkbenchV1({
     ) return;
     const targets = candidate.targets.map(({ unitId }) => ({
       unitId,
-      target: candidateTargetByUnitId.get(unitId) ?? "",
+      target: candidateTargetForUnitIdV1(unitId) ?? "",
     }));
     if (targets.some(({ target }) => target.trim().length === 0)) return;
     setReviewPending(true);
@@ -884,7 +890,7 @@ function TranslationProcessWorkbenchV1({
     ) return;
     const targets = candidate.targets.map(({ unitId }) => ({
       unitId,
-      target: candidateTargetByUnitId.get(unitId) ?? "",
+      target: candidateTargetForUnitIdV1(unitId) ?? "",
     }));
     if (targets.some(({ target }) => target.trim().length === 0)) return;
     setReviewPending(true);
@@ -898,10 +904,9 @@ function TranslationProcessWorkbenchV1({
     }).finally(() => setReviewPending(false));
   };
 
-  const candidateTargetsComplete = candidate !== null &&
-    candidate.targets.every(({ unitId }) =>
-      (candidateTargetByUnitId.get(unitId) ?? "").trim().length > 0
-    );
+  const candidateTargetsComplete = candidate !== null && initialCandidateTargetsComplete &&
+    (!candidateDraftMatches ||
+      candidateDraft.overrides.every(({ target }) => target.trim().length > 0));
 
   return (
     <section className="translation-workbench" data-translation-stage={stage}>
@@ -1091,7 +1096,7 @@ function TranslationProcessWorkbenchV1({
                   {virtualRows.map((virtualRow) => {
                     const unit = rowCache.rows.get(virtualRow.index);
                     if (unit === undefined) return null;
-                    const candidateTarget = candidateTargetByUnitId.get(unit.unitId);
+                    const candidateTarget = candidateTargetForUnitIdV1(unit.unitId);
                     const target = candidateTarget ?? unit.target;
                     const unitHasMechanicalWarning = mechanicalWarningsByUnitId.has(unit.unitId);
                     const unitHasModelAmbiguity = ambiguityByUnitId.has(unit.unitId);

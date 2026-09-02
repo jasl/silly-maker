@@ -4,6 +4,7 @@ import type {
   ActiveProgramRuntimeHandleV1,
   ProgramRuntimeControllerAdapterV1,
 } from "../../../src/application/program-runtime-controller.ts";
+import { createProgramRuntimeSurfaceDrainOwnerV1 } from "../../../src/application/program-runtime-controller.ts";
 import { createTranslationProcessControllerV1 } from "../runtime/translation-process-controller.ts";
 import { createTranslationProgramDataRepositoryV1 } from "../persistence/translation-program-data-repository.ts";
 import { translationProgramRuntimeProfileV1 } from "./translation-runtime-profile-descriptor.ts";
@@ -11,6 +12,7 @@ import { translationProgramRuntimeProfileV1 } from "./translation-runtime-profil
 export const translationProgramRuntimeControllerAdapterV1: ProgramRuntimeControllerAdapterV1 = {
   runtimeProfile: translationProgramRuntimeProfileV1,
   async create(input): Promise<ActiveProgramRuntimeHandleV1> {
+    const surfaceDrainOwner = createProgramRuntimeSurfaceDrainOwnerV1();
     const controller = createTranslationProcessControllerV1({
       repository: createTranslationProgramDataRepositoryV1(input.repository),
       workspace: input.workspace,
@@ -35,6 +37,7 @@ export const translationProgramRuntimeControllerAdapterV1: ProgramRuntimeControl
     return {
       programPackage: input.programPackage,
       controller,
+      surfaceDrainOwner,
       getSnapshot: controller.getSnapshot,
       subscribe: controller.subscribe,
       loadSurface: async () => {

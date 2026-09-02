@@ -14,6 +14,9 @@
   "capabilityIds": [
     "agent.text",
     "program.resource.read",
-    "translation.batch"
+    "translation.batch",
+    "workspace.read",
+    "workspace.search",
+    "workspace.write"
   ]
 }

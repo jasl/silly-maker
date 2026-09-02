@@ -483,6 +483,12 @@ contiguous sequence admission，以及 connection-generation/lifecycle-epoch fen
 late event 和 cancel/dispose 后完成均不能进入 current Host。request failure 后 replacement connect
 先关闭 predecessor；reconnect 不重提已发送请求，dispose 不声称回滚远端 effect。
 
+后续 public `@sillymaker/agent/session` 的当前合同按方向收缩了该历史边界：outbound semantic
+submit 只做 exact descriptor-safe scalar admission，不再继承任意 8,192-character 或
+65,536-byte transport ceiling；可用输入容量由调用产品与所选模型 envelope 负责。来自 connector 的
+response/stream record 仍做 getter-free canonical 投影并保留 byte/depth/node bounds。该修订不把
+Program context planning、Provider token policy 或大 Artifact transport 提升为 Engine authority。
+
 同一 private package 的 Agent Host 拥有 observable session/run、transient draft 和最多 16 个本地
 immutable Artifact revisions；invalid completion、unknown node/action、stale/late run 与 cancelled
 completion 保留 exact predecessor，remote `run_failed` 终结 active run 和 streaming draft，重开

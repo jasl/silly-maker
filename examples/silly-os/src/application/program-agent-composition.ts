@@ -28,6 +28,14 @@ import {
   type BrowserPiWorkerFactoryV1,
   type BrowserPiWorkerConnectorV1,
 } from "../agent/browser-pi-transport.ts";
+import {
+  admitBrowserProgramCandidateArtifactBytesV1,
+  admitBrowserProgramCandidateArtifactHandleV1,
+  browserProgramCandidateArtifactToolCallIdV1,
+  hasBrowserProgramCandidateArtifactDiscriminatorV1,
+  type BrowserProgramCandidateArtifactHandleV1,
+  type BrowserProgramCandidateValueV1,
+} from "../agent/browser-program-candidate-artifact.ts";
 import type { CredentialVaultBindingV2 } from "../credential/credential-vault-contracts.ts";
 import type {
   BrowserPiModelSelectionV1,
@@ -77,7 +85,20 @@ interface TrackedProgramAgentRunV1 {
   readonly ordinal: number;
   piRunId: string | null;
   state: object;
+  candidateArtifactReceipt: WorkspaceMutationReceiptV1 | null;
+  candidateArtifactResolution: Promise<BrowserProgramCandidateValueV1 | null> | null;
+  candidateArtifactRunCompleted:
+    | Extract<
+      AgentSessionStreamEventV1,
+      { readonly kind: "run_completed" }
+    >
+    | null;
 }
+
+type AgentSessionOutputDataEventV1 = Extract<
+  AgentSessionStreamEventV1,
+  { readonly kind: "output_data" }
+>;
 
 interface ProgramAgentFacadeV1 {
   readonly adapterLoad: BrowserProgramAgentAdapterLoadV1;
@@ -646,8 +667,18 @@ export function createBrowserProgramAgentHostV1(
       ...descriptor,
       generation: receipt.resultingGeneration,
     });
-    workspaceReceipts = Object.freeze([...workspaceReceipts, receipt]);
-    workspaceLastReceipt = receipt;
+    const candidateArtifactReceipt = tracked.piRunId !== null &&
+      receipt.toolCallId === browserProgramCandidateArtifactToolCallIdV1(tracked.piRunId);
+    if (candidateArtifactReceipt) {
+      if (tracked.candidateArtifactReceipt !== null) {
+        failWorkspaceV1(workspaceDiagnosticV1("protocol_invalid", "/workspace/candidateArtifact"));
+        return;
+      }
+      tracked.candidateArtifactReceipt = receipt;
+    } else {
+      workspaceReceipts = Object.freeze([...workspaceReceipts, receipt]);
+      workspaceLastReceipt = receipt;
+    }
     workspaceReceiptWatermarksByRunId.set(tracked.prepared.run.agentRunId, receipt.sequence);
     workspaceAcknowledgementTargetSequence = receipt.sequence;
     workspaceDiagnostic = null;
@@ -682,6 +713,7 @@ export function createBrowserProgramAgentHostV1(
   };
 
   const removeTrackedRunV1 = (tracked: TrackedProgramAgentRunV1): void => {
+    tracked.candidateArtifactRunCompleted = null;
     trackedByProductRunId.delete(tracked.prepared.run.agentRunId);
     if (tracked.piRunId !== null) {
       const key = piRunKeyV1(tracked.sessionId, tracked.piRunId);
@@ -760,7 +792,7 @@ export function createBrowserProgramAgentHostV1(
     );
   };
 
-  const handleStreamEventV1 = (
+  const projectStreamEventV1 = (
     tracked: TrackedProgramAgentRunV1,
     event: AgentSessionStreamEventV1,
   ): void => {
@@ -793,6 +825,148 @@ export function createBrowserProgramAgentHostV1(
         }
         return;
     }
+  };
+
+  const candidateArtifactBindingV1 = (
+    tracked: TrackedProgramAgentRunV1,
+    event: AgentSessionOutputDataEventV1,
+  ) => {
+    const descriptor = workspaceDescriptor;
+    if (
+      descriptor === null || tracked.piRunId !== event.runId ||
+      tracked.sessionId !== event.sessionId ||
+      descriptor.programId !== tracked.prepared.run.programId
+    ) return null;
+    return Object.freeze({
+      sessionId: event.sessionId,
+      runId: event.runId,
+      processId: tracked.prepared.run.processId,
+      programId: tracked.prepared.run.programId,
+      workspaceId: descriptor.workspaceId,
+      workspaceSessionId: descriptor.workspaceSessionId,
+    });
+  };
+
+  const loadCandidateArtifactV1 = async (
+    tracked: TrackedProgramAgentRunV1,
+    event: AgentSessionOutputDataEventV1,
+    handle: BrowserProgramCandidateArtifactHandleV1,
+  ): Promise<BrowserProgramCandidateValueV1 | null> => {
+    const binding = candidateArtifactBindingV1(tracked, event);
+    const receipt = tracked.candidateArtifactReceipt;
+    const descriptor = workspaceDescriptor;
+    if (
+      binding === null || receipt === null || descriptor === null ||
+      handle.toolCallId !== browserProgramCandidateArtifactToolCallIdV1(event.runId) ||
+      receipt.toolCallId !== handle.toolCallId || receipt.tool !== "write" ||
+      receipt.outcome !== "succeeded" ||
+      receipt.resultingGeneration !== handle.workspaceGeneration ||
+      descriptor.generation < handle.workspaceGeneration ||
+      (receipt.effect === "changed" && !receipt.changedPaths.includes(handle.path))
+    ) return null;
+    const read = await workspaceAuthority.readProcessWorkspaceFile({
+      processId: binding.processId,
+      workspaceId: binding.workspaceId,
+      path: handle.path,
+    });
+    if (
+      read.source.processId !== binding.processId ||
+      read.source.workspaceId !== binding.workspaceId || read.source.path !== handle.path ||
+      read.source.generation < handle.workspaceGeneration
+    ) return null;
+    return await admitBrowserProgramCandidateArtifactBytesV1({
+      bytes: read.bytes,
+      handle,
+      binding,
+    });
+  };
+
+  const beginCandidateArtifactResolutionV1 = (
+    tracked: TrackedProgramAgentRunV1,
+    event: AgentSessionOutputDataEventV1,
+    handle: BrowserProgramCandidateArtifactHandleV1,
+  ): void => {
+    if (tracked.candidateArtifactResolution !== null) {
+      failTrackedRunV1(
+        tracked,
+        "protocol_invalid",
+        diagnosticV1("protocol_invalid", "/candidateArtifact/duplicate"),
+      );
+      return;
+    }
+    const resolution = loadCandidateArtifactV1(tracked, event, handle);
+    tracked.candidateArtifactResolution = resolution;
+    void resolution.then((candidate) => {
+      if (
+        tracked.candidateArtifactResolution !== resolution ||
+        !trackedByProductRunId.has(tracked.prepared.run.agentRunId)
+      ) return;
+      tracked.candidateArtifactResolution = null;
+      if (candidate === null) {
+        failTrackedRunV1(
+          tracked,
+          "protocol_invalid",
+          diagnosticV1("protocol_invalid", "/candidateArtifact"),
+        );
+        return;
+      }
+      projectStreamEventV1(tracked, {
+        ...event,
+        value: candidate as AgentSessionOutputDataEventV1["value"],
+      });
+      if (!trackedByProductRunId.has(tracked.prepared.run.agentRunId)) return;
+      const runCompleted = tracked.candidateArtifactRunCompleted;
+      tracked.candidateArtifactRunCompleted = null;
+      if (runCompleted !== null) {
+        projectStreamEventV1(tracked, runCompleted);
+      }
+    }, () => {
+      if (
+        tracked.candidateArtifactResolution !== resolution ||
+        !trackedByProductRunId.has(tracked.prepared.run.agentRunId)
+      ) return;
+      tracked.candidateArtifactResolution = null;
+      failTrackedRunV1(
+        tracked,
+        "protocol_invalid",
+        diagnosticV1("protocol_invalid", "/candidateArtifact"),
+      );
+    });
+  };
+
+  const handleStreamEventV1 = (
+    tracked: TrackedProgramAgentRunV1,
+    event: AgentSessionStreamEventV1,
+  ): void => {
+    if (!trackedByProductRunId.has(tracked.prepared.run.agentRunId)) return;
+    if (tracked.candidateArtifactResolution !== null) {
+      if (event.kind === "run_completed" && tracked.candidateArtifactRunCompleted === null) {
+        tracked.candidateArtifactRunCompleted = event;
+        return;
+      }
+      failTrackedRunV1(
+        tracked,
+        "protocol_invalid",
+        diagnosticV1("protocol_invalid", "/candidateArtifact/stream"),
+      );
+      return;
+    }
+    if (event.kind === "output_data") {
+      const handle = admitBrowserProgramCandidateArtifactHandleV1(event.value);
+      if (handle !== null) {
+        beginCandidateArtifactResolutionV1(tracked, event, handle);
+        return;
+      }
+      if (hasBrowserProgramCandidateArtifactDiscriminatorV1(event.value)) {
+        failTrackedRunV1(
+          tracked,
+          "protocol_invalid",
+          diagnosticV1("protocol_invalid", "/candidateArtifact/handle"),
+        );
+        return;
+      }
+    }
+    projectStreamEventV1(tracked, event);
   };
 
   const bufferStreamEventV1 = (
@@ -1611,6 +1785,9 @@ export function createBrowserProgramAgentHostV1(
       ordinal: nextRunOrdinal++,
       piRunId: null,
       state: prepared.state,
+      candidateArtifactReceipt: null,
+      candidateArtifactResolution: null,
+      candidateArtifactRunCompleted: null,
     };
     trackedByProductRunId.set(run.agentRunId, tracked);
     refreshFacadeV1();

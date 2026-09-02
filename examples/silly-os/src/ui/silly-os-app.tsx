@@ -193,7 +193,7 @@ function ActiveProgramSurfaceV1({
   sessionState,
 }: {
   readonly runtime: ActiveProgramRuntimeHandleV1;
-  readonly host: Omit<ProgramSurfaceHostV1, "sessionState">;
+  readonly host: Omit<ProgramSurfaceHostV1, "registerProgramDrain" | "sessionState">;
   readonly sessionState: ProgramSurfaceSessionStateV1;
 }): ReactNode {
   const [surface, setSurface] = useState<
@@ -236,7 +236,12 @@ function ActiveProgramSurfaceV1({
     return (
       <Surface
         controller={runtime.controller}
-        host={{ ...host, processNetworkAccess, sessionState }}
+        host={{
+          ...host,
+          processNetworkAccess,
+          registerProgramDrain: runtime.surfaceDrainOwner.register,
+          sessionState,
+        }}
       />
     );
   }
@@ -393,7 +398,9 @@ export function SillyOsAppV1({
     return opened;
   }, [closeAgentSettingsV1, onOpenProgramLibrary]);
 
-  const surfaceHost = useMemo<Omit<ProgramSurfaceHostV1, "sessionState">>(() => ({
+  const surfaceHost = useMemo<
+    Omit<ProgramSurfaceHostV1, "registerProgramDrain" | "sessionState">
+  >(() => ({
     copy,
     locale,
     theme: preferences.theme,
@@ -442,108 +449,119 @@ export function SillyOsAppV1({
       data-agent-workspace-state={agentProvider.controlSnapshot?.workspace.phase ?? "closed"}
     >
       <SillyOsOverlayHostV1>
-        {agentProvider.settingsOpen
-          ? agentProvider.runtime === "deterministic_test"
+        <div
+          className="silly-os-route-layer"
+          inert={agentProvider.settingsOpen || undefined}
+          aria-hidden={agentProvider.settingsOpen || undefined}
+        >
+          {route === "library"
             ? (
-              <SillyOsSettingsV1
-                copy={copy}
-                locale={locale}
-                theme={preferences.theme}
-                onLocaleChange={changeLocaleV1}
-                onThemeChange={changeThemeV1}
-                onBack={agentProvider.closeSettings}
-              />
-            )
-            : (
-              <ProviderSettingsV1
-                copy={copy}
-                {...agentProvider.settingsProps}
-                onBack={agentProvider.closeSettings}
-                onLocaleChange={changeLocaleV1}
-                theme={preferences.theme}
-                onThemeChange={changeThemeV1}
-              />
-            )
-          : route === "library"
-          ? (
-            <main className="program-library-route" data-silly-os-view="program-library">
-              <ProgramLibraryV1
-                service={programPackages}
-                zipDecodeOptions={programPackageZipDecodeOptions}
-                locale={locale}
-                listRecentProcesses={listRecentProcesses}
-                onOpenSettings={() => agentProvider.openSettings()}
-                onOpenProcess={async (processId) => {
-                  await onOpenRecentProcess(processId);
-                }}
-                onLaunch={async (reference) => {
-                  try {
-                    await onLaunchProgramPackage(reference);
-                  } catch (error) {
-                    reportFailure("silly_os.program_package_launch_failed", error);
-                  }
-                }}
-              />
-            </main>
-          )
-          : route === "conversation"
-          ? conversation.phase === "ready" && conversation.conversation !== null
-            ? (
-              <ActiveProcessMountBoundaryV1 processId={conversation.conversation.process.processId}>
-                <ReadOnlyProcessConversationViewV1
-                  copy={copy}
-                  conversation={conversation.conversation}
-                  onHome={onCloseReadOnlyProcess}
-                  onLoadOlderTranscript={async () => {
-                    const result = await readOnlyConversationController.loadOlderTranscript();
-                    return result.kind === "completed" && result.value;
+              <main className="program-library-route" data-silly-os-view="program-library">
+                <ProgramLibraryV1
+                  service={programPackages}
+                  zipDecodeOptions={programPackageZipDecodeOptions}
+                  locale={locale}
+                  listRecentProcesses={listRecentProcesses}
+                  onOpenSettings={() => agentProvider.openSettings()}
+                  onOpenProcess={async (processId) => {
+                    await onOpenRecentProcess(processId);
                   }}
-                  onReloadLatestTranscript={async () => {
-                    const result = await readOnlyConversationController.reloadLatestTranscript();
-                    return result.kind === "completed" && result.value;
+                  onLaunch={async (reference) => {
+                    try {
+                      await onLaunchProgramPackage(reference);
+                    } catch (error) {
+                      reportFailure("silly_os.program_package_launch_failed", error);
+                    }
                   }}
                 />
-              </ActiveProcessMountBoundaryV1>
+              </main>
             )
-            : (
-              <main
-                className="program-route-state"
-                data-silly-os-view="read-only-conversation-loading"
-              >
+            : route === "conversation"
+            ? conversation.phase === "ready" && conversation.conversation !== null
+              ? (
+                <ActiveProcessMountBoundaryV1
+                  processId={conversation.conversation.process.processId}
+                >
+                  <ReadOnlyProcessConversationViewV1
+                    copy={copy}
+                    conversation={conversation.conversation}
+                    onHome={onCloseReadOnlyProcess}
+                    onLoadOlderTranscript={async () => {
+                      const result = await readOnlyConversationController.loadOlderTranscript();
+                      return result.kind === "completed" && result.value;
+                    }}
+                    onReloadLatestTranscript={async () => {
+                      const result = await readOnlyConversationController.reloadLatestTranscript();
+                      return result.kind === "completed" && result.value;
+                    }}
+                  />
+                </ActiveProcessMountBoundaryV1>
+              )
+              : (
+                <main
+                  className="program-route-state"
+                  data-silly-os-view="read-only-conversation-loading"
+                >
+                  <div className="program-route-state__content">
+                    <CollectionStateV1
+                      icon={conversation.phase === "failed" ? TriangleAlert : LoaderCircle}
+                      {...(conversation.phase === "failed"
+                        ? { tone: "danger" as const, role: "alert" as const }
+                        : { iconMotion: "spin" as const, role: "status" as const })}
+                      title={conversation.phase === "failed"
+                        ? copy.persistenceFailure
+                        : copy.openingProgram}
+                    />
+                  </div>
+                </main>
+              )
+            : activeProgram === null
+            ? (
+              <main className="program-route-state" data-silly-os-view="program-loading">
                 <div className="program-route-state__content">
                   <CollectionStateV1
-                    icon={conversation.phase === "failed" ? TriangleAlert : LoaderCircle}
-                    {...(conversation.phase === "failed"
-                      ? { tone: "danger" as const, role: "alert" as const }
-                      : { iconMotion: "spin" as const, role: "status" as const })}
-                    title={conversation.phase === "failed"
-                      ? copy.persistenceFailure
-                      : copy.openingProgram}
+                    icon={LoaderCircle}
+                    iconMotion="spin"
+                    title={copy.openingProgram}
                   />
                 </div>
               </main>
             )
-          : activeProgram === null
-          ? (
-            <main className="program-route-state" data-silly-os-view="program-loading">
-              <div className="program-route-state__content">
-                <CollectionStateV1
-                  icon={LoaderCircle}
-                  iconMotion="spin"
-                  title={copy.openingProgram}
+            : (
+              <ActiveProgramSurfaceV1
+                runtime={activeProgram}
+                host={surfaceHost}
+                sessionState={surfaceSessionStateOwner.forPackage(
+                  activeProgram.programPackage.reference,
+                )}
+              />
+            )}
+        </div>
+        {agentProvider.settingsOpen && (
+          <div className="program-settings-overlay">
+            {agentProvider.runtime === "deterministic_test"
+              ? (
+                <SillyOsSettingsV1
+                  copy={copy}
+                  locale={locale}
+                  theme={preferences.theme}
+                  onLocaleChange={changeLocaleV1}
+                  onThemeChange={changeThemeV1}
+                  onBack={agentProvider.closeSettings}
                 />
-              </div>
-            </main>
-          )
-          : (
-            <ActiveProgramSurfaceV1
-              runtime={activeProgram}
-              host={surfaceHost}
-              sessionState={surfaceSessionStateOwner.forPackage(
-                activeProgram.programPackage.reference,
+              )
+              : (
+                <ProviderSettingsV1
+                  copy={copy}
+                  {...agentProvider.settingsProps}
+                  onBack={agentProvider.closeSettings}
+                  onLocaleChange={changeLocaleV1}
+                  theme={preferences.theme}
+                  onThemeChange={changeThemeV1}
+                />
               )}
-            />
-          )}
+          </div>
+        )}
       </SillyOsOverlayHostV1>
     </div>
   );

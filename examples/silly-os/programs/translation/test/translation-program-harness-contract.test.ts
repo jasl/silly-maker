@@ -25,10 +25,15 @@ describe("SillyOS Translation Program fixed-harness contract", () => {
       translationProgramRuntimeProfileV1,
     );
 
-    // The only Translation harness tool reads immutable resources from the
-    // exact Process-pinned package. It grants no Process Workspace mutation.
+    // Translation keeps its typed completion tool and exact package-resource
+    // reader, then selects only the existing bounded file tools needed for
+    // Process-local working memory. It does not gain bash or network access.
     expect(translationProgramRuntimeProfileImplementationV1.harnessToolIds).toEqual([
       "program_resource",
+      "read",
+      "write",
+      "edit",
+      "grep",
     ]);
   });
 
@@ -184,6 +189,18 @@ describe("SillyOS Translation Program fixed-harness contract", () => {
       terminal: {
         outcome: "failed",
         value: { outcome: "failed", diagnosticCode: "candidate_invalid" },
+      },
+    });
+    expect(translationProgramAgentAdapterV1.projectStream({
+      prepared: prepared.prepared,
+      state: prepared.prepared.state,
+      event: eventForV1("output_limit"),
+    })).toMatchObject({
+      kind: "terminal",
+      terminal: {
+        outcome: "failed",
+        value: { outcome: "failed", diagnosticCode: "output_limit" },
+        diagnostic: { code: "output_limit", path: "/remote/output_limit" },
       },
     });
   });

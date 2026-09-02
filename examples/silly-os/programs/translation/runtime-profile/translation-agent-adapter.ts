@@ -229,6 +229,8 @@ function remoteFailureV1(
       ? "candidate_structure_invalid"
       : remoteCode === "candidate_context_mismatch"
       ? "candidate_invalid"
+      : remoteCode === "output_limit"
+      ? "output_limit"
       : remoteCode === "candidate_missing"
       ? "protocol_invalid"
       : "run_failed";

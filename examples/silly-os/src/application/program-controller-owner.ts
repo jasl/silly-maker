@@ -62,6 +62,7 @@ function loadResultFailureV1(kind: string): Error {
 }
 
 async function closeProgramV1(handle: ActiveProgramRuntimeHandleV1): Promise<void> {
+  await handle.surfaceDrainOwner.quiesce();
   if (!await handle.close()) throw new Error("sillyos.program_controller.workspace_busy");
 }
 
@@ -83,7 +84,9 @@ export function createSillyOsProgramControllerOwnerV1(input: {
     activeRoute: "library",
     defaultProgramFailure: null,
   };
+  let disposeRequested = false;
   let disposed = false;
+  let disposeSettlement: Promise<void> | null = null;
   let initialized: Promise<void> | null = null;
   let operationTail = Promise.resolve();
   let conversationReturnRoute: SillyOsStableProgramRouteV1 = "library";
@@ -106,6 +109,11 @@ export function createSillyOsProgramControllerOwnerV1(input: {
     handle: ActiveProgramRuntimeHandleV1,
     failureCode: string,
   ): Promise<void> => {
+    try {
+      await handle.surfaceDrainOwner.retire();
+    } catch (error) {
+      input.reportFailure(failureCode, error);
+    }
     try {
       await handle.dispose();
     } catch (error) {
@@ -171,6 +179,9 @@ export function createSillyOsProgramControllerOwnerV1(input: {
       return () => listeners.delete(listener);
     },
     initialize() {
+      if (disposeRequested) {
+        return Promise.reject(new Error("sillyos.program_controller.disposed"));
+      }
       initialized ??= (async () => {
         try {
           await input.repository.initialize();
@@ -186,7 +197,7 @@ export function createSillyOsProgramControllerOwnerV1(input: {
       return initialized;
     },
     openLibrary() {
-      if (disposed) return Promise.resolve(false);
+      if (disposeRequested) return Promise.resolve(false);
       return serializeV1(async () => {
         const activeProgram = snapshot.activeProgram;
         try {
@@ -213,7 +224,9 @@ export function createSillyOsProgramControllerOwnerV1(input: {
       });
     },
     launch(reference) {
-      if (disposed) return Promise.reject(new Error("sillyos.program_controller.disposed"));
+      if (disposeRequested) {
+        return Promise.reject(new Error("sillyos.program_controller.disposed"));
+      }
       return serializeV1(async () => {
         const route = await launchV1(reference);
         readOnlyConversation.close();
@@ -221,7 +234,9 @@ export function createSillyOsProgramControllerOwnerV1(input: {
       });
     },
     openRecentProcess(processId) {
-      if (disposed) return Promise.reject(new Error("sillyos.program_controller.disposed"));
+      if (disposeRequested) {
+        return Promise.reject(new Error("sillyos.program_controller.disposed"));
+      }
       return serializeV1(async () => {
         const process = await input.repository.loadProcess(processId);
         if (process === null) throw new Error("sillyos.conversation.process_not_found");
@@ -312,7 +327,7 @@ export function createSillyOsProgramControllerOwnerV1(input: {
       });
     },
     openReadOnlyProcess(processId) {
-      if (disposed) return Promise.resolve({ kind: "failed", code: "disposed" });
+      if (disposeRequested) return Promise.resolve({ kind: "failed", code: "disposed" });
       return serializeV1(async () => {
         const result = await readOnlyConversation.openProcess(processId);
         if (result.kind !== "completed" || !result.value) return result;
@@ -329,7 +344,7 @@ export function createSillyOsProgramControllerOwnerV1(input: {
       });
     },
     closeReadOnlyProcess() {
-      if (disposed) return conversationReturnRoute;
+      if (disposeRequested) return conversationReturnRoute;
       readOnlyConversation.close();
       if (snapshot.activeRoute !== "conversation") return snapshot.activeRoute;
       publishV1({
@@ -341,17 +356,40 @@ export function createSillyOsProgramControllerOwnerV1(input: {
       return conversationReturnRoute;
     },
     listRecentProcesses(listInput) {
-      if (disposed) return Promise.reject(new Error("sillyos.program_controller.disposed"));
+      if (disposeRequested) {
+        return Promise.reject(new Error("sillyos.program_controller.disposed"));
+      }
       return input.repository.listRecentProcessSummaries(listInput);
     },
-    async dispose() {
-      if (disposed) return;
-      disposed = true;
-      await initialized?.catch(() => undefined);
-      await operationTail.catch(() => undefined);
-      if (snapshot.activeProgram !== null) await snapshot.activeProgram.dispose();
-      readOnlyConversation.dispose();
-      listeners.clear();
+    dispose() {
+      if (disposeSettlement !== null) return disposeSettlement;
+      disposeRequested = true;
+      const settlement = (async (): Promise<void> => {
+        await initialized?.catch(() => undefined);
+        await operationTail.catch(() => undefined);
+        disposed = true;
+        if (snapshot.activeProgram !== null) {
+          try {
+            await snapshot.activeProgram.surfaceDrainOwner.quiesce();
+          } catch (error) {
+            input.reportFailure("silly_os.program_terminal_dispose_failed", error);
+          }
+          try {
+            await snapshot.activeProgram.surfaceDrainOwner.retire();
+          } catch (error) {
+            input.reportFailure("silly_os.program_terminal_dispose_failed", error);
+          }
+          try {
+            await snapshot.activeProgram.dispose();
+          } catch (error) {
+            input.reportFailure("silly_os.program_terminal_dispose_failed", error);
+          }
+        }
+        readOnlyConversation.dispose();
+        listeners.clear();
+      })();
+      disposeSettlement = settlement;
+      return settlement;
     },
   };
 }

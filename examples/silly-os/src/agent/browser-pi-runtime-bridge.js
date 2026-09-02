@@ -75,6 +75,7 @@ function createPiAgentV1(input) {
       if (finalAssistant?.role !== "assistant") return { stopReason: "error" };
       if (finalAssistant.stopReason === "aborted") return { stopReason: "aborted" };
       if (finalAssistant.stopReason === "error") return { stopReason: "error" };
+      if (finalAssistant.stopReason === "length") return { stopReason: "length" };
       return { stopReason: "stop" };
     },
     abort() {

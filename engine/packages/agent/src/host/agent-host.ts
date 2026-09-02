@@ -298,7 +298,7 @@ export function createAgentHostInternalV1(input: {
     },
     async submit(text: string): Promise<void> {
       const currentSessionId = sessionId;
-      if (currentSessionId === null || text.length === 0 || text.length > 8_192) {
+      if (currentSessionId === null || text.length === 0) {
         diagnostic = hostDiagnosticInternalV1("agent.operation_unavailable", "/submit");
         publish();
         return;

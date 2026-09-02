@@ -62,6 +62,24 @@ describe("createAgentHostInternalV1", () => {
     expect(host.getSnapshot()).toMatchObject({ readiness: "ready", diagnostic: null });
   });
 
+  it("delegates non-empty submit size policy to the Session and selected model", async () => {
+    const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
+    const client = createAgentSessionClientV1({ connector: fake.connector });
+    const host = createAgentHostInternalV1({ client, allowedActionIds: [actionIdInternalV1] });
+    await host.connect();
+    await host.start();
+    const text = "译".repeat(10_000);
+
+    await host.submit(text);
+
+    expect(fake.getOperations().at(-1)).toEqual({
+      connection: 1,
+      operation: "submit",
+      input: { sessionId: "session.1", text },
+    });
+    expect(host.getSnapshot()).toMatchObject({ run: { runId: "run.1", status: "streaming" } });
+  });
+
   it("preserves predecessor Artifact/draft across invalid completion, cancellation, and late events", async () => {
     const fake = createDeterministicFakeAgentSessionConnectorInternalV1();
     const client = createAgentSessionClientV1({ connector: fake.connector });

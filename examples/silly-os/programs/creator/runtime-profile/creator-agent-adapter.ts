@@ -180,6 +180,9 @@ function remoteFailureV1(
     case "candidate_missing":
       diagnosticCode = "protocol_invalid";
       break;
+    case "output_limit":
+      diagnosticCode = "output_limit";
+      break;
     default:
       diagnosticCode = "run_failed";
       break;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { RotateCcw, Save, Settings2, X } from "lucide-react";
-import { type ReactNode, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../../../src/content/copy.ts";
 import type { SillyOsThemeModeV1 } from "../../../src/application/preferences/browser-product-preferences-repository.ts";
@@ -28,6 +28,7 @@ import {
   type ConversationViewStateV1,
   createDefaultConversationViewStateV1,
 } from "../../../src/ui/chat-pane.tsx";
+import { ComposerModelPickerV1 } from "../../../src/ui/composer-model-picker.tsx";
 import {
   type TranslationProgramImportRequestV1,
   type TranslationCandidateDraftV1,
@@ -52,6 +53,7 @@ export interface TranslationProcessWorkspacePropsV1 {
   readonly onLoadTranslationRowWindow: TranslationProcessControllerV1["loadTranslationRowWindow"];
   readonly agentRun?: ProgramRunProjectionV1 | null;
   readonly piAgentRun?: ChatPanePropsV1["piAgentRun"];
+  readonly providerModel?: ChatPanePropsV1["providerModel"];
   readonly onSubmitInstruction?: (text: string) => boolean | void | Promise<boolean | void>;
   readonly onLoadOlderTranscript?: () => boolean | void | Promise<boolean | void>;
   readonly onReloadLatestTranscript?: () => boolean | void | Promise<boolean | void>;
@@ -161,6 +163,7 @@ export function TranslationProcessWorkspaceV1({
   onLoadTranslationRowWindow,
   agentRun = null,
   piAgentRun,
+  providerModel,
   onSubmitInstruction,
   onLoadOlderTranscript,
   onReloadLatestTranscript,
@@ -177,6 +180,10 @@ export function TranslationProcessWorkspaceV1({
     initialViewState ?? createDefaultTranslationWorkspaceSessionViewStateV1(),
   );
   const viewStateRef = useRef(initialViewStateRef.current);
+  const onViewStateChangeRef = useRef(onViewStateChange);
+  useEffect(() => {
+    onViewStateChangeRef.current = onViewStateChange;
+  }, [onViewStateChange]);
   const [mode, setMode] = useState<ProgramUiModeV1>(initialViewStateRef.current.mode);
   const [candidateDraft, setCandidateDraft] = useState<TranslationCandidateDraftV1 | null>(
     initialViewStateRef.current.candidateDraft,
@@ -242,33 +249,38 @@ export function TranslationProcessWorkspaceV1({
   };
   const agentInteractionPending = sourceImport.phase !== "idle" ||
     activeProcess.process.activeAttempt !== null || agentRun?.status === "running";
-  const startTranslationDisabled = agentInteractionPending ||
+  const modelReady = providerModel === undefined || providerModel.status === "ready";
+  const startTranslationDisabled = agentInteractionPending || !modelReady ||
     activeProcess.pendingCandidate !== null;
   const pendingCandidate = translationSource?.pendingCandidate ?? null;
+  const pendingCandidateUnitIds = useMemo(
+    () => new Set(pendingCandidate?.targets.map(({ unitId }) => unitId) ?? []),
+    [pendingCandidate],
+  );
   const visibleCandidateDraft = pendingCandidate !== null &&
       candidateDraft?.candidateId === pendingCandidate.candidateId &&
-      candidateDraft.targets.length === pendingCandidate.targets.length &&
-      candidateDraft.targets.every((target, index) =>
-        target.unitId === pendingCandidate.targets[index]?.unitId
-      )
+      candidateDraft.overrides.every(({ unitId }) => pendingCandidateUnitIds.has(unitId)) &&
+      new Set(candidateDraft.overrides.map(({ unitId }) => unitId)).size ===
+        candidateDraft.overrides.length
     ? candidateDraft
     : null;
-  const visibleCandidateTargets = pendingCandidate === null
-    ? null
-    : visibleCandidateDraft?.targets ?? pendingCandidate.targets;
   const conversationSendV1 = (() => {
     if (pendingCandidate === null) return onSubmitInstruction;
-    if (
-      translationSource === null || onRetranslateCandidate === undefined ||
-      visibleCandidateTargets === null
-    ) return undefined;
+    if (translationSource === null || onRetranslateCandidate === undefined) return undefined;
     const expectedWorksetRevision = translationSource.revision;
     return (instruction: string) => {
-      if (visibleCandidateTargets.some(({ target }) => target.trim().length === 0)) return false;
+      const overrides = new Map(
+        visibleCandidateDraft?.overrides.map(({ unitId, target }) => [unitId, target]) ?? [],
+      );
+      const targets = pendingCandidate.targets.map(({ unitId, target }) => ({
+        unitId,
+        target: overrides.get(unitId) ?? target,
+      }));
+      if (targets.some(({ target }) => target.trim().length === 0)) return false;
       return onRetranslateCandidate({
         expectedWorksetRevision,
         candidateId: pendingCandidate.candidateId,
-        targets: visibleCandidateTargets,
+        targets,
         instruction,
       });
     };
@@ -281,6 +293,27 @@ export function TranslationProcessWorkspaceV1({
     viewStateRef.current = next;
     onViewStateChange?.(next);
   };
+
+  const pendingCandidateId = pendingCandidate?.candidateId ?? null;
+  useEffect(() => {
+    const current = viewStateRef.current;
+    if (
+      current.candidateDraft === null ||
+      current.candidateDraft.candidateId === pendingCandidateId
+    ) return;
+    const next = { ...current, candidateDraft: null };
+    viewStateRef.current = next;
+    setCandidateDraft(null);
+    onViewStateChangeRef.current?.(next);
+  }, [pendingCandidateId]);
+
+  useEffect(() => () => {
+    const current = viewStateRef.current;
+    if (current.candidateDraft === null) return;
+    const next = { ...current, candidateDraft: null };
+    viewStateRef.current = next;
+    onViewStateChangeRef.current?.(next);
+  }, []);
 
   const settingsCopy = copy.locale === "zh-CN"
     ? {
@@ -410,20 +443,35 @@ export function TranslationProcessWorkspaceV1({
         translationSource={translationSource}
         stage={stage}
         run={run}
-        toolbarActions={onUpdateSettingsOverride === undefined || activeProcess.workset !== null
+        toolbarActions={providerModel === undefined &&
+            (onUpdateSettingsOverride === undefined || activeProcess.workset !== null)
           ? undefined
           : (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              icon={Settings2}
-              aria-haspopup="dialog"
-              aria-expanded={settingsOpen}
-              onClick={openProcessSettingsV1}
-            >
-              {settingsCopy.action}
-            </Button>
+            <>
+              {providerModel === undefined ? null : (
+                <ComposerModelPickerV1
+                  copy={copy}
+                  surface="workspace"
+                  {...providerModel}
+                  disabled={agentInteractionPending || providerModel.disabled === true}
+                />
+              )}
+              {onUpdateSettingsOverride === undefined || activeProcess.workset !== null
+                ? null
+                : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    icon={Settings2}
+                    aria-haspopup="dialog"
+                    aria-expanded={settingsOpen}
+                    onClick={openProcessSettingsV1}
+                  >
+                    {settingsCopy.action}
+                  </Button>
+                )}
+            </>
           )}
         overlaySurface={settingsOpen && activeProcess.workset === null
           ? (
@@ -529,7 +577,8 @@ export function TranslationProcessWorkspaceV1({
             initialConversationViewState={initialViewStateRef.current.conversation}
             onDraftChange={(draft) => publishViewStateV1({ draft })}
             onConversationViewStateChange={(conversation) => publishViewStateV1({ conversation })}
-            interactionReady={conversationSendV1 !== undefined && translationSource !== null}
+            interactionReady={modelReady && conversationSendV1 !== undefined &&
+              translationSource !== null}
             agentInteractionPending={agentInteractionPending}
             {...(piAgentRun === undefined ? {} : { piAgentRun })}
           />

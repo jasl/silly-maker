@@ -278,6 +278,10 @@ describe("Browser Program Workspace authority", () => {
         events.push("query");
         return snapshotV1(candidate, sessionId, "open");
       },
+      async captureStableHead() {
+        events.push("capture");
+        return snapshotV1(candidate, sessionId, "open");
+      },
       async readFile(request: { readonly path: string }) {
         events.push(`read:${request.path}`);
         return {
@@ -297,6 +301,13 @@ describe("Browser Program Workspace authority", () => {
       operationFence: { run: (_mode, operation) => operation() },
     });
 
+    await expect(authority.captureProcessWorkspaceHead({
+      processId: process.processId,
+      workspaceId: workspace.workspaceId,
+    })).resolves.toEqual({
+      checkpointId: candidate.checkpointId,
+      generation: candidate.generation,
+    });
     await expect(authority.readProcessWorkspaceFile({
       processId: process.processId,
       workspaceId: workspace.workspaceId,
@@ -314,7 +325,24 @@ describe("Browser Program Workspace authority", () => {
         generation: candidate.generation,
       },
     });
-    expect(events).toEqual(["open", "query", "read:translation/source.md", "close"]);
+    expect(events).toEqual([
+      "open",
+      "capture",
+      "close",
+      "open",
+      "query",
+      "read:translation/source.md",
+      "close",
+    ]);
     await authority.dispose();
+    expect(events).toEqual([
+      "open",
+      "capture",
+      "close",
+      "open",
+      "query",
+      "read:translation/source.md",
+      "close",
+    ]);
   });
 });

@@ -4,14 +4,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile } from "node:fs/promises";
 
 import { admitProgramPackageArchiveV1 } from "../../../src/program-platform/package/program-package-archive.ts";
-import { projectProgramPackageRuntimeProfileV1 } from "../../../src/program-platform/package/program-runtime-profile-descriptor.ts";
+import {
+  checkProgramPackageRuntimeProfileCompatibilityV1,
+  projectProgramPackageRuntimeProfileV1,
+} from "../../../src/program-platform/package/program-runtime-profile-descriptor.ts";
 import { translationProgramPackageSourceV1 } from "../distribution/bundled-package-source.ts";
 import { createTranslationBatchBudgetForModelV1 } from "../runtime-profile/translation-runtime-profile.ts";
+import { translationProgramRuntimeProfileDescriptorV1 } from "../runtime-profile/translation-runtime-profile-descriptor.ts";
 
 const packageFilesV1 = [
   ["PROGRAM.md", "text/markdown"],
   ["initial-ui.json", "application/json"],
   ["prompts/translate.md", "text/markdown"],
+  ["prompts/working-memory.md", "text/markdown"],
   ["settings.defaults.json", "application/json"],
   ["skills/translate/SKILL.md", "text/markdown"],
 ] as const;
@@ -56,6 +61,23 @@ describe("Translation Program package", () => {
     expect(admitted.manifest.instructionsPath).toBe("PROGRAM.md");
     expect(admitted.manifest.scripts).toEqual([]);
     expect(admitted.manifest.capabilityIds).toContain("program.resource.read");
+    expect(admitted.manifest.capabilityIds).toEqual(expect.arrayContaining([
+      "workspace.read",
+      "workspace.search",
+      "workspace.write",
+    ]));
+    for (const capabilityId of ["workspace.read", "workspace.search", "workspace.write"]) {
+      expect(checkProgramPackageRuntimeProfileCompatibilityV1({
+        ...admitted,
+        manifest: {
+          ...admitted.manifest,
+          capabilityIds: admitted.manifest.capabilityIds.filter((id) => id !== capabilityId),
+        },
+      }, translationProgramRuntimeProfileDescriptorV1)).toEqual({
+        kind: "incompatible",
+        requirement: "capability",
+      });
+    }
     expect(translationProgramPackageSourceV1.metadata).toEqual({
       reference: admitted.reference,
       byteLength: admitted.byteLength,
@@ -85,7 +107,16 @@ describe("Translation Program package", () => {
     };
     const skill = readTextV1("skills/translate/SKILL.md");
     expect(skill).toMatch(/prompts\/translate\.md/u);
+    expect(skill).toMatch(/prompts\/working-memory\.md/u);
     expect(skill).toMatch(/does not create another Project/u);
+    expect(skill).toMatch(/not as another Host stage/u);
+    const workingMemory = readTextV1("prompts/working-memory.md");
+    expect(workingMemory).toMatch(/\/workspace\/memory\/MEMORY\.md/u);
+    expect(workingMemory).toMatch(/not a second transcript, translation workset/u);
+    expect(workingMemory).toMatch(/missing,\s+empty, malformed, or insufficient/u);
+    expect(workingMemory).toMatch(/must never\s+block translation/u);
+    expect(workingMemory).toMatch(/explicit user\s+corrections/u);
+    expect(workingMemory).not.toMatch(/Context Pack|freeze|typed analysis/u);
     const initialUi = JSON.parse(readTextV1("initial-ui.json")) as {
       readonly surface: string;
       readonly locales: Readonly<

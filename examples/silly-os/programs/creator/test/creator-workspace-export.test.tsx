@@ -183,4 +183,61 @@ describe("Creator Workspace export workflow", () => {
       expect(closed).toEqual(["session.process.export.first"]);
     });
   });
+
+  it("returns a quiesced export to an idle, restartable UI state", async () => {
+    let workspace: { readonly phase: "closed"; readonly descriptor: null } | {
+      readonly phase: "open";
+      readonly descriptor: ReturnType<typeof descriptorV1>;
+    } = { phase: "closed", descriptor: null };
+    let exports = 0;
+    const port = {
+      getSnapshot: () => ({ workspace }),
+      openWorkspace: async (target: CreatorWorkspaceExportTargetV1) => {
+        const descriptor = descriptorV1(target, exports + 1);
+        workspace = { phase: "open", descriptor };
+        return { kind: "opened" as const, descriptor };
+      },
+      closeWorkspace: async () => {
+        const descriptor = workspace.descriptor ?? descriptorV1(firstTargetV1);
+        workspace = { phase: "closed", descriptor: null };
+        return { kind: "closed" as const, descriptor };
+      },
+      exportWorkspace: async (
+        input: Parameters<CreatorAgentPortV1["exportWorkspace"]>[0],
+      ) => {
+        exports += 1;
+        return await new Promise<Awaited<ReturnType<CreatorAgentPortV1["exportWorkspace"]>>>(
+          (resolve) => {
+            input.signal.addEventListener(
+              "abort",
+              () => resolve({ kind: "cancelled", ...progressV1() }),
+              { once: true },
+            );
+          },
+        );
+      },
+    } as unknown as CreatorAgentPortV1;
+    const { result } = renderHook(() =>
+      useCreatorWorkspaceExportV1({
+        port,
+        target: firstTargetV1,
+        enabled: true,
+        reportFailure: () => undefined,
+      })
+    );
+
+    act(() => result.current.start());
+    await waitFor(() => expect(result.current.state.phase).toBe("exporting"));
+    await act(async () => await result.current.drain());
+    expect(result.current.state).toEqual({ phase: "idle" });
+    expect(exports).toBe(1);
+
+    act(() => result.current.start());
+    await waitFor(() => {
+      expect(result.current.state.phase).toBe("exporting");
+      expect(exports).toBe(2);
+    });
+    await act(async () => await result.current.drain());
+    expect(result.current.state).toEqual({ phase: "idle" });
+  });
 });
