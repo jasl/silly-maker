@@ -164,7 +164,7 @@ describe("SillyOS Program library", () => {
     expect(listRecentProcesses).toHaveBeenCalledWith({ before: null, maximumBytes: 65_536 });
   });
 
-  it("shows compatibility without package-origin or byte-identity details", async () => {
+  it("keeps ready Programs concise while explaining incompatible installations", async () => {
     const entries = [
       installedV1({
         programId: "community.writer",
@@ -200,7 +200,10 @@ describe("SillyOS Program library", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Writer" })).toBeInTheDocument();
-    expect(screen.getByText("Ready")).toBeInTheDocument();
+    expect(screen.queryByText("Ready")).toBeNull();
+    expect(screen.queryByText("The required harness and runtime profile are available."))
+      .toBeNull();
+    expect(screen.getAllByText("Program details")).toHaveLength(entries.length - 1);
     expect(screen.getByText("Harness incompatible")).toBeInTheDocument();
     expect(screen.getByText("Runtime unavailable")).toBeInTheDocument();
     expect(screen.getByText("Runtime requirements incompatible")).toBeInTheDocument();
@@ -239,6 +242,7 @@ describe("SillyOS Program library", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Open" }));
     await waitFor(() => expect(onLaunch).toHaveBeenCalledWith(entry.reference.programId));
+    expect(screen.queryByText("Program details")).toBeNull();
   });
 
   it("imports through the supplied service, refreshes the list, and reports completion", async () => {
@@ -273,6 +277,7 @@ describe("SillyOS Program library", () => {
       />,
     );
     await screen.findByRole("heading", { name: "Translation" });
+    fireEvent.click(screen.getByText("Add Program"));
 
     const zipBytes = new Uint8Array([80, 75, 3, 4]);
     const file = {
@@ -461,6 +466,7 @@ describe("SillyOS Program library", () => {
       />,
     );
     await screen.findByRole("heading", { name: "Writer" });
+    fireEvent.click(screen.getByText("Add Program"));
 
     const file = {
       name: "broken.zip",

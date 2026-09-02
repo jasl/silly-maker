@@ -137,7 +137,7 @@ function ProcessSummaryRowV1({
       timeStyle: "short",
     }).format(new Date(summary.updatedAt)), [locale, summary.updatedAt]);
   return (
-    <li className="program-library__process">
+    <li className="program-library__process" data-process-id={summary.processId}>
       <div className="program-library__process-heading">
         <MessageSquareText size={17} aria-hidden="true" />
         <div>
@@ -165,18 +165,21 @@ function ProcessSummaryRowV1({
           {locale === "zh-CN" ? "查看 Conversation" : "View Conversation"}
         </ButtonV1>
       </div>
-      <dl className="program-library__process-metadata">
-        <div>
-          <dt>Process</dt>
-          <dd>
-            <code>{summary.processId}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>{locale === "zh-CN" ? "兼容版本" : "Compatibility version"}</dt>
-          <dd>{summary.programPackage.packageVersion}</dd>
-        </div>
-      </dl>
+      <details className="program-library__process-details">
+        <summary>{locale === "zh-CN" ? "Conversation 详情" : "Conversation details"}</summary>
+        <dl className="program-library__process-metadata">
+          <div>
+            <dt>Process</dt>
+            <dd>
+              <code>{summary.processId}</code>
+            </dd>
+          </div>
+          <div>
+            <dt>{locale === "zh-CN" ? "兼容版本" : "Compatibility version"}</dt>
+            <dd>{summary.programPackage.packageVersion}</dd>
+          </div>
+        </dl>
+      </details>
     </li>
   );
 }
@@ -188,16 +191,10 @@ function errorMessageV1(error: unknown): string {
 function compatibilityTextV1(
   entry: ProgramPackageLibraryEntryV1,
   locale: LocaleV1,
-): { readonly label: string; readonly detail: string; readonly variant: "success" | "warning" } {
+): { readonly label: string; readonly detail: string; readonly variant: "warning" } | null {
   switch (entry.compatibility) {
     case "ready":
-      return {
-        label: locale === "zh-CN" ? "可运行" : "Ready",
-        detail: locale === "zh-CN"
-          ? "当前 SillyOS 提供所需 Harness 与运行配置。"
-          : "The required harness and runtime profile are available.",
-        variant: "success",
-      };
+      return null;
     case "harness_incompatible":
       return {
         label: locale === "zh-CN" ? "Harness 不兼容" : "Harness incompatible",
@@ -245,6 +242,7 @@ function ProgramPackageRowV1({
   const compatibility = compatibilityTextV1(entry, locale);
   const [removalDialogOpen, setRemovalDialogOpen] = useState(false);
   const restoringBundled = entry.externalRemoval?.action === "restore_bundled";
+  const showDetails = compatibility !== null || entry.externalRemoval !== null;
   return (
     <li className="program-library__package" data-compatibility={entry.compatibility}>
       <div className="program-library__package-heading">
@@ -255,117 +253,126 @@ function ProgramPackageRowV1({
             <p>{entry.manifest.summary}</p>
           </div>
         </div>
-        <div className="program-library__badges">
-          <BadgeV1 variant={compatibility.variant}>{compatibility.label}</BadgeV1>
-        </div>
-      </div>
-      <p className="program-library__compatibility-detail">{compatibility.detail}</p>
-      <div className="program-library__package-actions">
-        {entry.compatibility === "ready" && onLaunch !== undefined
-          ? (
-            <ButtonV1
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => void onLaunch(entry.reference.programId)}
-            >
-              {locale === "zh-CN" ? "打开" : "Open"}
-            </ButtonV1>
-          )
-          : null}
-        {entry.externalRemoval === null
-          ? null
-          : (
-            <AlertDialogV1 open={removalDialogOpen} onOpenChange={setRemovalDialogOpen}>
-              <AlertDialogTriggerV1>
-                <ButtonV1
-                  type="button"
-                  size="sm"
-                  variant={restoringBundled ? "secondary" : "destructive"}
-                  icon={restoringBundled ? RotateCcw : Trash2}
-                  disabled={removalBusy}
-                  aria-busy={removing || undefined}
-                >
-                  {removing
-                    ? restoringBundled
-                      ? locale === "zh-CN" ? "正在恢复…" : "Restoring…"
-                      : locale === "zh-CN"
-                      ? "正在移除…"
-                      : "Removing…"
-                    : restoringBundled
-                    ? locale === "zh-CN" ? "恢复内置版本" : "Restore built-in"
-                    : locale === "zh-CN"
-                    ? "移除外部 Program"
-                    : "Remove external Program"}
-                </ButtonV1>
-              </AlertDialogTriggerV1>
-              <AlertDialogContentV1>
-                <AlertDialogTitleV1>
-                  {restoringBundled
-                    ? locale === "zh-CN"
-                      ? `恢复 ${entry.manifest.name} 的内置版本？`
-                      : `Restore the built-in ${entry.manifest.name}?`
-                    : locale === "zh-CN"
-                    ? `移除 ${entry.manifest.name}？`
-                    : `Remove ${entry.manifest.name}?`}
-                </AlertDialogTitleV1>
-                <AlertDialogDescriptionV1>
-                  {restoringBundled
-                    ? locale === "zh-CN"
-                      ? "外部实现会被移除。已有 Conversation 保持不变，兼容的 Process 将使用当前内置实现。"
-                      : "The external implementation will be removed. Existing Conversations stay unchanged, and compatible Processes will use the current built-in implementation."
-                    : locale === "zh-CN"
-                    ? "Program 实现会被移除，但已有 Conversation 仍可只读查看；以后可以重新安装来恢复运行能力。"
-                    : "The Program implementation will be removed, but existing Conversations remain available read-only. Reinstall it later to restore its runtime."}
-                </AlertDialogDescriptionV1>
-                <div className="program-library__removal-dialog-actions">
-                  <AlertDialogCancelV1>
-                    <ButtonV1 type="button" variant="secondary">
-                      {locale === "zh-CN" ? "取消" : "Cancel"}
-                    </ButtonV1>
-                  </AlertDialogCancelV1>
-                  <AlertDialogActionV1>
-                    <ButtonV1
-                      type="button"
-                      variant={restoringBundled ? "primary" : "destructive"}
-                      onClick={() => void onRemoveExternal(entry)}
-                    >
-                      {restoringBundled
-                        ? locale === "zh-CN" ? "恢复内置版本" : "Restore built-in"
+        <div className="program-library__package-actions">
+          {entry.compatibility === "ready" && onLaunch !== undefined
+            ? (
+              <ButtonV1
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => void onLaunch(entry.reference.programId)}
+              >
+                {locale === "zh-CN" ? "打开" : "Open"}
+              </ButtonV1>
+            )
+            : null}
+          {entry.externalRemoval === null
+            ? null
+            : (
+              <AlertDialogV1 open={removalDialogOpen} onOpenChange={setRemovalDialogOpen}>
+                <AlertDialogTriggerV1>
+                  <ButtonV1
+                    type="button"
+                    size="sm"
+                    variant={restoringBundled ? "secondary" : "destructive"}
+                    icon={restoringBundled ? RotateCcw : Trash2}
+                    disabled={removalBusy}
+                    aria-busy={removing || undefined}
+                  >
+                    {removing
+                      ? restoringBundled
+                        ? locale === "zh-CN" ? "正在恢复…" : "Restoring…"
                         : locale === "zh-CN"
-                        ? "移除 Program"
-                        : "Remove Program"}
-                    </ButtonV1>
-                  </AlertDialogActionV1>
-                </div>
-              </AlertDialogContentV1>
-            </AlertDialogV1>
-          )}
+                        ? "正在移除…"
+                        : "Removing…"
+                      : restoringBundled
+                      ? locale === "zh-CN" ? "恢复内置版本" : "Restore built-in"
+                      : locale === "zh-CN"
+                      ? "移除外部 Program"
+                      : "Remove external Program"}
+                  </ButtonV1>
+                </AlertDialogTriggerV1>
+                <AlertDialogContentV1>
+                  <AlertDialogTitleV1>
+                    {restoringBundled
+                      ? locale === "zh-CN"
+                        ? `恢复 ${entry.manifest.name} 的内置版本？`
+                        : `Restore the built-in ${entry.manifest.name}?`
+                      : locale === "zh-CN"
+                      ? `移除 ${entry.manifest.name}？`
+                      : `Remove ${entry.manifest.name}?`}
+                  </AlertDialogTitleV1>
+                  <AlertDialogDescriptionV1>
+                    {restoringBundled
+                      ? locale === "zh-CN"
+                        ? "外部实现会被移除。已有 Conversation 保持不变，兼容的 Process 将使用当前内置实现。"
+                        : "The external implementation will be removed. Existing Conversations stay unchanged, and compatible Processes will use the current built-in implementation."
+                      : locale === "zh-CN"
+                      ? "Program 实现会被移除，但已有 Conversation 仍可只读查看；以后可以重新安装来恢复运行能力。"
+                      : "The Program implementation will be removed, but existing Conversations remain available read-only. Reinstall it later to restore its runtime."}
+                  </AlertDialogDescriptionV1>
+                  <div className="program-library__removal-dialog-actions">
+                    <AlertDialogCancelV1>
+                      <ButtonV1 type="button" variant="secondary">
+                        {locale === "zh-CN" ? "取消" : "Cancel"}
+                      </ButtonV1>
+                    </AlertDialogCancelV1>
+                    <AlertDialogActionV1>
+                      <ButtonV1
+                        type="button"
+                        variant={restoringBundled ? "primary" : "destructive"}
+                        onClick={() => void onRemoveExternal(entry)}
+                      >
+                        {restoringBundled
+                          ? locale === "zh-CN" ? "恢复内置版本" : "Restore built-in"
+                          : locale === "zh-CN"
+                          ? "移除 Program"
+                          : "Remove Program"}
+                      </ButtonV1>
+                    </AlertDialogActionV1>
+                  </div>
+                </AlertDialogContentV1>
+              </AlertDialogV1>
+            )}
+        </div>
       </div>
-      <dl className="program-library__metadata">
-        <div>
-          <dt>Program</dt>
-          <dd>
-            <code>{entry.reference.programId}</code>
-          </dd>
+      {compatibility === null ? null : (
+        <div className="program-library__compatibility">
+          <BadgeV1 variant={compatibility.variant}>{compatibility.label}</BadgeV1>
+          <p>{compatibility.detail}</p>
         </div>
-        <div>
-          <dt>{locale === "zh-CN" ? "兼容版本" : "Compatibility version"}</dt>
-          <dd>{entry.reference.packageVersion}</dd>
-        </div>
-        <div>
-          <dt>Harness</dt>
-          <dd>
-            <code>{entry.manifest.harnessCompatibility}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>{locale === "zh-CN" ? "运行配置" : "Runtime profile"}</dt>
-          <dd>
-            <code>{entry.manifest.runtimeProfile}</code>
-          </dd>
-        </div>
-      </dl>
+      )}
+      {showDetails
+        ? (
+          <details className="program-library__details">
+            <summary>{locale === "zh-CN" ? "Program 详情" : "Program details"}</summary>
+            <dl className="program-library__metadata">
+              <div>
+                <dt>Program</dt>
+                <dd>
+                  <code>{entry.reference.programId}</code>
+                </dd>
+              </div>
+              <div>
+                <dt>{locale === "zh-CN" ? "兼容版本" : "Compatibility version"}</dt>
+                <dd>{entry.reference.packageVersion}</dd>
+              </div>
+              <div>
+                <dt>Harness</dt>
+                <dd>
+                  <code>{entry.manifest.harnessCompatibility}</code>
+                </dd>
+              </div>
+              <div>
+                <dt>{locale === "zh-CN" ? "运行配置" : "Runtime profile"}</dt>
+                <dd>
+                  <code>{entry.manifest.runtimeProfile}</code>
+                </dd>
+              </div>
+            </dl>
+          </details>
+        )
+        : null}
     </li>
   );
 }
@@ -539,11 +546,6 @@ export function ProgramLibraryV1({
       <header className="program-library__header">
         <div>
           <h2 id={`${inputId}-title`}>Programs</h2>
-          <p>
-            {locale === "zh-CN"
-              ? "导入外部 Program 包；兼容更新会用于新旧 Process。"
-              : "Import external Program packages. Compatible updates apply to new and existing Processes."}
-          </p>
         </div>
         {onOpenSettings === undefined ? null : (
           <ButtonV1
@@ -558,81 +560,131 @@ export function ProgramLibraryV1({
         )}
       </header>
 
-      <div className="program-library__import">
-        <label htmlFor={inputId}>
-          {locale === "zh-CN" ? "导入 Program ZIP" : "Import Program ZIP"}
-        </label>
-        <InputV1
-          id={inputId}
-          className="program-library__file-input"
-          type="file"
-          accept=".zip,application/zip,application/x-zip-compressed"
-          aria-describedby={inputDescriptionId}
-          disabled={importing}
-          onChange={(event) => void installZipV1(event)}
-        />
-        <p id={inputDescriptionId}>
-          {locale === "zh-CN"
-            ? "ZIP 必须包含 program.json；导入不会在页面上下文中执行包内代码。"
-            : "The ZIP must contain program.json. Importing does not execute package code in the page."}
-        </p>
-      </div>
+      <section
+        className="program-library__installed"
+        aria-label={locale === "zh-CN" ? "已安装 Programs" : "Installed Programs"}
+      >
+        {loadState.kind === "loading"
+          ? (
+            <p className="program-library__load-state" role="status">
+              {locale === "zh-CN" ? "正在读取 Programs…" : "Loading Programs…"}
+            </p>
+          )
+          : loadState.kind === "failed"
+          ? (
+            <StatusV1 variant="danger" icon={CircleAlert} role="alert">
+              <StatusContentV1>
+                <StatusTitleV1>
+                  {locale === "zh-CN"
+                    ? "无法读取已安装 Programs"
+                    : "Could not load installed Programs"}
+                </StatusTitleV1>
+                <StatusDescriptionV1>{loadState.message}</StatusDescriptionV1>
+              </StatusContentV1>
+            </StatusV1>
+          )
+          : loadState.entries.length === 0
+          ? (
+            <p className="program-library__load-state">
+              {locale === "zh-CN" ? "尚未安装 Program。" : "No Programs are installed."}
+            </p>
+          )
+          : (
+            <ul className="program-library__packages">
+              {loadState.entries.map((entry) => (
+                <ProgramPackageRowV1
+                  key={entry.reference.programId}
+                  entry={entry}
+                  locale={locale}
+                  removalBusy={removalBusy}
+                  removing={removalState.kind === "removing" &&
+                    removalState.programId === entry.reference.programId}
+                  onRemoveExternal={removeExternalV1}
+                  {...(onLaunch === undefined ? {} : { onLaunch })}
+                />
+              ))}
+            </ul>
+          )}
+      </section>
 
-      {importState.kind === "idle" ? null : (
-        <StatusV1
-          className="program-library__import-status"
-          variant={importState.kind === "installed"
-            ? "success"
-            : importState.kind === "warning"
-            ? "warning"
-            : importState.kind === "failed"
-            ? "danger"
-            : "info"}
-          icon={importState.kind === "installed"
-            ? CheckCircle2
-            : importState.kind === "installing"
-            ? LoaderCircle
-            : CircleAlert}
-          role={importState.kind === "failed" ? "alert" : "status"}
-          aria-live={importState.kind === "failed" ? "assertive" : "polite"}
-          data-busy={importing ? "true" : "false"}
-        >
-          <StatusContentV1>
-            <StatusTitleV1>
-              {importState.kind === "installing"
-                ? locale === "zh-CN"
-                  ? `正在导入 ${importState.fileName}`
-                  : `Importing ${importState.fileName}`
+      <details className="program-library__add">
+        <summary>{locale === "zh-CN" ? "添加 Program" : "Add Program"}</summary>
+        <div className="program-library__import">
+          <label htmlFor={inputId}>
+            {locale === "zh-CN" ? "导入 Program ZIP" : "Import Program ZIP"}
+          </label>
+          <InputV1
+            id={inputId}
+            className="program-library__file-input"
+            type="file"
+            accept=".zip,application/zip,application/x-zip-compressed"
+            aria-describedby={inputDescriptionId}
+            disabled={importing}
+            onChange={(event) => void installZipV1(event)}
+          />
+          <p id={inputDescriptionId}>
+            {locale === "zh-CN"
+              ? "ZIP 必须包含 program.json；导入不会在页面上下文中执行包内代码。"
+              : "The ZIP must contain program.json. Importing does not execute package code in the page."}
+          </p>
+        </div>
+
+        {importState.kind === "idle" ? null : (
+          <StatusV1
+            className="program-library__import-status"
+            variant={importState.kind === "installed"
+              ? "success"
+              : importState.kind === "warning"
+              ? "warning"
+              : importState.kind === "failed"
+              ? "danger"
+              : "info"}
+            icon={importState.kind === "installed"
+              ? CheckCircle2
+              : importState.kind === "installing"
+              ? LoaderCircle
+              : CircleAlert}
+            role={importState.kind === "failed" ? "alert" : "status"}
+            aria-live={importState.kind === "failed" ? "assertive" : "polite"}
+            data-busy={importing ? "true" : "false"}
+          >
+            <StatusContentV1>
+              <StatusTitleV1>
+                {importState.kind === "installing"
+                  ? locale === "zh-CN"
+                    ? `正在导入 ${importState.fileName}`
+                    : `Importing ${importState.fileName}`
+                  : importState.kind === "installed"
+                  ? locale === "zh-CN"
+                    ? `已导入 ${importState.fileName}`
+                    : `Imported ${importState.fileName}`
+                  : importState.kind === "warning"
+                  ? locale === "zh-CN"
+                    ? `已导入 ${importState.fileName}`
+                    : `Imported ${importState.fileName}`
+                  : locale === "zh-CN"
+                  ? `无法导入 ${importState.fileName}`
+                  : `Could not import ${importState.fileName}`}
+              </StatusTitleV1>
+              {importState.kind === "failed" || importState.kind === "warning"
+                ? <StatusDescriptionV1>{importState.message}</StatusDescriptionV1>
                 : importState.kind === "installed"
-                ? locale === "zh-CN"
-                  ? `已导入 ${importState.fileName}`
-                  : `Imported ${importState.fileName}`
-                : importState.kind === "warning"
-                ? locale === "zh-CN"
-                  ? `已导入 ${importState.fileName}`
-                  : `Imported ${importState.fileName}`
-                : locale === "zh-CN"
-                ? `无法导入 ${importState.fileName}`
-                : `Could not import ${importState.fileName}`}
-            </StatusTitleV1>
-            {importState.kind === "failed" || importState.kind === "warning"
-              ? <StatusDescriptionV1>{importState.message}</StatusDescriptionV1>
-              : importState.kind === "installed"
-              ? (
-                <StatusDescriptionV1>
-                  {importState.disposition === "replaced"
-                    ? locale === "zh-CN"
-                      ? "已替换这个 Program 的当前实现。"
-                      : "The current implementation of this Program was replaced."
-                    : locale === "zh-CN"
-                    ? "Program 已安装。"
-                    : "The Program was installed."}
-                </StatusDescriptionV1>
-              )
-              : null}
-          </StatusContentV1>
-        </StatusV1>
-      )}
+                ? (
+                  <StatusDescriptionV1>
+                    {importState.disposition === "replaced"
+                      ? locale === "zh-CN"
+                        ? "已替换这个 Program 的当前实现。"
+                        : "The current implementation of this Program was replaced."
+                      : locale === "zh-CN"
+                      ? "Program 已安装。"
+                      : "The Program was installed."}
+                  </StatusDescriptionV1>
+                )
+                : null}
+            </StatusContentV1>
+          </StatusV1>
+        )}
+      </details>
 
       {removalState.kind === "idle" ? null : (
         <StatusV1
@@ -706,7 +758,10 @@ export function ProgramLibraryV1({
         </StatusV1>
       )}
 
-      {listRecentProcesses === undefined || onOpenProcess === undefined
+      {listRecentProcesses === undefined || onOpenProcess === undefined ||
+          recentProcesses.kind === "loading" ||
+          (recentProcesses.kind === "ready" && recentProcesses.summaries.length === 0 &&
+            processOpenFailure === null)
         ? null
         : (
           <section className="program-library__recent" aria-labelledby={`${inputId}-recent`}>
@@ -730,13 +785,7 @@ export function ProgramLibraryV1({
                   </StatusContentV1>
                 </StatusV1>
               )}
-            {recentProcesses.kind === "loading"
-              ? (
-                <p className="program-library__load-state" role="status">
-                  {locale === "zh-CN" ? "正在读取 Conversations…" : "Loading Conversations…"}
-                </p>
-              )
-              : recentProcesses.kind === "failed"
+            {recentProcesses.kind === "failed"
               ? (
                 <StatusV1 variant="danger" icon={CircleAlert} role="alert">
                   <StatusContentV1>
@@ -750,13 +799,7 @@ export function ProgramLibraryV1({
                 </StatusV1>
               )
               : recentProcesses.summaries.length === 0
-              ? (
-                <p className="program-library__load-state">
-                  {locale === "zh-CN"
-                    ? "还没有已保存的 Conversation。"
-                    : "No saved Conversations yet."}
-                </p>
-              )
+              ? null
               : (
                 <>
                   <ul className="program-library__processes">
@@ -790,51 +833,6 @@ export function ProgramLibraryV1({
               )}
           </section>
         )}
-
-      <section className="program-library__installed" aria-labelledby={`${inputId}-installed`}>
-        <h2 id={`${inputId}-installed`}>{locale === "zh-CN" ? "已安装" : "Installed"}</h2>
-        {loadState.kind === "loading"
-          ? (
-            <p className="program-library__load-state" role="status">
-              {locale === "zh-CN" ? "正在读取 Programs…" : "Loading Programs…"}
-            </p>
-          )
-          : loadState.kind === "failed"
-          ? (
-            <StatusV1 variant="danger" icon={CircleAlert} role="alert">
-              <StatusContentV1>
-                <StatusTitleV1>
-                  {locale === "zh-CN"
-                    ? "无法读取已安装 Programs"
-                    : "Could not load installed Programs"}
-                </StatusTitleV1>
-                <StatusDescriptionV1>{loadState.message}</StatusDescriptionV1>
-              </StatusContentV1>
-            </StatusV1>
-          )
-          : loadState.entries.length === 0
-          ? (
-            <p className="program-library__load-state">
-              {locale === "zh-CN" ? "尚未安装 Program。" : "No Programs are installed."}
-            </p>
-          )
-          : (
-            <ul className="program-library__packages">
-              {loadState.entries.map((entry) => (
-                <ProgramPackageRowV1
-                  key={entry.reference.programId}
-                  entry={entry}
-                  locale={locale}
-                  removalBusy={removalBusy}
-                  removing={removalState.kind === "removing" &&
-                    removalState.programId === entry.reference.programId}
-                  onRemoveExternal={removeExternalV1}
-                  {...(onLaunch === undefined ? {} : { onLaunch })}
-                />
-              ))}
-            </ul>
-          )}
-      </section>
     </section>
   );
 }

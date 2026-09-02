@@ -888,6 +888,14 @@ async function expectProgramLibraryV1(page: Page): Promise<Locator> {
   return library;
 }
 
+async function openProgramImportV1(library: Locator): Promise<Locator> {
+  const disclosure = library.locator(".program-library__add");
+  await disclosure.locator("summary").click();
+  const input = library.getByLabel("Import Program ZIP");
+  await expect(input).toBeVisible();
+  return input;
+}
+
 async function launchProgramFromLibraryV1(page: Page, name: string): Promise<void> {
   const library = await expectProgramLibraryV1(page);
   const row = library.locator(".program-library__package").filter({
@@ -1861,7 +1869,8 @@ test("Program Library is the product home and launches bundled Programs through 
     .toBeVisible();
   await expect(library.getByRole("heading", { name: "Translation", exact: true }))
     .toBeVisible();
-  await expect(library.getByLabel("Import Program ZIP")).toBeVisible();
+  await expect(library.getByText("Add Program", { exact: true })).toBeVisible();
+  await expect(library.getByLabel("Import Program ZIP")).toBeHidden();
 
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(page.locator('[data-silly-os-view="settings"]')).toBeVisible();
@@ -1878,6 +1887,82 @@ test("Program Library is the product home and launches bundled Programs through 
   await expect(translation).toHaveAttribute("data-program-id", "sillyos.translation");
   await returnToProgramLibraryV1(page);
 });
+
+test(
+  "@mobile Program Library keeps Translation reachable through its own scrollport",
+  async ({ durableProgramPage: page }) => {
+    await page.setViewportSize({ width: 390, height: 650 });
+    await page.goto(sillyOsTargetUrlV1("?locale=en"));
+
+    const route = await expectProgramLibraryV1(page);
+    const scroller = route.locator(":scope > .program-library");
+    const translationRow = scroller.locator(".program-library__package").filter({
+      has: page.getByRole("heading", { name: "Translation", exact: true }),
+    });
+    const translationOpen = translationRow.getByRole("button", { name: "Open", exact: true });
+    await expect(translationOpen).toBeInViewport();
+
+    await page.setViewportSize({ width: 390, height: 320 });
+    const addProgram = scroller.locator(".program-library__add");
+    await addProgram.evaluate((element) => {
+      if (!(element instanceof HTMLDetailsElement)) {
+        throw new Error("Add Program disclosure is not a details element");
+      }
+      element.open = true;
+    });
+    const programZip = scroller.getByLabel("Import Program ZIP");
+    await expect(programZip).toBeVisible();
+
+    const beforeScroll = await scroller.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      scrollTop: element.scrollTop,
+    }));
+    expect(beforeScroll.scrollHeight).toBeGreaterThan(beforeScroll.clientHeight);
+    expect(beforeScroll.scrollTop).toBe(0);
+    await scroller.evaluate((element) => element.scrollTo({ top: element.scrollHeight }));
+    await expect.poll(async () => await scroller.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(0);
+    await expect(programZip).toBeInViewport();
+
+    const geometry = await page.evaluate(() => {
+      const routeElement = document.querySelector<HTMLElement>(
+        '[data-silly-os-view="program-library"]',
+      );
+      if (routeElement === null) throw new Error("Program Library route geometry missing");
+      const scrollerElement = routeElement.querySelector<HTMLElement>(".program-library");
+      if (scrollerElement === null) {
+        throw new Error("Program Library scrollport geometry missing");
+      }
+      const target = scrollerElement.querySelector<HTMLElement>('input[type="file"]');
+      if (target === null) throw new Error("Program ZIP input geometry missing");
+      const routeRect = routeElement.getBoundingClientRect();
+      const scrollerRect = scrollerElement.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      return {
+        bodyScrollHeight: document.body.scrollHeight,
+        targetBottom: targetRect.bottom,
+        targetTop: targetRect.top,
+        routeClientHeight: routeElement.clientHeight,
+        routeScrollHeight: routeElement.scrollHeight,
+        scrollerBottom: scrollerRect.bottom,
+        scrollerTop: scrollerRect.top,
+        viewportHeight: window.innerHeight,
+        routeBottom: routeRect.bottom,
+      };
+    });
+    expect(geometry.bodyScrollHeight).toBeLessThanOrEqual(geometry.viewportHeight + 1);
+    expect(geometry.routeScrollHeight).toBeLessThanOrEqual(geometry.routeClientHeight + 1);
+    expect(geometry.targetTop).toBeGreaterThanOrEqual(geometry.scrollerTop - 1);
+    expect(geometry.targetBottom).toBeLessThanOrEqual(geometry.scrollerBottom + 1);
+    expect(geometry.routeBottom).toBeLessThanOrEqual(geometry.viewportHeight + 1);
+
+    await scroller.evaluate((element) => element.scrollTo({ top: 0 }));
+    await expect(translationOpen).toBeInViewport();
+    await translationOpen.click();
+    await expect(page.locator('[data-silly-os-view="translation-workspace"]')).toBeVisible();
+  },
+);
 
 test(
   "@release SillyOS has no WCAG A or AA violations on its representative Program surfaces",
@@ -1932,7 +2017,7 @@ test(
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
     let library = await expectProgramLibraryV1(page);
 
-    await library.getByLabel("Import Program ZIP").setInputFiles({
+    await (await openProgramImportV1(library)).setInputFiles({
       name: "external-translation-review.zip",
       mimeType: "application/zip",
       buffer: externalTranslationProgramZipV1(),
@@ -1945,6 +2030,7 @@ test(
         has: page.getByRole("heading", { name: "External Translation Review", exact: true }),
       });
     await expect(externalPackageRowV1()).toHaveCount(1);
+    await externalPackageRowV1().locator("summary").click();
     await expect(externalPackageRowV1()).toContainText(externalTranslationProgramIdV1);
     await expect(externalPackageRowV1()).toContainText(externalTranslationRuntimeProfileV1);
 
@@ -2023,7 +2109,7 @@ test(
   async ({ durableProgramPage: page }) => {
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
     let library = await expectProgramLibraryV1(page);
-    await library.getByLabel("Import Program ZIP").setInputFiles({
+    await (await openProgramImportV1(library)).setInputFiles({
       name: "external-translation-review.zip",
       mimeType: "application/zip",
       buffer: externalTranslationProgramZipV1(),
@@ -2108,7 +2194,7 @@ test(
     await returnToProgramLibraryV1(page);
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
     let library = await expectProgramLibraryV1(page);
-    await library.getByLabel("Import Program ZIP").setInputFiles({
+    await (await openProgramImportV1(library)).setInputFiles({
       name: "external-translation-review.zip",
       mimeType: "application/zip",
       buffer: externalTranslationProgramZipV1(),
