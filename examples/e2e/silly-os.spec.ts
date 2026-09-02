@@ -3841,6 +3841,237 @@ test(
 );
 
 test(
+  "@p4a two tabs run two distinct Processes concurrently without cross-publication",
+  async ({ durableProgramPage: page }) => {
+    test.setTimeout(150_000);
+    const firstWorkspace = await openTranslationWorkspaceV1(page);
+    const firstProgramId = await readProgramIdV1(firstWorkspace);
+    const firstProcessId = await firstWorkspace.getAttribute("data-process-id");
+    if (firstProcessId === null) {
+      throw new Error("first concurrent Program omitted its Process identity");
+    }
+
+    const secondPage = await page.context().newPage();
+    const secondWorkspace = await openTranslationWorkspaceV1(secondPage);
+    const secondProgramId = await readProgramIdV1(secondWorkspace);
+    const secondProcessId = await secondWorkspace.getAttribute("data-process-id");
+    if (secondProcessId === null) {
+      throw new Error("second concurrent Program omitted its Process identity");
+    }
+    expect(secondProgramId).not.toBe(firstProgramId);
+    expect(secondProcessId).not.toBe(firstProcessId);
+    const [firstInitialProjection, secondInitialProjection] = await Promise.all([
+      readProgramDataProjectionV1(page, firstProgramId, firstProcessId),
+      readProgramDataProjectionV1(secondPage, secondProgramId, secondProcessId),
+    ]);
+    if (
+      firstInitialProjection.continuation === null ||
+      secondInitialProjection.continuation === null
+    ) {
+      throw new Error("concurrent Processes must each own a durable Workspace continuation");
+    }
+    expect(secondInitialProjection.continuation.workspaceId).not.toBe(
+      firstInitialProjection.continuation.workspaceId,
+    );
+    expect(secondInitialProjection.continuation.volumeId).not.toBe(
+      firstInitialProjection.continuation.volumeId,
+    );
+
+    const firstPrompt =
+      "Hold this deterministic run until cancelled: first Process remains isolated.";
+    const secondPrompt =
+      "Hold this deterministic run until cancelled: second Process remains isolated.";
+    const firstComposer = page.getByRole("textbox", { name: "Ask for a change…" });
+    const secondComposer = secondPage.getByRole("textbox", { name: "Ask for a change…" });
+    const firstSend = page.getByRole("button", { name: "Send" });
+    const secondSend = secondPage.getByRole("button", { name: "Send" });
+    await Promise.all([
+      firstComposer.fill(firstPrompt),
+      secondComposer.fill(secondPrompt),
+    ]);
+    await Promise.all([expect(firstSend).toBeEnabled(), expect(secondSend).toBeEnabled()]);
+
+    await Promise.all([
+      firstSend.evaluate((button) => (button as HTMLElement).click()),
+      secondSend.evaluate((button) => (button as HTMLElement).click()),
+    ]);
+    await Promise.all([
+      expect(page.locator('[data-pi-agent-run-status="running"]')).toBeVisible({
+        timeout: 25_000,
+      }),
+      expect(secondPage.locator('[data-pi-agent-run-status="running"]')).toBeVisible({
+        timeout: 25_000,
+      }),
+      expect(firstWorkspace).toHaveAttribute("data-execution-workspace-state", "open"),
+      expect(secondWorkspace).toHaveAttribute("data-execution-workspace-state", "open"),
+    ]);
+
+    const [firstSessionId, secondSessionId] = await Promise.all([
+      readWorkspaceSessionIdV1(firstWorkspace),
+      readWorkspaceSessionIdV1(secondWorkspace),
+    ]);
+    expect(secondSessionId).not.toBe(firstSessionId);
+    await Promise.all([
+      expect(
+        page.locator('[data-chat-role="user"]').getByText(firstPrompt, { exact: true }),
+      ).toBeVisible(),
+      expect(
+        page.locator('[data-chat-role="user"]').getByText(secondPrompt, { exact: true }),
+      ).toHaveCount(0),
+      expect(
+        secondPage.locator('[data-chat-role="user"]').getByText(secondPrompt, { exact: true }),
+      ).toBeVisible(),
+      expect(
+        secondPage.locator('[data-chat-role="user"]').getByText(firstPrompt, { exact: true }),
+      ).toHaveCount(0),
+    ]);
+
+    await expect.poll(async () => {
+      const [firstProjection, secondProjection] = await Promise.all([
+        readProgramDataProjectionV1(page, firstProgramId, firstProcessId),
+        readProgramDataProjectionV1(secondPage, secondProgramId, secondProcessId),
+      ]);
+      return {
+        firstActive: firstProjection.process !== null &&
+          firstProjection.process.activeAttempt !== null,
+        secondActive: secondProjection.process !== null &&
+          secondProjection.process.activeAttempt !== null,
+      };
+    }).toEqual({ firstActive: true, secondActive: true });
+    const [firstLease, secondLease] = await Promise.all([
+      readP4aProcessExecutionLeaseV1(page, firstProcessId),
+      readP4aProcessExecutionLeaseV1(secondPage, secondProcessId),
+    ]);
+    if (firstLease === null || secondLease === null) {
+      throw new Error("concurrent Processes must each own an execution lease");
+    }
+    const [firstActiveProjection, secondActiveProjection] = await Promise.all([
+      readProgramDataProjectionV1(page, firstProgramId, firstProcessId),
+      readProgramDataProjectionV1(secondPage, secondProgramId, secondProcessId),
+    ]);
+    expect(firstActiveProjection.process?.activeAttempt).toMatchObject({
+      attemptId: firstLease.attemptId,
+      generation: firstLease.generation,
+    });
+    expect(secondActiveProjection.process?.activeAttempt).toMatchObject({
+      attemptId: secondLease.attemptId,
+      generation: secondLease.generation,
+    });
+    expect(firstLease.processId).toBe(firstProcessId);
+    expect(secondLease.processId).toBe(secondProcessId);
+    expect(secondLease.attemptId).not.toBe(firstLease.attemptId);
+    expect(secondLease.ownerInstanceId).not.toBe(firstLease.ownerInstanceId);
+    const activeObservedAt = Date.now();
+    expect(firstLease.expiresAt).toBeGreaterThan(activeObservedAt);
+    expect(secondLease.expiresAt).toBeGreaterThan(activeObservedAt);
+
+    await secondPage.bringToFront();
+    await secondPage.getByRole("button", { name: "Cancel run" }).click();
+    await expect.poll(async () => {
+      const [firstProjection, currentFirstLease, secondProjection, currentSecondLease] =
+        await Promise.all([
+          readProgramDataProjectionV1(page, firstProgramId, firstProcessId),
+          readP4aProcessExecutionLeaseV1(page, firstProcessId),
+          readProgramDataProjectionV1(secondPage, secondProgramId, secondProcessId),
+          readP4aProcessExecutionLeaseV1(secondPage, secondProcessId),
+        ]);
+      return {
+        first: {
+          activeAttempt: firstProjection.process?.activeAttempt ?? null,
+          lease: currentFirstLease,
+        },
+        second: {
+          activeAttempt: secondProjection.process?.activeAttempt ?? null,
+          lease: currentSecondLease,
+          terminalAttemptId: secondProjection.process?.lastTerminalAttempt?.attemptId ?? null,
+          terminalGeneration: secondProjection.process?.lastTerminalAttempt?.generation ?? null,
+          terminalOutcome: secondProjection.process?.lastTerminalAttempt?.outcome ?? null,
+        },
+      };
+    }, { timeout: 35_000 }).toMatchObject({
+      first: {
+        activeAttempt: {
+          attemptId: firstLease.attemptId,
+          generation: firstLease.generation,
+        },
+        lease: {
+          processId: firstProcessId,
+          ownerInstanceId: firstLease.ownerInstanceId,
+          attemptId: firstLease.attemptId,
+          generation: firstLease.generation,
+        },
+      },
+      second: {
+        activeAttempt: null,
+        lease: null,
+        terminalAttemptId: secondLease.attemptId,
+        terminalGeneration: secondLease.generation,
+        terminalOutcome: "cancelled",
+      },
+    });
+    await expect(secondWorkspace).toHaveAttribute("data-execution-workspace-state", "closed");
+    await expect(secondPage.locator('[data-pi-agent-run-status="running"]')).toHaveCount(0);
+    await expect(page.locator('[data-pi-agent-run-status="running"]')).toBeVisible();
+    await expect(firstWorkspace).toHaveAttribute("data-execution-workspace-state", "open");
+
+    await page.bringToFront();
+    await expect(firstWorkspace).toHaveAttribute("data-execution-workspace-state", "closed", {
+      timeout: 45_000,
+    });
+    await expect(page.locator('[data-pi-agent-run-status="running"]')).toHaveCount(0);
+    await expect.poll(async () => {
+      const [firstProjection, firstTerminalLease, secondProjection, secondTerminalLease] =
+        await Promise.all([
+          readProgramDataProjectionV1(page, firstProgramId, firstProcessId),
+          readP4aProcessExecutionLeaseV1(page, firstProcessId),
+          readProgramDataProjectionV1(secondPage, secondProgramId, secondProcessId),
+          readP4aProcessExecutionLeaseV1(secondPage, secondProcessId),
+        ]);
+      const firstTranscript = JSON.stringify(firstProjection.transcriptEntries);
+      const secondTranscript = JSON.stringify(secondProjection.transcriptEntries);
+      return {
+        first: {
+          activeAttempt: firstProjection.process?.activeAttempt ?? null,
+          lease: firstTerminalLease,
+          terminalAttemptId: firstProjection.process?.lastTerminalAttempt?.attemptId ?? null,
+          terminalGeneration: firstProjection.process?.lastTerminalAttempt?.generation ?? null,
+          terminalOutcome: firstProjection.process?.lastTerminalAttempt?.outcome ?? null,
+          ownsOnlyItsPrompt: firstTranscript.includes(firstPrompt) &&
+            !firstTranscript.includes(secondPrompt),
+        },
+        second: {
+          activeAttempt: secondProjection.process?.activeAttempt ?? null,
+          lease: secondTerminalLease,
+          terminalAttemptId: secondProjection.process?.lastTerminalAttempt?.attemptId ?? null,
+          terminalGeneration: secondProjection.process?.lastTerminalAttempt?.generation ?? null,
+          terminalOutcome: secondProjection.process?.lastTerminalAttempt?.outcome ?? null,
+          ownsOnlyItsPrompt: secondTranscript.includes(secondPrompt) &&
+            !secondTranscript.includes(firstPrompt),
+        },
+      };
+    }).toEqual({
+      first: {
+        activeAttempt: null,
+        lease: null,
+        terminalAttemptId: firstLease.attemptId,
+        terminalGeneration: firstLease.generation,
+        terminalOutcome: "completed",
+        ownsOnlyItsPrompt: true,
+      },
+      second: {
+        activeAttempt: null,
+        lease: null,
+        terminalAttemptId: secondLease.attemptId,
+        terminalGeneration: secondLease.generation,
+        terminalOutcome: "cancelled",
+        ownsOnlyItsPrompt: true,
+      },
+    });
+    await secondPage.close();
+  },
+);
+
+test(
   "@p4a two idle pages race through the real Send UI and only one owns execution",
   async ({ durableProgramPage: page }) => {
     test.setTimeout(120_000);
