@@ -174,7 +174,6 @@ async function collectBundledProgramPackageBodyFilesV1(
     if (!entry.isFile) {
       failV1(`bundled Program package contains unsupported entry ${relativePath}`);
     }
-    if (relativePath === "program.json") continue;
     bodies.push({
       label: relativePath,
       bytes: await Deno.readFile(new URL(entry.name, directory)),
@@ -222,6 +221,9 @@ const buildArtifactBytesV1 = new Map(
     ),
   ),
 );
+const completeApplicationJavaScriptGraphV1 = await collectCompleteJavaScriptGraphV1(
+  initialModuleEntriesV1,
+);
 for (const directory of bundledProgramPackageDirectoriesV1) {
   const packageLabel = directory.pathname.split("/").filter(Boolean).slice(-2, -1)[0] ?? "unknown";
   for (const body of await collectBundledProgramPackageBodyFilesV1(directory)) {
@@ -229,6 +231,33 @@ for (const directory of bundledProgramPackageDirectoriesV1) {
     const emittedPaths = [...buildArtifactBytesV1]
       .filter(([, bytes]) => bytesEqualV1(bytes, body.bytes))
       .map(([path]) => path);
+    if (emittedPaths.length === 0) {
+      failV1(
+        `bundled Program package body is not a separately emitted same-origin asset: ${packageLabel}/${body.label}`,
+      );
+    }
+    const emittedNames = emittedPaths.map((path) => path.split("/").at(-1) ?? path);
+    const referringJavaScriptPaths = [...completeApplicationJavaScriptGraphV1].filter((path) => {
+      const source = new TextDecoder().decode(buildArtifactBytesV1.get(path));
+      return emittedNames.some((name) => source.includes(name));
+    });
+    if (referringJavaScriptPaths.length === 0) {
+      failV1(
+        `bundled Program package body has no lazy same-origin reference: ${packageLabel}/${body.label}`,
+      );
+    }
+    for (const path of completeApplicationJavaScriptGraphV1) {
+      const bytes = buildArtifactBytesV1.get(path);
+      if (bytes === undefined) failV1(`complete application graph omits ${path}`);
+      if (containsBytesV1(bytes, body.bytes)) {
+        failV1(`application graph embeds ${packageLabel} package body ${body.label}: ${path}`);
+      }
+      if (new TextDecoder().decode(bytes).includes(base64)) {
+        failV1(
+          `application graph base64-inlines ${packageLabel} package body ${body.label}: ${path}`,
+        );
+      }
+    }
     for (const [path, bytes] of initialArtifactBytesV1) {
       if (containsBytesV1(bytes, body.bytes)) {
         failV1(`initial graph embeds ${packageLabel} package body ${body.label}: ${path}`);

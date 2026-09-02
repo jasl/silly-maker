@@ -5,37 +5,37 @@ import { loadUrlProgramPackageArchiveV1 } from "../../../src/program-platform/pa
 /** Loads the bundled body only when the current Translation implementation is resolved. */
 export function loadTranslationProgramPackageArchiveV1() {
   return loadUrlProgramPackageArchiveV1({
-    manifestUrl: new URL("../package/program.json", import.meta.url),
+    manifestUrl: new URL("../package/program.json?no-inline", import.meta.url),
     files: [
       {
         path: "PROGRAM.md",
         mediaType: "text/markdown",
-        url: new URL("../package/PROGRAM.md", import.meta.url),
+        url: new URL("../package/PROGRAM.md?no-inline", import.meta.url),
       },
       {
         path: "initial-ui.json",
         mediaType: "application/json",
-        url: new URL("../package/initial-ui.json", import.meta.url),
+        url: new URL("../package/initial-ui.json?no-inline", import.meta.url),
       },
       {
         path: "prompts/translate.md",
         mediaType: "text/markdown",
-        url: new URL("../package/prompts/translate.md", import.meta.url),
+        url: new URL("../package/prompts/translate.md?no-inline", import.meta.url),
       },
       {
         path: "prompts/working-memory.md",
         mediaType: "text/markdown",
-        url: new URL("../package/prompts/working-memory.md", import.meta.url),
+        url: new URL("../package/prompts/working-memory.md?no-inline", import.meta.url),
       },
       {
         path: "skills/translate/SKILL.md",
         mediaType: "text/markdown",
-        url: new URL("../package/skills/translate/SKILL.md", import.meta.url),
+        url: new URL("../package/skills/translate/SKILL.md?no-inline", import.meta.url),
       },
       {
         path: "settings.defaults.json",
         mediaType: "application/json",
-        url: new URL("../package/settings.defaults.json", import.meta.url),
+        url: new URL("../package/settings.defaults.json?no-inline", import.meta.url),
       },
     ],
   });
