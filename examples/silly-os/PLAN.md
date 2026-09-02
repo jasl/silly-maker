@@ -140,7 +140,7 @@ contracts and combined Chromium/WebKit product journeys now pass, so S3-R1 is
 closed. The owner then accepted and closed S2-N3 as the clean replacement:
 remove all network-tool approval/grant/retry behavior and replace it with one
 default-off, durable Program **Allow network access** boolean. Provider egress
-stays independent. The current `a17c3490` deployment carries both replacements.
+stays independent. The current Browser Technical Preview carries both replacements.
 The raw launcher is not the typed product RPC; the live Browser route is a
 separate product path. This plan remains local to `examples/silly-os`; the
 neutral async GUI disposer was delivered separately by the engine task and is
@@ -384,10 +384,10 @@ handoff to public `@sillymaker/agent/session`. No subsequent product or Mod
 phase was active at that checkpoint. The owner activated the Program/Process/
 Conversation foundation below on 2026-08-30. The current build-matched
 three-origin artifact and fixed Vault Worker are deployed from commit
-`a17c3490c9940bb43fc8718df485322c2dee1052` (Sandbox
-`fb703131-3e37-4e7d-95f4-5b7afa9160cd`, Broker
-`07720852-ac1f-462b-8098-086410906839`, control/Vault
-`e0b61061-1a07-4e64-a963-74a0a7ee6420`). That release includes the S3-R1,
+`1634d77f1d2024526aefcdeef5e259529bf5fbd3` (Sandbox
+`8e78e581-9c4f-43a3-8b57-6a74ed069732`, Broker
+`d0d5d8fa-03ae-4382-9458-b0f818480700`, control/Vault
+`13178c39-27a8-464f-94d0-0212f4ee8099`). That release includes the S3-R1,
 S2-N3, D1 Browser data-management, and Pi reasoning-effort clean replacements.
 D2 remains inactive. The post-Q1 Browser
 Workspace namespace/file slice is implemented and locally
@@ -398,7 +398,7 @@ clean-replaces those credential/Settings semantics, while S2-N3 clean-replaces
 the approval/grant network semantics. The S3/V1 and N0/N1 behaviors remain
 historical deployment records rather than compatibility paths. R1
 does not activate search or authenticated network. Deployment remains a
-separately recorded release operation. The public `a17c3490` origin passed the
+separately recorded release operation. The prior public `a17c3490` origin passed the
 opt-in real QJS Agent-loop qualifier with Anthropic `claude-sonnet-4-5` in
 Chromium: invalid-key 401, valid connection 200, cancel/currentness, four
 successful completion requests, exact `write`/`write`/`bash-qjs` receipts,
@@ -1502,7 +1502,7 @@ modules, structured clones, Worker overhead, OPFS, and browser-process memory
 remain unmeasured. The ordinary control build and Browser security checker pass
 with no QuickJS, Emscripten, `ffi`, or Wasm file or marker, while the Sandbox
 retains only its expected lazy execution assets. Q1 closed locally before its
-release; the current `a17c3490` Sandbox deploy carries it and one public
+release; the prior `a17c3490` Sandbox deploy carries it and one public
 Chromium real-model QJS loop passes.
 
 Python is deferred. The Pyodide control is roughly `12.9 MiB` raw / `6.03 MiB`
@@ -5133,16 +5133,30 @@ database, a prompt-combinator framework, or multiple scripting languages.
 
 ### P8-A — Browser Technical Preview release
 
-Close the preview on the current Creator and Translation denominator only:
-reconcile public copy with the runnable Programs; pass current Chromium and
-WebKit product journeys, a narrow accessibility review, production builds and
-the three-origin response-policy checks; deploy the Workspace Sandbox, Network
-Broker and control artifact from one clean source identity; then smoke the
-public Program Library, Creator, Translation, reload/reopen and one real
-Provider Translation route. Record the exact source and three Cloudflare
-versions plus the all-or-nothing rollback set. Preview-local data may reset
-across pre-stable schema changes, all-data restore is unavailable, and
-Translation output remains subject to human review.
+**Closed 2026-09-02.** The preview is limited to the current Creator and
+Translation denominator. Public copy matches the runnable Programs; current
+Chromium and WebKit product journeys, the narrow accessibility review,
+production builds and three-origin response-policy checks pass. A public CSP
+smoke caught a blocked bundled asset before closure; the asset policy was fixed,
+the artifacts were rebuilt, and only the final replacement deployment is part
+of this receipt.
+
+Exact source `1634d77f1d2024526aefcdeef5e259529bf5fbd3` was deployed as Workspace
+Sandbox `8e78e581-9c4f-43a3-8b57-6a74ed069732`, Network Broker
+`d0d5d8fa-03ae-4382-9458-b0f818480700`, and control/Vault
+`13178c39-27a8-464f-94d0-0212f4ee8099`. The public Program Library and
+Translation route were exercised with DeepSeek `deepseek-v4-flash`: one
+candidate reached Review, was accepted and exported, and the Process persisted
+across reload. This is route-completion evidence only, not model qualification
+or a translation-quality claim.
+
+The all-or-nothing rollback set is Workspace Sandbox
+`fb703131-3e37-4e7d-95f4-5b7afa9160cd`, Network Broker
+`07720852-ac1f-462b-8098-086410906839`, and control/Vault
+`e0b61061-1a07-4e64-a963-74a0a7ee6420`. Preview-local data may reset across
+pre-stable schema changes, all-data restore remains unavailable, Translation
+output remains subject to human review, and Writing, RolePlay and Deno Desktop
+qualification remain deferred.
 
 ### P8-B — stable and complete product qualification (owner-deferred)
 

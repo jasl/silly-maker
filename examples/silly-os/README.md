@@ -103,8 +103,8 @@ current 的 2xx 响应才会通过原有 journal 发布到 Process volume。Chro
 ingress、搜索、解压、认证下载或真实模型调用已经通过。Provider 请求是独立的凭据面能力，不受
 Process 网络开关控制。历史 S2-N3 Program-scoped 版本曾通过完整 521 项 SillyOS 单元套件、
 Chromium/WebKit 的开关/冷重开/`fetch_url`/`32 MiB download` 路径及三份生产构建边界检查，
-并进入 `a17c3490` 三 origin artifact；当前 V17 Process-scoped replacement 是本地 preview
-事实，不追溯改变该部署记录。artifact availability 不提升上述行为资格。
+并进入 `a17c3490` 三 origin artifact；当前 V17 Process-scoped replacement 已进入下述
+Browser Technical Preview，不追溯改变该历史部署记录。artifact availability 不提升上述行为资格。
 
 另有一个只在 `?agent=pi-test` 出现的 B0a 验证入口：它会把产品 lockfile 固定的
 `pi-agent-core` / `pi-ai` 0.84.4 懒加载进 Dedicated Worker，通过 typed RPC 运行真实
@@ -622,7 +622,8 @@ HTTP 200；源码身份、三 origin CSP 分权与 Vault network-off 响应策�
 真实 Provider journey、任意站点 CORS、线上 ingress 或 search。
 
 以上 commit/version/smoke 是 2026-08-29 的 **S3/V1 已部署历史**，不会被后续 Vault V2
-实现追溯改写。当前公开 release 已由下面的 R1 回执取代。
+实现追溯改写。它当时由下面的 R1 回执取代；当前公开 release 则由其后的 Browser
+Technical Preview 回执取代。
 
 2026-08-30 从干净 commit
 `a17c3490c9940bb43fc8718df485322c2dee1052` 按 Sandbox、Network Broker、control/Vault 的顺序
@@ -640,6 +641,21 @@ console 记录；无 Key 时 Home 只显示 warning，General 能读取两个 or
 control-origin durable projection 不含 Key 明文，结束时删除 Key 并终止 Worker，Workspace output
 仍保留。该回执不证明 public WebKit、跨刷新 durable-key reuse、其他 Provider、live reasoning、
 `read`/`edit`/`grep`/网络工具、任意站点 CORS 或 search。
+
+2026-09-02 的 **Browser Technical Preview** 从干净 commit
+`1634d77f1d2024526aefcdeef5e259529bf5fbd3` 发布。最终 Cloudflare version 为 Workspace
+Sandbox `8e78e581-9c4f-43a3-8b57-6a74ed069732`、Network Broker
+`d0d5d8fa-03ae-4382-9458-b0f818480700`、control/Vault
+`13178c39-27a8-464f-94d0-0212f4ee8099`。公开响应检查在发布前发现 bundled asset 的 CSP
+阻断并完成修复；回执只记录修复后的最终三 origin 版本，不保留被取代的中间部署 ID。
+三个入口随后返回 HTTP 200、同一 source identity 和预期的分权 CSP。
+
+同一公开版本通过一次 DeepSeek `deepseek-v4-flash` Translation 路线 smoke：候选到达
+Review，随后被接受、导出，并在刷新后重开同一持久 Process。这只证明公开路线闭合和
+Process 持久化，不构成模型资格或翻译质量声明，输出仍需人工审查。若需要整体回退，三
+origin 必须一起恢复为 control `e0b61061-1a07-4e64-a963-74a0a7ee6420`、Workspace Sandbox
+`fb703131-3e37-4e7d-95f4-5b7afa9160cd`、Network Broker
+`07720852-ac1f-462b-8098-086410906839`；不得混用两次发布。
 
 开发资格检查会按精确 profile 从本目录的 `.env` 读取对应 Provider key，依次启动普通
 Chromium context 与运行后删除的一次性持久 WebKit profile，
