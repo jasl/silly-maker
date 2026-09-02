@@ -102,27 +102,27 @@ describe("Program model default", () => {
 });
 
 describe("Program model manual selection", () => {
-  it("keeps an explicit choice inside the exact Program package scope", () => {
-    const selection = { scopeKey: "translation@1#digest-a", choiceValue: "deepseek" };
+  it("keeps an explicit choice inside the Program compatibility scope", () => {
+    const selection = { scopeKey: '["translation","1"]', choiceValue: "deepseek" };
 
     expect(
       isProgramModelManualSelectionCurrentV1(
         selection,
-        "translation@1#digest-a",
+        '["translation","1"]',
         "deepseek",
       ),
     ).toBe(true);
     expect(
       isProgramModelManualSelectionCurrentV1(
         selection,
-        "creator@1#digest-b",
+        '["creator","1"]',
         "deepseek",
       ),
     ).toBe(false);
     expect(
       isProgramModelManualSelectionCurrentV1(
         selection,
-        "translation@1#digest-a",
+        '["translation","1"]',
         "glm",
       ),
     ).toBe(false);

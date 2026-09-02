@@ -75,7 +75,12 @@ import type {
   BrowserProgramAgentControlSnapshotV1,
   BrowserProgramAgentHostV1,
   BrowserProgramAgentPortV1,
+  BrowserProgramRuntimeAgentHostV1,
 } from "../agent/browser-program-agent-host-contracts.ts";
+import {
+  serializeBrowserPiBoundAgentDispatchV1,
+  type BrowserPiProgramImplementationBindingV1,
+} from "../agent/browser-pi-agent-dispatch.ts";
 
 interface TrackedProgramAgentRunV1 {
   readonly facade: ProgramAgentFacadeV1;
@@ -101,6 +106,7 @@ type AgentSessionOutputDataEventV1 = Extract<
 >;
 
 interface ProgramAgentFacadeV1 {
+  readonly programImplementation: BrowserPiProgramImplementationBindingV1 | null;
   readonly adapterLoad: BrowserProgramAgentAdapterLoadV1;
   readonly projectPendingSnapshot: (
     input: Parameters<BrowserProgramAgentAdapterV1["projectSnapshot"]>[0],
@@ -1742,6 +1748,22 @@ export function createBrowserProgramAgentHostV1(
         diagnostic: diagnosticV1("submit_invalid", "/run/agentRunId"),
       };
     }
+    const implementation = facade.programImplementation;
+    if (
+      implementation === null ||
+      implementation.programPackage.programId !== run.programPackage.programId ||
+      implementation.programPackage.packageVersion !== run.programPackage.packageVersion
+    ) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("submit_invalid", "/run/programPackage"),
+      };
+    }
+    const serializedSubmit = serializeBrowserPiBoundAgentDispatchV1({
+      revision: 1,
+      implementation,
+      dispatchText: prepared.serializedSubmit,
+    });
     if (
       trackedByProductRunId.size + terminalRunCountV1() >=
         programAgentUnacknowledgedTerminalDrainMaximumV1
@@ -1810,7 +1832,7 @@ export function createBrowserProgramAgentHostV1(
           });
           return await client.submit({
             sessionId: expectedSessionId,
-            text: prepared.serializedSubmit,
+            text: serializedSubmit,
           });
         },
       });
@@ -2009,10 +2031,12 @@ export function createBrowserProgramAgentHostV1(
   };
 
   const createPort = (portInput: {
+    readonly programImplementation: BrowserPiProgramImplementationBindingV1 | null;
     readonly loadAdapter: BrowserProgramAgentAdapterLoadV1;
     readonly projectPendingSnapshot: ProgramAgentFacadeV1["projectPendingSnapshot"];
   }): BrowserProgramAgentPortV1 => {
     const facade: ProgramAgentFacadeV1 = {
+      programImplementation: portInput.programImplementation,
       adapterLoad: portInput.loadAdapter,
       projectPendingSnapshot: portInput.projectPendingSnapshot,
       adapter: null,
@@ -2107,6 +2131,7 @@ export function createBrowserProgramAgentHostV1(
         workspace: projection.workspace,
       });
     const port = createPort({
+      programImplementation: null,
       loadAdapter: async () => ({
         prepareRun: async () => ({ kind: "rejected" }),
         projectStream: () => ({ kind: "ignored" }),
@@ -2132,7 +2157,14 @@ export function createBrowserProgramAgentHostV1(
   };
   return Object.freeze({
     createControlPort,
-    createPort,
+    bindProgramRuntime: (
+      programImplementation: BrowserPiProgramImplementationBindingV1,
+    ): BrowserProgramRuntimeAgentHostV1 =>
+      Object.freeze({
+        createPort: (
+          portInput: Parameters<BrowserProgramRuntimeAgentHostV1["createPort"]>[0],
+        ) => createPort({ ...portInput, programImplementation }),
+      }),
     forget: () => finish("forgotten"),
     dispose: () => finish("disposed"),
   });

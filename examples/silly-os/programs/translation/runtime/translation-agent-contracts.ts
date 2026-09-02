@@ -122,7 +122,7 @@ export function admitTranslationFollowUpContextV1(
 
 interface TranslationAgentRunRequestBaseV1 {
   readonly agentRunId: string;
-  /** Exact immutable Program package pinned by this Process. */
+  /** Program identity and compatibility marker owned by this Process. */
   readonly programPackage: InstalledProgramPackageReferenceV1;
   readonly processId: string;
   readonly processAttemptGeneration: number;

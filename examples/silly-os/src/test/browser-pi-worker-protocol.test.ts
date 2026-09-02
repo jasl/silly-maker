@@ -10,6 +10,7 @@ import {
   admitBrowserPiWorkerWorkspaceOutboundMessageV1,
 } from "../agent/browser-pi-worker-protocol.ts";
 import { browserPiDistributionIdentityV1 } from "../agent/browser-pi-distribution.ts";
+import { serializeBrowserPiBoundAgentDispatchV1 } from "../agent/browser-pi-agent-dispatch.ts";
 import { serializeBrowserPiCreatorAgentDispatchV1 } from "../../programs/creator/runtime-profile/creator-runtime-profile.ts";
 import { serializeBrowserPiTranslationAgentDispatchV1 } from "../../programs/translation/runtime-profile/translation-runtime-profile.ts";
 
@@ -20,19 +21,31 @@ const workspaceSessionIdV1 = "workspace.session.1";
 const programPackageV1 = {
   programId: programIdV1,
   packageVersion: "1.0.0",
-  contentDigest: "a".repeat(64),
 } as const;
 
-const submitTextV1 = serializeBrowserPiCreatorAgentDispatchV1({
-  programPackage: programPackageV1,
-  submit: {
+function bindSubmitTextV1(text: string): string {
+  return serializeBrowserPiBoundAgentDispatchV1({
     revision: 1,
-    proposalId: "workspace.preview.1.proposal.1",
-    programId: programIdV1,
-    baseProgramRevision: 1,
-    text: "Create one reviewable artifact.",
-  },
-});
+    implementation: {
+      programPackage: programPackageV1,
+      implementationId: "installation.test",
+    },
+    dispatchText: text,
+  });
+}
+
+const submitTextV1 = bindSubmitTextV1(
+  serializeBrowserPiCreatorAgentDispatchV1({
+    programPackage: programPackageV1,
+    submit: {
+      revision: 1,
+      proposalId: "workspace.preview.1.proposal.1",
+      programId: programIdV1,
+      baseProgramRevision: 1,
+      text: "Create one reviewable artifact.",
+    },
+  }),
+);
 
 const submitRecordV1 = {
   revision: 1,
@@ -491,6 +504,10 @@ describe("Browser Pi Worker protocol", () => {
       kind: "rpc_request",
       record: submitRecordV1,
       execution: executionBindingV1,
+      programImplementation: {
+        programPackage: programPackageV1,
+        implementationId: "installation.test",
+      },
     });
     if (admitted?.kind === "rpc_request") expect(admitted.record).toBe(submitRecordV1);
 
@@ -499,7 +516,7 @@ describe("Browser Pi Worker protocol", () => {
       method: "submit",
       params: {
         sessionId: "pi.session.1",
-        text: serializeBrowserPiTranslationAgentDispatchV1({
+        text: bindSubmitTextV1(serializeBrowserPiTranslationAgentDispatchV1({
           programPackage: programPackageV1,
           programId: programIdV1,
           requestedOutputTokens: 4_608,
@@ -523,7 +540,7 @@ describe("Browser Pi Worker protocol", () => {
               protectedSegments: [],
             }],
           },
-        }),
+        })),
       },
     } as const;
     expect(
@@ -540,6 +557,25 @@ describe("Browser Pi Worker protocol", () => {
     expect(
       admitBrowserPiWorkerInboundMessageV1(
         rpcEnvelopeV1(submitRecordV1, { ...executionBindingV1, programId: "program.other" }),
+      ),
+    ).toBeNull();
+    const mismatchedBinding = JSON.parse(submitTextV1) as Record<string, unknown>;
+    const mismatchedSubmitRecord = {
+      ...submitRecordV1,
+      params: {
+        ...submitRecordV1.params,
+        text: JSON.stringify({
+          ...mismatchedBinding,
+          implementation: {
+            programPackage: { ...programPackageV1, programId: "program.other" },
+            implementationId: "installation.test",
+          },
+        }),
+      },
+    };
+    expect(
+      admitBrowserPiWorkerInboundMessageV1(
+        rpcEnvelopeV1(mismatchedSubmitRecord, executionBindingV1),
       ),
     ).toBeNull();
     expect(

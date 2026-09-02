@@ -24,13 +24,11 @@ import type {
 
 function programPackageReferenceV1(
   packageVersion = "1.0.0",
-  digestDigit = "1",
   programId = "sillyos.creator",
 ): InstalledProgramPackageReferenceV1 {
   return {
     programId,
     packageVersion,
-    contentDigest: digestDigit.repeat(64),
   };
 }
 
@@ -103,10 +101,10 @@ describe("Memory Program/Process repository conformance", () => {
     expect((await repository.loadProcess(processId))?.processId).toBe(processId);
   });
 
-  it("pins one exact package reference independently of a later package selection", async () => {
+  it("retains one compatibility marker independently of a later Program version", async () => {
     const repository = createMemoryProgramProcessRepositoryV1();
-    const firstPackage = programPackageReferenceV1("1.0.0", "1");
-    const secondPackage = programPackageReferenceV1("2.0.0", "2");
+    const firstPackage = programPackageReferenceV1("1.0.0");
+    const secondPackage = programPackageReferenceV1("2.0.0");
     const process = await createProcessV1({
       repository,
       processId: "process.creator.1",
@@ -246,7 +244,6 @@ describe("Memory Program/Process repository conformance", () => {
     const first = await createProcessV1({ repository, processId: "process.first" });
     const secondPackage = programPackageReferenceV1(
       "1.0.0",
-      "2",
       "sillyos.translation",
     );
     const second = await createProcessV1({
@@ -408,7 +405,6 @@ describe("Memory Program/Process repository conformance", () => {
       programPackage: {
         programId: "sillyos.translation",
         packageVersion: "1.0.0",
-        contentDigest: "2".repeat(64),
       },
       subjectProgramId: null,
       createdAt: 4,
@@ -419,7 +415,6 @@ describe("Memory Program/Process repository conformance", () => {
       programPackage: {
         programId: "community.removed",
         packageVersion: "3.0.0",
-        contentDigest: "3".repeat(64),
       },
       subjectProgramId: "program.unavailable",
       createdAt: 6,

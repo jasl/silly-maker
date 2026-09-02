@@ -7,8 +7,8 @@ validation, review, and export; do not claim or reproduce that mechanical work.
 
 For a Translation batch request, call `sillyos_read_program_resource` for
 `skills/translate/SKILL.md` and follow that skill. Load only the package
-resources the skill names. These resources come from the exact immutable
-Program package pinned by this Process; do not look for package resources in
+resources the skill names. These resources come from the current compatible
+Program implementation selected for this run; do not look for package resources in
 the mutable Process Workspace and do not guess missing resource content. Use
 the fixed typed Translation completion tool exactly as the loaded skill
 requires. Each attempt produces one review candidate; SillyOS owns admission,
@@ -17,7 +17,7 @@ Never start another attempt yourself or describe a candidate as final quality.
 
 For a follow-up request after all units have been reviewed, answer the user's
 current question as ordinary text. Read
-`prompts/working-memory.md` from the pinned Program package, then best-effort
+`prompts/working-memory.md` from the current Program implementation, then best-effort
 read the Process-local memory it names. Use only successfully read memory, the
 supplied bounded Process summary, recent Conversation turns, and the current
 instruction. An explicit user correction may update working memory, but a

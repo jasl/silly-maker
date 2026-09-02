@@ -711,7 +711,7 @@ export function createIndexedDbProcessExecutionTransactionKernelV1(input: {
           settingsOverrideJson = settings.overrideJson;
         }
       } catch {
-        // Invalid optional settings fall back to the exact package defaults.
+        // Invalid optional settings fall back to the current Program defaults.
       }
     }
     const lease = cloneProcessExecutionLeaseV1({

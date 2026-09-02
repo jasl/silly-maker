@@ -60,7 +60,7 @@ export type BrowserProgramRuntimeInvocationAdmissionV1 =
  * The profile is Host code, not Program package code: it selects capabilities
  * from the static Browser harness and owns the opaque payload admission,
  * completion protocol, and output budgets. Instructions and scripts always
- * come from the exact installed package pinned by the Process.
+ * come from the current installed implementation compatible with the Process.
  */
 export interface BrowserProgramRuntimeProfileV1 {
   readonly runtimeProfile: string;
@@ -77,19 +77,19 @@ export interface BrowserProgramWorkspaceScriptV1 {
   readonly bytes: Uint8Array;
 }
 
-/** One exact immutable file from the Process-pinned Program package. */
+/** One read-only file from the current Program implementation snapshot. */
 export interface BrowserProgramPackageResourceV1 {
   readonly path: string;
   readonly mediaType: string;
   readonly bytes: Uint8Array;
 }
 
-/** The exact immutable package paired with one admitted fixed runtime invocation. */
+/** The current Program implementation paired with one admitted fixed runtime invocation. */
 export interface BrowserProgramExecutionV1 {
   readonly instructions: string;
-  /** Exact package text; matching is deferred until the Provider resolves the model ID. */
+  /** Package text whose matching is deferred until the Provider resolves the model ID. */
   readonly modelPromptOverlays: readonly LoadedProgramModelPromptOverlayV1[];
-  /** Read-only package bytes available only through the fixed Program-resource tool. */
+  /** Read-only resources from the mounted current compatible Program implementation. */
   readonly packageResources: readonly BrowserProgramPackageResourceV1[];
   /** Package scripts staged into this Process VFS before the Agent receives control. */
   readonly workspaceScripts: readonly BrowserProgramWorkspaceScriptV1[];

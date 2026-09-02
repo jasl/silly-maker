@@ -85,7 +85,7 @@ export function createProgramRuntimeSurfaceDrainOwnerV1(): ProgramRuntimeSurface
 }
 
 /**
- * Opaque application-owned runtime for one exact Process-pinned Program package.
+ * Opaque application-owned runtime for one Process and its current compatible Program.
  *
  * The Host owns replacement and disposal, but it neither interprets the
  * Program controller nor knows which bundled or imported package selected the
@@ -94,11 +94,13 @@ export function createProgramRuntimeSurfaceDrainOwnerV1(): ProgramRuntimeSurface
  */
 export interface ActiveProgramRuntimeHandleV1 {
   readonly programPackage: AdmittedProgramPackageArchiveV1;
+  /** Opaque current-installation fence; it is not durable Program or Process identity. */
+  readonly programImplementationId: string;
   readonly controller: unknown;
   readonly surfaceDrainOwner: ProgramRuntimeSurfaceDrainOwnerV1;
   getSnapshot(): unknown;
   subscribe(listener: () => void): () => void;
-  /** Program-owned UI entry. Loading it is part of activating this exact package. */
+  /** Program-owned UI entry. Loading it is part of activating this Program implementation. */
   loadSurface(): Promise<ProgramRuntimeSurfaceModuleV1>;
   close(): boolean | Promise<boolean>;
   dispose(): void | Promise<void>;
@@ -111,6 +113,8 @@ export interface ProgramRuntimeControllerAdapterV1 {
     /** Program-neutral Host capability; a lazy Program adapter may derive its own facet. */
     readonly workspace: BrowserProgramWorkspaceAuthorityHostV1;
     readonly programPackage: AdmittedProgramPackageArchiveV1;
+    /** Opaque current-installation fence retained for this runtime instance. */
+    readonly programImplementationId: string;
     readonly exactProcessId: string | null;
     readonly reportFailure: (code: string, error: unknown) => void;
   }): Promise<ActiveProgramRuntimeHandleV1>;

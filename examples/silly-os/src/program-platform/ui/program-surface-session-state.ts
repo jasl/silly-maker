@@ -3,7 +3,7 @@
 import type { InstalledProgramPackageReferenceV1 } from "../package/program-package-archive.ts";
 
 /**
- * Opaque, application-session UI state for one exact Program package.
+ * Opaque application-session UI state for one Program compatibility version.
  *
  * The Host scopes this store before handing it to a Program surface. A Program
  * can therefore release its rendered subtree while retaining Process-local
@@ -21,8 +21,8 @@ export interface ProgramSurfaceSessionStateOwnerV1 {
   clear(): void;
 }
 
-function exactPackageKeyV1(reference: InstalledProgramPackageReferenceV1): string {
-  return `${reference.programId}\0${reference.packageVersion}\0${reference.contentDigest}`;
+function programCompatibilityKeyV1(reference: InstalledProgramPackageReferenceV1): string {
+  return `${reference.programId}\0${reference.packageVersion}`;
 }
 
 export function createProgramSurfaceSessionStateOwnerV1(): ProgramSurfaceSessionStateOwnerV1 {
@@ -30,7 +30,7 @@ export function createProgramSurfaceSessionStateOwnerV1(): ProgramSurfaceSession
 
   return {
     forPackage(reference) {
-      const packageKey = exactPackageKeyV1(reference);
+      const packageKey = programCompatibilityKeyV1(reference);
       let scope = packages.get(packageKey);
       if (scope === undefined) {
         const state = new Map<string, unknown>();

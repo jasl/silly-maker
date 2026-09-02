@@ -11,7 +11,7 @@ import {
 const textEncoderV1 = new TextEncoder();
 
 describe("Browser Program package resource tool", () => {
-  it("reads and pages exact immutable package bytes without a Workspace projection", async () => {
+  it("reads and pages current Program resource bytes without a Workspace projection", async () => {
     const tool = createBrowserProgramPackageResourceToolV1([{
       path: "skills/translate/SKILL.md",
       mediaType: "text/markdown",
@@ -47,7 +47,7 @@ describe("Browser Program package resource tool", () => {
     });
   });
 
-  it("does not resolve paths outside the exact Process-pinned package set", async () => {
+  it("does not resolve paths outside the current Program resource set", async () => {
     const tool = createBrowserProgramPackageResourceToolV1([{
       path: "skills/translate/SKILL.md",
       mediaType: "text/markdown",

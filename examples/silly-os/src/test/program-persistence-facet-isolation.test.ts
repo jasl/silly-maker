@@ -77,7 +77,6 @@ async function seedConversationV1(repository: SeedRepositoryV1): Promise<void> {
     programPackage: {
       programId: "community.program",
       packageVersion: "1.0.0",
-      contentDigest: "a".repeat(64),
     },
     subjectProgramId: null,
     createdAt: 1,

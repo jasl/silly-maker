@@ -154,8 +154,8 @@ Agent Creator and Translation are the current bundled user-facing Programs.
 Creator is a bootstrap and in-product revision path, not an attempt to
 replace a general coding Agent as the preferred environment for authoring and
 testing sophisticated Programs. An externally authored Program ZIP enters the
-same archive admission, installation repository, exact-package loading, and
-revision-pinning contracts rather than gaining a privileged install path. Every Program remains
+same archive admission, installation repository, current-implementation
+resolution, and compatibility contracts rather than gaining a privileged install path. Every Program remains
 one cohesive product unit:
 
 ```text
@@ -167,7 +167,7 @@ For Agent execution, the useful package can be stated more concretely:
 ```text
 SillyOS runtime = fixed harness + VFS/Process authorities + closed UI/tool adapters
 Program package = PROGRAM.md + references + scripts + assets + workflow/profile data
-Process = exact immutable Program package + user input + Conversation + isolated Workspace + settings/network + mutable work/output
+Process = programId + compatibility marker + user input + Conversation + isolated Workspace + settings/network + mutable work/output
 ```
 
 Each durable Process is the user's project instance. A domain may attach a
@@ -202,7 +202,7 @@ program-name/
 ```
 
 Metadata needed for admission is normalized directly from `program.json` into
-one immutable package reference at install time. There is no parallel Program
+one current installation per `programId`. There is no parallel Program
 Definition authority. The entry instructions remain concise; substantial modes
 and examples live in references; assets do not enter model context by default;
 and repeated mechanical work belongs in tested scripts. Empty placeholder
@@ -219,15 +219,20 @@ package receives no path outside this boundary and no loader privilege that an
 admitted ZIP selecting the same runtime profile would not receive.
 
 SillyOS workflow controllers own stage transitions, context planning,
-checkpoints, and recovery. A Process retains the complete exact package
-reference that created it, so removing a Program from discovery cannot erase
-that Process. Installing a successor moves only the current pointer used for a
-new Process. Refreshing SillyOS may improve the fixed harness implementation,
-but it never substitutes newer Program content, rewrites the Process VFS, or
-migrates Program-owned data. If the exact package or a compatible runtime is
-unavailable, the Conversation still opens and the affected Program services
-degrade explicitly. Already committed transcript, decisions, artifacts, and
-checkpoints are never rewritten.
+checkpoints, and recovery. A Process retains only its `programId` and a thin
+compatibility marker, so removing a Program cannot erase that Process or its
+Conversation. Reopen uses the current installed implementation when the marker
+matches, allowing application updates to deliver compatible fixes. Replacing a
+Program does not rewrite the Process VFS or migrate Program-owned data. If the
+current implementation is missing, damaged or incompatible—or its runtime is
+unavailable—the Conversation still opens and the affected Program services
+degrade explicitly. SillyOS does not restore historical Program bytes or promise
+Program-private storage compatibility. Already committed transcript, decisions,
+artifacts, and checkpoints are never rewritten.
+While a Program is mounted, a private non-durable installation fence keeps its
+Surface, settings, Prompt and scripts on one implementation. Identical bundled
+materialization preserves that fence; a real same-marker replacement makes the
+old mount's next submit unavailable until the Process is reopened.
 The Agent/model performs semantic judgment under those instructions and the
 admitted Profile; the human owns final Profile, ambiguity, review, and acceptance
 decisions. Product admission, repositories, and Workspace authority own
@@ -353,15 +358,15 @@ The workspace requirement is likewise behavioral rather than technological.
 Each active Process needs a familiar coding-tool environment plus one
 product-owned volume
 that coherently contains inputs, outputs, the working tree, temporary files,
-and file-resident data. The pinned Program package, including its instructions,
-references, and scripts, is projected read-only rather than mixed into that
-mutable tree. WebAssembly is a promising portable execution mechanism,
+and file-resident data. The mounted current compatible Program implementation,
+including its instructions, references, and scripts, is projected read-only
+rather than mixed into that mutable tree. WebAssembly is a promising portable execution mechanism,
 especially in Browser, but it is not the product contract: the selected target
 adapters may combine TypeScript, Workers, Wasm payloads, or a native companion
 behind the same typed workspace boundary.
 
-For a Process, the VFS should expose the pinned Program package as a read-only
-tree, preserve user-supplied originals as admitted input, and keep mutable
+For a Process, the VFS should expose the mounted current compatible Program
+implementation as a read-only tree, preserve user-supplied originals as admitted input, and keep mutable
 intermediate and final artifacts in separate work/output areas. A packaged
 script runs from the Program tree in a fixed interpreter; an Agent-authored
 one-off script lives in the Process work area and does not become Program content
@@ -423,16 +428,17 @@ workflow, persistence, or background-execution API.
 - This closure originally used one build-known Creator definition. The active
   clean replacement no longer retains that identity or a built-in Program
   class: Creator is the ordinary package `sillyos.creator@1.0.0`, installed by
-  the same repository as a user ZIP. Every Process pins its complete immutable
-  `{ programId, packageVersion, contentDigest }` reference when it is created.
-  A successor package is only the default for a newly created Process.
+  the same repository as a user ZIP. Every Process keeps `{ programId,
+  packageVersion }`, where the version is a compatibility marker. Existing and
+  new Processes resolve the one current implementation for that Program identity
+  when the marker matches.
 - For Creator, the Program being created or edited is the Process **subject**. Its
-  `programId` and evolving revisions are not the Process's pinned harness
+  `programId` and evolving revisions are not the Process's harness
   identity.
 - Creator's Program revision is immutable subject content. Its Program head,
   revisions and review decisions belong to the Creator persistence facet, not
   to generic Conversation Core or every Program runtime.
-- A Process head owns its identity, pinned exact Program package, optional subject,
+- A Process head owns its identity, Program compatibility binding, optional subject,
   current status, monotonic revision, transcript frontier, and the exact active
   attempt/checkpoint metadata. Beginning an attempt atomically commits its
   accepted user entry, exact starting Workspace checkpoint, and idempotency
@@ -448,15 +454,16 @@ workflow, persistence, or background-execution API.
 ### Clean replacement schema
 
 The historical P4-A slice advanced to Repository V9. That schema is no longer
-implemented or read. The active clean replacement is Repository V16: opening
+implemented or read. The active clean replacement is Repository V17: opening
 any older preview version performs one row-blind reset and creates only the
 current store set. There is no migration, version-by-version reader, dual
 schema, deprecated method, or alias before the first stable release.
 
 The replacement persistence composition owns these logical units:
 
-1. Program Package Installation Repository V1 owns immutable package archives
-   plus the `package_heads` current exact reference used only by new Processes;
+1. Program Package Installation Repository V1 owns one current archive and
+   metadata row per `programId`; its internal acquisition marker controls bundled
+   refresh precedence and its private installation ID invalidates stale caches;
 2. Conversation Core owns `processes`, `transcript_entries`,
    `process_execution_leases`, `process_commits`, `process_workspace_bindings`,
    `process_settings_overrides`, and `process_network_access`;
@@ -503,7 +510,7 @@ conversation length.
   pages are loaded.
 - React mounts exactly one active Process Conversation subtree. It keeps a
   bounded page/window projection, saves draft/scroll anchor/selection before a
-  switch into the Host's exact-package-scoped, non-durable UI session state,
+  switch into the Host's Program-compatibility-scoped, non-durable UI session state,
   then unmounts the predecessor and releases observers, object URLs,
   rich-text/OpenUI/tool/media resources. This state does not enter Program Data
   Repository or survive an application-session replacement.
@@ -1900,7 +1907,7 @@ public-origin/real-model network-tool qualification.
 Current preview source clean-replaces that dated Program scope. Each Process
 owns one non-secret `ProcessNetworkAccessV1` value
 `{ revision: 1, processId, enabled }`; missing state remains disabled. Repository
-V16 uses a row-blind preview reset and replaces the superseded network shape with
+V17 uses a row-blind preview reset and replaces the superseded network shape with
 only `process_network_access`; it retains no old network store, wire, method, or
 type alias. The exact `processId` is
 carried through Product admission, Worker attach and submit, active-run
@@ -2194,9 +2201,10 @@ workflow framework.
 The paragraphs in this section record the path by which the product reached the
 current source. They retain the names and storage versions used by those closed
 lanes; they are not current compatibility surfaces. Current source uses Program
-Package Installation Repository V1 plus Program Data Repository V16, exact
-package-pinned Processes, and Process-owned Workspace bindings, settings
-overrides and network preferences. V16 row-blind resets every earlier preview
+Package Installation Repository V1 plus Program Data Repository V17, current
+implementation resolution by `programId`, Process compatibility markers, and
+Process-owned Workspace bindings, settings overrides and network preferences.
+V17 row-blind resets every earlier preview
 Program Data Repository schema and provides no migration or compatibility aliases.
 
 The committed P0 Creator Preview is a real responsive product shell backed by
@@ -4847,7 +4855,7 @@ runtime substrate reproduced by Creator and Translation. Program source is
 strictly contained under `programs/<name>/`; only `package/` enters the archive,
 while runtime/profile/UI code is Host-compiled and tests/notes stay outside the
 production package. A bundled archive and a user-selected ZIP use the same
-admission, IndexedDB installation repository, exact-package loader, available
+admission, IndexedDB installation repository, current-implementation resolver, available
 runtime profile and Program UI Container. Translation's durable product
 decisions, capability boundary and remaining gates are summarized in
 [Translation Program decisions](./programs/translation/notes/TRANSLATION-PROGRAM-RESEARCH.md).
@@ -4861,12 +4869,12 @@ slice has since delivered only the closed package-authored OpenUI denominator
 described below.
 
 Generalize only after Pi, storage, and a real Program reproduce the boundary. A
-Process durably pins its complete immutable
-`{ programId, packageVersion, contentDigest }` reference. Installing a successor
-changes only the current pointer used when creating a new Process; refresh never
-substitutes newer package content into an existing Process. Harness compatibility
-admits that exact package against an available current Host profile rather than
-selecting a newer package implementation. Browser composes public `AgentTool`
+Process durably keeps `{ programId, packageVersion }`, where version is a thin
+compatibility marker. The repository retains one current implementation per
+`programId`; reopening a Process uses it when compatible, while missing, damaged
+or incompatible implementations degrade to read-only Conversation. Harness
+compatibility admits the current implementation against an available Host
+profile. Browser composes public `AgentTool`
 values and admitted resources directly; Desktop maps the same capability cores
 through its proven extension/resource route and Pi tool allowlists. Availability
 is reported truthfully per target. Pi remains the only Agent capability registry
@@ -4900,7 +4908,7 @@ Translation ships no fixed script or interpreter execution profile. Capability
 IDs remain descriptive package data and never become a second tool-grant
 authority.
 
-The exact package and runtime profile are acquired lazily and released with the
+The current Program implementation and runtime profile are acquired lazily and released with the
 owning Process runtime. A mounted Surface first performs repeatable reversible
 quiescence: it aborts/drains Surface work such as export, rejects while active
 or unpersisted Agent work is still owned, and closes the exact Workspace without
@@ -4930,7 +4938,7 @@ the deterministic codec, prompt, Skill and review-assisted workflow contracts.
 Its one-off Provider runner, evaluation corpora and fixed-script experiment
 were removed after those decisions moved into the product package and formal
 tests. The formal package is now
-`sillyos.translation@1.0.0` with an exact content digest,
+`sillyos.translation@1.0.0`, with `1.0.0` as its Process compatibility marker,
 `sillyos.program-harness.v1` compatibility and the build-known
 `agent.translation.v1` profile. It declares `agent.text`,
 `program.resource.read`, `translation.batch`, and bounded Workspace
@@ -4942,12 +4950,13 @@ Program UI Container switches guided “Simple” and Conversation presentation 
 the same Process; a bounded run strip projects the latest one to three activity
 lines and truthful mechanical/indeterminate progress; the Translation workbench
 uses a virtualized unit list with desktop/mobile target-detail presentation;
-and the ordinary Translation route owns a real exact-package-pinned Process
+and the ordinary Translation route owns a real Program-identity-bound Process
 controller. It creates or cold-reopens the Process and its independent
-Workspace without pre-acquiring an idle Workspace. Program Library lists
-installed exact packages and recent Processes; a Process whose package or
-runtime services are unavailable still opens through the package-independent
-read-only Conversation instead of being deleted or silently rebound. Source
+Workspace without pre-acquiring an idle Workspace. Program Library lists one
+current implementation per Program and recent Processes; a Process whose current
+implementation is missing, damaged, incompatible, or whose runtime services are
+unavailable still opens through the package-independent read-only Conversation
+instead of being deleted. Source
 import reuses the existing Process execution lease;
 lease acquisition and the expected absent/exact-staging workset revision are
 one IndexedDB admission, so a stale tab cannot begin a successor attempt after
@@ -4961,7 +4970,7 @@ Cold open terminalizes an expired unfinished import as explicitly unrecoverable
 for direct review; ordinary Home selection skips that terminal Process and
 creates a fresh one instead of leaving the Program permanently blocked.
 
-Physical Program Data Repository V16 now stores a compact Process-owned Translation workset head,
+Physical Program Data Repository V17 now stores a compact Process-owned Translation workset head,
 exact import-operation receipts, and separately pageable unit/glossary rows.
 The UI paging source requests only bounded visible row windows; the 10,000-unit
 evidence no longer depends on moving one in-memory workset aggregate through the
@@ -5030,7 +5039,7 @@ The product model remains `Program -> durable Process`: each Translation
 Process directly owns its pageable/CAS workset, candidate, and review state.
 There is no independent Project identity, list, route, or lifecycle. Physical
 stores and receipts use current `translation_workset_*` terminology. Product
-Repository V16 row-blind resets any earlier preview database and retains no old
+Repository V17 row-blind resets any earlier preview database and retains no old
 wire, method or type alias, migration reader or compatibility fallback. A
 removed same-version optional facet store may remain physically unreachable
 until an explicit product reset; Conversation Core does not depend on it.

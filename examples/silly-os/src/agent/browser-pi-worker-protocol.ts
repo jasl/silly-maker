@@ -7,7 +7,9 @@ import { isBrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts"
 import type { BrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 import {
   admitBrowserPiAgentDispatchTextV1,
+  admitBrowserPiBoundAgentDispatchTextV1,
   type BrowserPiAgentDispatchV1,
+  type BrowserPiProgramImplementationBindingV1,
 } from "./browser-pi-agent-dispatch.ts";
 
 export type BrowserPiWorkerRuntimeV1 = "deterministic_test" | "pi_provider";
@@ -168,6 +170,7 @@ export interface BrowserPiWorkerRpcSubmitRequestV1 {
   readonly record: unknown;
   readonly execution: BrowserPiWorkerExecutionBindingV1;
   readonly dispatch: BrowserPiAgentDispatchV1;
+  readonly programImplementation: BrowserPiProgramImplementationBindingV1;
 }
 
 export type BrowserPiWorkerRpcRequestV1 =
@@ -1153,10 +1156,17 @@ export function admitBrowserPiWorkerInboundMessageV1(
     const request = admitBrowserPiWorkerSessionRequestV1(discriminator.record);
     if (request?.method === "submit") {
       const execution = admitExecutionBindingV1(discriminator.execution);
-      const submit = admitBrowserPiAgentDispatchTextV1(request.params.text);
+      const bound = admitBrowserPiBoundAgentDispatchTextV1(request.params.text);
+      const submit = bound.kind === "admitted"
+        ? admitBrowserPiAgentDispatchTextV1(bound.value.dispatchText)
+        : { kind: "rejected" as const };
       if (
-        execution === null || submit.kind === "rejected" ||
-        execution.programId !== submit.value.workspaceProgramId
+        execution === null || bound.kind === "rejected" || submit.kind === "rejected" ||
+        execution.programId !== submit.value.workspaceProgramId ||
+        bound.value.implementation.programPackage.programId !==
+          submit.value.programPackage.programId ||
+        bound.value.implementation.programPackage.packageVersion !==
+          submit.value.programPackage.packageVersion
       ) return null;
       return {
         revision: 1,
@@ -1165,6 +1175,7 @@ export function admitBrowserPiWorkerInboundMessageV1(
         record: discriminator.record,
         execution,
         dispatch: submit.value,
+        programImplementation: bound.value.implementation,
       };
     }
     // Invalid inner records still reach the existing inner admission and

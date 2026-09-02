@@ -34,16 +34,14 @@ type TestProgramDataRepositoryV1 = CreatorPersistenceTestAdapterV1;
 const creatorProgramPackageV1: InstalledProgramPackageReferenceV1 = {
   programId: "sillyos.creator",
   packageVersion: "1.0.0",
-  contentDigest: "c".repeat(64),
 };
 const translationProgramPackageV1: InstalledProgramPackageReferenceV1 = {
   programId: "sillyos.translation",
   packageVersion: "1.0.0",
-  contentDigest: "d".repeat(64),
 };
-const creatorDifferentContentPackageV1: InstalledProgramPackageReferenceV1 = {
+const creatorIncompatiblePackageV1: InstalledProgramPackageReferenceV1 = {
   ...creatorProgramPackageV1,
-  contentDigest: "a".repeat(64),
+  packageVersion: "2.0.0",
 };
 
 function createCreatorControllerV1(
@@ -521,7 +519,7 @@ describe("Creator Controller Program/Process projection", () => {
     );
   });
 
-  it("opens the newest Process for one Program and loads only its pinned rich projection", async () => {
+  it("opens the newest Process for one Program and loads only its selected rich projection", async () => {
     const repository = createMemoryProgramDataRepositoryV1();
     await seedProgramV1({ repository, programId: "program.subject", updatedAt: 1 });
     await seedProcessV1({
@@ -555,7 +553,7 @@ describe("Creator Controller Program/Process projection", () => {
     ).toEqual(["process.newer"]);
   });
 
-  it("keeps each Creator controller pinned to its exact package after a successor is selected", async () => {
+  it("keeps an active Creator controller stable when another compatibility marker is opened", async () => {
     const repository = createMemoryProgramDataRepositoryV1();
     await seedProgramV1({ repository, programId: "program.subject", updatedAt: 1 });
     await seedProcessV1({
@@ -576,7 +574,7 @@ describe("Creator Controller Program/Process projection", () => {
       programId: "program.subject",
       processId: "process.creator.successor",
       createdAt: 4,
-      programPackage: creatorDifferentContentPackageV1,
+      programPackage: creatorIncompatiblePackageV1,
     });
     const predecessor = createCreatorControllerV1({
       repository,
@@ -588,7 +586,7 @@ describe("Creator Controller Program/Process projection", () => {
     const successor = createCreatorControllerV1({
       repository,
       workspace: createPassiveControllerWorkspaceV1(),
-      programPackage: creatorDifferentContentPackageV1,
+      programPackage: creatorIncompatiblePackageV1,
       ownerInstanceId: "creator.successor",
       budgets: ordinaryBudgetsV1,
     });

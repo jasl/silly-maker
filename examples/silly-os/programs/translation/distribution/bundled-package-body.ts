@@ -2,7 +2,7 @@
 
 import { loadUrlProgramPackageArchiveV1 } from "../../../src/program-platform/package/url-program-package-source.ts";
 
-/** Loads the bundled body only after this exact Translation package is opened. */
+/** Loads the bundled body only when the current Translation implementation is resolved. */
 export function loadTranslationProgramPackageArchiveV1() {
   return loadUrlProgramPackageArchiveV1({
     manifestUrl: new URL("../package/program.json", import.meta.url),

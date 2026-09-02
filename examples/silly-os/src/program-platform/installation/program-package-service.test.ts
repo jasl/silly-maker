@@ -3,29 +3,27 @@
 import { zipSync } from "fflate";
 import { describe, expect, it, vi } from "vitest";
 
-import type {
-  AdmittedProgramPackageArchiveV1,
-  ProgramPackageArchiveV1,
+import type { ProgramPackageArchiveV1 } from "../package/program-package-archive.ts";
+import {
+  admitProgramPackageArchiveV1,
+  readProgramPackageTextFileV1,
 } from "../package/program-package-archive.ts";
-import { admitProgramPackageArchiveV1 } from "../package/program-package-archive.ts";
+import { projectProgramPackageRuntimeProfileV1 } from "../package/program-runtime-profile-descriptor.ts";
+import type {
+  InstalledProgramPackageV1,
+  ProgramPackageInstallationRepositoryV1,
+} from "./program-package-installation-repository.ts";
 import {
   createProgramPackageServiceV1,
   type BundledProgramPackageSourceV1,
 } from "./program-package-service.ts";
-import type {
-  ProgramPackageInstallationRepositoryV1,
-} from "./program-package-installation-repository.ts";
-import { projectProgramPackageRuntimeProfileV1 } from "../package/program-runtime-profile-descriptor.ts";
-import { createMemoryProgramProcessRepositoryV1 } from "../process/memory-program-process-repository.ts";
 
-const translationRuntimeProfileDescriptorV1 = {
+const runtimeProfileDescriptorV1 = {
   runtimeProfile: "agent.translation.v1",
   capabilityIds: [] as readonly string[],
   scriptRuntimes: [] as const,
   initialUiSurfaceIds: [] as readonly string[],
 };
-
-const bytesV1 = (text: string): ArrayBuffer => new TextEncoder().encode(text).buffer;
 const limitsV1 = {
   maximumManifestBytes: 16_384,
   maximumFiles: 32,
@@ -33,6 +31,7 @@ const limitsV1 = {
   maximumFileBytes: 256_000,
   maximumPackageBytes: 1_000_000,
 };
+const bytesV1 = (text: string): ArrayBuffer => new TextEncoder().encode(text).buffer;
 
 function archiveV1(version: string, instructions: string): ProgramPackageArchiveV1 {
   return {
@@ -65,7 +64,6 @@ async function bundledSourceV1(
     metadata: {
       ...projectProgramPackageRuntimeProfileV1(admitted),
       reference: admitted.reference,
-      byteLength: admitted.byteLength,
     },
     async loadArchive() {
       onLoad();
@@ -75,52 +73,59 @@ async function bundledSourceV1(
 }
 
 function memoryRepositoryV1(): ProgramPackageInstallationRepositoryV1 {
-  const packages = new Map<string, AdmittedProgramPackageArchiveV1>();
-  const heads = new Map<string, AdmittedProgramPackageArchiveV1["reference"]>();
-  const keyV1 = (reference: AdmittedProgramPackageArchiveV1["reference"]): string =>
-    `${reference.programId}\0${reference.packageVersion}\0${reference.contentDigest}`;
+  const packages = new Map<string, InstalledProgramPackageV1>();
+  let nextInstallationId = 1;
   return {
     async initialize() {
       return "created";
     },
     async install(archive, options) {
       const admitted = await admitProgramPackageArchiveV1(archive, { limits: limitsV1 });
-      const key = keyV1(admitted.reference);
-      const disposition = packages.has(key) ? "already_installed" : "installed";
-      packages.set(key, admitted);
-      if (
-        options.currentSelection === "always" ||
-        (options.currentSelection === "if_missing" &&
-          !heads.has(admitted.reference.programId))
-      ) heads.set(admitted.reference.programId, admitted.reference);
+      const disposition = packages.has(admitted.reference.programId) ? "replaced" : "installed";
+      packages.set(admitted.reference.programId, {
+        acquisition: options.acquisition,
+        installationId: `installation.${String(nextInstallationId++)}`,
+        package: admitted,
+      });
       return { disposition, reference: admitted.reference };
     },
-    async load(reference) {
-      return packages.get(keyV1(reference)) ?? null;
+    async load(programId) {
+      return packages.get(programId) ?? null;
     },
     async listMetadata() {
       return [...packages.values()].map((entry) => ({
-        ...projectProgramPackageRuntimeProfileV1(entry),
-        reference: entry.reference,
-        byteLength: entry.byteLength,
+        acquisition: entry.acquisition,
+        metadata: {
+          ...projectProgramPackageRuntimeProfileV1(entry.package),
+          reference: entry.package.reference,
+        },
       }));
     },
-    async current(programId) {
-      return heads.get(programId) ?? null;
-    },
-    async remove(reference) {
-      return packages.delete(keyV1(reference));
+    async remove(programId) {
+      return packages.delete(programId);
     },
     async reset() {
       packages.clear();
-      heads.clear();
     },
     async dispose() {},
   };
 }
 
+function createServiceV1(input: {
+  readonly repository?: ProgramPackageInstallationRepositoryV1;
+  readonly bundledSources?: readonly BundledProgramPackageSourceV1[];
+  readonly runtimeProfileDescriptors?: readonly typeof runtimeProfileDescriptorV1[];
+}) {
+  return createProgramPackageServiceV1({
+    repository: input.repository ?? memoryRepositoryV1(),
+    bundledSources: input.bundledSources ?? [],
+    supportedHarnesses: new Set(["sillyos.program-harness.v1"]),
+    runtimeProfileDescriptors: input.runtimeProfileDescriptors ?? [runtimeProfileDescriptorV1],
+  });
+}
+
 describe("Program package service V1", () => {
-  it("rejects contradictory fixed runtime-profile descriptors at composition", () => {
+  it("rejects contradictory fixed runtime-profile descriptors", () => {
     expect(() =>
       createProgramPackageServiceV1({
         repository: memoryRepositoryV1(),
@@ -137,91 +142,199 @@ describe("Program package service V1", () => {
     ).toThrow("invalid or duplicate Program runtime profile descriptor");
   });
 
-  it("lists bundled metadata without loading its body and materializes through ordinary installation", async () => {
+  it("lists bundled metadata lazily and loads through ordinary admission once per service", async () => {
     let loads = 0;
     const source = await bundledSourceV1(
       archiveV1("1.0.0", "Translate faithfully."),
       () => loads += 1,
     );
-    const service = createProgramPackageServiceV1({
-      repository: memoryRepositoryV1(),
-      bundledSources: [source],
-      supportedHarnesses: new Set(["sillyos.program-harness.v1"]),
-      runtimeProfileDescriptors: [translationRuntimeProfileDescriptorV1],
-    });
+    const service = createServiceV1({ bundledSources: [source] });
 
-    expect(loads).toBe(0);
-    const [available] = await service.listLibrary();
-    expect(available).toMatchObject({ materialized: false });
+    await expect(service.listLibrary()).resolves.toEqual([
+      expect.objectContaining({ reference: source.metadata.reference }),
+    ]);
     expect(loads).toBe(0);
     const first = await service.resolveCurrent("example.translation");
     const second = await service.resolveCurrent("example.translation");
     expect(first?.kind).toBe("ready");
     expect(second).toEqual(first);
     expect(loads).toBe(1);
-    const [installed] = await service.listLibrary();
-    expect(installed).toMatchObject({ materialized: true });
-    expect(installed).not.toHaveProperty("origin");
   });
 
-  it("does not let a bundled source replace the package selected for new Processes", async () => {
-    const service = createProgramPackageServiceV1({
-      repository: memoryRepositoryV1(),
-      bundledSources: [await bundledSourceV1(archiveV1("1.0.0", "Bundled baseline."))],
-      supportedHarnesses: new Set(["sillyos.program-harness.v1"]),
-      runtimeProfileDescriptors: [translationRuntimeProfileDescriptorV1],
+  it("refreshes a bundled compatible implementation after a SillyOS update", async () => {
+    const repository = memoryRepositoryV1();
+    const oldService = createServiceV1({
+      repository,
+      bundledSources: [await bundledSourceV1(archiveV1("1.0.0", "Old instructions."))],
     });
-    const external = await service.installArchive(
-      archiveV1("2.0.0", "User-selected successor."),
+    const old = await oldService.resolveCurrent("example.translation");
+    if (old === null || old.kind !== "ready") throw new Error("expected old Program");
+
+    const newService = createServiceV1({
+      repository,
+      bundledSources: [await bundledSourceV1(archiveV1("1.0.0", "Fixed instructions."))],
+    });
+    const current = await newService.resolveForProcess(old.package.reference);
+    expect(current.kind).toBe("ready");
+    if (current.kind !== "ready") throw new Error("expected compatible Program");
+    expect(readProgramPackageTextFileV1(current.package, "PROGRAM.md")).toBe(
+      "Fixed instructions.",
     );
+  });
+
+  it("observes a compatible bundled implementation replaced by another service", async () => {
+    const repository = memoryRepositoryV1();
+    const firstService = createServiceV1({
+      repository,
+      bundledSources: [await bundledSourceV1(archiveV1("1.0.0", "First instructions."))],
+    });
+    const first = await firstService.resolveCurrent("example.translation");
+    if (first === null || first.kind !== "ready") throw new Error("expected first Program");
+
+    const secondService = createServiceV1({
+      repository,
+      bundledSources: [await bundledSourceV1(archiveV1("1.0.0", "Current instructions."))],
+    });
+    const current = await secondService.resolveCurrent("example.translation");
+    if (current === null || current.kind !== "ready") throw new Error("expected current Program");
+
+    const observed = await firstService.resolveCurrent("example.translation");
+    expect(observed).toMatchObject({
+      kind: "ready",
+      implementationId: current.implementationId,
+    });
+    if (observed === null || observed.kind !== "ready") {
+      throw new Error("expected observed Program");
+    }
+    expect(readProgramPackageTextFileV1(observed.package, "PROGRAM.md")).toBe(
+      "Current instructions.",
+    );
+  });
+
+  it("restores a bundled implementation after another service clears the repository", async () => {
+    let loads = 0;
+    const repository = memoryRepositoryV1();
+    const source = await bundledSourceV1(
+      archiveV1("1.0.0", "Bundled."),
+      () => loads += 1,
+    );
+    const service = createServiceV1({ repository, bundledSources: [source] });
+
+    const first = await service.resolveCurrent("example.translation");
+    if (first === null || first.kind !== "ready") throw new Error("expected first Program");
+    await expect(repository.load("example.translation")).resolves.not.toBeNull();
+
+    await repository.reset();
+    await expect(repository.load("example.translation")).resolves.toBeNull();
+    const current = await service.resolveCurrent("example.translation");
+    if (current === null || current.kind !== "ready") throw new Error("expected current Program");
+    const stored = await repository.load("example.translation");
+    expect(loads).toBe(2);
+    expect(current.implementationId).not.toBe(first.implementationId);
+    expect(current.implementationId).toBe(stored?.installationId);
+  });
+
+  it("keeps one external current implementation instead of restoring the bundled body", async () => {
+    let bundledLoads = 0;
+    const service = createServiceV1({
+      bundledSources: [
+        await bundledSourceV1(archiveV1("1.0.0", "Bundled."), () => bundledLoads += 1),
+      ],
+    });
+    const external = await service.installArchive(archiveV1("2.0.0", "External."));
+
     await expect(service.resolveCurrent("example.translation")).resolves.toMatchObject({
       kind: "ready",
       package: { reference: external.reference },
     });
-    const installed = await service.listLibrary();
-    expect(installed).toHaveLength(2);
-    expect(installed.filter((entry) => entry.selectedForNewProcesses)).toEqual([
+    expect(bundledLoads).toBe(0);
+    await expect(service.listLibrary()).resolves.toEqual([
       expect.objectContaining({ reference: external.reference }),
     ]);
   });
 
-  it("converges bundled archive and external ZIP acquisition on one exact installed package", async () => {
-    const baseline = archiveV1("1.0.0", "Translate faithfully.");
-    const archive: ProgramPackageArchiveV1 = {
-      ...baseline,
-      manifest: {
-        ...baseline.manifest,
-        modelPromptOverlays: [{
-          modelPattern: "*glm-5.3-flash*",
-          path: "prompts/models/glm.md",
-        }],
-        recommendedModelPatterns: [
-          "*glm-5.3-flash*",
-          "deepseek/deepseek-v4-flash*",
-        ],
+  it("accepts an external implementation that wins after a bundled refresh commits", async () => {
+    const baseRepository = memoryRepositoryV1();
+    const externalArchive = archiveV1("1.0.0", "External winner.");
+    let racePending = true;
+    const repository: ProgramPackageInstallationRepositoryV1 = {
+      ...baseRepository,
+      async install(archive, options) {
+        const result = await baseRepository.install(archive, options);
+        if (options.acquisition === "bundled" && racePending) {
+          racePending = false;
+          await baseRepository.install(externalArchive, { acquisition: "external" });
+        }
+        return result;
       },
-      files: [...baseline.files, {
-        path: "prompts/models/glm.md",
-        mediaType: "text/markdown",
-        bytes: bytesV1("Complete the typed candidate without narration."),
-      }],
     };
-    const service = createProgramPackageServiceV1({
-      repository: memoryRepositoryV1(),
-      bundledSources: [await bundledSourceV1(archive)],
-      supportedHarnesses: new Set(["sillyos.program-harness.v1"]),
-      runtimeProfileDescriptors: [translationRuntimeProfileDescriptorV1],
+    const service = createServiceV1({
+      repository,
+      bundledSources: [await bundledSourceV1(archiveV1("1.0.0", "Bundled candidate."))],
     });
 
-    const bundled = await service.resolveCurrent(archive.manifest.programId);
-    if (bundled === null || bundled.kind !== "ready") {
-      throw new Error("expected bundled package to be ready");
-    }
-    const external = await service.installZip(
-      zipSync(Object.fromEntries([
-        ["program.json", new TextEncoder().encode(JSON.stringify(archive.manifest))],
-        ...archive.files.map((file) => [file.path, new Uint8Array(file.bytes)] as const),
-      ])),
+    const current = await service.resolveCurrent("example.translation");
+    expect(current?.kind).toBe("ready");
+    if (current === null || current.kind !== "ready") throw new Error("expected current Program");
+    expect(readProgramPackageTextFileV1(current.package, "PROGRAM.md")).toBe("External winner.");
+    await expect(repository.load("example.translation")).resolves.toMatchObject({
+      acquisition: "external",
+    });
+  });
+
+  it("uses current compatible bytes but degrades an incompatible or missing Process", async () => {
+    const repository = memoryRepositoryV1();
+    const service = createServiceV1({ repository });
+    const first = await service.installArchive(archiveV1("1.0.0", "First."));
+    await service.installArchive(archiveV1("1.0.0", "Compatible fix."));
+    const compatible = await service.resolveForProcess(first.reference);
+    if (compatible.kind !== "ready") throw new Error("expected compatible Program");
+    expect(readProgramPackageTextFileV1(compatible.package, "PROGRAM.md")).toBe("Compatible fix.");
+
+    const successor = await service.installArchive(archiveV1("2.0.0", "Incompatible."));
+    await expect(service.resolveForProcess(first.reference)).resolves.toEqual({
+      kind: "process_incompatible",
+      reference: first.reference,
+      currentReference: successor.reference,
+    });
+    await repository.remove("example.translation");
+    await expect(service.resolveForProcess(successor.reference)).resolves.toEqual({
+      kind: "package_missing",
+      reference: successor.reference,
+    });
+  });
+
+  it("does not keep a removed bundled implementation runnable", async () => {
+    const repository = memoryRepositoryV1();
+    const withProgram = createServiceV1({
+      repository,
+      bundledSources: [await bundledSourceV1(archiveV1("1.0.0", "Bundled."))],
+    });
+    const ready = await withProgram.resolveCurrent("example.translation");
+    if (ready === null || ready.kind !== "ready") throw new Error("expected bundled Program");
+
+    const withoutProgram = createServiceV1({ repository, bundledSources: [] });
+    await expect(withoutProgram.resolveForProcess(ready.package.reference)).resolves.toEqual({
+      kind: "package_missing",
+      reference: ready.package.reference,
+    });
+    await expect(repository.load("example.translation")).resolves.toBeNull();
+  });
+
+  it("converges ZIP acquisition on the same current implementation and compatibility checks", async () => {
+    const unsupported = {
+      ...archiveV1("1.0.0", "Do not grant undeclared capabilities."),
+      manifest: {
+        ...archiveV1("1.0.0", "Do not grant undeclared capabilities.").manifest,
+        capabilityIds: ["python.execute"],
+      },
+    } satisfies ProgramPackageArchiveV1;
+    const service = createServiceV1({});
+    const installed = await service.installZip(
+      zipSync({
+        "program.json": new TextEncoder().encode(JSON.stringify(unsupported.manifest)),
+        "PROGRAM.md": new TextEncoder().encode("Do not grant undeclared capabilities."),
+      }),
       {
         budgets: {
           maximumCompressedBytes: 65_536,
@@ -231,263 +344,43 @@ describe("Program package service V1", () => {
         archiveLimits: limitsV1,
       },
     );
-
-    expect(external).toEqual({
-      disposition: "already_installed",
-      reference: bundled.package.reference,
-    });
-    await expect(service.loadExact(external.reference)).resolves.toMatchObject({
-      kind: "ready",
-      package: {
-        reference: bundled.package.reference,
-        manifest: {
-          recommendedModelPatterns: [
-            "*glm-5.3-flash*",
-            "deepseek/deepseek-v4-flash*",
-          ],
-        },
-      },
-    });
-    const installed = await service.listLibrary();
-    expect(installed).toHaveLength(1);
-    expect(Object.keys(installed[0]!).toSorted()).toEqual([
-      "byteLength",
-      "compatibility",
-      "manifest",
-      "materialized",
-      "reference",
-      "selectedForNewProcesses",
-    ]);
-    expect(installed[0]).toMatchObject({
-      reference: bundled.package.reference,
-      compatibility: "ready",
-      materialized: true,
-      selectedForNewProcesses: true,
-    });
-    await service.dispose();
-  });
-
-  it("keeps an exact predecessor loadable after selecting a successor", async () => {
-    const service = createProgramPackageServiceV1({
-      repository: memoryRepositoryV1(),
-      bundledSources: [],
-      supportedHarnesses: new Set(["sillyos.program-harness.v1"]),
-      runtimeProfileDescriptors: [translationRuntimeProfileDescriptorV1],
-    });
-    const first = await service.installArchive(archiveV1("1.0.0", "First."));
-    const second = await service.installArchive(archiveV1("2.0.0", "Second."));
-
-    expect((await service.resolveCurrent("example.translation"))?.kind).toBe("ready");
-    expect(await service.loadExact(first.reference)).toMatchObject({
-      kind: "ready",
-      package: { reference: first.reference },
-    });
-    expect(await service.loadExact(second.reference)).toMatchObject({
-      kind: "ready",
-      package: { reference: second.reference },
-    });
-
-    expect(await service.listLibrary()).toEqual([
-      expect.objectContaining({
-        reference: first.reference,
-        manifest: expect.objectContaining({ name: "Translation" }),
-        compatibility: "ready",
-        selectedForNewProcesses: false,
-      }),
-      expect.objectContaining({
-        reference: second.reference,
-        manifest: expect.objectContaining({ name: "Translation" }),
-        compatibility: "ready",
-        selectedForNewProcesses: true,
-      }),
-    ]);
-  });
-
-  it("selects a successor only for Processes created from the new current reference", async () => {
-    const service = createProgramPackageServiceV1({
-      repository: memoryRepositoryV1(),
-      bundledSources: [],
-      supportedHarnesses: new Set(["sillyos.program-harness.v1"]),
-      runtimeProfileDescriptors: [translationRuntimeProfileDescriptorV1],
-    });
-    const processes = createMemoryProgramProcessRepositoryV1();
-    const predecessor = await service.installArchive(archiveV1("1.0.0", "First."));
-    const selectedPredecessor = await service.resolveCurrent("example.translation");
-    if (selectedPredecessor === null || selectedPredecessor.kind !== "ready") {
-      throw new Error("expected predecessor to be selected");
-    }
-    await processes.createProcess({
-      processId: "process.predecessor",
-      programPackage: selectedPredecessor.package.reference,
-      subjectProgramId: null,
-      createdAt: 1,
-    });
-
-    const successor = await service.installArchive(archiveV1("2.0.0", "Second."));
-    const selectedSuccessor = await service.resolveCurrent("example.translation");
-    if (selectedSuccessor === null || selectedSuccessor.kind !== "ready") {
-      throw new Error("expected successor to be selected");
-    }
-    await processes.createProcess({
-      processId: "process.successor",
-      programPackage: selectedSuccessor.package.reference,
-      subjectProgramId: null,
-      createdAt: 2,
-    });
-
-    expect((await processes.loadProcess("process.predecessor"))?.programPackage).toEqual(
-      predecessor.reference,
-    );
-    expect((await processes.loadProcess("process.successor"))?.programPackage).toEqual(
-      successor.reference,
-    );
-    await expect(service.loadExact(predecessor.reference)).resolves.toMatchObject({
-      kind: "ready",
-      package: { reference: predecessor.reference },
-    });
-    await service.dispose();
-  });
-
-  it("opens exact packages in explicit degraded states without substituting current", async () => {
-    const repository = memoryRepositoryV1();
-    const service = createProgramPackageServiceV1({
-      repository,
-      bundledSources: [],
-      supportedHarnesses: new Set(["sillyos.program-harness.v1"]),
-      runtimeProfileDescriptors: [],
-    });
-    const installed = await service.installArchive(archiveV1("1.0.0", "Pinned."));
-    expect(await service.loadExact(installed.reference)).toMatchObject({
-      kind: "runtime_profile_unavailable",
-      package: { reference: installed.reference },
-    });
-    expect(await service.listLibrary()).toEqual([
-      expect.objectContaining({
-        reference: installed.reference,
-        compatibility: "runtime_profile_unavailable",
-        selectedForNewProcesses: true,
-      }),
-    ]);
-
-    await repository.remove(installed.reference);
-    expect(await service.loadExact(installed.reference)).toEqual({
-      kind: "package_missing",
-      reference: installed.reference,
+    await expect(service.resolveForProcess(installed.reference)).resolves.toMatchObject({
+      kind: "runtime_profile_incompatible",
     });
   });
 
-  it("does not install a bundled source merely to populate the library", async () => {
-    let loads = 0;
-    const service = createProgramPackageServiceV1({
-      repository: memoryRepositoryV1(),
-      bundledSources: [
-        await bundledSourceV1(
-          archiveV1("1.0.0", "Translate faithfully."),
-          () => loads += 1,
-        ),
-      ],
-      supportedHarnesses: new Set(["sillyos.program-harness.v1"]),
-      runtimeProfileDescriptors: [translationRuntimeProfileDescriptorV1],
-    });
-
-    expect(await service.listLibrary()).toEqual([
-      expect.objectContaining({ materialized: false }),
-    ]);
-    expect(loads).toBe(0);
-  });
-
-  it("lists installed package metadata without loading or rehashing package bodies", async () => {
+  it("lists installation metadata without loading package bodies", async () => {
     const repository = memoryRepositoryV1();
     await repository.install(archiveV1("1.0.0", "Installed body."), {
-      currentSelection: "always",
+      acquisition: "external",
     });
     const load = vi.spyOn(repository, "load");
-    const service = createProgramPackageServiceV1({
-      repository,
-      bundledSources: [],
-      supportedHarnesses: new Set(["sillyos.program-harness.v1"]),
-      runtimeProfileDescriptors: [translationRuntimeProfileDescriptorV1],
-    });
+    const service = createServiceV1({ repository });
 
-    await expect(service.listLibrary()).resolves.toEqual([
-      expect.objectContaining({ materialized: true }),
-    ]);
-    expect(load).not.toHaveBeenCalled();
-  });
-
-  it("clears imported packages and can reinstall bundled packages through the ordinary path", async () => {
-    let loads = 0;
-    const service = createProgramPackageServiceV1({
-      repository: memoryRepositoryV1(),
-      bundledSources: [
-        await bundledSourceV1(
-          archiveV1("1.0.0", "Bundled baseline."),
-          () => loads += 1,
-        ),
-      ],
-      supportedHarnesses: new Set(["sillyos.program-harness.v1"]),
-      runtimeProfileDescriptors: [translationRuntimeProfileDescriptorV1],
-    });
-    await service.resolveCurrent("example.translation");
-    await service.installArchive({
-      ...archiveV1("1.0.0", "Community Program."),
-      manifest: {
-        ...archiveV1("1.0.0", "Community Program.").manifest,
-        programId: "community.translation",
-      },
-    });
-
-    await service.reset();
-
-    await expect(service.listLibrary()).resolves.toEqual([
-      expect.objectContaining({ materialized: false }),
-    ]);
-    await service.resolveCurrent("example.translation");
     await expect(service.listLibrary()).resolves.toEqual([
       expect.objectContaining({
         reference: expect.objectContaining({ programId: "example.translation" }),
       }),
     ]);
-    expect(loads).toBe(2);
+    expect(load).not.toHaveBeenCalled();
   });
 
-  it("classifies bundled and external ZIP packages by the same fixed profile facets", async () => {
-    const unsupportedArchive: ProgramPackageArchiveV1 = {
-      ...archiveV1("1.0.0", "Do not grant capabilities from this manifest."),
-      manifest: {
-        ...archiveV1("1.0.0", "Do not grant capabilities from this manifest.").manifest,
-        capabilityIds: ["python.execute"],
-      },
-    };
-    const createServiceV1 = (bundledSources: readonly BundledProgramPackageSourceV1[]) =>
-      createProgramPackageServiceV1({
-        repository: memoryRepositoryV1(),
-        bundledSources,
-        supportedHarnesses: new Set(["sillyos.program-harness.v1"]),
-        runtimeProfileDescriptors: [translationRuntimeProfileDescriptorV1],
-      });
-
-    const bundled = createServiceV1([await bundledSourceV1(unsupportedArchive)]);
-    await expect(bundled.resolveCurrent(unsupportedArchive.manifest.programId)).resolves
-      .toMatchObject({ kind: "runtime_profile_incompatible" });
-
-    const external = createServiceV1([]);
-    const externalZip = zipSync({
-      "program.json": new TextEncoder().encode(JSON.stringify(unsupportedArchive.manifest)),
-      "PROGRAM.md": new TextEncoder().encode("Do not grant capabilities from this manifest."),
+  it("reset drops external implementations and reloads bundled sources on demand", async () => {
+    let loads = 0;
+    const service = createServiceV1({
+      bundledSources: [
+        await bundledSourceV1(archiveV1("1.0.0", "Bundled."), () => loads += 1),
+      ],
     });
-    const installation = await external.installZip(externalZip, {
-      budgets: {
-        maximumCompressedBytes: 65_536,
-        maximumUncompressedBytes: 65_536,
-        maximumEntries: 8,
-      },
-      archiveLimits: limitsV1,
-    });
-    await expect(external.loadExact(installation.reference)).resolves.toMatchObject({
-      kind: "runtime_profile_incompatible",
-    });
+    await service.resolveCurrent("example.translation");
+    await service.reset();
 
-    await Promise.all([bundled.dispose(), external.dispose()]);
+    await expect(service.listLibrary()).resolves.toEqual([
+      expect.objectContaining({
+        reference: expect.objectContaining({ programId: "example.translation" }),
+      }),
+    ]);
+    await service.resolveCurrent("example.translation");
+    expect(loads).toBe(2);
   });
 });

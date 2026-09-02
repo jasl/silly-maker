@@ -45,7 +45,6 @@ describe("Creator Program package", () => {
     expect(admitted.reference.programId).toBe("sillyos.creator");
     expect(creatorProgramPackageSourceV1.metadata).toEqual({
       reference: admitted.reference,
-      byteLength: admitted.byteLength,
       ...projectProgramPackageRuntimeProfileV1(admitted),
     });
     expect(admitted.files.map((file) => file.path)).toEqual(["PROGRAM.md"]);

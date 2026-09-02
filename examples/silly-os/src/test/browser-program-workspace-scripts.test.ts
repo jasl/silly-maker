@@ -6,7 +6,7 @@ import { stageBrowserProgramWorkspaceScriptsV1 } from "../agent/browser-program-
 import type { WorkspaceAgentRunV1 } from "../workspace/contracts.ts";
 
 describe("Browser Program workspace script hydration", () => {
-  it("writes exact package bytes below the Process-scoped Program directory", async () => {
+  it("writes current Program script bytes below the Process-scoped Program directory", async () => {
     const directories: string[] = [];
     const writes: { readonly path: string; readonly bytes: Uint8Array }[] = [];
     const run = {

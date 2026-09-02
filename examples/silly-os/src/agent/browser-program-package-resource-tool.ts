@@ -8,7 +8,7 @@ import type { BrowserProgramPackageResourceV1 } from "./browser-program-runtime-
 /**
  * Keep package-resource output aligned with Pi's ordinary read tool. The
  * shared ceiling bounds one tool result without imposing a size limit on the
- * immutable Program package or requiring it to be copied into the Process VFS.
+ * current Program archive or requiring it to be copied into the Process VFS.
  */
 export const browserProgramPackageResourceMaximumLinesV1 = 2_000;
 export const browserProgramPackageResourceMaximumBytesV1 = 50 * 1_024;
@@ -78,9 +78,9 @@ function readBoundedLinesV1(
 }
 
 /**
- * Creates one read-only tool over exact bytes loaded from the Process-pinned
- * Program package. No package resource is projected into the mutable Process
- * Workspace and the package cannot replace this Host implementation.
+ * Creates one read-only tool over resources from the current compatible Program
+ * implementation. No package resource is projected into the mutable Process
+ * Workspace and the Program cannot replace this Host implementation.
  */
 export function createBrowserProgramPackageResourceToolV1(
   resources: readonly BrowserProgramPackageResourceV1[],
@@ -93,7 +93,7 @@ export function createBrowserProgramPackageResourceToolV1(
     name: browserProgramPackageResourceToolNameV1,
     label: "Read Program resource",
     description:
-      "Read an immutable text resource from the exact Program package pinned by this Process. Use the paths named by PROGRAM.md or a loaded skill. Large resources are paged by line offset.",
+      "Read a text resource from the current compatible Program implementation mounted for this Process. Use the paths named by PROGRAM.md or a loaded skill. Large resources are paged by line offset.",
     parameters: resourceReadSchemaV1,
     async execute(_toolCallId, params, signal) {
       if (signal?.aborted) throw new Error("Program resource read was cancelled");

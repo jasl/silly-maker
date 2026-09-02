@@ -45,9 +45,7 @@ function archiveV1(input: {
     reference: {
       programId: "community.translation",
       packageVersion: "1.0.0",
-      contentDigest: "a".repeat(64),
     },
-    byteLength: files.reduce((total, file) => total + file.bytes.byteLength, 0),
     manifest: {
       schemaVersion: 1,
       programId: "community.translation",

@@ -370,8 +370,7 @@ function sameProgramPackageV1(
   left: InstalledProgramPackageReferenceV1,
   right: InstalledProgramPackageReferenceV1,
 ): boolean {
-  return left.programId === right.programId && left.packageVersion === right.packageVersion &&
-    left.contentDigest === right.contentDigest;
+  return left.programId === right.programId && left.packageVersion === right.packageVersion;
 }
 
 function transcriptPageV1(page: TranscriptPageV1): TranscriptWindowPageV1 {
@@ -421,7 +420,7 @@ function activeWithTranscriptV1(
 export function createCreatorControllerV1(input: {
   readonly repository: CreatorProgramDataRepositoryV1;
   readonly workspace: CreatorControllerWorkspacePortV1;
-  /** Exact package selected before this Process controller is created. */
+  /** Current Program compatibility binding selected before this controller is created. */
   readonly programPackage: InstalledProgramPackageReferenceV1;
   readonly creator?: CreatorPreviewPortV1;
   readonly createId?: (purpose: string) => string;

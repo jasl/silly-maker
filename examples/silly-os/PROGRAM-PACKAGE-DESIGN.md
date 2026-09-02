@@ -10,9 +10,9 @@ or installed by a later community catalog enters the same admission,
 installation, loading, Process, harness, and UI-container boundaries.
 
 ```text
-Program package = immutable admitted files + manifest + exact content digest
-Installation    = retained exact packages + current pointer for new Processes
-Process         = exact package reference + Conversation + isolated Workspace
+Program package = admitted files + manifest
+Installation    = one current implementation per programId
+Process         = programId + compatibility marker + Conversation + isolated Workspace
 SillyOS         = fixed harness + package/runtime authorities + UI container
 ```
 
@@ -38,7 +38,7 @@ strict top-level directory while making the distributable boundary explicit:
 
 ```text
 programs/<name>/
-|-- package/          exact files admitted into bundled or imported packages
+|-- package/          production files admitted into bundled or imported packages
 |-- distribution/     build-time source adapter for a bundled archive
 |-- persistence/      optional Program-owned domain facet over Host storage
 |-- runtime/          domain logic compiled only for a supported Host profile
@@ -57,12 +57,14 @@ cannot carry same-realm TypeScript or React code; its executable extension is
 limited to declared scripts for interpreters already supplied by the fixed
 harness.
 
-The build also emits one exact, lightweight metadata row for each bundled
-package. Program Library reads only that row; opening the Library never fetches,
-clones, hashes, or installs bundled package bodies. The first exact open loads
-the body, admits it through the same archive boundary as ZIP import, verifies it
-against that metadata, and then installs it. Package-source tests recompute the
-metadata from the body so a stale build index cannot ship unnoticed.
+The build also emits one lightweight metadata row for each bundled package.
+Program Library reads only that row; opening the Library never fetches, clones,
+or installs bundled package bodies. Resolving a bundled Program loads its body,
+admits it through the same archive boundary as ZIP import, and installs it as the
+current implementation unless a user-installed external implementation is
+current. Package-source tests derive metadata from the body so a stale build
+index cannot ship unnoticed. Metadata does not persist content length or a
+content digest as Program identity.
 
 ## Authorities and isolation
 
@@ -74,7 +76,9 @@ interpreter, reach another Program or Process namespace, or obtain ambient
 Browser authority. Package scripts run only through an explicitly available
 fixed interpreter and admitted file/tool boundary.
 
-Installed package bytes are immutable and may be shared read-only. Every
+The currently installed archive is treated as immutable while in use and may be
+shared read-only. Reinstalling the same `programId` replaces that current archive
+rather than retaining historical versions. Every
 Process receives an independent runtime instance, Conversation namespace,
 workspace volume, work/output tree, settings override, capability preference,
 and domain-data namespace. No mutable singleton may be shared between
@@ -120,9 +124,8 @@ The package neither makes a model available nor gains access to Provider
 configuration, credentials or catalog state through this declaration. Matching
 uses only the resolved `model.id`, never Provider/API/endpoint identity or the
 response model reported after a Run. Missing and explicit empty lists admit to
-the same property-omitted canonical manifest and add no recommendation bytes to
-the current canonical identity. SillyOS provides no global recommendation list
-and the current bundled Programs declare none.
+the same property-omitted manifest. SillyOS provides no global recommendation
+list and the current bundled Programs declare none.
 
 A package may also declare an ordered `modelPromptOverlays` array. Each entry
 contains only a case-insensitive `modelPattern` and a package-relative text
@@ -131,10 +134,7 @@ After Pi resolves the model for one Run, the fixed Program harness appends every
 matching file to the unchanged base instructions in declaration order and
 inserts a repeated path only once. The dynamic task remains the ordinary user
 prompt. Missing or empty declarations leave the base instructions byte-for-byte
-unchanged and add no overlay bytes to the current canonical identity. Canonical
-implementation corrections may still rotate a pre-release package digest; the
-current code-unit file-ordering correction intentionally does so for affected
-archives, with preview storage clean-reset rather than migration.
+unchanged.
 
 Overlay files are admitted immutable UTF-8 package resources under the same
 path and aggregate resource budgets as other files. They cannot select or match
@@ -150,8 +150,9 @@ focus, and Run projection. A Program supplies admitted UI data or selects a
 supported Host surface; it does not supply arbitrary React nodes, portals, DOM
 code, or outer chrome. Complete package-authored OpenUI data maps through the
 current closed Host renderer inside this boundary; Agent-generated OpenUI
-publication remains later work. The Host also provides one non-durable session-state scope for
-the exact Program package. A Program may key draft, selection, and scroll state
+publication remains later work. The Host also provides one non-durable
+session-state scope for the Program identity and compatibility marker. A Program
+may key draft, selection, and scroll state
 by Process there before its rendered subtree is released; another package
 cannot read that scope, and the scope is cleared with the application session.
 It is presentation continuity only, never Conversation, Process, Workspace, or
@@ -159,37 +160,49 @@ package authority.
 
 ## Install, upgrade, removal, and degradation
 
-Admission normalizes path names and manifest data, rejects traversal,
-duplicate paths and unsupported manifest/runtime declarations, and derives one exact content digest from
-the admitted file set. Browser installs retain that immutable content in
-IndexedDB. A later Desktop adapter may use a dedicated local Program directory
-behind the same repository contract.
+Admission normalizes path names and manifest data, rejects traversal, duplicate
+paths and unsupported manifest/runtime declarations, and measures the admitted
+archive against physical budgets. Browser installs retain one current archive
+per `programId` in IndexedDB. Content length is derived while admitting or
+loading bytes and is not durable Program metadata. A later Desktop adapter may
+use a dedicated local Program directory behind the same repository contract.
 
-A bundled source remains metadata-only until its exact package is opened. That
-open installs the admitted body with `if_missing` selection semantics: it
-initializes a Program that has no current package but can never replace a
-package the user already selected for new Processes. This decision and package
-installation share one IndexedDB transaction, so a concurrent tab cannot turn
-bundling into an implicit update authority.
+A bundled source remains metadata-only until the Program is resolved. Each new
+SillyOS application session may refresh a bundled installation from the shipped
+body so compatible fixes become current after an application update. A current
+external installation takes precedence until the user replaces or removes it;
+this acquisition distinction affects refresh policy only and grants no runtime
+privilege.
 
-Creating a Process stores the complete immutable package reference. Updating a
-Program installs a successor; it never rewrites an existing Process, migrates
-its VFS, changes its package reference, or silently substitutes newer package
-content. New Processes may select the newest installed successor.
+Materializing the same admitted bytes from the same acquisition source is a
+cold-path no-op and retains the repository-private installation ID. Replacing
+the bytes creates a new ID. A mounted Surface and its Agent facade carry that ID
+only as a transient execution fence, so they cannot combine old UI/settings
+with a newer Prompt or script body installed by another tab. An in-flight run
+may finish; the old Surface's next submit fails, and reopening adopts the
+current implementation as one unit.
 
-Conversation identity and transcript persistence do not depend on the package
-remaining installed or executable. If exact package content, a compatible
-harness, optional Program storage, or a Process workspace is unavailable, the
-Process still opens in Conversation/read-only mode and reports the unavailable
-capability. Conversation remains the minimum readable product fact; losing an
-optional service degrades that Process rather than deleting its transcript.
-For a Workspace-bound Process, Recent restore probes the exact durable volume
+Creating a Process stores `programId` plus `packageVersion` as a compatibility
+marker. It does not retain a digest, byte length, installation ID, or historical
+archive. Reopening resolves the current installed implementation with that
+`programId`; equal compatibility markers use the current code and resources.
+Different markers degrade rather than attempting an implicit migration.
+Replacing a Program does not rewrite Conversation or VFS data and SillyOS does
+not promise that Program-private storage remains compatible.
+
+Conversation identity and transcript persistence do not depend on the Program
+remaining installed or executable. If the current implementation is missing,
+damaged or incompatible—or optional Program storage or a Process workspace is
+unavailable—the Process still opens in Conversation/read-only mode and reports
+the unavailable capability. Conversation remains the minimum readable product
+fact; losing an optional service degrades that Process rather than deleting its
+transcript. For a Workspace-bound Process, Recent restore probes the durable volume
 without attaching an execution environment and closes any probe-only Host
 session before settling. A missing, inaccessible or busy volume therefore
 selects the read-only Conversation immediately and does not leave an idle
 Workspace held by the failed restore.
 SillyOS does not promise third-party package, domain-data, or VFS
-forward/backward compatibility. Current preview Program Data Repository V16 performs
+forward/backward compatibility. Current preview Program Data Repository V17 performs
 a row-blind reset of an older incompatible database and carries no migration
 reader, obsolete wire/method/type alias or compatibility fallback. Within the
 current database version, an unselected or removed optional persistence facet is
@@ -202,10 +215,10 @@ post-stable migration would require a separately accepted contract.
 
 The first denominator is intentionally smaller than a general plugin system:
 
-- immutable serializable package files;
+- serializable package files treated as immutable while current;
 - one strict archive and manifest admission path;
 - bundled and imported packages persisted by the same repository;
-- exact Process package pinning and read-only degraded reopen;
+- Process `programId` plus compatibility marker and read-only degraded reopen;
 - fixed-harness compatibility admission;
 - lazy package/runtime acquisition plus two-phase deterministic release;
 - process-scoped Workspace and mutable domain state;

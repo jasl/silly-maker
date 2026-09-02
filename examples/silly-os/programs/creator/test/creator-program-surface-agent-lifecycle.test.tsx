@@ -5,7 +5,7 @@ import { act, cleanup, render, renderHook, waitFor } from "@testing-library/reac
 import { type ReactNode, StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { BrowserProgramAgentHostV1 } from "../../../src/agent/browser-program-agent-host-contracts.ts";
+import type { BrowserProgramRuntimeAgentHostV1 } from "../../../src/agent/browser-program-agent-host-contracts.ts";
 import { browserPiDistributionIdentityV1 } from "../../../src/agent/browser-pi-distribution.ts";
 import { createProgramRuntimeSurfaceDrainOwnerV1 } from "../../../src/application/program-runtime-controller.ts";
 import { getSillyOsCopyV1 } from "../../../src/content/copy.ts";
@@ -98,7 +98,6 @@ function creatorRunV1(agentRunId: string): CreatorAgentRunRequestV1 {
     programPackage: {
       programId: "program.creator.package",
       packageVersion: "1.0.0",
-      contentDigest: "a".repeat(64),
     },
     processId: "process.creator",
     processAttemptGeneration: 1,
@@ -175,7 +174,7 @@ function creatorControllerV1(input: {
 }
 
 function creatorPortHarnessV1(): {
-  readonly agentHost: BrowserProgramAgentHostV1;
+  readonly agentHost: BrowserProgramRuntimeAgentHostV1;
   readonly openWorkspace: ReturnType<typeof vi.fn<CreatorAgentPortV1["openWorkspace"]>>;
   readonly closeWorkspace: ReturnType<typeof vi.fn<CreatorAgentPortV1["closeWorkspace"]>>;
   readonly submit: ReturnType<typeof vi.fn<CreatorAgentPortV1["submit"]>>;
@@ -227,7 +226,7 @@ function creatorPortHarnessV1(): {
   return {
     agentHost: {
       createPort: () => port,
-    } as unknown as BrowserProgramAgentHostV1,
+    } as unknown as BrowserProgramRuntimeAgentHostV1,
     openWorkspace,
     closeWorkspace,
     submit,
@@ -236,7 +235,7 @@ function creatorPortHarnessV1(): {
 }
 
 function creatorHostV1(
-  agentHost: BrowserProgramAgentHostV1,
+  agentHost: BrowserProgramRuntimeAgentHostV1,
   registerProgramDrain: ProgramSurfaceHostV1["registerProgramDrain"],
 ): ProgramSurfaceHostV1 {
   const sessionState = new Map<string, unknown>();
@@ -722,8 +721,8 @@ describe("Creator Program Agent surface lifecycle", () => {
       ports.push(port);
       return port;
     });
-    const firstHost = { createPort } as unknown as BrowserProgramAgentHostV1;
-    const secondHost = { createPort } as unknown as BrowserProgramAgentHostV1;
+    const firstHost = { createPort } as unknown as BrowserProgramRuntimeAgentHostV1;
+    const secondHost = { createPort } as unknown as BrowserProgramRuntimeAgentHostV1;
     const agentRegistry = drainRegistryV1();
     const programDrainOwner = createProgramRuntimeSurfaceDrainOwnerV1();
     const readWorkspaceExportDrain = () => () => Promise.resolve();
@@ -735,11 +734,11 @@ describe("Creator Program Agent surface lifecycle", () => {
       <StrictMode>{children}</StrictMode>
     );
 
-    const initialProps: { readonly agentHost: BrowserProgramAgentHostV1 | null } = {
+    const initialProps: { readonly agentHost: BrowserProgramRuntimeAgentHostV1 | null } = {
       agentHost: firstHost,
     };
     const view = renderHook(
-      ({ agentHost }: { readonly agentHost: BrowserProgramAgentHostV1 | null }) =>
+      ({ agentHost }: { readonly agentHost: BrowserProgramRuntimeAgentHostV1 | null }) =>
         useCreatorProgramAgentPortOwnerV1({
           agentHost,
           registerAgentDrain: agentRegistry.register,

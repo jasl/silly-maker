@@ -31,7 +31,7 @@ export interface TranslationInitialUiV1
 
 interface TranslationProgramPackageFacetsV1 {
   readonly initialUi: TranslationInitialUiV1 | null;
-  /** Exact package-owned defaults used to resolve each Process override. */
+  /** Package-owned defaults from the mounted current compatible implementation. */
   readonly settingsDefaultsJson: string | null;
 }
 

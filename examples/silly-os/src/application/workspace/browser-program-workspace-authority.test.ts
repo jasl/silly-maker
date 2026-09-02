@@ -27,7 +27,6 @@ import {
 const packageReferenceV1: InstalledProgramPackageReferenceV1 = {
   programId: "community.translation-review",
   packageVersion: "1.0.0",
-  contentDigest: "0".repeat(64),
 };
 
 function createInputV1(ordinal: number): BrowserProcessWorkspaceCreateInputV1 {

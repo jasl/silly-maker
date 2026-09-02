@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 /// <reference lib="dom" />
 
-import type { BrowserPiAgentDispatchV1 } from "./browser-pi-agent-dispatch.ts";
+import type {
+  BrowserPiAgentDispatchV1,
+  BrowserPiProgramImplementationBindingV1,
+} from "./browser-pi-agent-dispatch.ts";
 import {
   createIndexedDbProgramPackageInstallationRepositoryV1,
   type CreateIndexedDbProgramPackageInstallationRepositoryOptionsV1,
@@ -10,7 +13,6 @@ import type { ProgramPackageInstallationRepositoryV1 } from "../program-platform
 import {
   sillyOsProgramHarnessCompatibilityV1,
   type AdmittedProgramPackageArchiveV1,
-  type InstalledProgramPackageReferenceV1,
   type ProgramPackageAdmissionLimitsV1,
   readProgramPackageTextFileV1,
 } from "../program-platform/package/program-package-archive.ts";
@@ -20,14 +22,16 @@ import { checkProgramPackageRuntimeProfileCompatibilityV1 } from "../program-pla
 import type { LoadedProgramModelPromptOverlayV1 } from "../program-platform/package/program-model-prompt-overlays.ts";
 
 export interface BrowserProgramExecutionLoaderV1 {
-  load(dispatch: BrowserPiAgentDispatchV1): Promise<BrowserProgramExecutionV1 | null>;
+  load(
+    dispatch: BrowserPiAgentDispatchV1,
+    implementation: BrowserPiProgramImplementationBindingV1,
+  ): Promise<BrowserProgramExecutionV1 | null>;
   dispose(): Promise<void>;
 }
 
 export interface CreateBrowserProgramExecutionLoaderOptionsV1 {
   readonly repository?: ProgramPackageInstallationRepositoryV1;
   readonly indexedDB?: IDBFactory;
-  readonly subtle?: SubtleCrypto | undefined;
   readonly loadRuntimeProfile: (
     runtimeProfile: string,
   ) => Promise<BrowserProgramRuntimeProfileV1 | null>;
@@ -105,19 +109,10 @@ interface CachedProgramExecutionPackageV1 {
   readonly runtimeProfile: BrowserProgramRuntimeProfileV1;
 }
 
-function exactPackageReferencesEqualV1(
-  left: InstalledProgramPackageReferenceV1,
-  right: InstalledProgramPackageReferenceV1,
-): boolean {
-  return left.programId === right.programId &&
-    left.packageVersion === right.packageVersion &&
-    left.contentDigest === right.contentDigest;
-}
-
 /**
- * Pair one Process-pinned immutable Program package with fixed Host code.
+ * Pair one Process with the current compatible Program implementation and fixed Host code.
  * The package origin is intentionally absent: bundled and imported packages
- * use this exact loader and cannot inject same-realm code.
+ * use this loader and cannot inject same-realm code.
  */
 export function createBrowserProgramExecutionLoaderV1(
   options: CreateBrowserProgramExecutionLoaderOptionsV1,
@@ -127,13 +122,13 @@ export function createBrowserProgramExecutionLoaderV1(
       {
         indexedDB: options.indexedDB ?? globalThis.indexedDB,
         limits: storageRestoreLimitsV1,
-        ...(options.subtle === undefined ? {} : { subtle: options.subtle }),
       } satisfies CreateIndexedDbProgramPackageInstallationRepositoryOptionsV1,
     );
   const loadRuntimeProfile = options.loadRuntimeProfile;
   let initialization: Promise<void> | null = null;
   let cachedPackage: {
-    readonly reference: InstalledProgramPackageReferenceV1;
+    readonly programId: string;
+    readonly installationId: string;
     readonly value: Promise<CachedProgramExecutionPackageV1 | null>;
   } | null = null;
   let disposed = false;
@@ -144,22 +139,30 @@ export function createBrowserProgramExecutionLoaderV1(
     return initialization;
   };
 
-  const loadPackageV1 = (
-    reference: InstalledProgramPackageReferenceV1,
+  const loadPackageV1 = async (
+    reference: BrowserPiAgentDispatchV1["programPackage"],
+    implementationId: string,
   ): Promise<CachedProgramExecutionPackageV1 | null> => {
+    const installed = await repository.load(reference.programId);
     if (
-      cachedPackage !== null && exactPackageReferencesEqualV1(cachedPackage.reference, reference)
-    ) return cachedPackage.value;
+      installed === null || installed.installationId !== implementationId ||
+      installed.package.reference.packageVersion !== reference.packageVersion
+    ) return null;
+    if (
+      cachedPackage !== null && cachedPackage.programId === reference.programId &&
+      cachedPackage.installationId === installed.installationId
+    ) return await cachedPackage.value;
 
-    // One Worker runs one active Process at a time. Retain only its exact
-    // immutable package projection; selecting another package replaces it.
+    // One Worker runs one active Process at a time. Retain only the current
+    // installation projection; replacing it changes the repository-private id.
     const candidate = {
-      reference: { ...reference },
+      programId: reference.programId,
+      installationId: installed.installationId,
       value: (async (): Promise<CachedProgramExecutionPackageV1 | null> => {
-        const installedPackage = await repository.load(reference);
+        const installedPackage = installed.package;
         if (
-          installedPackage === null ||
           installedPackage.manifest.programId !== reference.programId ||
+          installedPackage.manifest.packageVersion !== reference.packageVersion ||
           installedPackage.manifest.harnessCompatibility !== sillyOsProgramHarnessCompatibilityV1
         ) return null;
         const instructions = findInstructionsV1(installedPackage);
@@ -193,14 +196,21 @@ export function createBrowserProgramExecutionLoaderV1(
     }, () => {
       if (cachedPackage === candidate) cachedPackage = null;
     });
-    return candidate.value;
+    return await candidate.value;
   };
 
   return {
-    async load(dispatch) {
+    async load(dispatch, implementation) {
       await initializeV1();
-      if (dispatch.runtimeProfile.length === 0) return null;
-      const executionPackage = await loadPackageV1(dispatch.programPackage);
+      if (
+        dispatch.runtimeProfile.length === 0 ||
+        implementation.programPackage.programId !== dispatch.programPackage.programId ||
+        implementation.programPackage.packageVersion !== dispatch.programPackage.packageVersion
+      ) return null;
+      const executionPackage = await loadPackageV1(
+        dispatch.programPackage,
+        implementation.implementationId,
+      );
       if (
         executionPackage === null ||
         executionPackage.runtimeProfile.runtimeProfile !== dispatch.runtimeProfile

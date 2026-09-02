@@ -41,11 +41,10 @@ type TestRepositoryV1 = TranslationPersistenceTestAdapterV1;
 const translationProgramPackageReferenceV1: InstalledProgramPackageReferenceV1 = {
   programId: "sillyos.translation",
   packageVersion: "1.0.0",
-  contentDigest: "d".repeat(64),
 };
-const translationDifferentContentPackageReferenceV1: InstalledProgramPackageReferenceV1 = {
+const translationIncompatiblePackageReferenceV1: InstalledProgramPackageReferenceV1 = {
   ...translationProgramPackageReferenceV1,
-  contentDigest: "a".repeat(64),
+  packageVersion: "2.0.0",
 };
 
 function programPackageV1(
@@ -75,7 +74,6 @@ function programPackageV1(
       mediaType: "text/markdown",
       bytes: instructions.buffer,
     }],
-    byteLength: instructions.byteLength,
   };
 }
 
@@ -99,7 +97,6 @@ function settingsProgramPackageV1(): AdmittedProgramPackageArchiveV1 {
         bytes: defaults.buffer,
       },
     ],
-    byteLength: base.byteLength + defaults.byteLength,
   };
 }
 
@@ -410,7 +407,7 @@ describe("Translation Process Controller", () => {
     });
   });
 
-  it("uses immutable package defaults and persists only a complete valid Process override", async () => {
+  it("uses current Program defaults and persists only a complete valid Process override", async () => {
     const repository = createRepositoryV1();
     const controller = createTranslationProcessControllerV1({
       repository,
@@ -478,7 +475,7 @@ describe("Translation Process Controller", () => {
     });
   });
 
-  it("creates one package-pinned Translation Process with an isolated Workspace checkpoint", async () => {
+  it("creates one compatibility-bound Translation Process with an isolated Workspace checkpoint", async () => {
     const repository = createRepositoryV1();
     const workspace = createWorkspacePortV1(repository);
     const controller = createTranslationProcessControllerV1({
@@ -733,7 +730,7 @@ describe("Translation Process Controller", () => {
     expect(recentWorkspace.createCalls).toEqual([]);
   });
 
-  it("creates and reopens Processes by their exact immutable Translation package", async () => {
+  it("creates and reopens Processes by their Translation compatibility marker", async () => {
     const repository = createRepositoryV1();
     const workspace = createWorkspacePortV1(repository);
     const first = createTranslationProcessControllerV1({
@@ -750,7 +747,7 @@ describe("Translation Process Controller", () => {
       repository,
       workspace: successorWorkspace,
       programPackage: programPackageV1(
-        translationDifferentContentPackageReferenceV1,
+        translationIncompatiblePackageReferenceV1,
         "Translation successor",
       ),
       createId: deterministicIdsV1("successor"),
@@ -780,7 +777,7 @@ describe("Translation Process Controller", () => {
     const coldSuccessor = createTranslationProcessControllerV1({
       repository,
       workspace: coldSuccessorWorkspace,
-      programPackage: programPackageV1(translationDifferentContentPackageReferenceV1),
+      programPackage: programPackageV1(translationIncompatiblePackageReferenceV1),
     });
     await coldSuccessor.initialize();
     expect(await coldSuccessor.openProcess(successorProcessId)).toEqual({
@@ -3054,7 +3051,7 @@ describe("Translation Process Controller", () => {
     expect(await repository.loadTranslationWorksetHead(processId)).toEqual(staging);
   });
 
-  it("reopens an existing package-pinned Process without a Creator catalog authority", async () => {
+  it("reopens an existing compatibility-bound Process without a Creator catalog authority", async () => {
     const repository = createRepositoryV1();
     const first = createTranslationProcessControllerV1({
       repository,

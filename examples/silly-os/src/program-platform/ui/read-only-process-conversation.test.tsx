@@ -23,7 +23,6 @@ describe("read-only Process Conversation view", () => {
         programPackage: {
           programId: "community.translation",
           packageVersion: "1.0.0",
-          contentDigest: "a".repeat(64),
         },
         subjectProgramId: null,
         status: "active",

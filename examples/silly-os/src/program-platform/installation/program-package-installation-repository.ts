@@ -7,33 +7,48 @@ import type {
 } from "../package/program-package-archive.ts";
 import type { ProgramPackageMetadataV1 } from "../package/program-runtime-profile-descriptor.ts";
 
-export type ProgramPackageInstallationDispositionV1 = "installed" | "already_installed";
+export type ProgramPackageAcquisitionV1 = "bundled" | "external";
+export type ProgramPackageInstallationDispositionV1 =
+  | "installed"
+  | "replaced"
+  | "retained_current"
+  | "retained_external";
 
 export interface ProgramPackageInstallationResultV1 {
   readonly disposition: ProgramPackageInstallationDispositionV1;
   readonly reference: InstalledProgramPackageReferenceV1;
 }
 
-export type ProgramPackageCurrentSelectionV1 = "always" | "if_missing" | "never";
-
 export interface InstallProgramPackageOptionsV1 {
-  /** Updates the current package pointer in the same installation transaction. */
-  readonly currentSelection: ProgramPackageCurrentSelectionV1;
+  /** Distribution origin only; it grants no runtime capability or Program privilege. */
+  readonly acquisition: ProgramPackageAcquisitionV1;
+}
+
+/**
+ * Repository-private current installation. `installationId` invalidates
+ * same-version runtime caches; it is not Program or Process identity.
+ */
+export interface InstalledProgramPackageV1 {
+  readonly acquisition: ProgramPackageAcquisitionV1;
+  readonly installationId: string;
+  readonly package: AdmittedProgramPackageArchiveV1;
+}
+
+export interface InstalledProgramPackageMetadataV1 {
+  readonly acquisition: ProgramPackageAcquisitionV1;
+  readonly metadata: ProgramPackageMetadataV1;
 }
 
 export interface ProgramPackageInstallationRepositoryV1 {
   initialize(): Promise<"created" | "opened">;
+  /** Replaces the current implementation; a bundled refresh atomically preserves an external one. */
   install(
     archive: UnadmittedProgramPackageArchiveV1,
     options: InstallProgramPackageOptionsV1,
   ): Promise<ProgramPackageInstallationResultV1>;
-  load(
-    reference: InstalledProgramPackageReferenceV1,
-  ): Promise<AdmittedProgramPackageArchiveV1 | null>;
-  listMetadata(): Promise<readonly ProgramPackageMetadataV1[]>;
-  current(programId: string): Promise<InstalledProgramPackageReferenceV1 | null>;
-  remove(reference: InstalledProgramPackageReferenceV1): Promise<boolean>;
-  /** Removes every installed package and current-selection pointer owned by this repository. */
+  load(programId: string): Promise<InstalledProgramPackageV1 | null>;
+  listMetadata(): Promise<readonly InstalledProgramPackageMetadataV1[]>;
+  remove(programId: string): Promise<boolean>;
   reset(): Promise<void>;
   dispose(): Promise<void>;
 }
@@ -51,7 +66,6 @@ export type ProgramPackageInstallationRepositoryOperationV1 =
   | "install"
   | "load"
   | "list_metadata"
-  | "current"
   | "remove"
   | "reset"
   | "dispose";

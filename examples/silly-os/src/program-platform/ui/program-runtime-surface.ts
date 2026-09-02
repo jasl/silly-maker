@@ -2,7 +2,7 @@
 
 import type { ComponentType } from "react";
 
-import type { BrowserProgramAgentHostV1 } from "../../agent/browser-program-agent-host-contracts.ts";
+import type { BrowserProgramRuntimeAgentHostV1 } from "../../agent/browser-program-agent-host-contracts.ts";
 import type { BrowserProgramAgentWorkspaceDiagnosticV1 } from "../../agent/browser-program-agent-port-contracts.ts";
 import type { BrowserPiReasoningEffortV1 } from "../../agent/browser-pi-worker-protocol.ts";
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../../content/copy.ts";
@@ -81,16 +81,16 @@ export interface ProgramSurfaceHostV1 {
   readonly copy: SillyOsCopyV1;
   readonly locale: SillyOsLocaleV1;
   readonly theme: ProgramSurfaceThemeModeV1;
-  readonly agentHost: BrowserProgramAgentHostV1 | null;
+  readonly agentHost: BrowserProgramRuntimeAgentHostV1 | null;
   readonly deterministicAgent: boolean;
   /** Retires the shared Agent owner and establishes a fresh owner when still configured. */
   readonly forgetAgent: () => Promise<boolean>;
   readonly agentReadiness: ProgramSurfaceAgentReadinessV1;
   readonly activeModel: ProgramSurfaceActiveModelV1 | null;
-  /** Null when this exact package did not request the optional network capability. */
+  /** Null when this Program did not request the optional network capability. */
   readonly processNetworkAccess: ProgramSurfaceProcessNetworkAccessV1 | null;
   readonly providerModel: (surface: "home" | "workspace") => ProgramSurfaceModelControlV1;
-  /** Exact-package-scoped, non-durable UI state retained while a surface is unloaded. */
+  /** Compatibility-version-scoped, non-durable UI state retained while a surface is unloaded. */
   readonly sessionState: ProgramSurfaceSessionStateV1;
   readonly onOpenAgentSettings: (
     surface: "home" | "workspace",
@@ -100,7 +100,7 @@ export interface ProgramSurfaceHostV1 {
   readonly onThemeChange: (theme: ProgramSurfaceThemeModeV1) => void;
   readonly onOpenSettings: (surface?: "home" | "workspace") => void;
   readonly onOpenProgramLibrary: () => Promise<boolean>;
-  /** Joins lazy Surface resources to exact Program close and later retirement. */
+  /** Joins lazy Surface resources to Program close and later retirement. */
   readonly registerProgramDrain: (resource: {
     readonly quiesce: () => Promise<void>;
     readonly retire: () => Promise<void>;

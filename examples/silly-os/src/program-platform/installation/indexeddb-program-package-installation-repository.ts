@@ -2,7 +2,6 @@
 /// <reference lib="dom" />
 
 import {
-  admitInstalledProgramPackageReferenceV1,
   admitProgramPackageArchiveV1,
   admitProgramPackageManifestV1,
   admitProgramPackageProgramIdV1,
@@ -11,7 +10,6 @@ import {
   cloneProgramPackageManifestV1,
   ProgramPackageAdmissionErrorV1,
   type AdmittedProgramPackageArchiveV1,
-  type InstalledProgramPackageReferenceV1,
   type ProgramPackageAdmissionLimitsV1,
   type ProgramPackageArchiveV1,
   type ProgramPackageManifestV1,
@@ -20,68 +18,55 @@ import { projectProgramPackageRuntimeProfileV1 } from "../package/program-runtim
 import type { ProgramPackageMetadataV1 } from "../package/program-runtime-profile-descriptor.ts";
 import {
   ProgramPackageInstallationRepositoryErrorV1,
-  type ProgramPackageInstallationRepositoryV1,
+  type InstalledProgramPackageMetadataV1,
+  type InstalledProgramPackageV1,
+  type ProgramPackageAcquisitionV1,
   type ProgramPackageInstallationRepositoryOperationV1,
+  type ProgramPackageInstallationRepositoryV1,
 } from "./program-package-installation-repository.ts";
 
 export const programPackageInstallationDatabaseNameV1 =
   "sillymaker.example-silly-os.program-packages";
-export const programPackageInstallationDatabaseVersionV1 = 2;
+export const programPackageInstallationDatabaseVersionV1 = 3;
 export const programPackageInstallationObjectStoreNameV1 = "packages";
-export const programPackageInstallationCurrentObjectStoreNameV1 = "package_heads";
 export const programPackageInstallationMetadataObjectStoreNameV1 = "package_metadata";
 
 const programPackageInstallationObjectStoreNamesV1 = [
-  programPackageInstallationCurrentObjectStoreNameV1,
   programPackageInstallationMetadataObjectStoreNameV1,
   programPackageInstallationObjectStoreNameV1,
 ] as const;
 
 interface StoredProgramPackageV1 {
-  readonly storageKey: string;
+  readonly programId: string;
   readonly schemaVersion: 1;
-  readonly reference: InstalledProgramPackageReferenceV1;
-  readonly byteLength: number;
+  readonly acquisition: ProgramPackageAcquisitionV1;
+  readonly installationId: string;
   readonly archive: ProgramPackageArchiveV1;
 }
 
-interface StoredCurrentProgramPackageV1 {
-  readonly programId: string;
-  readonly reference: InstalledProgramPackageReferenceV1;
-}
-
 interface StoredProgramPackageMetadataV1 {
-  readonly storageKey: string;
+  readonly programId: string;
   readonly schemaVersion: 1;
-  readonly reference: InstalledProgramPackageReferenceV1;
+  readonly acquisition: ProgramPackageAcquisitionV1;
   readonly manifest: ProgramPackageManifestV1;
-  readonly byteLength: number;
   readonly initialUiSurfaceId: string | null;
 }
 
 export interface CreateIndexedDbProgramPackageInstallationRepositoryOptionsV1 {
   readonly indexedDB: IDBFactory;
   readonly limits: ProgramPackageAdmissionLimitsV1;
-  readonly subtle?: SubtleCrypto | undefined;
   readonly databaseName?: string;
 }
 
-function storageKeyV1(referenceValue: InstalledProgramPackageReferenceV1): string {
-  const reference = admitInstalledProgramPackageReferenceV1(referenceValue);
-  return JSON.stringify([
-    reference.programId,
-    reference.packageVersion,
-    reference.contentDigest,
-  ]);
+function exactKeysV1(
+  value: Readonly<Record<string, unknown>>,
+  expected: readonly string[],
+): boolean {
+  return Object.keys(value).toSorted().join("\0") === expected.toSorted().join("\0");
 }
 
-function referencesEqualV1(
-  left: InstalledProgramPackageReferenceV1,
-  right: InstalledProgramPackageReferenceV1,
-): boolean {
-  return left.programId === right.programId &&
-    left.packageVersion === right.packageVersion &&
-    left.contentDigest === right.contentDigest;
+function acquisitionV1(value: unknown): value is ProgramPackageAcquisitionV1 {
+  return value === "bundled" || value === "external";
 }
 
 function requestResultV1<TValue>(request: IDBRequest<TValue>): Promise<TValue> {
@@ -167,22 +152,16 @@ function openDatabaseV1(input: {
     request.addEventListener("upgradeneeded", (event) => {
       try {
         if (event.newVersion !== programPackageInstallationDatabaseVersionV1) {
-          throw new ProgramPackageInstallationRepositoryErrorV1(
-            "schema_invalid",
-            "initialize",
-          );
+          throw new ProgramPackageInstallationRepositoryErrorV1("schema_invalid", "initialize");
         }
         for (const name of [...request.result.objectStoreNames]) {
           request.result.deleteObjectStore(name);
         }
         disposition = "created";
         request.result.createObjectStore(programPackageInstallationObjectStoreNameV1, {
-          keyPath: "storageKey",
+          keyPath: "programId",
         });
         request.result.createObjectStore(programPackageInstallationMetadataObjectStoreNameV1, {
-          keyPath: "storageKey",
-        });
-        request.result.createObjectStore(programPackageInstallationCurrentObjectStoreNameV1, {
           keyPath: "programId",
         });
       } catch (error) {
@@ -190,16 +169,13 @@ function openDatabaseV1(input: {
         try {
           request.transaction?.abort();
         } catch {
-          // Preserve the exact upgrade failure.
+          // Preserve the upgrade failure.
         }
       }
     });
     request.addEventListener("blocked", () => {
       rejectOnceV1(
-        new ProgramPackageInstallationRepositoryErrorV1(
-          "storage_unavailable",
-          "initialize",
-        ),
+        new ProgramPackageInstallationRepositoryErrorV1("storage_unavailable", "initialize"),
       );
     });
     request.addEventListener("error", () => {
@@ -234,127 +210,137 @@ function openDatabaseV1(input: {
 function exactStoredPackageShapeV1(value: unknown): value is StoredProgramPackageV1 {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Readonly<Record<string, unknown>>;
-  return Object.keys(record).toSorted().join("\0") ===
-      ["archive", "byteLength", "reference", "schemaVersion", "storageKey"]
-        .toSorted()
-        .join("\0") &&
+  return exactKeysV1(record, [
+    "acquisition",
+    "archive",
+    "installationId",
+    "programId",
+    "schemaVersion",
+  ]) &&
     record.schemaVersion === 1 &&
-    typeof record.storageKey === "string" &&
-    Number.isSafeInteger(record.byteLength) &&
-    typeof record.byteLength === "number" && record.byteLength >= 0;
+    acquisitionV1(record.acquisition) &&
+    typeof record.installationId === "string" && record.installationId.length > 0 &&
+    typeof record.programId === "string";
 }
 
 async function restoreStoredPackageV1(
   value: unknown,
-  options: Pick<
-    CreateIndexedDbProgramPackageInstallationRepositoryOptionsV1,
-    "limits" | "subtle"
-  >,
+  options: Pick<CreateIndexedDbProgramPackageInstallationRepositoryOptionsV1, "limits">,
   operation: ProgramPackageInstallationRepositoryOperationV1,
-): Promise<AdmittedProgramPackageArchiveV1> {
+): Promise<InstalledProgramPackageV1> {
   try {
     if (!exactStoredPackageShapeV1(value)) throw new TypeError();
-    const reference = admitInstalledProgramPackageReferenceV1(value.reference);
-    if (value.storageKey !== storageKeyV1(reference)) throw new TypeError();
+    const programId = admitProgramPackageProgramIdV1(value.programId);
     const admitted = await admitProgramPackageArchiveV1(value.archive, options);
-    if (
-      value.byteLength !== admitted.byteLength ||
-      !referencesEqualV1(reference, admitted.reference)
-    ) throw new TypeError();
-    return admitted;
+    if (admitted.reference.programId !== programId) throw new TypeError();
+    return {
+      acquisition: value.acquisition,
+      installationId: value.installationId,
+      package: admitted,
+    };
   } catch (error) {
     if (error instanceof ProgramPackageInstallationRepositoryErrorV1) throw error;
     throw new ProgramPackageInstallationRepositoryErrorV1("schema_invalid", operation);
   }
 }
 
-function storedPackageV1(admitted: AdmittedProgramPackageArchiveV1): StoredProgramPackageV1 {
+function storedPackageV1(
+  admitted: AdmittedProgramPackageArchiveV1,
+  acquisition: ProgramPackageAcquisitionV1,
+  installationId: string,
+): StoredProgramPackageV1 {
   return {
-    storageKey: storageKeyV1(admitted.reference),
+    programId: admitted.reference.programId,
     schemaVersion: 1,
-    reference: cloneInstalledProgramPackageReferenceV1(admitted.reference),
-    byteLength: admitted.byteLength,
+    acquisition,
+    installationId,
     archive: cloneProgramPackageArchiveV1(admitted),
   };
 }
 
 function storedPackageMetadataV1(
   admitted: AdmittedProgramPackageArchiveV1,
+  acquisition: ProgramPackageAcquisitionV1,
 ): StoredProgramPackageMetadataV1 {
   const projection = projectProgramPackageRuntimeProfileV1(admitted);
   return {
-    storageKey: storageKeyV1(admitted.reference),
+    programId: admitted.reference.programId,
     schemaVersion: 1,
-    reference: cloneInstalledProgramPackageReferenceV1(admitted.reference),
+    acquisition,
     manifest: cloneProgramPackageManifestV1(admitted.manifest),
-    byteLength: admitted.byteLength,
     initialUiSurfaceId: projection.initialUiSurfaceId,
   };
+}
+
+function equalBytesV1(left: ArrayBuffer, right: ArrayBuffer): boolean {
+  if (left.byteLength !== right.byteLength) return false;
+  const leftBytes = new Uint8Array(left);
+  const rightBytes = new Uint8Array(right);
+  for (let index = 0; index < leftBytes.length; index += 1) {
+    if (leftBytes[index] !== rightBytes[index]) return false;
+  }
+  return true;
+}
+
+/**
+ * Cold-path equality over already admitted package data. This keeps repeated
+ * materialization of the same implementation idempotent without promoting a
+ * digest or byte count into Program identity.
+ */
+function equalAdmittedProgramPackageArchiveV1(
+  left: AdmittedProgramPackageArchiveV1,
+  right: AdmittedProgramPackageArchiveV1,
+): boolean {
+  if (JSON.stringify(left.manifest) !== JSON.stringify(right.manifest)) return false;
+  if (left.files.length !== right.files.length) return false;
+  return left.files.every((leftFile, index) => {
+    const rightFile = right.files[index];
+    return rightFile !== undefined &&
+      leftFile.path === rightFile.path &&
+      leftFile.mediaType === rightFile.mediaType &&
+      equalBytesV1(leftFile.bytes, rightFile.bytes);
+  });
 }
 
 function restoreStoredPackageMetadataV1(
   value: unknown,
   options: Pick<CreateIndexedDbProgramPackageInstallationRepositoryOptionsV1, "limits">,
-): ProgramPackageMetadataV1 {
+): InstalledProgramPackageMetadataV1 {
   try {
     if (value === null || typeof value !== "object" || Array.isArray(value)) throw new TypeError();
     const record = value as Readonly<Record<string, unknown>>;
     if (
-      Object.keys(record).toSorted().join("\0") !==
-        [
-          "byteLength",
-          "initialUiSurfaceId",
-          "manifest",
-          "reference",
-          "schemaVersion",
-          "storageKey",
-        ].toSorted().join("\0") ||
-      record.schemaVersion !== 1 || typeof record.storageKey !== "string" ||
-      !Number.isSafeInteger(record.byteLength) || typeof record.byteLength !== "number" ||
-      record.byteLength < 0 ||
+      !exactKeysV1(record, [
+        "acquisition",
+        "initialUiSurfaceId",
+        "manifest",
+        "programId",
+        "schemaVersion",
+      ]) ||
+      record.schemaVersion !== 1 ||
+      !acquisitionV1(record.acquisition) ||
       (record.initialUiSurfaceId !== null &&
         (typeof record.initialUiSurfaceId !== "string" ||
           (record.initialUiSurfaceId.length > 0 &&
             record.initialUiSurfaceId.trim() !== record.initialUiSurfaceId)))
     ) throw new TypeError();
-    const reference = admitInstalledProgramPackageReferenceV1(record.reference);
+    const programId = admitProgramPackageProgramIdV1(record.programId);
     const manifest = admitProgramPackageManifestV1(record.manifest, options.limits);
     if (
-      record.storageKey !== storageKeyV1(reference) ||
-      reference.programId !== manifest.programId ||
-      reference.packageVersion !== manifest.packageVersion ||
+      programId !== manifest.programId ||
       (manifest.initialUiPath === null) !== (record.initialUiSurfaceId === null)
     ) throw new TypeError();
-    return {
-      reference,
+    const metadata: ProgramPackageMetadataV1 = {
+      reference: { programId, packageVersion: manifest.packageVersion },
       manifest,
-      byteLength: record.byteLength,
       initialUiSurfaceId: record.initialUiSurfaceId,
     };
+    return {
+      acquisition: record.acquisition,
+      metadata,
+    };
   } catch {
-    throw new ProgramPackageInstallationRepositoryErrorV1(
-      "schema_invalid",
-      "list_metadata",
-    );
-  }
-}
-
-function exactCurrentReferenceV1(
-  value: unknown,
-  expectedProgramId: string,
-): InstalledProgramPackageReferenceV1 {
-  try {
-    if (value === null || typeof value !== "object" || Array.isArray(value)) throw new TypeError();
-    const record = value as Readonly<Record<string, unknown>>;
-    if (
-      Object.keys(record).toSorted().join("\0") !== ["programId", "reference"].join("\0") ||
-      record.programId !== expectedProgramId
-    ) throw new TypeError();
-    const reference = admitInstalledProgramPackageReferenceV1(record.reference);
-    if (reference.programId !== expectedProgramId) throw new TypeError();
-    return reference;
-  } catch {
-    throw new ProgramPackageInstallationRepositoryErrorV1("schema_invalid", "current");
+    throw new ProgramPackageInstallationRepositoryErrorV1("schema_invalid", "list_metadata");
   }
 }
 
@@ -401,12 +387,12 @@ export function createIndexedDbProgramPackageInstallationRepositoryV1(
       await databaseForV1("initialize");
       return initializationDisposition;
     },
-    async install(archive: ProgramPackageArchiveV1, installOptions) {
+    async install(archive, installOptions) {
       const operation = "install" as const;
-      const admitted = await admitProgramPackageArchiveV1(archive, {
-        limits: options.limits,
-        subtle: options.subtle,
-      });
+      if (!acquisitionV1(installOptions.acquisition)) {
+        throw new TypeError("sillyos.program_package.acquisition_invalid");
+      }
+      const admitted = await admitProgramPackageArchiveV1(archive, { limits: options.limits });
       try {
         const currentDatabase = await databaseForV1(operation);
         const transaction = currentDatabase.transaction(
@@ -414,43 +400,55 @@ export function createIndexedDbProgramPackageInstallationRepositoryV1(
           "readwrite",
         );
         const completion = transactionCompletionV1(transaction);
-        const store = transaction.objectStore(programPackageInstallationObjectStoreNameV1);
-        const key = storageKeyV1(admitted.reference);
-        const existingKey = await requestResultV1(store.getKey(key));
-        await requestResultV1(store.put(storedPackageV1(admitted)));
+        const packages = transaction.objectStore(programPackageInstallationObjectStoreNameV1);
+        const existing = await requestResultV1(packages.get(admitted.reference.programId));
+        if (existing !== undefined) {
+          if (!exactStoredPackageShapeV1(existing)) {
+            throw new ProgramPackageInstallationRepositoryErrorV1("schema_invalid", operation);
+          }
+          const current = await restoreStoredPackageV1(existing, options, operation);
+          if (installOptions.acquisition === "bundled" && existing.acquisition === "external") {
+            await completion;
+            return {
+              disposition: "retained_external",
+              reference: cloneInstalledProgramPackageReferenceV1(current.package.reference),
+            };
+          }
+          if (
+            existing.acquisition === installOptions.acquisition &&
+            equalAdmittedProgramPackageArchiveV1(current.package, admitted)
+          ) {
+            await completion;
+            return {
+              disposition: "retained_current",
+              reference: cloneInstalledProgramPackageReferenceV1(current.package.reference),
+            };
+          }
+        }
+        const installationId = globalThis.crypto.randomUUID();
+        await requestResultV1(
+          packages.put(storedPackageV1(admitted, installOptions.acquisition, installationId)),
+        );
         await requestResultV1(
           transaction.objectStore(programPackageInstallationMetadataObjectStoreNameV1).put(
-            storedPackageMetadataV1(admitted),
+            storedPackageMetadataV1(
+              admitted,
+              installOptions.acquisition,
+            ),
           ),
         );
-        const currentStore = transaction.objectStore(
-          programPackageInstallationCurrentObjectStoreNameV1,
-        );
-        const shouldSelect = installOptions.currentSelection === "always" ||
-          (installOptions.currentSelection === "if_missing" &&
-            await requestResultV1(currentStore.getKey(admitted.reference.programId)) ===
-              undefined);
-        if (shouldSelect) {
-          const current: StoredCurrentProgramPackageV1 = {
-            programId: admitted.reference.programId,
-            reference: cloneInstalledProgramPackageReferenceV1(admitted.reference),
-          };
-          await requestResultV1(
-            currentStore.put(current),
-          );
-        }
         await completion;
         return {
-          disposition: existingKey === undefined ? "installed" : "already_installed",
+          disposition: existing === undefined ? "installed" : "replaced",
           reference: cloneInstalledProgramPackageReferenceV1(admitted.reference),
         };
       } catch (error) {
         throw mapFailureV1(error, operation);
       }
     },
-    async load(referenceValue: InstalledProgramPackageReferenceV1) {
+    async load(programIdValue) {
       const operation = "load" as const;
-      const reference = admitInstalledProgramPackageReferenceV1(referenceValue);
+      const programId = admitProgramPackageProgramIdV1(programIdValue);
       try {
         const currentDatabase = await databaseForV1(operation);
         const transaction = currentDatabase.transaction(
@@ -459,17 +457,15 @@ export function createIndexedDbProgramPackageInstallationRepositoryV1(
         );
         const completion = transactionCompletionV1(transaction);
         const value = await requestResultV1(
-          transaction.objectStore(programPackageInstallationObjectStoreNameV1).get(
-            storageKeyV1(reference),
-          ),
+          transaction.objectStore(programPackageInstallationObjectStoreNameV1).get(programId),
         );
         await completion;
         if (value === undefined) return null;
-        const admitted = await restoreStoredPackageV1(value, options, operation);
-        if (!referencesEqualV1(reference, admitted.reference)) {
+        const installed = await restoreStoredPackageV1(value, options, operation);
+        if (installed.package.reference.programId !== programId) {
           throw new ProgramPackageInstallationRepositoryErrorV1("schema_invalid", operation);
         }
-        return admitted;
+        return installed;
       } catch (error) {
         throw mapFailureV1(error, operation);
       }
@@ -490,38 +486,15 @@ export function createIndexedDbProgramPackageInstallationRepositoryV1(
         return rows
           .map((row) => restoreStoredPackageMetadataV1(row, options))
           .toSorted((left, right) =>
-            left.reference.programId.localeCompare(right.reference.programId) ||
-            left.reference.packageVersion.localeCompare(right.reference.packageVersion) ||
-            left.reference.contentDigest.localeCompare(right.reference.contentDigest)
+            left.metadata.reference.programId.localeCompare(right.metadata.reference.programId)
           );
       } catch (error) {
         throw mapFailureV1(error, operation);
       }
     },
-    async current(programIdValue: string) {
-      const operation = "current" as const;
-      const programId = admitProgramPackageProgramIdV1(programIdValue);
-      try {
-        const currentDatabase = await databaseForV1(operation);
-        const transaction = currentDatabase.transaction(
-          programPackageInstallationCurrentObjectStoreNameV1,
-          "readonly",
-        );
-        const completion = transactionCompletionV1(transaction);
-        const value = await requestResultV1(
-          transaction.objectStore(programPackageInstallationCurrentObjectStoreNameV1).get(
-            programId,
-          ),
-        );
-        await completion;
-        return value === undefined ? null : exactCurrentReferenceV1(value, programId);
-      } catch (error) {
-        throw mapFailureV1(error, operation);
-      }
-    },
-    async remove(referenceValue: InstalledProgramPackageReferenceV1) {
+    async remove(programIdValue) {
       const operation = "remove" as const;
-      const reference = admitInstalledProgramPackageReferenceV1(referenceValue);
+      const programId = admitProgramPackageProgramIdV1(programIdValue);
       try {
         const currentDatabase = await databaseForV1(operation);
         const transaction = currentDatabase.transaction(
@@ -529,29 +502,15 @@ export function createIndexedDbProgramPackageInstallationRepositoryV1(
           "readwrite",
         );
         const completion = transactionCompletionV1(transaction);
-        const store = transaction.objectStore(programPackageInstallationObjectStoreNameV1);
-        const key = storageKeyV1(reference);
-        const existingKey = await requestResultV1(store.getKey(key));
-        if (existingKey !== undefined) await requestResultV1(store.delete(key));
+        const packages = transaction.objectStore(programPackageInstallationObjectStoreNameV1);
+        const existingKey = await requestResultV1(packages.getKey(programId));
         if (existingKey !== undefined) {
+          await requestResultV1(packages.delete(programId));
           await requestResultV1(
             transaction.objectStore(programPackageInstallationMetadataObjectStoreNameV1).delete(
-              key,
+              programId,
             ),
           );
-        }
-        const currentStore = transaction.objectStore(
-          programPackageInstallationCurrentObjectStoreNameV1,
-        );
-        const currentValue = await requestResultV1(currentStore.get(reference.programId));
-        if (
-          currentValue !== undefined &&
-          referencesEqualV1(
-            exactCurrentReferenceV1(currentValue, reference.programId),
-            reference,
-          )
-        ) {
-          await requestResultV1(currentStore.delete(reference.programId));
         }
         await completion;
         return existingKey !== undefined;
@@ -559,7 +518,7 @@ export function createIndexedDbProgramPackageInstallationRepositoryV1(
         throw mapFailureV1(error, operation);
       }
     },
-    async reset(): Promise<void> {
+    async reset() {
       const operation = "reset" as const;
       try {
         const currentDatabase = await databaseForV1(operation);
@@ -578,7 +537,7 @@ export function createIndexedDbProgramPackageInstallationRepositoryV1(
         throw mapFailureV1(error, operation);
       }
     },
-    async dispose(): Promise<void> {
+    async dispose() {
       if (disposed) return;
       disposed = true;
       try {

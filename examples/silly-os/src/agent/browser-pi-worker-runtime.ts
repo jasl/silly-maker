@@ -12,7 +12,10 @@ import {
   type WorkspaceMutationRecordV1,
 } from "../workspace/index.ts";
 import { browserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
-import type { BrowserPiAgentDispatchV1 } from "./browser-pi-agent-dispatch.ts";
+import type {
+  BrowserPiAgentDispatchV1,
+  BrowserPiProgramImplementationBindingV1,
+} from "./browser-pi-agent-dispatch.ts";
 import {
   createBrowserPiProviderAgentV1,
   isBrowserPiSelectionAvailableV1,
@@ -179,8 +182,9 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   readonly createProviderAgent?: typeof createBrowserPiProviderAgentV1;
   readonly loadProgramExecution?: (
     dispatch: BrowserPiAgentDispatchV1,
+    implementation: BrowserPiProgramImplementationBindingV1,
   ) => Promise<BrowserProgramExecutionV1 | null>;
-  /** Production composition supplies an owned exact-package/profile loader. */
+  /** Production composition supplies an owned current-package/profile loader. */
   readonly programExecutionLoader?: BrowserProgramExecutionLoaderV1;
   readonly downloadOuterDeadlineMilliseconds?: number;
   readonly credentialHandoffDeadlineMilliseconds?: number;
@@ -751,6 +755,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     request: SubmitRequestV1,
     execution: BrowserPiWorkerExecutionBindingV1,
     dispatch: BrowserPiAgentDispatchV1,
+    programImplementation: BrowserPiProgramImplementationBindingV1,
   ): Promise<void> => {
     if (disposed) return;
     if (activeSessionId === null || request.params.sessionId !== activeSessionId) {
@@ -804,7 +809,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       });
     let programExecution: BrowserProgramExecutionV1 | null;
     try {
-      programExecution = await loadProgramExecution(dispatch);
+      programExecution = await loadProgramExecution(dispatch, programImplementation);
     } catch {
       respondRpcFailure(requestId, "program_package_unavailable");
       return;
@@ -1534,7 +1539,15 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       respondRpcFailure(message.requestId, "invalid_request");
       return;
     }
-    enqueue(() => handleSubmit(message.requestId, request, message.execution, message.dispatch));
+    enqueue(() =>
+      handleSubmit(
+        message.requestId,
+        request,
+        message.execution,
+        message.dispatch,
+        message.programImplementation,
+      )
+    );
   };
 
   return {

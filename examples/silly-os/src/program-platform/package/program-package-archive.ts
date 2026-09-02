@@ -2,7 +2,6 @@
 /// <reference lib="dom" />
 
 export const programPackageArchiveSchemaVersionV1 = 1;
-export const programPackageContentDigestAlgorithmV1 = "sha256";
 export const sillyOsProgramHarnessCompatibilityV1 = "sillyos.program-harness.v1" as const;
 
 export interface ProgramPackageAdmissionLimitsV1 {
@@ -69,10 +68,9 @@ export interface ProgramPackageArchiveFileV1 {
 }
 
 /**
- * A structured-clone-safe package payload shared by bundled and externally acquired Programs.
- * ZIP handling is an outer transport concern and must produce this same input shape.
+ * Structured-clone-safe package-source payload before repository admission.
+ * Bundled and ZIP acquisition must produce this same input shape.
  */
-/** Transport/package-source payload before the installation repository admits it. */
 export interface UnadmittedProgramPackageArchiveV1 {
   readonly manifest: unknown;
   readonly files: readonly ProgramPackageArchiveFileV1[];
@@ -82,19 +80,21 @@ export interface ProgramPackageArchiveV1 extends UnadmittedProgramPackageArchive
   readonly manifest: ProgramPackageManifestV1;
 }
 
-/** Exact immutable identity. Process records pin this complete value, not a moving Program head. */
+/**
+ * Process compatibility binding. Compatible Program fixes keep
+ * `packageVersion` unchanged; an incompatible Process contract uses a new
+ * value. Package bytes are deliberately not part of this identity.
+ */
 export interface InstalledProgramPackageReferenceV1 {
   readonly programId: string;
   readonly packageVersion: string;
-  readonly contentDigest: string;
 }
 
 export interface AdmittedProgramPackageArchiveV1 extends ProgramPackageArchiveV1 {
   readonly reference: InstalledProgramPackageReferenceV1;
-  readonly byteLength: number;
 }
 
-/** Reads one exact admitted package file as UTF-8 without inventing fallback content. */
+/** Reads one admitted package file as UTF-8 without inventing fallback content. */
 export function readProgramPackageTextFileV1(
   archive: Pick<AdmittedProgramPackageArchiveV1, "files">,
   path: string,
@@ -134,7 +134,6 @@ export class ProgramPackageAdmissionErrorV1 extends Error {
 }
 
 const textEncoderV1 = new TextEncoder();
-const exactDigestPatternV1 = /^[0-9a-f]{64}$/u;
 const exactProgramIdPatternV1 = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u;
 const exactCapabilityIdPatternV1 = /^[a-z0-9]+(?:[.:_/-][a-z0-9]+)*$/u;
 const exactMediaTypePatternV1 = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/u;
@@ -352,48 +351,6 @@ function canonicalManifestBytesV1(manifest: ProgramPackageManifestV1): Uint8Arra
   return textEncoderV1.encode(JSON.stringify(manifest));
 }
 
-function framedDigestBytesV1(
-  manifestBytes: Uint8Array,
-  files: readonly ProgramPackageArchiveFileV1[],
-): Uint8Array {
-  const chunks: Uint8Array[] = [
-    textEncoderV1.encode("sillyos-program-package-v1"),
-    manifestBytes,
-  ];
-  for (const file of files) {
-    chunks.push(
-      textEncoderV1.encode(file.path),
-      textEncoderV1.encode(file.mediaType),
-      new Uint8Array(file.bytes),
-    );
-  }
-  const byteLength = chunks.reduce((total, chunk) => total + 8 + chunk.byteLength, 0);
-  const framed = new Uint8Array(byteLength);
-  const view = new DataView(framed.buffer);
-  let offset = 0;
-  for (const chunk of chunks) {
-    const high = Math.floor(chunk.byteLength / 0x1_0000_0000);
-    const low = chunk.byteLength % 0x1_0000_0000;
-    view.setUint32(offset, high);
-    view.setUint32(offset + 4, low);
-    offset += 8;
-    framed.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return framed;
-}
-
-async function digestHexV1(value: Uint8Array, subtle: SubtleCrypto): Promise<string> {
-  const digestInput = value.buffer.slice(
-    value.byteOffset,
-    value.byteOffset + value.byteLength,
-  ) as ArrayBuffer;
-  const digest = await subtle.digest("SHA-256", digestInput);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 function referencedPathsV1(manifest: ProgramPackageManifestV1): readonly string[] {
   return [
     manifest.instructionsPath,
@@ -407,7 +364,6 @@ function referencedPathsV1(manifest: ProgramPackageManifestV1): readonly string[
 
 export interface AdmitProgramPackageArchiveOptionsV1 {
   readonly limits: ProgramPackageAdmissionLimitsV1;
-  readonly subtle?: SubtleCrypto | undefined;
 }
 
 /** Admits only the immutable manifest projection without loading package file bodies. */
@@ -488,28 +444,13 @@ export async function admitProgramPackageArchiveV1(
     throw new ProgramPackageAdmissionErrorV1("package_too_large");
   }
 
-  let digestSource: Uint8Array;
-  try {
-    digestSource = framedDigestBytesV1(manifestBytes, files);
-  } catch (error) {
-    if (error instanceof RangeError) {
-      throw new ProgramPackageAdmissionErrorV1("package_too_large");
-    }
-    throw error;
-  }
-  const contentDigest = await digestHexV1(
-    digestSource,
-    options.subtle ?? globalThis.crypto.subtle,
-  );
   return {
     manifest,
     files,
     reference: {
       programId: manifest.programId,
       packageVersion: manifest.packageVersion,
-      contentDigest,
     },
-    byteLength,
   };
 }
 
@@ -521,17 +462,14 @@ export function admitInstalledProgramPackageReferenceV1(
   }
   const reference = value as Readonly<Record<string, unknown>>;
   if (
-    !exactKeysV1(reference, ["contentDigest", "packageVersion", "programId"]) ||
+    !exactKeysV1(reference, ["packageVersion", "programId"]) ||
     !nonEmptyTrimmedTextV1(reference.programId) ||
     !exactProgramIdPatternV1.test(reference.programId) ||
-    !nonEmptyTrimmedTextV1(reference.packageVersion) ||
-    typeof reference.contentDigest !== "string" ||
-    !exactDigestPatternV1.test(reference.contentDigest)
+    !nonEmptyTrimmedTextV1(reference.packageVersion)
   ) throw new ProgramPackageAdmissionErrorV1("archive_invalid");
   return {
     programId: reference.programId,
     packageVersion: reference.packageVersion,
-    contentDigest: reference.contentDigest,
   };
 }
 

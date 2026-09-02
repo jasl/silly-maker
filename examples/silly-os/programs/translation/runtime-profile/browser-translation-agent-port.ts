@@ -8,7 +8,7 @@ import type {
   BrowserProgramAgentWorkspaceSnapshotV1,
 } from "../../../src/agent/browser-program-agent-port-contracts.ts";
 import type { BrowserPiDistributionIdentityV1 } from "../../../src/agent/browser-pi-distribution.ts";
-import type { BrowserProgramAgentHostV1 } from "../../../src/agent/browser-program-agent-host-contracts.ts";
+import type { BrowserProgramRuntimeAgentHostV1 } from "../../../src/agent/browser-program-agent-host-contracts.ts";
 import type {
   TranslationAgentRunRequestV1,
   TranslationAgentTerminalRunV1,
@@ -36,7 +36,7 @@ export interface TranslationAgentPortV1
 
 /** Lazily attaches the Translation adapter to the one fixed Browser Agent owner. */
 export function createTranslationProgramAgentPortV1(
-  host: BrowserProgramAgentHostV1,
+  host: BrowserProgramRuntimeAgentHostV1,
 ): TranslationAgentPortV1 {
   const port = host.createPort({
     loadAdapter: async () =>

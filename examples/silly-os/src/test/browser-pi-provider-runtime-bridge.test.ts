@@ -168,7 +168,6 @@ function creatorDispatchV1(input: {
     programPackage: {
       programId: input.programId,
       packageVersion: "1.0.0",
-      contentDigest: "c".repeat(64),
     },
     workspaceProgramId: input.programId,
     payload: { revision: 1, ...input },
@@ -182,7 +181,6 @@ function translationDispatchV1() {
     programPackage: {
       programId: "sillyos.translation",
       packageVersion: "1.0.0",
-      contentDigest: "d".repeat(64),
     },
     workspaceProgramId: "sillyos.translation",
     payload: {

@@ -21,12 +21,10 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "./pi-faux-runt
 const creatorProgramPackageV1 = {
   programId: "sillyos.creator",
   packageVersion: "1.0.0",
-  contentDigest: "c".repeat(64),
 } as const;
 const translationProgramPackageV1 = {
   programId: "sillyos.translation",
   packageVersion: "1.0.0",
-  contentDigest: "d".repeat(64),
 } as const;
 
 function createTranslationWorkspaceToolsV1(): readonly AgentTool[] {

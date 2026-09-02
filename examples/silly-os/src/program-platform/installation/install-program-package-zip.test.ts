@@ -65,16 +65,18 @@ describe("external Program package installation V1", () => {
 
     const installed = await installProgramPackageZipV1(zipBytes, {
       repository,
-      selectCurrent: true,
+      acquisition: "external",
       budgets: budgetsV1,
       archiveLimits: archiveLimitsV1,
     });
 
-    await expect(repository.current(manifestV1.programId)).resolves.toEqual(installed.reference);
-    const loaded = await repository.load(installed.reference);
-    expect(loaded?.manifest).toEqual(manifestV1);
-    expect(loaded?.manifest).not.toHaveProperty("modelPromptOverlays");
-    expect(new TextDecoder().decode(loaded?.files[0]?.bytes)).toBe("Translate faithfully.");
+    const loaded = await repository.load(installed.reference.programId);
+    expect(loaded?.acquisition).toBe("external");
+    expect(loaded?.package.manifest).toEqual(manifestV1);
+    expect(loaded?.package.manifest).not.toHaveProperty("modelPromptOverlays");
+    expect(new TextDecoder().decode(loaded?.package.files[0]?.bytes)).toBe(
+      "Translate faithfully.",
+    );
   });
 
   it("retains model prompt overlays from an external ZIP through ordinary installation", async () => {
@@ -107,18 +109,18 @@ describe("external Program package installation V1", () => {
 
     const installed = await installProgramPackageZipV1(zipBytes, {
       repository,
-      selectCurrent: true,
+      acquisition: "external",
       budgets: budgetsV1,
       archiveLimits: archiveLimitsV1,
     });
-    const loaded = await repository.load(installed.reference);
+    const loaded = await repository.load(installed.reference.programId);
 
-    expect(loaded?.manifest.modelPromptOverlays).toEqual(modelPromptOverlays);
-    expect(loaded?.manifest.recommendedModelPatterns).toEqual(recommendedModelPatterns);
+    expect(loaded?.package.manifest.modelPromptOverlays).toEqual(modelPromptOverlays);
+    expect(loaded?.package.manifest.recommendedModelPatterns).toEqual(recommendedModelPatterns);
     expect(
       loaded === null
         ? null
-        : readProgramPackageTextFileV1(loaded, "prompts/models/glm-5.3-flash.md"),
+        : readProgramPackageTextFileV1(loaded.package, "prompts/models/glm-5.3-flash.md"),
     ).toBe(overlayInstructions);
   });
 });

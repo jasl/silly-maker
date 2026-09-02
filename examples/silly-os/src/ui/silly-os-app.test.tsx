@@ -24,10 +24,13 @@ afterEach(() => {
   cleanup();
 });
 
-function providerOwnerV1(settingsOpen: boolean): Readonly<Record<string, unknown>> {
+function providerOwnerV1(
+  settingsOpen: boolean,
+  agentHost: unknown = null,
+): Readonly<Record<string, unknown>> {
   return {
     runtime: "deterministic_test",
-    agentHost: null,
+    agentHost,
     forgetAgent: vi.fn(async () => true),
     controlSnapshot: null,
     readiness: { status: "ready", recoveryTarget: null },
@@ -87,7 +90,9 @@ describe("SillyOS application route lifecycle", () => {
   it("keeps a running Program Surface mounted behind the Settings overlay", async () => {
     const retire = vi.fn(async () => undefined);
     const reportFailure = vi.fn();
+    const observedAgentHosts: unknown[] = [];
     const Surface = ({ host }: { readonly host: ProgramSurfaceHostV1 }): ReactNode => {
+      observedAgentHosts.push(host.agentHost);
       const registerProgramDrain = host.registerProgramDrain;
       useLayoutEffect(() =>
         registerProgramDrain({
@@ -103,13 +108,13 @@ describe("SillyOS application route lifecycle", () => {
         reference: {
           programId: "program.running",
           packageVersion: "1.0.0",
-          contentDigest: "a".repeat(64),
         },
         manifest: {
           capabilityIds: [],
           recommendedModelPatterns: [],
         },
       },
+      programImplementationId: "installation.running.1",
       controller: {},
       surfaceDrainOwner: createProgramRuntimeSurfaceDrainOwnerV1(),
       getSnapshot: () => ({}),
@@ -118,13 +123,20 @@ describe("SillyOS application route lifecycle", () => {
       close: vi.fn(async () => true),
       dispose: vi.fn(async () => undefined),
     } as unknown as ActiveProgramRuntimeHandleV1;
-    const providerOwner = providerOwnerV1(false);
+    const scopedAgentHost = { createPort: vi.fn() };
+    const bindProgramRuntime = vi.fn(() => scopedAgentHost);
+    const providerOwner = providerOwnerV1(false, { bindProgramRuntime });
     providerOwnerProbeV1.current = providerOwner;
     const view = render(appV1(activeProgram, reportFailure));
 
     await waitFor(() =>
       expect(view.container.querySelector("[data-testid='running-program-surface']")).not.toBeNull()
     );
+    expect(bindProgramRuntime).toHaveBeenCalledWith({
+      programPackage: activeProgram.programPackage.reference,
+      implementationId: "installation.running.1",
+    });
+    expect(observedAgentHosts).toContain(scopedAgentHost);
     expect(retire).not.toHaveBeenCalled();
 
     providerOwnerProbeV1.current = { ...providerOwner, settingsOpen: true };

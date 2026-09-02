@@ -26,7 +26,6 @@ import type {
   ProgramPackageLibraryEntryV1,
   ProgramPackageServiceV1,
 } from "../installation/program-package-service.ts";
-import type { InstalledProgramPackageReferenceV1 } from "../package/program-package-archive.ts";
 import type { DecodeProgramPackageZipOptionsV1 } from "../package/program-package-zip.ts";
 import type {
   ProcessSummaryV1,
@@ -78,8 +77,8 @@ export interface ProgramLibraryPropsV1 {
   readonly onInstalled?: (
     result: ProgramPackageInstallationResultV1,
   ) => Promise<void>;
-  /** Launches the exact selected package; acquisition origin is intentionally absent. */
-  readonly onLaunch?: (reference: InstalledProgramPackageReferenceV1) => void | Promise<void>;
+  /** Launches the current implementation for this Program identity. */
+  readonly onLaunch?: (programId: string) => void | Promise<void>;
   /** Reads the global durable Process index without resolving any Program package. */
   readonly listRecentProcesses?: (
     input: RecentProcessSummaryListInputV1,
@@ -141,7 +140,7 @@ function ProcessSummaryRowV1({
           </dd>
         </div>
         <div>
-          <dt>{locale === "zh-CN" ? "Program 版本" : "Program version"}</dt>
+          <dt>{locale === "zh-CN" ? "兼容版本" : "Compatibility version"}</dt>
           <dd>{summary.programPackage.packageVersion}</dd>
         </div>
       </dl>
@@ -151,15 +150,6 @@ function ProcessSummaryRowV1({
 
 function errorMessageV1(error: unknown): string {
   return error instanceof Error ? error.message : "sillyos.program_package.unknown_failure";
-}
-
-function formatBytesV1(byteLength: number, locale: LocaleV1): string {
-  return new Intl.NumberFormat(locale, {
-    style: "unit",
-    unit: byteLength >= 1_000_000 ? "megabyte" : "kilobyte",
-    unitDisplay: "short",
-    maximumFractionDigits: 1,
-  }).format(byteLength / (byteLength >= 1_000_000 ? 1_000_000 : 1_000));
 }
 
 function compatibilityTextV1(
@@ -211,7 +201,7 @@ function ProgramPackageRowV1({
 }: {
   readonly entry: ProgramPackageLibraryEntryV1;
   readonly locale: LocaleV1;
-  readonly onLaunch?: (reference: InstalledProgramPackageReferenceV1) => void | Promise<void>;
+  readonly onLaunch?: (programId: string) => void | Promise<void>;
 }): ReactNode {
   const compatibility = compatibilityTextV1(entry, locale);
   return (
@@ -225,13 +215,6 @@ function ProgramPackageRowV1({
           </div>
         </div>
         <div className="program-library__badges">
-          {entry.selectedForNewProcesses
-            ? (
-              <BadgeV1 variant="neutral">
-                {locale === "zh-CN" ? "新 Process 默认版本" : "Current for new Processes"}
-              </BadgeV1>
-            )
-            : null}
           <BadgeV1 variant={compatibility.variant}>{compatibility.label}</BadgeV1>
         </div>
       </div>
@@ -242,7 +225,7 @@ function ProgramPackageRowV1({
             type="button"
             size="sm"
             variant="secondary"
-            onClick={() => void onLaunch(entry.reference)}
+            onClick={() => void onLaunch(entry.reference.programId)}
           >
             {locale === "zh-CN" ? "打开" : "Open"}
           </ButtonV1>
@@ -256,12 +239,8 @@ function ProgramPackageRowV1({
           </dd>
         </div>
         <div>
-          <dt>{locale === "zh-CN" ? "版本" : "Version"}</dt>
+          <dt>{locale === "zh-CN" ? "兼容版本" : "Compatibility version"}</dt>
           <dd>{entry.reference.packageVersion}</dd>
-        </div>
-        <div>
-          <dt>{locale === "zh-CN" ? "大小" : "Size"}</dt>
-          <dd>{formatBytesV1(entry.byteLength, locale)}</dd>
         </div>
         <div>
           <dt>Harness</dt>
@@ -273,12 +252,6 @@ function ProgramPackageRowV1({
           <dt>{locale === "zh-CN" ? "运行配置" : "Runtime profile"}</dt>
           <dd>
             <code>{entry.manifest.runtimeProfile}</code>
-          </dd>
-        </div>
-        <div className="program-library__digest">
-          <dt>{locale === "zh-CN" ? "内容标识" : "Content identity"}</dt>
-          <dd>
-            <code>{entry.reference.contentDigest}</code>
           </dd>
         </div>
       </dl>
@@ -394,7 +367,6 @@ export function ProgramLibraryV1({
       const result = await service.installZip(
         await file.arrayBuffer(),
         zipDecodeOptions,
-        { selectCurrent: true },
       );
       await refreshV1();
       if (onInstalled !== undefined) {
@@ -429,8 +401,8 @@ export function ProgramLibraryV1({
           <h2 id={`${inputId}-title`}>Programs</h2>
           <p>
             {locale === "zh-CN"
-              ? "导入外部 Program 包；新版本只用于之后创建的 Process。"
-              : "Import external Program packages. New versions apply only to future Processes."}
+              ? "导入外部 Program 包；兼容更新会用于新旧 Process。"
+              : "Import external Program packages. Compatible updates apply to new and existing Processes."}
           </p>
         </div>
         {onOpenSettings === undefined ? null : (
@@ -508,13 +480,13 @@ export function ProgramLibraryV1({
               : importState.kind === "installed"
               ? (
                 <StatusDescriptionV1>
-                  {importState.disposition === "already_installed"
+                  {importState.disposition === "replaced"
                     ? locale === "zh-CN"
-                      ? "相同的内容已经安装，并已选为新 Process 的版本。"
-                      : "The same content was already installed and is selected for new Processes."
+                      ? "已替换这个 Program 的当前实现。"
+                      : "The current implementation of this Program was replaced."
                     : locale === "zh-CN"
-                    ? "该版本已选为新 Process 的版本。"
-                    : "This version is selected for new Processes."}
+                    ? "Program 已安装。"
+                    : "The Program was installed."}
                 </StatusDescriptionV1>
               )
               : null}
@@ -638,7 +610,7 @@ export function ProgramLibraryV1({
             <ul className="program-library__packages">
               {loadState.entries.map((entry) => (
                 <ProgramPackageRowV1
-                  key={`${entry.reference.programId}\0${entry.reference.packageVersion}\0${entry.reference.contentDigest}`}
+                  key={entry.reference.programId}
                   entry={entry}
                   locale={locale}
                   {...(onLaunch === undefined ? {} : { onLaunch })}

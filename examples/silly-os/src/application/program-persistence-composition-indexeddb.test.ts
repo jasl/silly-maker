@@ -110,7 +110,6 @@ function packageReferenceV1(programId: string): InstalledProgramPackageReference
   return {
     programId,
     packageVersion: "1.0.0",
-    contentDigest: "a".repeat(64),
   };
 }
 
@@ -528,7 +527,7 @@ function executionTerminalV1(input: {
   };
 }
 
-describe("IndexedDB Program data repository V16", () => {
+describe("IndexedDB Program data repository V17", () => {
   it("creates the exact normalized schema and indexes null subjects without scanning", async () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
@@ -951,7 +950,7 @@ describe("IndexedDB Program data repository V16", () => {
     await repository.dispose();
   });
 
-  it("treats a bundled Creator package like any other exact Process package", async () => {
+  it("treats a bundled Creator Program like any other Process compatibility binding", async () => {
     const indexedDB = new IDBFactory();
     const repository = repositoryV1(indexedDB);
     await createProgramV1(repository, "program.creator-workspace");
@@ -1389,7 +1388,7 @@ describe("IndexedDB Program data repository V16", () => {
     }
   });
 
-  it("pins the exact Process package without consulting a second definition authority", async () => {
+  it("persists the Process compatibility binding without consulting a second definition authority", async () => {
     const repository = repositoryV1(new IDBFactory());
     const bundle = createBundleV1("program.package-pin", "process.package-pin");
     expect(await repository.createProgramWithProcess(bundle)).toMatchObject({

@@ -14,6 +14,7 @@ import type {
 } from "./browser-program-agent-port-contracts.ts";
 import type { BrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 import type { BrowserProgramAgentDiagnosticV1 } from "./browser-program-agent-port-contracts.ts";
+import type { BrowserPiProgramImplementationBindingV1 } from "./browser-pi-agent-dispatch.ts";
 
 export interface BrowserProgramAgentPortV1
   extends
@@ -46,14 +47,25 @@ export type BrowserProgramAgentControlPortV1 = Pick<
   | "dispose"
 >;
 
-export interface BrowserProgramAgentHostV1 {
-  createControlPort(): BrowserProgramAgentControlPortV1;
+/** Program-scoped view of the shared Agent Host. */
+export interface BrowserProgramRuntimeAgentHostV1 {
   createPort(input: {
     readonly loadAdapter: BrowserProgramAgentAdapterLoadV1;
     readonly projectPendingSnapshot: (
       input: Parameters<BrowserProgramAgentAdapterV1["projectSnapshot"]>[0],
     ) => unknown;
   }): BrowserProgramAgentPortV1;
+}
+
+export interface BrowserProgramAgentHostV1 {
+  createControlPort(): BrowserProgramAgentControlPortV1;
+  /**
+   * Binds all later submits from this facade to one mounted Program
+   * implementation. The binding is transient and never enters Process data.
+   */
+  bindProgramRuntime(
+    binding: BrowserPiProgramImplementationBindingV1,
+  ): BrowserProgramRuntimeAgentHostV1;
   forget(): Promise<void>;
   dispose(): Promise<void>;
 }

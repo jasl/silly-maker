@@ -396,7 +396,6 @@ function pairOwnsCandidateV1(
   return pair.process.processId === input.process.processId &&
     pair.process.programPackage.programId === input.process.programPackage.programId &&
     pair.process.programPackage.packageVersion === input.process.programPackage.packageVersion &&
-    pair.process.programPackage.contentDigest === input.process.programPackage.contentDigest &&
     pair.process.subjectProgramId === input.process.subjectProgramId &&
     pair.process.status === "active" && pair.process.activeAttempt === null &&
     pair.process.lastTerminalAttempt === null &&
@@ -1049,7 +1048,6 @@ export function createBrowserProgramWorkspaceAuthorityV1(
           processWorkspaceProgramIdV1(pair.process) !== input.programId ||
           pair.process.programPackage.programId !== input.programPackage.programId ||
           pair.process.programPackage.packageVersion !== input.programPackage.packageVersion ||
-          pair.process.programPackage.contentDigest !== input.programPackage.contentDigest ||
           attempt === null || attempt.attemptId !== input.agentRunId ||
           attempt.generation !== input.processAttemptGeneration ||
           attempt.startingCheckpoint.workspaceCheckpointId !== input.expectedCheckpointId ||

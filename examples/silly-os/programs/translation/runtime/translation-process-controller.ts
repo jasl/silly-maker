@@ -118,11 +118,11 @@ export interface TranslationProcessTranscriptProjectionV1 {
 
 export interface TranslationActiveProcessProjectionV1 {
   readonly process: ProcessHeadV1;
-  /** Exact immutable Program package selected when this Process was created. */
+  /** Current Program implementation admitted for this Process compatibility marker. */
   readonly programPackage: {
     readonly reference: InstalledProgramPackageReferenceV1;
     readonly manifest: ProgramPackageManifestV1;
-    /** Exact instructions decoded from this Process-pinned package. */
+    /** Instructions decoded from the current compatible Program implementation. */
     readonly instructions: string | null;
     readonly initialUi: TranslationInitialUiV1 | null;
     readonly settings: TranslationProgramSettingsResolutionV1;
@@ -866,8 +866,7 @@ function sameProgramPackageV1(
   left: InstalledProgramPackageReferenceV1,
   right: InstalledProgramPackageReferenceV1,
 ): boolean {
-  return left.programId === right.programId && left.packageVersion === right.packageVersion &&
-    left.contentDigest === right.contentDigest;
+  return left.programId === right.programId && left.packageVersion === right.packageVersion;
 }
 
 function translationProcessV1(
@@ -922,7 +921,7 @@ function initialTranscriptEntryV1(processId: string, entryId: string): Transcrip
 export function createTranslationProcessControllerV1(input: {
   readonly repository: TranslationProgramDataRepositoryV1;
   readonly workspace: TranslationProcessControllerWorkspacePortV1;
-  /** Exact package selected before this Process controller is created. */
+  /** Current compatible Program implementation selected before this controller is created. */
   readonly programPackage: AdmittedProgramPackageArchiveV1;
   /** Test seam; the production default preserves the browser PDF adapter's lazy chunk. */
   readonly importBornDigitalPdf?: TranslationBornDigitalPdfImporterV1;

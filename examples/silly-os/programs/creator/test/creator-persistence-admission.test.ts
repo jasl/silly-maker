@@ -20,7 +20,6 @@ function packageReferenceV1(programId: string) {
   return {
     programId,
     packageVersion: "1.0.0",
-    contentDigest: "a".repeat(64),
   };
 }
 
@@ -212,13 +211,12 @@ function executionRevisionBundleV1(): CreatorProgramProcessExecutionRevisionBund
 }
 
 describe("Program/Process composite admission", () => {
-  it("pins the first durable Process to one exact Program package", () => {
+  it("captures Program identity and its compatibility marker in the first durable Process", () => {
     expect(normalizeCreatorProgramProcessCreateBundleInputV1(createBundleV1()).process)
       .toMatchObject({
         programPackage: {
           programId: "sillyos.creator",
           packageVersion: "1.0.0",
-          contentDigest: "a".repeat(64),
         },
       });
 
@@ -239,7 +237,7 @@ describe("Program/Process composite admission", () => {
         ...invalid,
         process: {
           ...invalid.process,
-          programPackage: { ...invalid.process.programPackage, contentDigest: "invalid" },
+          programPackage: { ...invalid.process.programPackage, packageVersion: "" },
         },
       })
     ).toThrow("program_package_ref.invalid");

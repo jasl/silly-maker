@@ -37,8 +37,8 @@ export interface ProcessActiveAttemptV1 {
 }
 
 /**
- * Optional Program settings owned by one Process. The exact Program package
- * admits the schema before this generic repository receives the JSON; null
+ * Optional Program settings owned by one Process. The current compatible
+ * Program implementation admits the schema before this generic repository receives the JSON; null
  * means that the package defaults apply without an override.
  */
 export interface ProcessSettingsOverrideV1 {
@@ -52,7 +52,7 @@ export interface ProcessSettingsOverrideV1 {
 export interface ProcessSettingsOverrideMutationInputV1 {
   readonly processId: string;
   readonly expectedRevision: number;
-  /** JSON already admitted against the exact Process package, or null to clear. */
+  /** JSON already admitted against the current compatible Program, or null to clear. */
   readonly admittedOverrideJson: string | null;
   readonly updatedAt: number;
 }
@@ -89,7 +89,7 @@ export interface ProcessHeadV1 {
   readonly schemaVersion: 1;
   readonly processId: string;
   readonly revision: number;
-  /** Exact immutable Program package pinned once at Process creation. */
+  /** Program identity plus compatibility marker captured at Process creation. */
   readonly programPackage: InstalledProgramPackageReferenceV1;
   /** Program being created or edited, not the Process harness identity. */
   readonly subjectProgramId: string | null;

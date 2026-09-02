@@ -54,10 +54,10 @@ export interface CreatorAgentSubmitV1 {
   readonly text: string;
 }
 
-/** Product-owned identity and exact Program base for one accepted Creator run. */
+/** Product-owned identity and Program compatibility binding for one accepted Creator run. */
 export interface CreatorAgentRunRequestV1 {
   readonly agentRunId: string;
-  /** Exact immutable Program package pinned by this Process. */
+  /** Program identity and compatibility marker owned by this Process. */
   readonly programPackage: InstalledProgramPackageReferenceV1;
   /** Exact durable Process whose attempt owns this run. */
   readonly processId: string;

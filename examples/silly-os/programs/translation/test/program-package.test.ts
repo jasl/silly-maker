@@ -80,7 +80,6 @@ describe("Translation Program package", () => {
     }
     expect(translationProgramPackageSourceV1.metadata).toEqual({
       reference: admitted.reference,
-      byteLength: admitted.byteLength,
       ...projectProgramPackageRuntimeProfileV1(admitted),
     });
     expect(admitted.files.map((file) => file.path)).toEqual(
@@ -98,7 +97,7 @@ describe("Translation Program package", () => {
     );
     expect(instructions).toMatch(/sillyos_read_program_resource/u);
     expect(instructions).toMatch(/skills\/translate\/SKILL\.md/u);
-    expect(instructions).toMatch(/exact immutable\s+Program package pinned by this Process/u);
+    expect(instructions).toMatch(/current compatible\s+Program implementation/u);
 
     const readTextV1 = (path: string): string => {
       const file = admitted.files.find((candidate) => candidate.path === path);

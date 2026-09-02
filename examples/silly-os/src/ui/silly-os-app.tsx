@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import type { ActiveProgramRuntimeHandleV1 } from "../application/program-runtime-controller.ts";
+import type { BrowserProgramAgentHostV1 } from "../agent/browser-program-agent-host-contracts.ts";
 import {
   createBrowserProductPreferencesRepositoryV1,
   defaultBrowserProductPreferencesSnapshotV1,
@@ -30,7 +31,6 @@ import {
   type SillyOsLocaleV1,
 } from "../content/copy.ts";
 import type { ProgramPackageServiceV1 } from "../program-platform/installation/program-package-service.ts";
-import type { InstalledProgramPackageReferenceV1 } from "../program-platform/package/program-package-archive.ts";
 import type { DecodeProgramPackageZipOptionsV1 } from "../program-platform/package/program-package-zip.ts";
 import type { ReadOnlyProcessConversationControllerV1 } from "../program-platform/process/read-only-process-conversation-controller.ts";
 import type {
@@ -76,9 +76,7 @@ export interface SillyOsAppPropsV1 {
   readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
   readonly programPackages: ProgramPackageServiceV1;
   readonly programPackageZipDecodeOptions: DecodeProgramPackageZipOptionsV1;
-  readonly onLaunchProgramPackage: (
-    reference: InstalledProgramPackageReferenceV1,
-  ) => Promise<"program">;
+  readonly onLaunchProgramPackage: (programId: string) => Promise<"program">;
   readonly listRecentProcesses: (
     input: RecentProcessSummaryListInputV1,
   ) => Promise<RecentProcessSummaryPageV1>;
@@ -193,7 +191,9 @@ function ActiveProgramSurfaceV1({
   sessionState,
 }: {
   readonly runtime: ActiveProgramRuntimeHandleV1;
-  readonly host: Omit<ProgramSurfaceHostV1, "registerProgramDrain" | "sessionState">;
+  readonly host:
+    & Omit<ProgramSurfaceHostV1, "agentHost" | "registerProgramDrain" | "sessionState">
+    & { readonly agentHost: BrowserProgramAgentHostV1 | null };
   readonly sessionState: ProgramSurfaceSessionStateV1;
 }): ReactNode {
   const [surface, setSurface] = useState<
@@ -209,6 +209,14 @@ function ActiveProgramSurfaceV1({
       readonly error: unknown;
     }
   >({ kind: "loading", runtime });
+  const programAgentHost = useMemo(
+    () =>
+      host.agentHost?.bindProgramRuntime({
+        programPackage: runtime.programPackage.reference,
+        implementationId: runtime.programImplementationId,
+      }) ?? null,
+    [host.agentHost, runtime.programImplementationId, runtime.programPackage.reference],
+  );
 
   useEffect(() => {
     let current = true;
@@ -238,6 +246,7 @@ function ActiveProgramSurfaceV1({
         controller={runtime.controller}
         host={{
           ...host,
+          agentHost: programAgentHost,
           processNetworkAccess,
           registerProgramDrain: runtime.surfaceDrainOwner.register,
           sessionState,
@@ -320,7 +329,6 @@ export function SillyOsAppV1({
       scopeKey: JSON.stringify([
         reference.programId,
         reference.packageVersion,
-        reference.contentDigest,
       ]),
       recommendedModelPatterns: manifest.recommendedModelPatterns ?? [],
     };
@@ -399,7 +407,8 @@ export function SillyOsAppV1({
   }, [closeAgentSettingsV1, onOpenProgramLibrary]);
 
   const surfaceHost = useMemo<
-    Omit<ProgramSurfaceHostV1, "registerProgramDrain" | "sessionState">
+    & Omit<ProgramSurfaceHostV1, "agentHost" | "registerProgramDrain" | "sessionState">
+    & { readonly agentHost: BrowserProgramAgentHostV1 | null }
   >(() => ({
     copy,
     locale,
@@ -466,9 +475,9 @@ export function SillyOsAppV1({
                   onOpenProcess={async (processId) => {
                     await onOpenRecentProcess(processId);
                   }}
-                  onLaunch={async (reference) => {
+                  onLaunch={async (programId) => {
                     try {
-                      await onLaunchProgramPackage(reference);
+                      await onLaunchProgramPackage(programId);
                     } catch (error) {
                       reportFailure("silly_os.program_package_launch_failed", error);
                     }

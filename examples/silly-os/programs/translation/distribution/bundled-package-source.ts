@@ -12,10 +12,8 @@ export const translationProgramPackageSourceV1: BundledProgramPackageSourceV1 = 
     reference: {
       programId: translationProgramIdV1,
       packageVersion: "1.0.0",
-      contentDigest: "7791f7dfe27201afb2680261a3a062a9e51137c27e8f71ff1b7fbf8088e27147",
     },
     manifest: programManifestV1 as ProgramPackageManifestV1,
-    byteLength: 16_026,
     initialUiSurfaceId: "translation.workspace.v1",
   },
   loadArchive: async () =>

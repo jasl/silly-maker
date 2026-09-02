@@ -8,6 +8,7 @@ import type { ProgramDataRepositoryV1 } from "../application/persistence/program
 import type {
   ActiveProgramRuntimeHandleV1,
   LoadProgramRuntimeControllerAdapterV1,
+  ProgramRuntimeControllerAdapterV1,
 } from "./program-runtime-controller.ts";
 import { createProgramRuntimeSurfaceDrainOwnerV1 } from "./program-runtime-controller.ts";
 import {
@@ -40,7 +41,7 @@ import {
 
 interface RuntimeControllerRecordV1 {
   readonly runtimeProfile: string;
-  readonly input: Readonly<Record<string, unknown>>;
+  readonly input: Parameters<ProgramRuntimeControllerAdapterV1["create"]>[0];
   readonly handle: ActiveProgramRuntimeHandleV1;
   readonly close: ReturnType<typeof vi.fn>;
   readonly dispose: ReturnType<typeof vi.fn>;
@@ -51,12 +52,13 @@ const cleanupV1: (() => Promise<void>)[] = [];
 
 function createRuntimeHandleV1(
   runtimeProfile: string,
-  input: Readonly<Record<string, unknown>>,
+  input: Parameters<ProgramRuntimeControllerAdapterV1["create"]>[0],
 ): ActiveProgramRuntimeHandleV1 {
   const close = vi.fn(async () => true);
   const dispose = vi.fn(async () => undefined);
   const handle: ActiveProgramRuntimeHandleV1 = {
-    programPackage: input.programPackage as ActiveProgramRuntimeHandleV1["programPackage"],
+    programPackage: input.programPackage,
+    programImplementationId: input.programImplementationId,
     controller: { runtimeProfile },
     surfaceDrainOwner: createProgramRuntimeSurfaceDrainOwnerV1(),
     getSnapshot: () => ({ runtimeProfile }),
@@ -186,7 +188,6 @@ async function ownerFixtureV1(
       return {
         ...projectProgramPackageRuntimeProfileV1(admitted),
         reference: admitted.reference,
-        byteLength: admitted.byteLength,
       };
     }),
   );
@@ -315,7 +316,7 @@ describe("SillyOS Program controller owner", () => {
     expect(fixture.owner.getSnapshot().activeRoute).toBe("library");
   });
 
-  it("launches exact Creator and Translation packages from the Library and releases each on return", async () => {
+  it("launches current compatible Creator and Translation implementations and releases each on return", async () => {
     const fixture = await ownerFixtureV1();
     await fixture.owner.initialize();
     const installed = await fixture.packages.listLibrary();
@@ -326,24 +327,41 @@ describe("SillyOS Program controller owner", () => {
     if (creator === undefined || translation === undefined) {
       throw new Error("expected both bundled Programs");
     }
+    const creatorReady = await fixture.packages.resolveCurrent(creator.reference.programId);
+    const translationReady = await fixture.packages.resolveCurrent(translation.reference.programId);
+    if (creatorReady?.kind !== "ready" || translationReady?.kind !== "ready") {
+      throw new Error("expected both bundled Programs to be ready");
+    }
 
-    await expect(fixture.owner.launch(creator.reference)).resolves.toBe("program");
+    await expect(fixture.owner.launch(creator.reference.programId)).resolves.toBe("program");
     expect(fixture.owner.getSnapshot().activeRoute).toBe("program");
     expect(runtimeRecordsV1).toHaveLength(1);
     expect(
       (runtimeRecordsV1[0]!.input.programPackage as { reference: unknown }).reference,
     ).toEqual(creator.reference);
+    expect(runtimeRecordsV1[0]!.input.programImplementationId).toBe(
+      creatorReady.implementationId,
+    );
+    expect(runtimeRecordsV1[0]!.handle.programImplementationId).toBe(
+      creatorReady.implementationId,
+    );
     expect(await fixture.owner.openLibrary()).toBe(true);
     expect(runtimeRecordsV1[0]!.close).toHaveBeenCalledTimes(1);
     expect(runtimeRecordsV1[0]!.dispose).toHaveBeenCalledTimes(1);
     expect(fixture.owner.getSnapshot().activeRoute).toBe("library");
 
-    await expect(fixture.owner.launch(translation.reference)).resolves.toBe("program");
+    await expect(fixture.owner.launch(translation.reference.programId)).resolves.toBe("program");
     expect(fixture.owner.getSnapshot().activeRoute).toBe("program");
     expect(runtimeRecordsV1).toHaveLength(2);
     expect(
       (runtimeRecordsV1[1]!.input.programPackage as { reference: unknown }).reference,
     ).toEqual(translation.reference);
+    expect(runtimeRecordsV1[1]!.input.programImplementationId).toBe(
+      translationReady.implementationId,
+    );
+    expect(runtimeRecordsV1[1]!.handle.programImplementationId).toBe(
+      translationReady.implementationId,
+    );
     expect(await fixture.owner.openLibrary()).toBe(true);
     expect(runtimeRecordsV1[1]!.close).toHaveBeenCalledTimes(1);
     expect(runtimeRecordsV1[1]!.dispose).toHaveBeenCalledTimes(1);
@@ -357,7 +375,7 @@ describe("SillyOS Program controller owner", () => {
       reference.programId === creatorProgramIdV1
     );
     if (creator === undefined) throw new Error("Creator unavailable");
-    await fixture.owner.launch(creator.reference);
+    await fixture.owner.launch(creator.reference.programId);
     const active = runtimeRecordsV1[0]!;
     let releaseSurfaceDrain!: () => void;
     const surfaceDrainReleased = new Promise<void>((resolve) => {
@@ -393,7 +411,7 @@ describe("SillyOS Program controller owner", () => {
       reference.programId === creatorProgramIdV1
     );
     if (creator === undefined) throw new Error("Creator unavailable");
-    await fixture.owner.launch(creator.reference);
+    await fixture.owner.launch(creator.reference.programId);
     const active = runtimeRecordsV1[0]!;
     const order: string[] = [];
     active.handle.surfaceDrainOwner.register({
@@ -428,7 +446,7 @@ describe("SillyOS Program controller owner", () => {
       reference.programId === creatorProgramIdV1
     );
     if (creator === undefined) throw new Error("Creator unavailable");
-    await fixture.owner.launch(creator.reference);
+    await fixture.owner.launch(creator.reference.programId);
     const active = runtimeRecordsV1[0]!;
     const before = fixture.owner.getSnapshot();
     const quiesce = vi.fn()
@@ -461,7 +479,7 @@ describe("SillyOS Program controller owner", () => {
       reference.programId === creatorProgramIdV1
     );
     if (creator === undefined) throw new Error("Creator unavailable");
-    await fixture.owner.launch(creator.reference);
+    await fixture.owner.launch(creator.reference.programId);
     const active = runtimeRecordsV1[0]!;
     const quiesce = vi.fn(async () => undefined);
     const retire = vi.fn(async () => undefined);
@@ -486,10 +504,10 @@ describe("SillyOS Program controller owner", () => {
     const [creator, translation] = await fixture.packages.listLibrary();
     if (creator === undefined || translation === undefined) throw new Error("packages unavailable");
 
-    await fixture.owner.launch(creator.reference);
+    await fixture.owner.launch(creator.reference.programId);
     runtimeRecordsV1[0]!.dispose.mockRejectedValueOnce(new Error("predecessor cleanup failed"));
 
-    await expect(fixture.owner.launch(translation.reference)).resolves.toBe("program");
+    await expect(fixture.owner.launch(translation.reference.programId)).resolves.toBe("program");
     expect(fixture.owner.getSnapshot().activeProgram).toBe(runtimeRecordsV1[1]!.handle);
     expect(fixture.reportFailure).toHaveBeenCalledWith(
       "silly_os.program_predecessor_dispose_failed",
@@ -514,7 +532,7 @@ describe("SillyOS Program controller owner", () => {
       reference.programId === creatorProgramIdV1
     );
     if (creator === undefined) throw new Error("Creator unavailable");
-    await fixture.owner.launch(creator.reference);
+    await fixture.owner.launch(creator.reference.programId);
     const active = runtimeRecordsV1[0]!;
     active.handle.surfaceDrainOwner.register({
       quiesce: async () => undefined,
@@ -538,7 +556,7 @@ describe("SillyOS Program controller owner", () => {
       reference.programId === creatorProgramIdV1
     );
     if (creator === undefined) throw new Error("Creator unavailable");
-    await fixture.owner.launch(creator.reference);
+    await fixture.owner.launch(creator.reference.programId);
     const active = runtimeRecordsV1[0]!;
     const quiesceFailure = new Error("terminal quiesce failed");
     const retireFailure = new Error("terminal retirement failed");
@@ -588,10 +606,10 @@ describe("SillyOS Program controller owner", () => {
     );
     if (creator === undefined) throw new Error("Creator unavailable");
 
-    const launch = fixture.owner.launch(creator.reference);
+    const launch = fixture.owner.launch(creator.reference.programId);
     await createObserved;
     const disposal = fixture.owner.dispose();
-    await expect(fixture.owner.launch(creator.reference)).rejects.toThrow(
+    await expect(fixture.owner.launch(creator.reference.programId)).rejects.toThrow(
       "sillyos.program_controller.disposed",
     );
     releaseCreate();
@@ -608,7 +626,7 @@ describe("SillyOS Program controller owner", () => {
       reference.programId === creatorProgramIdV1
     );
     if (creator === undefined) throw new Error("Creator unavailable");
-    await fixture.owner.launch(creator.reference);
+    await fixture.owner.launch(creator.reference.programId);
     const active = runtimeRecordsV1[0]!;
     let observeClose!: () => void;
     const closeObserved = new Promise<void>((resolve) => {
@@ -637,14 +655,14 @@ describe("SillyOS Program controller owner", () => {
     expect(fixture.owner.getSnapshot().activeProgram).toBeNull();
   });
 
-  it("constructs bundled and external exact packages through the same runtime-profile path", async () => {
+  it("constructs bundled and external Programs through the same runtime-profile path", async () => {
     const fixture = await ownerFixtureV1();
     await fixture.owner.initialize();
     const bundled = await fixture.packages.resolveCurrent(creatorProgramIdV1);
     if (bundled === null || bundled.kind !== "ready") {
       throw new Error("Creator package unavailable");
     }
-    await fixture.owner.launch(bundled.package.reference);
+    await fixture.owner.launch(bundled.package.reference.programId);
     const bundledRecord = runtimeRecordsV1[0]!;
     const external = await fixture.packages.installArchive(programArchiveV1({
       programId: "community.creator",
@@ -653,7 +671,7 @@ describe("SillyOS Program controller owner", () => {
       instructions: "Create a community Program.",
     }));
 
-    await expect(fixture.owner.launch(external.reference)).resolves.toBe("program");
+    await expect(fixture.owner.launch(external.reference.programId)).resolves.toBe("program");
 
     expect(runtimeRecordsV1).toHaveLength(2);
     const externalRecord = runtimeRecordsV1[1]!;
@@ -672,13 +690,17 @@ describe("SillyOS Program controller owner", () => {
     expect(externalRecord.dispose).not.toHaveBeenCalled();
   });
 
-  it("starts Translation predecessor and successor by exact reference and releases predecessors", async () => {
+  it("keeps a running compatible implementation stable and replaces it only with the current successor", async () => {
     const fixture = await ownerFixtureV1();
     await fixture.owner.initialize();
     const predecessor = await fixture.packages.resolveCurrent(translationProgramIdV1);
     if (predecessor === null || predecessor.kind !== "ready") {
       throw new Error("translation predecessor unavailable");
     }
+    await expect(fixture.owner.launch(predecessor.package.reference.programId)).resolves.toBe(
+      "program",
+    );
+    const predecessorRecord = runtimeRecordsV1[0]!;
     const successor = await fixture.packages.installArchive(programArchiveV1({
       programId: translationProgramIdV1,
       packageVersion: "2.0.0",
@@ -686,11 +708,15 @@ describe("SillyOS Program controller owner", () => {
       instructions: "Translate a successor workset.",
     }));
 
-    await expect(fixture.owner.launch(predecessor.package.reference)).resolves.toBe("program");
-    await expect(fixture.owner.launch(successor.reference)).resolves.toBe("program");
+    expect(predecessorRecord.close).not.toHaveBeenCalled();
+    expect(predecessorRecord.dispose).not.toHaveBeenCalled();
+    // A Library row selected before the install still launches by Program identity,
+    // so the owner resolves the successor instead of treating the stale row as a Process marker.
+    await expect(fixture.owner.launch(predecessor.package.reference.programId)).resolves.toBe(
+      "program",
+    );
 
     expect(runtimeRecordsV1).toHaveLength(2);
-    const predecessorRecord = runtimeRecordsV1[0]!;
     const successorRecord = runtimeRecordsV1[1]!;
     expect(
       (predecessorRecord.input.programPackage as { reference: unknown }).reference,
@@ -708,13 +734,15 @@ describe("SillyOS Program controller owner", () => {
     if (creator === null || creator.kind !== "ready") {
       throw new Error("creator package unavailable");
     }
-    await expect(fixture.owner.launch(creator.package.reference)).resolves.toBe("program");
+    await expect(fixture.owner.launch(creator.package.reference.programId)).resolves.toBe(
+      "program",
+    );
     expect(successorRecord.close).toHaveBeenCalledTimes(1);
     expect(runtimeRecordsV1).toHaveLength(3);
     expect(runtimeRecordsV1[2]!.dispose).not.toHaveBeenCalled();
   });
 
-  it("keeps the current runtime when an exact package is incompatible or missing", async () => {
+  it("keeps the current runtime when a Program is incompatible or missing", async () => {
     const fixture = await ownerFixtureV1();
     await fixture.owner.initialize();
     const current = fixture.owner.getSnapshot();
@@ -726,7 +754,7 @@ describe("SillyOS Program controller owner", () => {
       instructions: "Future harness package.",
     }));
 
-    await expect(fixture.owner.launch(incompatible.reference)).rejects.toThrow(
+    await expect(fixture.owner.launch(incompatible.reference.programId)).rejects.toThrow(
       "sillyos.program_package.harness_incompatible",
     );
     expect(fixture.owner.getSnapshot()).toBe(current);
@@ -738,17 +766,15 @@ describe("SillyOS Program controller owner", () => {
       runtimeProfile: "agent.unavailable.v1",
       instructions: "Unavailable runtime profile.",
     }));
-    await expect(fixture.owner.launch(unavailableProfile.reference)).rejects.toThrow(
+    await expect(fixture.owner.launch(unavailableProfile.reference.programId)).rejects.toThrow(
       "sillyos.program_package.runtime_profile_unavailable",
     );
     expect(fixture.owner.getSnapshot()).toBe(current);
     expect(runtimeRecordsV1).toHaveLength(0);
 
-    await expect(fixture.owner.launch({
-      programId: "community.missing",
-      packageVersion: "1.0.0",
-      contentDigest: "0".repeat(64),
-    })).rejects.toThrow("sillyos.program_package.package_missing");
+    await expect(fixture.owner.launch("community.missing")).rejects.toThrow(
+      "sillyos.program_package.package_missing",
+    );
     expect(fixture.owner.getSnapshot()).toBe(current);
     expect(runtimeRecordsV1).toHaveLength(0);
   });
@@ -756,7 +782,7 @@ describe("SillyOS Program controller owner", () => {
   it("opens and pages a durable Conversation without loading its package or Workspace", async () => {
     const fixture = await ownerFixtureV1();
     await fixture.owner.initialize();
-    const packageLoad = vi.spyOn(fixture.packages, "loadExact");
+    const packageLoad = vi.spyOn(fixture.packages, "resolveForProcess");
     const processId = "process.read-only";
     vi.mocked(fixture.repository.loadProcess).mockResolvedValue({
       schemaVersion: 1,
@@ -765,7 +791,6 @@ describe("SillyOS Program controller owner", () => {
       programPackage: {
         programId: "community.removed",
         packageVersion: "1.0.0",
-        contentDigest: "a".repeat(64),
       },
       subjectProgramId: null,
       status: "active",
@@ -925,7 +950,6 @@ describe("SillyOS Program controller owner", () => {
       programPackage: {
         programId: "community.gone",
         packageVersion: "9.0.0",
-        contentDigest: "f".repeat(64),
       },
       subjectProgramId: null,
       status: "interrupted_unrecoverable",

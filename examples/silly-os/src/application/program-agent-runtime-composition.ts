@@ -21,7 +21,7 @@ export const loadSillyOsProgramRuntimeProfileV1 = createBrowserProgramRuntimePro
   }],
 ]);
 
-/** Agent Worker selection of exact package storage plus fixed Host profiles. */
+/** Agent Worker selection of current Program storage plus fixed Host profiles. */
 export function createSillyOsProgramExecutionLoaderV1() {
   return createBrowserProgramExecutionLoaderV1({
     loadRuntimeProfile: loadSillyOsProgramRuntimeProfileV1,

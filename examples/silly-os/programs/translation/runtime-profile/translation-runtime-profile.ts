@@ -71,7 +71,7 @@ const translationToolDefinitionV1 = {
 // ordinary text. Counting bytes therefore gives every supported model a
 // conservative, tokenizer-independent input bound without a model-specific
 // magic ratio. This is the exact fixed Host-owned tool payload; the caller
-// supplies the exact Process-pinned package instructions below.
+// supplies the current compatible Program instructions below.
 const translationToolDefinitionUtf8BytesV1 =
   textEncoderV1.encode(JSON.stringify(translationToolDefinitionV1)).byteLength;
 
@@ -85,7 +85,7 @@ const translationBatchOutputTokenEnvelopeV1: TranslationBatchOutputTokenEnvelope
 export function createTranslationBatchBudgetForModelV1(input: {
   readonly contextWindow: number;
   readonly maximumOutputTokens: number;
-  /** Exact instruction text decoded from the Process-pinned Program package. */
+  /** Instruction text decoded from the current compatible Program implementation. */
   readonly instructions: string;
 }): TranslationBatchBudgetV1 | null {
   if (

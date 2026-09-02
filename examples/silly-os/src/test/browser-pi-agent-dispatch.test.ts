@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   admitBrowserPiAgentDispatchTextV1,
+  admitBrowserPiBoundAgentDispatchTextV1,
   serializeBrowserPiAgentDispatchV1,
+  serializeBrowserPiBoundAgentDispatchV1,
 } from "../agent/browser-pi-agent-dispatch.ts";
 import {
   creatorProgramRuntimeProfileV1,
@@ -18,12 +20,10 @@ import {
 const creatorProgramPackageV1 = {
   programId: "sillyos.creator",
   packageVersion: "1.0.0",
-  contentDigest: "c".repeat(64),
 } as const;
 const translationProgramPackageV1 = {
   programId: "sillyos.translation",
   packageVersion: "1.0.0",
-  contentDigest: "d".repeat(64),
 } as const;
 
 const translationRequestV1 = {
@@ -54,7 +54,7 @@ const translationRequestV1 = {
 } as const;
 
 describe("SillyOS Browser Pi build-known Agent dispatch", () => {
-  it("round-trips exact Program packages with their fixed runtime profiles", () => {
+  it("round-trips Program compatibility bindings with their fixed runtime profiles", () => {
     const creator = admitBrowserPiAgentDispatchTextV1(
       serializeBrowserPiCreatorAgentDispatchV1({
         programPackage: creatorProgramPackageV1,
@@ -152,5 +152,49 @@ describe("SillyOS Browser Pi build-known Agent dispatch", () => {
         payload: { invalid: undefined },
       }),
     )).toMatchObject({ kind: "admitted", value: { payload: {} } });
+  });
+
+  it("binds one submit to the mounted implementation without changing Process identity", () => {
+    const dispatchText = serializeBrowserPiCreatorAgentDispatchV1({
+      programPackage: creatorProgramPackageV1,
+      submit: {
+        revision: 1,
+        proposalId: "proposal.bound.1",
+        programId: creatorProgramPackageV1.programId,
+        baseProgramRevision: 1,
+        text: "Keep the mounted implementation coherent.",
+      },
+    });
+    const text = serializeBrowserPiBoundAgentDispatchV1({
+      revision: 1,
+      implementation: {
+        programPackage: creatorProgramPackageV1,
+        implementationId: "installation.current.1",
+      },
+      dispatchText,
+    });
+    expect(admitBrowserPiBoundAgentDispatchTextV1(text)).toMatchObject({
+      kind: "admitted",
+      value: {
+        implementation: {
+          programPackage: creatorProgramPackageV1,
+          implementationId: "installation.current.1",
+        },
+        dispatchText,
+      },
+    });
+
+    const envelope = JSON.parse(text) as Record<string, unknown>;
+    expect(admitBrowserPiBoundAgentDispatchTextV1(JSON.stringify({
+      ...envelope,
+      dispatchText: "",
+    }))).toEqual({ kind: "rejected" });
+    expect(admitBrowserPiBoundAgentDispatchTextV1(JSON.stringify({
+      ...envelope,
+      implementation: {
+        programPackage: creatorProgramPackageV1,
+        implementationId: "invalid implementation id",
+      },
+    }))).toEqual({ kind: "rejected" });
   });
 });

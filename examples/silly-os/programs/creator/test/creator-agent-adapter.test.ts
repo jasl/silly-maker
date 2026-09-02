@@ -11,7 +11,6 @@ describe("SillyOS Creator Agent adapter", () => {
       programPackage: {
         programId: "sillyos.creator",
         packageVersion: "1.0.0",
-        contentDigest: "c".repeat(64),
       },
       processId: "process.output-limit",
       processAttemptGeneration: 1,

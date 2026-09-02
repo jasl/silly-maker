@@ -23,7 +23,7 @@ import type {
   BrowserProgramAgentWorkspaceSnapshotV1,
 } from "../../../src/agent/browser-program-agent-port-contracts.ts";
 import type { BrowserPiDistributionIdentityV1 } from "../../../src/agent/browser-pi-distribution.ts";
-import type { BrowserProgramAgentHostV1 } from "../../../src/agent/browser-program-agent-host-contracts.ts";
+import type { BrowserProgramRuntimeAgentHostV1 } from "../../../src/agent/browser-program-agent-host-contracts.ts";
 import type {
   CreatorAgentRunRequestV1,
   CreatorAgentTerminalRunV1,
@@ -75,7 +75,7 @@ export interface CreatorAgentPortV1
 
 /** Lazily attaches the Creator adapter to the one fixed Browser Agent owner. */
 export function createCreatorProgramAgentPortV1(
-  host: BrowserProgramAgentHostV1,
+  host: BrowserProgramRuntimeAgentHostV1,
 ): CreatorAgentPortV1 {
   const port = host.createPort({
     loadAdapter: async () =>

@@ -38,10 +38,9 @@ export interface ProgramPackageRuntimeProfileProjectionV1 {
   readonly initialUiSurfaceId: string | null;
 }
 
-/** Exact lightweight package index record. It contains no package body bytes. */
+/** Lightweight package index record. It contains no package body bytes. */
 export interface ProgramPackageMetadataV1 extends ProgramPackageRuntimeProfileProjectionV1 {
   readonly reference: InstalledProgramPackageReferenceV1;
-  readonly byteLength: number;
 }
 
 export function projectProgramPackageRuntimeProfileV1(
@@ -69,7 +68,7 @@ export function projectProgramPackageRuntimeProfileV1(
   }
 }
 
-/** Shared metadata-only admission used by the Program library and exact Worker load. */
+/** Shared metadata-only admission used by the Program library and Worker load. */
 export function checkProgramPackageRuntimeProfileProjectionCompatibilityV1(
   projection: ProgramPackageRuntimeProfileProjectionV1,
   descriptor: ProgramRuntimeProfileDescriptorV1,

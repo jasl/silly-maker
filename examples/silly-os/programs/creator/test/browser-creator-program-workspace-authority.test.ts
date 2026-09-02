@@ -372,7 +372,6 @@ const directFenceV1: BrowserProgramWorkspaceOperationFenceV1 = {
 const creatorProgramPackageV1: InstalledProgramPackageReferenceV1 = {
   programId: "sillyos.creator",
   packageVersion: "1.0.0",
-  contentDigest: "a".repeat(64),
 };
 
 function programV1(programId: string, revision = 1): PreviewProgramV1 {
@@ -696,7 +695,7 @@ async function acceptProposalV1(input: {
 }
 
 describe("Browser Program Workspace authority V1", () => {
-  it("creates one Catalog/Process/Workspace unit with an exact Program package pin", async () => {
+  it("creates one Catalog/Process/Workspace unit with a Program compatibility binding", async () => {
     const harness = await authorityHarnessV1();
     const createComposite = vi.spyOn(harness.repository, "createProgramWithProcess");
     const identity = await createProgramV1({ harness });
@@ -1561,7 +1560,7 @@ describe("Browser Program Workspace authority V1", () => {
     await harness.authority.dispose();
   });
 
-  it("admits an Agent submit only for the exact Process package, attempt, and Workspace", async () => {
+  it("admits an Agent submit only when the Process compatibility binding, attempt, and Workspace match", async () => {
     const harness = await authorityHarnessV1();
     const identity = await createProgramV1({ harness });
     const opened = await harness.authority.openProcessWorkspace({
@@ -1594,6 +1593,7 @@ describe("Browser Program Workspace authority V1", () => {
     });
     expect(admitted).toBe(true);
 
+    const equivalentBindingOperation = vi.fn(async () => true);
     await expect(harness.authority.withAgentSubmitAdmission({
       agentRunId: attempt.attemptId,
       processAttemptGeneration: attempt.generation,
@@ -1637,13 +1637,13 @@ describe("Browser Program Workspace authority V1", () => {
       programId: identity.programId,
       programPackage: {
         ...acquired.process.programPackage,
-        contentDigest: "b".repeat(64),
       },
       workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
       expectedCheckpointId: attempt.startingCheckpoint.workspaceCheckpointId,
       expectedGeneration: attempt.startingCheckpoint.workspaceGeneration,
-      operation: async () => true,
-    })).rejects.toMatchObject({ code: "agent_submit_stale" });
+      operation: equivalentBindingOperation,
+    })).resolves.toBe(true);
+    expect(equivalentBindingOperation).toHaveBeenCalledOnce();
 
     await harness.authority.detachWorkspaceEnvironment(
       opened.snapshot.descriptor.workspaceSessionId,

@@ -26,8 +26,8 @@ function degradationCopyV1(
 ): string {
   if (degradation.capability === "package") {
     return copy.locale === "zh-CN"
-      ? "此 Process 使用的原始 Program 包当前不可用；Conversation 仍可只读查看。"
-      : "The exact Program package used by this Process is unavailable. Its Conversation remains readable.";
+      ? "当前 Program 实现缺失、损坏或与此 Process 不兼容；Conversation 仍可只读查看。"
+      : "The current Program implementation is missing, damaged, or incompatible with this Process. Its Conversation remains readable.";
   }
   if (degradation.capability === "runtime") {
     return copy.locale === "zh-CN"
@@ -85,7 +85,9 @@ export function ReadOnlyProcessConversationViewV1({
         <div className="read-only-process-conversation__identity">
           <span>{readOnlyLabel}</span>
           <code>
-            {packageReference.programId}@{packageReference.packageVersion}
+            {packageReference.programId} · {copy.locale === "zh-CN" ? "兼容性" : "compatibility"}
+            {" "}
+            {packageReference.packageVersion}
           </code>
         </div>
         <BadgeV1 variant="neutral">{copy.locale === "zh-CN" ? "不可编辑" : "Read only"}</BadgeV1>

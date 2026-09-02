@@ -36,6 +36,7 @@ export const translationProgramRuntimeControllerAdapterV1: ProgramRuntimeControl
     }
     return {
       programPackage: input.programPackage,
+      programImplementationId: input.programImplementationId,
       controller,
       surfaceDrainOwner,
       getSnapshot: controller.getSnapshot,

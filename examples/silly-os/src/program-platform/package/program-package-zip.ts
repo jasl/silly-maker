@@ -323,7 +323,8 @@ function stripPackageRootV1(files: readonly DecodedZipFileV1[]): {
 
 /**
  * Decodes an external ZIP into the same immutable archive data consumed by bundled Programs.
- * ZIP transport identity and directory layout do not enter the installed package identity.
+ * ZIP transport identity and directory layout do not affect Program identity or
+ * the Process compatibility binding.
  */
 export async function decodeProgramPackageZipV1(
   value: ArrayBuffer | Uint8Array,

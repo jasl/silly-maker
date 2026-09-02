@@ -74,7 +74,7 @@ import {
 } from "./program-persistence-facet.ts";
 
 export const programDataDatabaseNameV1 = "sillymaker.example-silly-os.programs";
-export const programDataDatabaseVersionV1 = 16;
+export const programDataDatabaseVersionV1 = 17;
 
 export const programDataStoreNamesV1 = [
   "process_commits",
@@ -1078,7 +1078,7 @@ export function createIndexedDbProgramDataRepositoryV1(
             );
             return settings.processId === processId ? settings : null;
           } catch {
-            // Optional settings degrade to exact-package defaults without hiding the Process.
+            // Optional settings degrade to current Program defaults without hiding the Process.
             return null;
           }
         },
@@ -1327,7 +1327,7 @@ export function createIndexedDbProgramDataRepositoryV1(
                 settingsOverrideJson = settings.overrideJson;
               }
             } catch {
-              // Invalid optional settings fall back to the exact package defaults.
+              // Invalid optional settings fall back to the current Program defaults.
             }
           }
           const next = cloneProcessHeadV1({

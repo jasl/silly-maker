@@ -7,6 +7,7 @@ import {
   cloneProgramPackageArchiveV1,
   cloneProgramPackageManifestV1,
   ProgramPackageAdmissionErrorV1,
+  readProgramPackageTextFileV1,
   type ProgramPackageAdmissionLimitsV1,
   type ProgramPackageArchiveV1,
 } from "./program-package-archive.ts";
@@ -65,7 +66,7 @@ function archiveV1(overrides: Partial<ProgramPackageArchiveV1> = {}): ProgramPac
 }
 
 describe("Program package archive V1", () => {
-  it("admits structured-clone data and derives one exact order-independent content identity", async () => {
+  it("admits structured-clone data and derives an order-independent compatibility binding", async () => {
     const source = archiveV1();
     const first = await admitProgramPackageArchiveV1(source, { limits: limitsV1 });
     const second = await admitProgramPackageArchiveV1(
@@ -77,7 +78,6 @@ describe("Program package archive V1", () => {
     expect(first.reference).toMatchObject({
       programId: source.manifest.programId,
       packageVersion: source.manifest.packageVersion,
-      contentDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
     });
     expect(first.files.map((file) => file.path)).toEqual(
       source.files.map((file) => file.path).toSorted(),
@@ -87,7 +87,7 @@ describe("Program package archive V1", () => {
     expect(new TextDecoder().decode(first.files[0]!.bytes)).not.toContain("\0");
   });
 
-  it("uses locale-independent code-unit path order for package identity", async () => {
+  it("uses locale-independent code-unit path order for admitted files", async () => {
     const source = archiveV1();
     const unicodeFiles = [
       ...source.files,
@@ -110,7 +110,7 @@ describe("Program package archive V1", () => {
     expect(second.reference).toEqual(first.reference);
   });
 
-  it("uses the digest rather than the human package version as exact identity", async () => {
+  it("keeps compatible changed bytes on the same Program binding", async () => {
     const first = await admitProgramPackageArchiveV1(archiveV1(), { limits: limitsV1 });
     const changed = archiveV1();
     const changedFiles = changed.files.map((file) =>
@@ -124,7 +124,10 @@ describe("Program package archive V1", () => {
     );
 
     expect(second.reference.packageVersion).toBe(first.reference.packageVersion);
-    expect(second.reference.contentDigest).not.toBe(first.reference.contentDigest);
+    expect(second.reference).toEqual(first.reference);
+    expect(readProgramPackageTextFileV1(second, "instructions/SKILL.md")).toBe(
+      "A revised instruction set.",
+    );
   });
 
   it("treats a missing and explicit empty model overlay list as the same package", async () => {
@@ -152,13 +155,10 @@ describe("Program package archive V1", () => {
 
     expect(first.manifest).not.toHaveProperty("recommendedModelPatterns");
     expect(second.manifest).not.toHaveProperty("recommendedModelPatterns");
-    expect(first.reference.contentDigest).toBe(
-      "adee74b752b763a6144e2b1974cdc313877818731ca8955ec2ae856630e37e32",
-    );
     expect(second.reference).toEqual(first.reference);
   });
 
-  it("preserves ordered recommended model patterns in admission, identity and clones", async () => {
+  it("preserves ordered recommended model patterns in admission and clones", async () => {
     const source = archiveV1();
     const recommendedModelPatterns = [
       "*glm-5.3-flash*",
@@ -178,7 +178,10 @@ describe("Program package archive V1", () => {
     }, { limits: limitsV1 });
 
     expect(admitted.manifest.recommendedModelPatterns).toEqual(recommendedModelPatterns);
-    expect(admitted.reference.contentDigest).not.toBe(reversed.reference.contentDigest);
+    expect(admitted.reference).toEqual(reversed.reference);
+    expect(reversed.manifest.recommendedModelPatterns).toEqual(
+      recommendedModelPatterns.toReversed(),
+    );
     const manifestClone = cloneProgramPackageManifestV1(admitted.manifest);
     const archiveClone = cloneProgramPackageArchiveV1(admitted);
     expect(manifestClone.recommendedModelPatterns).toEqual(recommendedModelPatterns);

@@ -10,21 +10,18 @@ import {
 const packageA1V1 = {
   programId: "program.a",
   packageVersion: "1.0.0",
-  contentDigest: "a".repeat(64),
 } as const;
 const packageA2V1 = {
   ...packageA1V1,
   packageVersion: "2.0.0",
-  contentDigest: "b".repeat(64),
 } as const;
 const packageB1V1 = {
   programId: "program.b",
   packageVersion: "1.0.0",
-  contentDigest: "c".repeat(64),
 } as const;
 
 describe("Program surface session state", () => {
-  it("retains state for an exact package while isolating other packages and successors", () => {
+  it("retains state for one compatibility version while isolating other Programs and versions", () => {
     const owner: ProgramSurfaceSessionStateOwnerV1 = createProgramSurfaceSessionStateOwnerV1();
     owner.forPackage(packageA1V1).write("process.1", { draft: "hello" });
 

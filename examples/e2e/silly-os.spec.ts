@@ -49,7 +49,14 @@ function externalTranslationProgramZipV1(): Buffer {
       settingsDefaultsPath: "settings.defaults.json",
       initialUiPath: "initial-ui.json",
       scripts: [],
-      capabilityIds: ["agent.text", "program.resource.read", "translation.batch"],
+      capabilityIds: [
+        "agent.text",
+        "program.resource.read",
+        "translation.batch",
+        "workspace.read",
+        "workspace.search",
+        "workspace.write",
+      ],
     })),
     "PROGRAM.md": encode([
       "# External Translation Review",
@@ -1835,7 +1842,7 @@ test("Program Library is the product home and launches bundled Programs through 
 });
 
 test(
-  "@program-package an external Program ZIP persists, creates distinct Processes, and exactly reopens each one",
+  "@program-package an external Program ZIP persists, creates distinct Processes, and reopens each through the current compatible implementation",
   async ({ durableProgramPage: page }) => {
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
     let library = await expectProgramLibraryV1(page);
@@ -1855,7 +1862,6 @@ test(
     await expect(externalPackageRowV1()).toHaveCount(1);
     await expect(externalPackageRowV1()).toContainText(externalTranslationProgramIdV1);
     await expect(externalPackageRowV1()).toContainText(externalTranslationRuntimeProfileV1);
-    await expect(externalPackageRowV1()).toContainText("Current for new Processes");
 
     const expectExternalProcessV1 = async (): Promise<string> => {
       const workspace = page.locator('[data-silly-os-view="translation-workspace"]');
@@ -1896,7 +1902,6 @@ test(
     await page.reload();
     library = await expectProgramLibraryV1(page);
     await expect(externalPackageRowV1()).toHaveCount(1);
-    await expect(externalPackageRowV1()).toContainText("Current for new Processes");
 
     const recentProcessRowV1 = (processId: string): Locator =>
       library.locator(".program-library__process").filter({
@@ -3224,7 +3229,7 @@ test("a pending Program remains locally reviewable without a Provider credential
 });
 
 test(
-  "a follow-up creates a new exact Program revision for review",
+  "a follow-up creates a new Program definition revision for review",
   async ({ durableProgramPage: page }) => {
     await openTranslationWorkspaceV1(page);
 

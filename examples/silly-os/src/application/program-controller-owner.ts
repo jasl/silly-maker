@@ -39,7 +39,7 @@ export interface SillyOsProgramControllerOwnerV1 {
   subscribe(listener: () => void): () => void;
   initialize(): Promise<void>;
   openLibrary(): Promise<boolean>;
-  launch(reference: InstalledProgramPackageReferenceV1): Promise<"program">;
+  launch(programId: string): Promise<"program">;
   openRecentProcess(processId: string): Promise<SillyOsProgramRouteV1>;
   openReadOnlyProcess(processId: string): Promise<ReadOnlyProcessConversationResultV1>;
   closeReadOnlyProcess(): SillyOsStableProgramRouteV1;
@@ -124,14 +124,15 @@ export function createSillyOsProgramControllerOwnerV1(input: {
   const launchV1 = async (
     reference: InstalledProgramPackageReferenceV1,
     exactProcessId: string | null = null,
-    readyPackage?: Extract<ProgramPackageLoadResultV1, { readonly kind: "ready" }>["package"],
+    readyResult?: Extract<ProgramPackageLoadResultV1, { readonly kind: "ready" }>,
     readyAdapter?: ProgramRuntimeControllerAdapterV1,
   ): Promise<"program"> => {
-    const programPackage = readyPackage ?? await (async () => {
-      const loaded = await input.packages.loadExact(reference);
-      if (loaded.kind !== "ready") throw loadResultFailureV1(loaded.kind);
-      return loaded.package;
+    const loaded = readyResult ?? await (async () => {
+      const resolved = await input.packages.resolveForProcess(reference);
+      if (resolved.kind !== "ready") throw loadResultFailureV1(resolved.kind);
+      return resolved;
     })();
+    const programPackage = loaded.package;
     const adapter = readyAdapter ?? await input.loadRuntimeControllerAdapter(
       programPackage.manifest.runtimeProfile,
     );
@@ -144,6 +145,7 @@ export function createSillyOsProgramControllerOwnerV1(input: {
       repository: input.repository,
       workspace: input.workspace,
       programPackage,
+      programImplementationId: loaded.implementationId,
       exactProcessId,
       reportFailure: input.reportFailure,
     });
@@ -223,12 +225,19 @@ export function createSillyOsProgramControllerOwnerV1(input: {
         return true;
       });
     },
-    launch(reference) {
+    launch(programId) {
       if (disposeRequested) {
         return Promise.reject(new Error("sillyos.program_controller.disposed"));
       }
       return serializeV1(async () => {
-        const route = await launchV1(reference);
+        const loaded = await input.packages.resolveCurrent(programId);
+        if (loaded === null) throw loadResultFailureV1("package_missing");
+        if (loaded.kind !== "ready") throw loadResultFailureV1(loaded.kind);
+        const route = await launchV1(
+          loaded.package.reference,
+          null,
+          loaded,
+        );
         readOnlyConversation.close();
         return route;
       });
@@ -246,7 +255,7 @@ export function createSillyOsProgramControllerOwnerV1(input: {
           code: "package_unavailable",
         };
         try {
-          loaded = await input.packages.loadExact(process.programPackage);
+          loaded = await input.packages.resolveForProcess(process.programPackage);
         } catch (error) {
           degradation = { capability: "package", code: failureCodeV1(error) };
           input.reportFailure("silly_os.recent_process_package_load_failed", error);
@@ -285,7 +294,7 @@ export function createSillyOsProgramControllerOwnerV1(input: {
                   const route = await launchV1(
                     process.programPackage,
                     process.processId,
-                    loaded.package,
+                    loaded,
                     adapter,
                   );
                   readOnlyConversation.close();
@@ -295,7 +304,7 @@ export function createSillyOsProgramControllerOwnerV1(input: {
                 const route = await launchV1(
                   process.programPackage,
                   process.processId,
-                  loaded.package,
+                  loaded,
                   adapter,
                 );
                 readOnlyConversation.close();

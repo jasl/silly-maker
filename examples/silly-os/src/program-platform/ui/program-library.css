@@ -339,8 +339,4 @@
   .program-library__metadata {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .program-library__digest {
-    grid-column: 1 / -1;
-  }
 }

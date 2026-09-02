@@ -112,7 +112,6 @@ function activeProcessV1(
       programPackage: {
         programId: "sillyos.creator",
         packageVersion: "1.0.0",
-        contentDigest: "c".repeat(64),
       },
       subjectProgramId: programV1.programId,
       status: "active",

@@ -12,10 +12,12 @@ Process = one durable conversation/project + isolated Workspace + settings/netwo
 
 Agent Creator 与 Translation 是当前两个 bundled Program。Bundling 只表示随 SillyOS 分发，
 不授予运行时特权：bundled archive 与用户导入的 ZIP 进入同一个 archive admission、
-IndexedDB installation repository、exact-package loader、runtime-profile selection 和 Program UI
-Container；安装结果不保留 acquisition origin。Program 是可复用的工作方式；每次使用
-Program 创建一个固定完整 package reference、持有独立 Conversation/Workspace/设置/能力偏好的
-持久 Process。对 Translation 而言，这个 Process 本身就是用户理解的翻译 Project，不再另设
+IndexedDB installation repository、current-implementation resolver、runtime-profile selection 和
+Program UI Container。Repository 为每个 `programId` 只保留一个当前实现；内部 acquisition
+仅用于决定 bundled refresh 是否应让位于用户安装的 external Program，不进入 Process 或运行时
+权限。Program 是可复用的工作方式；每次使用 Program 创建一个只固定 `programId` 和兼容性
+标记、持有独立 Conversation/Workspace/设置/能力偏好的持久 Process。对 Translation 而言，这个
+Process 本身就是用户理解的翻译 Project，不再另设
 Project 身份、列表、路由或生命周期。完整合同见
 [Program package contract](./PROGRAM-PACKAGE-DESIGN.md)。
 
@@ -64,11 +66,11 @@ API-key 表单，也不会显示可用的 Test connection。
 - 查看确定性的本地 Creator 回复和带明确版本的 Program proposal；
 - 在 Creator 的 Process Workspace 中同时查看人类/Creator 的分页富文本 Conversation、proposal 与预览；
 - 接受或拒绝当前精确版本；补充要求会形成新的 `pending` 版本，旧版本决定会被完整拒绝；
-- Program 与 Creator Process 会在同一事务提交后写入此浏览器；Program Library 会列出已安装的
-  exact packages 和最近 Processes，并可重开同一修订、决定和完整 pageable Conversation；
-- 已安装的 `sillyos.translation@1.0.0` package 可用它的 exact content digest 创建 Translation
-  Process。该路线创建独立 Process Workspace，并能 cold-reopen 同一 Process、Conversation、
-  exact package、Workspace binding 与 V16
+- Program 与 Creator Process 会在同一事务提交后写入此浏览器；Program Library 会列出每个
+  `programId` 的当前实现和最近 Processes，并可重开同一修订、决定和完整 pageable Conversation；
+- 已安装的 `sillyos.translation@1.0.0` package 可创建 Translation Process。该路线创建独立
+  Process Workspace，并能 cold-reopen 同一 Process、Conversation、当前兼容实现、Workspace
+  binding 与 V17
   Translation workset head。guided workbench 已把上传控件和 Process 自有的分页 source workset 接到
   controller。导入取得 Process execution lease 时，会在同一个 IndexedDB transaction 核对
   workset 仍不存在或仍是调用方见到的精确 staging revision；取得 lease 后，Workspace 原件写入、workset begin、每页
@@ -99,7 +101,7 @@ current 的 2xx 响应才会通过原有 journal 发布到 Process volume。Chro
 ingress、搜索、解压、认证下载或真实模型调用已经通过。Provider 请求是独立的凭据面能力，不受
 Process 网络开关控制。历史 S2-N3 Program-scoped 版本曾通过完整 521 项 SillyOS 单元套件、
 Chromium/WebKit 的开关/冷重开/`fetch_url`/`32 MiB download` 路径及三份生产构建边界检查，
-并进入 `a17c3490` 三 origin artifact；当前 V16 Process-scoped replacement 是本地 preview
+并进入 `a17c3490` 三 origin artifact；当前 V17 Process-scoped replacement 是本地 preview
 事实，不追溯改变该部署记录。artifact availability 不提升上述行为资格。
 
 另有一个只在 `?agent=pi-test` 出现的 B0a 验证入口：它会把产品 lockfile 固定的
@@ -121,10 +123,12 @@ HTTPS endpoint 的精确 binding 加密持久化；修改 endpoint 不会隐式�
 binding，并可从独立 Vault 列表 Forget 已不再使用的旧 binding。最近一次测试状态不会持久化，
 一次测试成功也不会升级成 SillyOS 的 built-in 双浏览器资格结论。
 
-当前持久化按职责分离。Program Package Installation Repository V1 在 `packages` 中保留 admitted
-immutable package，在 `package_heads` 中只选择供新 Process 使用的 current exact reference；bundled
-与 ZIP import 都经过这个 repository。Dedicated Worker 持有的 Browser IndexedDB Program Data Repository
-V16 的 **Conversation Core** 只保存固定 exact package 的 Process、分页富文本 Conversation、Process
+当前持久化按职责分离。Program Package Installation Repository V1 在 `packages` 与
+`package_metadata` 中按 `programId` 保留一个当前实现；bundled 与 ZIP import 都经过这个
+repository。内部 `installationId` 让已挂载的 Surface 与 Worker 在一次运行中绑定同一份实现；同版本
+实现被真正替换后，旧 Surface 的下一次提交会失败并要求重新打开，而完全相同的重复物化保留原 ID。
+它不进入 Library、Process 或 Program 身份。Dedicated Worker 持有的 Browser IndexedDB Program Data Repository
+V17 的 **Conversation Core** 只保存 `programId`、兼容性标记、分页富文本 Conversation、Process
 lease/fencing、`process_commits` 中的精确 operation receipt、`process_workspace_bindings`、
 `process_settings_overrides` 和 `process_network_access`。Creator 的 Program subject/head/revision/decision
 属于 Creator 自己的 persistence facet；Translation 的 workset head、精确 import receipt、分页
@@ -140,14 +144,14 @@ workspace 文件。Credential Vault
 workspace head 发布为本地不可变 Program snapshot，但不会因此生成、部署或托管一个真实
 应用。这个边界会在界面中如实显示，不使用假网络层来伪装后端。
 
-创建 Process 时会永久写入完整 `{ programId, packageVersion, contentDigest }` reference；安装
-successor 只移动供新 Process 使用的 current pointer，不替换已有 Process 的 package，也不迁移其
-VFS。如果 exact package、compatible runtime profile、可选 Program storage 或 Process Workspace
-不可用，Program Library 仍会打开 package-independent 的 pageable read-only Conversation；该模式
+创建 Process 时只写入 `{ programId, packageVersion }`；`packageVersion` 是薄兼容性标记，不是
+历史字节身份。打开 Process 时解析同一 `programId` 的当前实现：兼容时使用更新后的当前代码与
+资源，不兼容、缺失或损坏时打开 package-independent 的 pageable read-only Conversation。SillyOS
+不保留历史 Program archive，不迁移其 VFS，也不承诺 Program-private storage 的前后兼容。降级模式
 不暴露 runtime、settings、Workspace、Agent 或 mutation actions，也不会删除 transcript。
 
-Package 可以提供 closed settings schema 和完整 immutable defaults。一个 Process 可保存一个经过
-exact package admission 的 override；没有 override 时使用 package defaults。缺失、无效或部分输入
+Package 可以提供 closed settings schema 和完整 defaults。一个 Process 可保存一个经过当前
+Program schema admission 的 override；没有 override 时使用 package defaults。缺失、无效或部分输入
 不会阻挡 Process，也不会替换已保存 override；每次 Agent attempt 只捕获它开始时的 exact override。
 当前没有独立的 mutable Program-default preference repository。
 
@@ -258,10 +262,10 @@ database，因此普通 Program 生命周期与导出不会拥有或混入凭据
 中把普通 Program 的唯一 Authority 切到独立 Sandbox origin：控制面创建精确 origin frame
 transport，Sandbox 内固定 Host Worker 独占 OPFS、
 snapshot/export 与 volume 生命周期，旧控制-origin Host Worker 和 fallback 已删除。物理 Product
-Repository V16 是当前 pre-stable clean replacement：规范化
+Repository V17 是当前 pre-stable clean replacement：规范化
 Program/Process/Conversation stores、Process execution lease 与单一 Core Process
 `process_commits` operation-receipt authority 保持不变；Program facet 可以保留领域内 mutation
-幂等记录，但不会成为第二个 Process/Conversation 权威。每个 Process 固定 exact package，并由
+幂等记录，但不会成为第二个 Process/Conversation 权威。每个 Process 固定 `programId` 与兼容性标记，并由
 `process_workspace_bindings` 精确绑定自己的 Workspace/OPFS volume。Process-scoped
 `process_settings_overrides` 与缺行即默认关闭的 `process_network_access` 保持正交。Translation
 Process 直接拥有 workset head、import receipt、分页 unit/glossary stores、pending candidate 与
@@ -269,8 +273,8 @@ accepted-target review 状态。物理 store 和 receipt 统一采用 `translati
 独立 Project 产品层级。Process、首个 transcript checkpoint 和 binding
 可在一个 IndexedDB transaction 中提交；OPFS volume 的物理创建仍由 Sandbox Host
 单独拥有，不伪装成跨 IndexedDB/OPFS transaction。
-由于产品尚未发布稳定持久化合同，V16 对任何较早的 preview Program Data Repository 执行 row-blind
-reset，不读取或迁移旧 rows，也不保留旧 wire、method 或 type alias。同一 V16 database 中已删除或未知
+由于产品尚未发布稳定持久化合同，V17 对任何较早的 preview Program Data Repository 执行 row-blind
+reset，不读取或迁移旧 rows，也不保留旧 wire、method 或 type alias。同一 V17 database 中已删除或未知
 的 optional facet store 可以作为不可达物理数据暂留；Core 打开时忽略它，所选 facet 缺失或损坏只降级
 为 unavailable，显式 Clear All 才清空 Core 和当时存在的全部 facet stores。旧 control-origin
 OPFS bytes 可能仍由浏览器保留，但产品不再可达，也不会把它们作为迁移输入。
@@ -451,7 +455,7 @@ reload。单独的 Chromium/WebKit qualification 各 3/3
 Pi 工具到 workspace runtime 的转发、Pi 能力组合、OpenUI 到 SillyMaker 组件映射，
 再到翻译/写作/角色扮演产品的分阶段路径见 [PLAN.md](./PLAN.md)。Translation P5-A
 完成了六格式确定性 round-trip laboratory 和双路线 model-protocol smoke；后续正式基础已经
-加入真实 Translation Process 路由、独立 Process Workspace、同一 Authority 的原件导入、V16
+加入真实 Translation Process 路由、独立 Process Workspace、同一 Authority 的原件导入、V17
 Process-owned workset head/分页 rows、cold reopen，以及按需加载的文字型 PDF text-reflow。它们不代表
 任一模型路线已经通过质量资格。当前正式路径已经把所选模型的 context/output
 envelope 转成无隐藏条数上限的 bounded batch，经共享的单一 Agent Worker/Session 产生一个
@@ -857,29 +861,29 @@ deno run -A npm:vitest run \
 
 ## 当前代码边界
 
-| 位置                                                                            | 所有权                                                                                |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `programs/<name>/package/`                                                      | bundled/ZIP 共用的 production package bytes；不包含 tests、notes 或 Host code         |
-| `programs/<name>/distribution/`                                                 | 只重建 bundled archive 的 build-time source adapter；不赋予来源特权                   |
-| `programs/<name>/persistence/`                                                  | 可选的 Program-owned domain facet；通过 Host 的事务与命名空间边界执行                 |
-| `programs/<name>/runtime/`                                                      | 该 Program/profile 的 domain controller、合同与业务投影                               |
-| `programs/<name>/runtime-profile/`                                              | build-known Host adapter；同 profile 的 imported package 走相同路径                   |
-| `programs/<name>/ui/`                                                           | Program UI Container 内的 Host-compiled surface                                       |
-| `programs/<name>/{test,notes}/`                                                 | 测试、研究、fixtures 与工具；不进入 archive 或 production graph                       |
-| `src/program-platform/package/`                                                 | manifest/archive/digest/runtime-profile admission                                     |
-| `src/program-platform/installation/`                                            | bundled/ZIP 共用安装 repository、exact package load 与新 Process current pointer      |
-| `src/program-platform/process/`                                                 | Process、exact package、分页 Conversation、lease/checkpoint 与 settings override 合同 |
-| `src/program-platform/capabilities/`                                            | Process-scoped capability preferences                                                 |
-| `src/program-platform/ui/`                                                      | Program Library、UI Container 与 package-independent read-only Conversation           |
-| `src/application/program-{composition,controller-owner,runtime-composition}.ts` | 产品 composition roots；选择 bundled sources 与 build-known profiles                  |
-| `src/application/persistence/`                                                  | physical Program Data Repository V16、Worker client/wire 与复合原子事务               |
-| `src/application/{preferences,workspace}/`                                      | 产品级偏好与 Process Workspace Host adapter                                           |
-| `src/agent/browser-program-*`                                                   | 固定 harness 的 package/profile execution loader 与 typed Agent bridge                |
-| `src/agent/browser-pi-*`                                                        | 公共 Agent Session connector、产品私有 Worker wire、固定 Pi 与 Workspace tools        |
-| `src/credential/`                                                               | 独立 Vault Worker、WebCrypto、exact binding、IndexedDB、handoff 与 client             |
-| `src/workspace/` / `src/workspace-sandbox/`                                     | independent-origin VFS、bounded shell/QJS 与固定 Sandbox Host                         |
-| `PLAN.md`                                                                       | 独立产品孵化顺序、所有权、停止条件与明确 defer                                        |
-| `PROGRAM-PACKAGE-DESIGN.md`                                                     | 当前 Program package、安装、隔离、升级和降级合同                                      |
+| 位置                                                                            | 所有权                                                                             |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `programs/<name>/package/`                                                      | bundled/ZIP 共用的 production package bytes；不包含 tests、notes 或 Host code      |
+| `programs/<name>/distribution/`                                                 | 只重建 bundled archive 的 build-time source adapter；不赋予来源特权                |
+| `programs/<name>/persistence/`                                                  | 可选的 Program-owned domain facet；通过 Host 的事务与命名空间边界执行              |
+| `programs/<name>/runtime/`                                                      | 该 Program/profile 的 domain controller、合同与业务投影                            |
+| `programs/<name>/runtime-profile/`                                              | build-known Host adapter；同 profile 的 imported package 走相同路径                |
+| `programs/<name>/ui/`                                                           | Program UI Container 内的 Host-compiled surface                                    |
+| `programs/<name>/{test,notes}/`                                                 | 测试、研究、fixtures 与工具；不进入 archive 或 production graph                    |
+| `src/program-platform/package/`                                                 | manifest/archive/physical-budget/runtime-profile admission                         |
+| `src/program-platform/installation/`                                            | bundled/ZIP 共用安装 repository 与每个 `programId` 的当前实现解析                  |
+| `src/program-platform/process/`                                                 | Process 身份/兼容性、分页 Conversation、lease/checkpoint 与 settings override 合同 |
+| `src/program-platform/capabilities/`                                            | Process-scoped capability preferences                                              |
+| `src/program-platform/ui/`                                                      | Program Library、UI Container 与 package-independent read-only Conversation        |
+| `src/application/program-{composition,controller-owner,runtime-composition}.ts` | 产品 composition roots；选择 bundled sources 与 build-known profiles               |
+| `src/application/persistence/`                                                  | physical Program Data Repository V17、Worker client/wire 与复合原子事务            |
+| `src/application/{preferences,workspace}/`                                      | 产品级偏好与 Process Workspace Host adapter                                        |
+| `src/agent/browser-program-*`                                                   | 固定 harness 的 package/profile execution loader 与 typed Agent bridge             |
+| `src/agent/browser-pi-*`                                                        | 公共 Agent Session connector、产品私有 Worker wire、固定 Pi 与 Workspace tools     |
+| `src/credential/`                                                               | 独立 Vault Worker、WebCrypto、exact binding、IndexedDB、handoff 与 client          |
+| `src/workspace/` / `src/workspace-sandbox/`                                     | independent-origin VFS、bounded shell/QJS 与固定 Sandbox Host                      |
+| `PLAN.md`                                                                       | 独立产品孵化顺序、所有权、停止条件与明确 defer                                     |
+| `PROGRAM-PACKAGE-DESIGN.md`                                                     | 当前 Program package、安装、隔离、升级和降级合同                                   |
 
 后续 Agent loop、模型/provider、会话、tool dispatch 与 Agent 扩展统一由 Pi 负责。
 Browser Agent Worker 或 Desktop companion 只做目标适配、Program 数据所有权和 typed

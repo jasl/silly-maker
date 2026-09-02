@@ -43,6 +43,7 @@ export const creatorProgramRuntimeControllerAdapterV1: ProgramRuntimeControllerA
     }
     return {
       programPackage: input.programPackage,
+      programImplementationId: input.programImplementationId,
       controller,
       surfaceDrainOwner,
       getSnapshot: controller.getSnapshot,

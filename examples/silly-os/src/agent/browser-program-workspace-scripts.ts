@@ -4,8 +4,8 @@ import type { WorkspaceAgentRunV1 } from "../workspace/contracts.ts";
 import type { BrowserProgramWorkspaceScriptV1 } from "./browser-program-runtime-profile.ts";
 
 /**
- * Copies exact package scripts into the current Process VFS. The package stays
- * immutable; only the fixed Host performs this hydration, and later execution
+ * Copies the current Program scripts into the Process VFS for this run. Only
+ * the fixed Host performs this hydration, and later execution
  * still goes through the runtime profile's admitted qjs/python harness.
  */
 export async function stageBrowserProgramWorkspaceScriptsV1(input: {

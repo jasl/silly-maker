@@ -17,7 +17,6 @@ const textEncoderV1 = new TextEncoder();
 const programPackageV1: InstalledProgramPackageReferenceV1 = {
   programId: "sillyos.creator",
   packageVersion: "1.0.0",
-  contentDigest: "c".repeat(64),
 };
 const dispatchV1: BrowserPiAgentDispatchV1 = {
   revision: 1,
@@ -32,6 +31,10 @@ const dispatchV1: BrowserPiAgentDispatchV1 = {
     text: "Create a Program.",
   },
 };
+
+function implementationBindingV1(implementationId = "installation.1") {
+  return { programPackage: programPackageV1, implementationId } as const;
+}
 
 const runtimeProfileV1: BrowserProgramRuntimeProfileV1 = {
   runtimeProfile: creatorProgramRuntimeProfileV1,
@@ -103,7 +106,6 @@ function installedPackageV1(
   ];
   return {
     reference,
-    byteLength: instructions.byteLength,
     manifest: {
       schemaVersion: 1,
       programId: input.programId ?? reference.programId,
@@ -142,7 +144,8 @@ function installedPackageV1(
 }
 
 function repositoryV1(
-  load: ProgramPackageInstallationRepositoryV1["load"],
+  loadPackage: (programId: string) => Promise<AdmittedProgramPackageArchiveV1 | null>,
+  installationId: () => string = () => "installation.1",
 ): ProgramPackageInstallationRepositoryV1 & {
   readonly initialize: ReturnType<typeof vi.fn>;
   readonly dispose: ReturnType<typeof vi.fn>;
@@ -152,9 +155,15 @@ function repositoryV1(
     install: vi.fn(async () => {
       throw new Error("not used");
     }),
-    load,
+    async load(programId) {
+      const installedPackage = await loadPackage(programId);
+      return installedPackage === null ? null : {
+        acquisition: "external",
+        installationId: installationId(),
+        package: installedPackage,
+      };
+    },
     listMetadata: vi.fn(async () => []),
-    current: vi.fn(async () => null),
     remove: vi.fn(async () => false),
     reset: vi.fn(async () => undefined),
     dispose: vi.fn(async () => undefined),
@@ -162,9 +171,9 @@ function repositoryV1(
 }
 
 describe("Browser Program execution loader", () => {
-  it("pairs the exact Process-pinned package instructions with fixed Host code", async () => {
-    const repository = repositoryV1(vi.fn(async (reference) => {
-      expect(reference).toEqual(programPackageV1);
+  it("pairs the current compatible Program instructions with fixed Host code", async () => {
+    const repository = repositoryV1(vi.fn(async (programId) => {
+      expect(programId).toBe(programPackageV1.programId);
       return installedPackageV1();
     }));
     const loadRuntimeProfile = vi.fn(async (runtimeProfile: string) => {
@@ -176,7 +185,7 @@ describe("Browser Program execution loader", () => {
       loadRuntimeProfile,
     });
 
-    await expect(loader.load(dispatchV1)).resolves.toEqual({
+    await expect(loader.load(dispatchV1, implementationBindingV1())).resolves.toEqual({
       instructions: "Follow exact instructions.\n",
       modelPromptOverlays: [],
       packageResources: [{
@@ -196,7 +205,7 @@ describe("Browser Program execution loader", () => {
     expect(repository.dispose).toHaveBeenCalledTimes(1);
   });
 
-  it("preloads declared overlays from the exact package without choosing a model", async () => {
+  it("preloads declared overlays from the Program package without choosing a model", async () => {
     const loader = createBrowserProgramExecutionLoaderV1({
       repository: repositoryV1(vi.fn(async () =>
         installedPackageV1({
@@ -214,7 +223,7 @@ describe("Browser Program execution loader", () => {
       loadRuntimeProfile: vi.fn(async () => runtimeProfileV1),
     });
 
-    await expect(loader.load(dispatchV1)).resolves.toMatchObject({
+    await expect(loader.load(dispatchV1, implementationBindingV1())).resolves.toMatchObject({
       instructions: "Follow exact instructions.\n",
       modelPromptOverlays: [{
         modelPattern: "gpt-*",
@@ -229,40 +238,36 @@ describe("Browser Program execution loader", () => {
     await loader.dispose();
   });
 
-  it("caches only the current exact package and replaces it when the reference changes", async () => {
-    const successorReference: InstalledProgramPackageReferenceV1 = {
-      ...programPackageV1,
-      packageVersion: "2.0.0",
-      contentDigest: "d".repeat(64),
-    };
-    const load = vi.fn((reference: InstalledProgramPackageReferenceV1) =>
-      Promise.resolve(installedPackageV1({ reference }))
-    );
-    const repository = repositoryV1(load);
+  it("fences a mounted implementation when a compatible installation replaces it", async () => {
+    let current = installedPackageV1();
+    let installationId = "installation.1";
+    const load = vi.fn(() => Promise.resolve(current));
+    const repository = repositoryV1(load, () => installationId);
+    const loadRuntimeProfile = vi.fn(() => Promise.resolve(runtimeProfileV1));
     const loader = createBrowserProgramExecutionLoaderV1({
       repository,
-      loadRuntimeProfile: vi.fn(() => Promise.resolve(runtimeProfileV1)),
+      loadRuntimeProfile,
     });
-    const successorDispatch: BrowserPiAgentDispatchV1 = {
-      ...dispatchV1,
-      programPackage: successorReference,
-    };
 
-    await expect(loader.load(dispatchV1)).resolves.not.toBeNull();
-    await expect(loader.load(dispatchV1)).resolves.not.toBeNull();
-    expect(load).toHaveBeenCalledTimes(1);
-
-    await expect(loader.load(successorDispatch)).resolves.not.toBeNull();
-    await expect(loader.load(successorDispatch)).resolves.not.toBeNull();
+    await expect(loader.load(dispatchV1, implementationBindingV1())).resolves.not.toBeNull();
+    await expect(loader.load(dispatchV1, implementationBindingV1())).resolves.not.toBeNull();
     expect(load).toHaveBeenCalledTimes(2);
+    expect(loadRuntimeProfile).toHaveBeenCalledTimes(1);
 
-    await expect(loader.load(dispatchV1)).resolves.not.toBeNull();
-    expect(load).toHaveBeenCalledTimes(3);
+    current = installedPackageV1({ instructions: textEncoderV1.encode("Fixed instructions.\n") });
+    installationId = "installation.2";
+    await expect(loader.load(dispatchV1, implementationBindingV1())).resolves.toBeNull();
+    await expect(loader.load(dispatchV1, implementationBindingV1("installation.2"))).resolves
+      .toMatchObject({
+        instructions: "Fixed instructions.\n",
+      });
+    expect(load).toHaveBeenCalledTimes(4);
+    expect(loadRuntimeProfile).toHaveBeenCalledTimes(2);
     await loader.dispose();
   });
 
   it.each([
-    ["missing exact package", null],
+    ["missing Program", null],
     ["wrong Program identity", installedPackageV1({ programId: "community.creator" })],
     [
       "unsupported harness",
@@ -278,7 +283,7 @@ describe("Browser Program execution loader", () => {
       loadRuntimeProfile,
     });
 
-    await expect(loader.load(dispatchV1)).resolves.toBeNull();
+    await expect(loader.load(dispatchV1, implementationBindingV1())).resolves.toBeNull();
     if (
       installedPackage === null ||
       installedPackage.manifest.programId !== dispatchV1.programPackage.programId ||
@@ -305,7 +310,7 @@ describe("Browser Program execution loader", () => {
       loadRuntimeProfile: vi.fn(async () => runtimeProfileV1),
     });
 
-    await expect(loader.load(subjectDispatch)).resolves.toMatchObject({
+    await expect(loader.load(subjectDispatch, implementationBindingV1())).resolves.toMatchObject({
       instructions: "Follow exact instructions.\n",
       runtimeProfile: runtimeProfileV1,
     });
@@ -325,7 +330,7 @@ describe("Browser Program execution loader", () => {
       loadRuntimeProfile: vi.fn(async () => scriptProfile),
     });
 
-    await expect(loader.load(dispatchV1)).resolves.toMatchObject({
+    await expect(loader.load(dispatchV1, implementationBindingV1())).resolves.toMatchObject({
       workspaceScripts: [{
         packagePath: "scripts/prepare.js",
         workspacePath: "/workspace/.sillyos/program/scripts/prepare.js",
@@ -347,7 +352,7 @@ describe("Browser Program execution loader", () => {
       ),
     });
 
-    await expect(loader.load(dispatchV1)).resolves.toBeNull();
+    await expect(loader.load(dispatchV1, implementationBindingV1())).resolves.toBeNull();
     await loader.dispose();
   });
 
@@ -358,13 +363,13 @@ describe("Browser Program execution loader", () => {
       "initial UI surface",
       installedPackageV1({ initialUiSurface: "community.arbitrary-react.v1" }),
     ],
-  ])("rejects an exact package that self-declares an unsupported %s", async (_name, archive) => {
+  ])("rejects a Program that self-declares an unsupported %s", async (_name, archive) => {
     const loader = createBrowserProgramExecutionLoaderV1({
       repository: repositoryV1(vi.fn(async () => archive)),
       loadRuntimeProfile: vi.fn(async () => runtimeProfileV1),
     });
 
-    await expect(loader.load(dispatchV1)).resolves.toBeNull();
+    await expect(loader.load(dispatchV1, implementationBindingV1())).resolves.toBeNull();
     await loader.dispose();
   });
 
@@ -377,7 +382,7 @@ describe("Browser Program execution loader", () => {
       })),
     });
 
-    await expect(loader.load(dispatchV1)).resolves.toBeNull();
+    await expect(loader.load(dispatchV1, implementationBindingV1())).resolves.toBeNull();
     await loader.dispose();
   });
 });

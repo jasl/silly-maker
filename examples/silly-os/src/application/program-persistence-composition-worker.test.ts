@@ -192,7 +192,6 @@ function packageReferenceV1(programId: string): InstalledProgramPackageReference
   return {
     programId,
     packageVersion: "1.0.0",
-    contentDigest: "a".repeat(64),
   };
 }
 

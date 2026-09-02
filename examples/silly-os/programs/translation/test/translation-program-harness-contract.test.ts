@@ -18,14 +18,14 @@ import {
 import { browserWorkspaceSandboxArtifactBuildIdentityV1 } from "../../../src/workspace/browser-workspace-sandbox-build-identity.ts";
 import { executeBrowserWorkspaceQuickJsV1 } from "../../../src/workspace-sandbox/browser-workspace-quickjs.worker.ts";
 describe("SillyOS Translation Program fixed-harness contract", () => {
-  it("keeps the package identity separate from its selected Host runtime profile", () => {
+  it("keeps the Program compatibility binding separate from its selected Host runtime profile", () => {
     expect(translationProgramIdV1).toBe("sillyos.translation");
     expect(translationProgramRuntimeProfileV1).toBe("agent.translation.v1");
     expect(translationProgramRuntimeProfileImplementationV1.runtimeProfile).toBe(
       translationProgramRuntimeProfileV1,
     );
 
-    // Translation keeps its typed completion tool and exact package-resource
+    // Translation keeps its typed completion tool and current package-resource
     // reader, then selects only the existing bounded file tools needed for
     // Process-local working memory. It does not gain bash or network access.
     expect(translationProgramRuntimeProfileImplementationV1.harnessToolIds).toEqual([

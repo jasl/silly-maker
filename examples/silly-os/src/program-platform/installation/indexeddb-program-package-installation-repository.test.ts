@@ -9,7 +9,6 @@ import type {
 } from "../package/program-package-archive.ts";
 import {
   createIndexedDbProgramPackageInstallationRepositoryV1,
-  programPackageInstallationCurrentObjectStoreNameV1,
   programPackageInstallationDatabaseVersionV1,
   programPackageInstallationMetadataObjectStoreNameV1,
   programPackageInstallationObjectStoreNameV1,
@@ -26,7 +25,7 @@ const limitsV1: ProgramPackageAdmissionLimitsV1 = {
 const repositoriesV1: { dispose(): Promise<void> }[] = [];
 
 afterEach(async () => {
-  await Promise.all(repositoriesV1.splice(0).map(async (repository) => await repository.dispose()));
+  await Promise.all(repositoriesV1.splice(0).map((repository) => repository.dispose()));
 });
 
 function archiveV1(
@@ -72,27 +71,16 @@ function requestResultV1<TValue>(request: IDBRequest<TValue>): Promise<TValue> {
 }
 
 describe("IndexedDB Program package installation repository V1", () => {
-  it("clears pre-stable package storage instead of carrying compatibility readers forward", async () => {
+  it("row-blind resets pre-stable storage into the current two-store schema", async () => {
     const indexedDB = new IDBFactory();
     const databaseName = "program-packages.pre-stable-reset";
-    const legacyOpen = indexedDB.open(databaseName, 1);
+    const legacyOpen = indexedDB.open(databaseName, 2);
     legacyOpen.addEventListener("upgradeneeded", () => {
       legacyOpen.result.createObjectStore("packages", { keyPath: "storageKey" });
       legacyOpen.result.createObjectStore("package_heads", { keyPath: "programId" });
-      legacyOpen.result.createObjectStore("translation_project_legacy", { keyPath: "id" });
+      legacyOpen.result.createObjectStore("package_metadata", { keyPath: "storageKey" });
     });
-    const legacyDatabase = await requestResultV1(legacyOpen);
-    const legacyTransaction = legacyDatabase.transaction(
-      ["packages", "translation_project_legacy"],
-      "readwrite",
-    );
-    await requestResultV1(
-      legacyTransaction.objectStore("packages").put({ storageKey: "legacy", value: "obsolete" }),
-    );
-    await requestResultV1(
-      legacyTransaction.objectStore("translation_project_legacy").put({ id: "legacy" }),
-    );
-    legacyDatabase.close();
+    (await requestResultV1(legacyOpen)).close();
 
     const repository = createIndexedDbProgramPackageInstallationRepositoryV1({
       indexedDB,
@@ -103,16 +91,15 @@ describe("IndexedDB Program package installation repository V1", () => {
 
     await expect(repository.initialize()).resolves.toBe("created");
     await expect(repository.listMetadata()).resolves.toEqual([]);
-    const currentDatabase = await requestResultV1(indexedDB.open(databaseName));
-    expect([...currentDatabase.objectStoreNames]).toEqual([
-      programPackageInstallationCurrentObjectStoreNameV1,
+    const database = await requestResultV1(indexedDB.open(databaseName));
+    expect([...database.objectStoreNames]).toEqual([
       programPackageInstallationMetadataObjectStoreNameV1,
       programPackageInstallationObjectStoreNameV1,
     ]);
-    currentDatabase.close();
+    database.close();
   });
 
-  it("installs, reopens, lists, and removes one exact immutable package", async () => {
+  it("persists one current implementation and its internal installation id", async () => {
     const indexedDB = new IDBFactory();
     const databaseName = "program-packages.lifecycle";
     const first = createIndexedDbProgramPackageInstallationRepositoryV1({
@@ -121,28 +108,15 @@ describe("IndexedDB Program package installation repository V1", () => {
       limits: limitsV1,
     });
     repositoriesV1.push(first);
-    await expect(first.initialize()).resolves.toBe("created");
+    const installed = await first.install(archiveV1(), { acquisition: "external" });
 
-    const installed = await first.install(archiveV1(), { currentSelection: "always" });
     expect(installed.disposition).toBe("installed");
-    await expect(first.install(archiveV1(), { currentSelection: "always" })).resolves.toMatchObject(
-      {
-        disposition: "already_installed",
-        reference: installed.reference,
-      },
-    );
-    await expect(first.listMetadata()).resolves.toEqual([
-      expect.objectContaining({ reference: installed.reference }),
-    ]);
-    await expect(first.current(installed.reference.programId)).resolves.toEqual(
-      installed.reference,
-    );
-
-    const loaded = await first.load(installed.reference);
-    expect(loaded?.reference).toEqual(installed.reference);
-    expect(new TextDecoder().decode(loaded?.files[0]?.bytes)).toBe(
-      "Translate the admitted document.",
-    );
+    const firstLoad = await first.load(installed.reference.programId);
+    expect(firstLoad).toMatchObject({
+      acquisition: "external",
+      package: { reference: installed.reference },
+    });
+    expect(firstLoad?.installationId).toEqual(expect.any(String));
     await first.dispose();
     repositoriesV1.splice(repositoriesV1.indexOf(first), 1);
 
@@ -153,102 +127,160 @@ describe("IndexedDB Program package installation repository V1", () => {
     });
     repositoriesV1.push(reopened);
     await expect(reopened.initialize()).resolves.toBe("opened");
-    await expect(reopened.load(installed.reference)).resolves.toMatchObject({
-      reference: installed.reference,
+    await expect(reopened.load(installed.reference.programId)).resolves.toMatchObject({
+      installationId: firstLoad?.installationId,
+      package: { reference: installed.reference },
     });
-    await expect(reopened.remove(installed.reference)).resolves.toBe(true);
-    await expect(reopened.current(installed.reference.programId)).resolves.toBeNull();
-    await expect(reopened.remove(installed.reference)).resolves.toBe(false);
-    await expect(reopened.load(installed.reference)).resolves.toBeNull();
+    await expect(reopened.remove(installed.reference.programId)).resolves.toBe(true);
+    await expect(reopened.remove(installed.reference.programId)).resolves.toBe(false);
   });
 
-  it("retains exact package revisions side by side and never resolves through a moving head", async () => {
+  it("replaces compatible and incompatible implementations instead of retaining history", async () => {
     const repository = createIndexedDbProgramPackageInstallationRepositoryV1({
       indexedDB: new IDBFactory(),
-      databaseName: "program-packages.revisions",
+      databaseName: "program-packages.replacement",
       limits: limitsV1,
     });
     repositoriesV1.push(repository);
-    const first = await repository.install(archiveV1("1.0.0", "First instructions."), {
-      currentSelection: "always",
-    });
-    const changedWithoutVersionBump = await repository.install(
-      archiveV1("1.0.0", "Changed instructions."),
-      { currentSelection: "never" },
-    );
-    const successor = await repository.install(
-      archiveV1("2.0.0", "Successor instructions."),
-      { currentSelection: "always" },
-    );
 
-    expect(changedWithoutVersionBump.reference.contentDigest).not.toBe(
-      first.reference.contentDigest,
+    await repository.install(archiveV1("1.0.0", "First instructions."), {
+      acquisition: "bundled",
+    });
+    const first = await repository.load("community.example.translation");
+    const compatible = await repository.install(
+      archiveV1("1.0.0", "Fixed instructions."),
+      { acquisition: "bundled" },
     );
-    await expect(repository.current(first.reference.programId)).resolves.toEqual(
-      successor.reference,
+    expect(compatible.disposition).toBe("replaced");
+    const second = await repository.load("community.example.translation");
+    expect(second?.installationId).not.toBe(first?.installationId);
+    expect(new TextDecoder().decode(second?.package.files[0]?.bytes)).toBe("Fixed instructions.");
+
+    await repository.install(archiveV1("2.0.0", "Incompatible successor."), {
+      acquisition: "external",
+    });
+    const successor = await repository.load("community.example.translation");
+    expect(successor).toMatchObject({
+      acquisition: "external",
+      package: { reference: { packageVersion: "2.0.0" } },
+    });
+    const bundledRefresh = await repository.install(
+      archiveV1("1.0.0", "Bundled refresh must not replace the external install."),
+      { acquisition: "bundled" },
     );
+    expect(bundledRefresh).toEqual({
+      disposition: "retained_external",
+      reference: successor?.package.reference,
+    });
+    await expect(repository.load("community.example.translation")).resolves.toMatchObject({
+      acquisition: "external",
+      installationId: successor?.installationId,
+      package: { reference: { packageVersion: "2.0.0" } },
+    });
+    await expect(repository.listMetadata()).resolves.toHaveLength(1);
+
     await expect(
-      repository.install(
-        {
-          ...archiveV1("3.0.0", "Invalid successor."),
-          files: [],
-        },
-        { currentSelection: "always" },
-      ),
+      repository.install({ ...archiveV1("3.0.0"), files: [] }, { acquisition: "external" }),
     ).rejects.toMatchObject({ code: "referenced_file_missing" });
-    await expect(repository.current(first.reference.programId)).resolves.toEqual(
-      successor.reference,
-    );
-    await expect(repository.listMetadata()).resolves.toHaveLength(3);
-    await expect(repository.remove(first.reference)).resolves.toBe(true);
-    await expect(repository.load(changedWithoutVersionBump.reference)).resolves.not.toBeNull();
-    await expect(repository.load(successor.reference)).resolves.not.toBeNull();
+    await expect(repository.load("community.example.translation")).resolves.toMatchObject({
+      installationId: successor?.installationId,
+    });
   });
 
-  it("initializes a missing current package without replacing an existing selection", async () => {
+  it("retains the installation id when the same acquisition materializes identical admitted bytes", async () => {
+    for (const acquisition of ["bundled", "external"] as const) {
+      const repository = createIndexedDbProgramPackageInstallationRepositoryV1({
+        indexedDB: new IDBFactory(),
+        databaseName: `program-packages.idempotent-install.${acquisition}`,
+        limits: limitsV1,
+      });
+      repositoriesV1.push(repository);
+
+      const archive = archiveV1();
+      await repository.install(archive, { acquisition });
+      const first = await repository.load("community.example.translation");
+      const repeated = await repository.install(archiveV1(), { acquisition });
+      const second = await repository.load("community.example.translation");
+
+      expect(repeated).toEqual({
+        disposition: "retained_current",
+        reference: {
+          programId: archive.manifest.programId,
+          packageVersion: archive.manifest.packageVersion,
+        },
+      });
+      expect(second?.installationId).toBe(first?.installationId);
+    }
+  });
+
+  it("keeps identical bundled materialization idempotent across repository instances", async () => {
+    const indexedDB = new IDBFactory();
+    const databaseName = "program-packages.cross-instance-idempotency";
+    const firstRepository = createIndexedDbProgramPackageInstallationRepositoryV1({
+      indexedDB,
+      databaseName,
+      limits: limitsV1,
+    });
+    const secondRepository = createIndexedDbProgramPackageInstallationRepositoryV1({
+      indexedDB,
+      databaseName,
+      limits: limitsV1,
+    });
+    repositoriesV1.push(firstRepository, secondRepository);
+
+    await firstRepository.install(archiveV1(), { acquisition: "bundled" });
+    const first = await firstRepository.load("community.example.translation");
+    const repeated = await secondRepository.install(archiveV1(), { acquisition: "bundled" });
+    const second = await secondRepository.load("community.example.translation");
+
+    expect(repeated.disposition).toBe("retained_current");
+    expect(second?.installationId).toBe(first?.installationId);
+  });
+
+  it("replaces identical bytes when the acquisition changes", async () => {
     const repository = createIndexedDbProgramPackageInstallationRepositoryV1({
       indexedDB: new IDBFactory(),
-      databaseName: "program-packages.initial-selection",
+      databaseName: "program-packages.acquisition-change",
       limits: limitsV1,
     });
     repositoriesV1.push(repository);
-    const selected = await repository.install(
-      archiveV1("2.0.0", "User-selected successor."),
-      { currentSelection: "always" },
-    );
-    await repository.install(
-      archiveV1("1.0.0", "Bundled baseline."),
-      { currentSelection: "if_missing" },
-    );
 
-    await expect(repository.current(selected.reference.programId)).resolves.toEqual(
-      selected.reference,
-    );
+    await repository.install(archiveV1(), { acquisition: "bundled" });
+    const bundled = await repository.load("community.example.translation");
+    const replaced = await repository.install(archiveV1(), { acquisition: "external" });
+    const external = await repository.load("community.example.translation");
 
-    const fresh = await repository.install(
-      {
-        ...archiveV1("1.0.0", "Another Program."),
-        manifest: {
-          ...archiveV1("1.0.0", "Another Program.").manifest,
-          programId: "example.another-program",
-        },
-      },
-      { currentSelection: "if_missing" },
-    );
-    await expect(repository.current(fresh.reference.programId)).resolves.toEqual(fresh.reference);
+    expect(replaced.disposition).toBe("replaced");
+    expect(external?.acquisition).toBe("external");
+    expect(external?.installationId).not.toBe(bundled?.installationId);
   });
 
-  it("uses a dedicated schema and package removal cannot cascade into Process storage", async () => {
+  it("returns owned bytes so callers cannot mutate the stored implementation", async () => {
+    const repository = createIndexedDbProgramPackageInstallationRepositoryV1({
+      indexedDB: new IDBFactory(),
+      databaseName: "program-packages.owned",
+      limits: limitsV1,
+    });
+    repositoriesV1.push(repository);
+    await repository.install(archiveV1(), { acquisition: "external" });
+    const first = await repository.load("community.example.translation");
+    new Uint8Array(first!.package.files[0]!.bytes).fill(0);
+
+    const second = await repository.load("community.example.translation");
+    expect(new TextDecoder().decode(second!.package.files[0]!.bytes)).toBe(
+      "Translate the admitted document.",
+    );
+  });
+
+  it("uses a dedicated database so removal cannot cascade into Process storage", async () => {
     const indexedDB = new IDBFactory();
-    const processDatabaseName = "program-packages.process-control";
-    const processOpen = indexedDB.open(processDatabaseName, 1);
+    const processOpen = indexedDB.open("program-packages.process-control", 1);
     processOpen.addEventListener("upgradeneeded", () => {
       processOpen.result.createObjectStore("processes", { keyPath: "processId" });
     });
     const processDatabase = await requestResultV1(processOpen);
-    const processTransaction = processDatabase.transaction("processes", "readwrite");
     await requestResultV1(
-      processTransaction.objectStore("processes").put({
+      processDatabase.transaction("processes", "readwrite").objectStore("processes").put({
         processId: "process-1",
         conversation: "durable",
       }),
@@ -261,57 +293,31 @@ describe("IndexedDB Program package installation repository V1", () => {
       limits: limitsV1,
     });
     repositoriesV1.push(repository);
-    const installed = await repository.install(archiveV1(), { currentSelection: "always" });
-    await repository.remove(installed.reference);
+    await repository.install(archiveV1(), { acquisition: "external" });
+    await repository.remove("community.example.translation");
 
-    const processReopen = await requestResultV1(indexedDB.open(processDatabaseName));
-    const storedProcess = await requestResultV1(
-      processReopen.transaction("processes", "readonly").objectStore("processes").get("process-1"),
-    );
-    expect(storedProcess).toEqual({ processId: "process-1", conversation: "durable" });
-    processReopen.close();
-
-    const packageDatabase = await requestResultV1(indexedDB.open("program-packages.isolated"));
-    expect(packageDatabase.version).toBe(programPackageInstallationDatabaseVersionV1);
-    expect([...packageDatabase.objectStoreNames]).toEqual([
-      programPackageInstallationCurrentObjectStoreNameV1,
-      programPackageInstallationMetadataObjectStoreNameV1,
-      programPackageInstallationObjectStoreNameV1,
-    ]);
-    packageDatabase.close();
+    const reopened = await requestResultV1(indexedDB.open("program-packages.process-control"));
+    await expect(requestResultV1(
+      reopened.transaction("processes", "readonly").objectStore("processes").get("process-1"),
+    )).resolves.toEqual({ processId: "process-1", conversation: "durable" });
+    reopened.close();
+    const packages = await requestResultV1(indexedDB.open("program-packages.isolated"));
+    expect(packages.version).toBe(programPackageInstallationDatabaseVersionV1);
+    packages.close();
   });
 
-  it("returns owned bytes so callers cannot mutate an installed package", async () => {
+  it("resets every installed implementation", async () => {
     const repository = createIndexedDbProgramPackageInstallationRepositoryV1({
       indexedDB: new IDBFactory(),
-      databaseName: "program-packages.owned",
-      limits: limitsV1,
-    });
-    repositoriesV1.push(repository);
-    const installed = await repository.install(archiveV1(), { currentSelection: "always" });
-    const firstLoad = await repository.load(installed.reference);
-    new Uint8Array(firstLoad!.files[0]!.bytes).fill(0);
-
-    const secondLoad = await repository.load(installed.reference);
-    expect(new TextDecoder().decode(secondLoad!.files[0]!.bytes)).toBe(
-      "Translate the admitted document.",
-    );
-  });
-
-  it("resets every installed package and current selection without touching Process storage", async () => {
-    const indexedDB = new IDBFactory();
-    const repository = createIndexedDbProgramPackageInstallationRepositoryV1({
-      indexedDB,
       databaseName: "program-packages.reset",
       limits: limitsV1,
     });
     repositoriesV1.push(repository);
-    const installed = await repository.install(archiveV1(), { currentSelection: "always" });
+    await repository.install(archiveV1(), { acquisition: "external" });
 
     await repository.reset();
 
     await expect(repository.listMetadata()).resolves.toEqual([]);
-    await expect(repository.current(installed.reference.programId)).resolves.toBeNull();
-    await expect(repository.load(installed.reference)).resolves.toBeNull();
+    await expect(repository.load("community.example.translation")).resolves.toBeNull();
   });
 });

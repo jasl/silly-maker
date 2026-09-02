@@ -9,6 +9,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { browserPiDistributionIdentityV1 } from "../agent/browser-pi-distribution.ts";
+import { serializeBrowserPiBoundAgentDispatchV1 } from "../agent/browser-pi-agent-dispatch.ts";
 import {
   admitBrowserProgramCandidateArtifactHandleV1,
   browserProgramCandidateArtifactRelativePathV1,
@@ -385,7 +386,7 @@ function createBrowserCreatorAgentPortV1(
     ...input,
     openNetworkBroker: input.openNetworkBroker ?? openTestNetworkBrokerV1,
   } as BrowserProgramAgentPortInputV1);
-  const port = createCreatorProgramAgentPortV1(host);
+  const port = createCreatorProgramAgentPortV1(bindTestProgramAgentHostV1(host));
   testProgramAgentHostsV1.add(host);
   testProgramAgentHostByPortV1.set(port, host);
   return port;
@@ -405,13 +406,14 @@ function testProgramAgentHostV1(port: CreatorAgentPortV1) {
 
 function createTestProgramAgentPortsV1(input: BrowserProgramAgentPortInputV1) {
   const host = createBrowserProgramAgentHostV1(input);
-  const creator = createCreatorProgramAgentPortV1(host);
+  const runtimeHost = bindTestProgramAgentHostV1(host);
+  const creator = createCreatorProgramAgentPortV1(runtimeHost);
   testProgramAgentHostsV1.add(host);
   testProgramAgentHostByPortV1.set(creator, host);
   return Object.freeze({
     host,
     creator,
-    translation: createTranslationProgramAgentPortV1(host),
+    translation: createTranslationProgramAgentPortV1(runtimeHost),
   });
 }
 
@@ -435,12 +437,31 @@ const submitV1: CreatorAgentSubmitV1 = {
   text: "Make review explicit.",
 };
 
-function programPackageV1(programId: string, digestDigit = "c") {
+function programPackageV1(programId: string) {
   return {
     programId,
     packageVersion: "1.0.0",
-    contentDigest: digestDigit.repeat(64),
   } as const;
+}
+
+function bindTestProgramAgentHostV1(
+  host: ReturnType<typeof createBrowserProgramAgentHostV1>,
+) {
+  return host.bindProgramRuntime({
+    programPackage: programPackageV1(submitV1.programId),
+    implementationId: "installation.test",
+  });
+}
+
+function bindAgentSubmitV1(text: string, programId: string): string {
+  return serializeBrowserPiBoundAgentDispatchV1({
+    revision: 1,
+    implementation: {
+      programPackage: programPackageV1(programId),
+      implementationId: "installation.test",
+    },
+    dispatchText: text,
+  });
 }
 
 const loadTestProgramExecutionV1: NonNullable<
@@ -477,10 +498,13 @@ const testClaudePromptOverlaysV1 = [{
 }] as const;
 
 function serializeCreatorAgentSubmitV1(submit: CreatorAgentSubmitV1): string {
-  return serializeBrowserPiCreatorAgentDispatchV1({
-    programPackage: programPackageV1(submit.programId),
-    submit,
-  });
+  return bindAgentSubmitV1(
+    serializeBrowserPiCreatorAgentDispatchV1({
+      programPackage: programPackageV1(submit.programId),
+      submit,
+    }),
+    submit.programId,
+  );
 }
 
 function productRunV1(
@@ -508,7 +532,7 @@ function translationAgentRunV1(
   return {
     kind: "batch",
     agentRunId: "agent.run.translation.1",
-    programPackage: programPackageV1(submitV1.programId, "d"),
+    programPackage: programPackageV1(submitV1.programId),
     processId: "process.translation.agent-port.1",
     processAttemptGeneration: 1,
     workspaceCheckpointId: "sillyos.workspace.checkpoint.test.1",
@@ -2073,35 +2097,38 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       method: "submit",
       params: {
         sessionId: "sillyos.session.1",
-        text: serializeBrowserPiTranslationAgentDispatchV1({
-          programPackage: programPackageV1(submitV1.programId, "d"),
-          programId: submitV1.programId,
-          requestedOutputTokens: 4_608,
-          instruction: "Translate the admitted batch faithfully.",
-          request: {
-            sourceLocale: "zh-CN",
-            targetLocale: "en",
-            documentPurpose: "Fictional game dialogue.",
-            style: "Natural and concise.",
-            glossary: [],
-            confirmedMeaningFacts: [],
-            neighboringUnits: { preceding: null, following: null },
-            units: [{
-              unitId: "translation.unit.000001",
-              order: 0,
-              locator: "line/1",
-              context: null,
-              durationMilliseconds: null,
-              lineBreakPolicy: "forbidden",
-              source: "欢迎回来，⟦SM:0⟧。",
-              protectedSegments: [{
-                token: "⟦SM:0⟧",
-                kind: "placeholder",
-                source: "{name}",
+        text: bindAgentSubmitV1(
+          serializeBrowserPiTranslationAgentDispatchV1({
+            programPackage: programPackageV1(submitV1.programId),
+            programId: submitV1.programId,
+            requestedOutputTokens: 4_608,
+            instruction: "Translate the admitted batch faithfully.",
+            request: {
+              sourceLocale: "zh-CN",
+              targetLocale: "en",
+              documentPurpose: "Fictional game dialogue.",
+              style: "Natural and concise.",
+              glossary: [],
+              confirmedMeaningFacts: [],
+              neighboringUnits: { preceding: null, following: null },
+              units: [{
+                unitId: "translation.unit.000001",
+                order: 0,
+                locator: "line/1",
+                context: null,
+                durationMilliseconds: null,
+                lineBreakPolicy: "forbidden",
+                source: "欢迎回来，⟦SM:0⟧。",
+                protectedSegments: [{
+                  token: "⟦SM:0⟧",
+                  kind: "placeholder",
+                  source: "{name}",
+                }],
               }],
-            }],
-          },
-        }),
+            },
+          }),
+          submitV1.programId,
+        ),
       },
     }, execution));
 
@@ -2582,8 +2609,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
-      loadProgramExecution: async (dispatch) => {
-        const execution = await loadTestProgramExecutionV1(dispatch);
+      loadProgramExecution: async (dispatch, implementation) => {
+        const execution = await loadTestProgramExecutionV1(dispatch, implementation);
         return execution === null
           ? null
           : { ...execution, modelPromptOverlays: testClaudePromptOverlaysV1 };
@@ -5085,8 +5112,9 @@ describe("SillyOS Browser Pi transport and product port", () => {
       openNetworkBroker: openTestNetworkBrokerV1,
       workerFactory: () => worker,
     });
-    const firstCreator = createCreatorProgramAgentPortV1(host);
-    const translation = createTranslationProgramAgentPortV1(host);
+    const runtimeHost = bindTestProgramAgentHostV1(host);
+    const firstCreator = createCreatorProgramAgentPortV1(runtimeHost);
+    const translation = createTranslationProgramAgentPortV1(runtimeHost);
     await expect(firstCreator.configureCredential("sentinel-browser-key")).resolves.toMatchObject({
       kind: "configured",
     });
@@ -5113,7 +5141,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       diagnostic: { code: "disposed" },
     });
 
-    const successorCreator = createCreatorProgramAgentPortV1(host);
+    const successorCreator = createCreatorProgramAgentPortV1(runtimeHost);
     const successorRun = productRunV1({ agentRunId: "agent.run.product.successor" });
     await expect(successorCreator.submit(successorRun)).resolves.toEqual({
       kind: "submitted",
@@ -5143,7 +5171,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       workerFactory: () => worker,
     });
     const control = host.createControlPort();
-    const creator = createCreatorProgramAgentPortV1(host);
+    const creator = createCreatorProgramAgentPortV1(bindTestProgramAgentHostV1(host));
     expect(control.getSnapshot().phase).toBe("uninitialized");
     expect(creator.getSnapshot().phase).toBe("uninitialized");
 
@@ -5553,7 +5581,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     await expect(port.submit(productRunV1({
       programPackage: {
         ...programPackageV1(submitV1.programId),
-        contentDigest: "invalid",
+        packageVersion: "",
       },
     }))).resolves.toEqual({
       kind: "unavailable",

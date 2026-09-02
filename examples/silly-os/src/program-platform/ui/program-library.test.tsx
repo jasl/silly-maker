@@ -37,16 +37,13 @@ function installedV1(input: {
   readonly programId: string;
   readonly name: string;
   readonly version: string;
-  readonly digestCharacter: string;
   readonly compatibility: ProgramPackageLibraryEntryV1["compatibility"];
-  readonly selected?: boolean;
 }): ProgramPackageLibraryEntryV1 {
   const runtimeProfile = `${input.programId}.runtime.v1`;
   return {
     reference: {
       programId: input.programId,
       packageVersion: input.version,
-      contentDigest: input.digestCharacter.repeat(64),
     },
     manifest: {
       schemaVersion: 1,
@@ -63,10 +60,7 @@ function installedV1(input: {
       scripts: [],
       capabilityIds: [],
     },
-    byteLength: 12_000,
     compatibility: input.compatibility,
-    materialized: true,
-    selectedForNewProcesses: input.selected ?? false,
   };
 }
 
@@ -79,7 +73,7 @@ function serviceV1(input: {
     async resolveCurrent() {
       return null;
     },
-    async loadExact(reference) {
+    async resolveForProcess(reference) {
       return { kind: "package_missing", reference };
     },
     async installArchive(archive) {
@@ -88,7 +82,6 @@ function serviceV1(input: {
         reference: {
           programId: archive.manifest.programId,
           packageVersion: archive.manifest.packageVersion,
-          contentDigest: "0".repeat(64),
         },
       };
     },
@@ -123,7 +116,6 @@ describe("SillyOS Program library", () => {
       programPackage: {
         programId: "community.removed",
         packageVersion: "1.0.0",
-        contentDigest: "a".repeat(64),
       },
       subjectProgramId: null,
       status: "active",
@@ -162,35 +154,30 @@ describe("SillyOS Program library", () => {
     expect(listRecentProcesses).toHaveBeenCalledWith({ before: null, maximumBytes: 65_536 });
   });
 
-  it("shows exact compatibility and current-selection state without package-origin privilege", async () => {
+  it("shows compatibility without package-origin or byte-identity details", async () => {
     const entries = [
       installedV1({
         programId: "community.writer",
         name: "Writer",
         version: "2.0.0",
-        digestCharacter: "a",
         compatibility: "ready",
-        selected: true,
       }),
       installedV1({
         programId: "community.future",
         name: "Future",
         version: "1.0.0",
-        digestCharacter: "b",
         compatibility: "harness_incompatible",
       }),
       installedV1({
         programId: "community.specialized",
         name: "Specialized",
         version: "3.1.4",
-        digestCharacter: "c",
         compatibility: "runtime_profile_unavailable",
       }),
       installedV1({
         programId: "community.overreach",
         name: "Overreach",
         version: "1.0.0",
-        digestCharacter: "d",
         compatibility: "runtime_profile_incompatible",
       }),
     ];
@@ -209,8 +196,8 @@ describe("SillyOS Program library", () => {
     expect(screen.getByText("Runtime requirements incompatible")).toBeInTheDocument();
     expect(screen.getByText("Requires sillyos.program-harness.v1")).toBeInTheDocument();
     expect(screen.getByText("Requires community.specialized.runtime.v1")).toBeInTheDocument();
-    expect(screen.getByText("Current for new Processes")).toBeInTheDocument();
-    expect(screen.getByText("a".repeat(64))).toBeInTheDocument();
+    expect(screen.queryByText("Content identity")).toBeNull();
+    expect(screen.queryByText("Size")).toBeNull();
     expect(screen.queryByText(/bundled|community package|external package/iu)).toBeNull();
 
     const input = screen.getByLabelText("Import Program ZIP");
@@ -223,14 +210,12 @@ describe("SillyOS Program library", () => {
     );
   });
 
-  it("launches a ready exact package without exposing its acquisition origin", async () => {
+  it("launches a ready current Program without exposing its acquisition origin", async () => {
     const entry = installedV1({
       programId: "community.writer",
       name: "Writer",
       version: "2.0.0",
-      digestCharacter: "a",
       compatibility: "ready",
-      selected: true,
     });
     const onLaunch = vi.fn(async () => undefined);
     render(
@@ -243,7 +228,7 @@ describe("SillyOS Program library", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "Open" }));
-    await waitFor(() => expect(onLaunch).toHaveBeenCalledWith(entry.reference));
+    await waitFor(() => expect(onLaunch).toHaveBeenCalledWith(entry.reference.programId));
   });
 
   it("imports through the supplied service, refreshes the list, and reports completion", async () => {
@@ -251,17 +236,13 @@ describe("SillyOS Program library", () => {
       programId: "example.translation",
       name: "Translation",
       version: "1.0.0",
-      digestCharacter: "d",
       compatibility: "ready",
-      selected: true,
     });
     const imported = installedV1({
       programId: "community.review",
       name: "Review",
       version: "1.0.0",
-      digestCharacter: "e",
       compatibility: "ready",
-      selected: true,
     });
     let entries: readonly ProgramPackageLibraryEntryV1[] = [original];
     const result: ProgramPackageInstallationResultV1 = {
@@ -296,12 +277,11 @@ describe("SillyOS Program library", () => {
     await waitFor(() => expect(status).toHaveTextContent("Imported review.zip"));
     expect(await screen.findByRole("heading", { name: "Review" })).toBeInTheDocument();
     expect(installZip).toHaveBeenCalledTimes(1);
-    const [bytes, options, installationOptions] = installZip.mock.calls[0]!;
+    const [bytes, options] = installZip.mock.calls[0]!;
     expect(new Uint8Array(bytes as ArrayBuffer)).toEqual(zipBytes);
     expect(options).toBe(decodeOptionsV1);
-    expect(installationOptions).toEqual({ selectCurrent: true });
     expect(onInstalled).toHaveBeenCalledWith(result);
-    expect(within(status).getByText("This version is selected for new Processes."))
+    expect(within(status).getByText("The Program was installed."))
       .toBeInTheDocument();
   });
 
@@ -310,9 +290,7 @@ describe("SillyOS Program library", () => {
       programId: "community.writer",
       name: "Writer",
       version: "1.0.0",
-      digestCharacter: "f",
       compatibility: "ready",
-      selected: true,
     });
     const installZip = vi.fn<ProgramPackageServiceV1["installZip"]>(async () => {
       throw new Error("sillyos.program_package.zip.manifest_missing");

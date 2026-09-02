@@ -932,7 +932,7 @@ describe("SillyOS Translation Program workspace", () => {
     expect(screen.getByLabelText("Target language")).toHaveValue("ja");
   });
 
-  it("uses exact package copy, then its declared fallback, inside the Host container", () => {
+  it("uses current Program copy, then its declared fallback, inside the Host container", () => {
     const initialUi = {
       schemaVersion: 3 as const,
       surface: "translation.workspace.v1" as const,

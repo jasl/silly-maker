@@ -5,7 +5,7 @@ import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { BrowserProgramAgentHostV1 } from "../../../src/agent/browser-program-agent-host-contracts.ts";
+import type { BrowserProgramRuntimeAgentHostV1 } from "../../../src/agent/browser-program-agent-host-contracts.ts";
 import type {
   BrowserProgramAgentCloseWorkspaceResultV1,
   BrowserProgramAgentWorkspaceSnapshotV1,
@@ -87,7 +87,6 @@ function followUpRunV1(agentRunId: string): TranslationFollowUpAgentRunRequestV1
     programPackage: {
       programId: workspaceDescriptorV1.programId,
       packageVersion: "1.0.0",
-      contentDigest: "a".repeat(64),
     },
     processId: "process.translation",
     processAttemptGeneration: 1,
@@ -274,7 +273,6 @@ function controllerSnapshotV1(
         reference: {
           programId: workspaceDescriptorV1.programId,
           packageVersion: "1.0.0",
-          contentDigest: "a".repeat(64),
         },
         instructions: "Translate one admitted batch while preserving meaning.",
       },
@@ -311,7 +309,7 @@ function controllerV1(input: {
 function hostV1(
   registerProgramDrain: ProgramSurfaceHostV1["registerProgramDrain"],
   reportFailure = vi.fn(),
-  agentHost: BrowserProgramAgentHostV1 = {} as BrowserProgramAgentHostV1,
+  agentHost: BrowserProgramRuntimeAgentHostV1 = {} as BrowserProgramRuntimeAgentHostV1,
   registerAgentDrain: ProgramSurfaceHostV1["registerAgentDrain"] = () => () => undefined,
 ): ProgramSurfaceHostV1 {
   const sessionState = new Map<string, unknown>();
@@ -377,7 +375,7 @@ describe("Translation Program Surface lifecycle", () => {
         host={hostV1(
           owner.register,
           vi.fn(),
-          {} as BrowserProgramAgentHostV1,
+          {} as BrowserProgramRuntimeAgentHostV1,
           (drain) => {
             agentDrain = drain;
             return () => undefined;
@@ -769,8 +767,8 @@ describe("Translation Program Surface lifecycle", () => {
       async () => preparedAgentBatchV1(run),
     );
     const controller = controllerV1({ prepareAgentBatch, activeAttemptId: run.agentRunId });
-    const firstHost = {} as BrowserProgramAgentHostV1;
-    const secondHost = {} as BrowserProgramAgentHostV1;
+    const firstHost = {} as BrowserProgramRuntimeAgentHostV1;
+    const secondHost = {} as BrowserProgramRuntimeAgentHostV1;
     const view = render(
       <TranslationProgramSurfaceV1
         controller={controller}

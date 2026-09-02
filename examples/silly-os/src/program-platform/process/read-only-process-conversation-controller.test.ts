@@ -13,7 +13,6 @@ import { createReadOnlyProcessConversationControllerV1 } from "./read-only-proce
 const unavailableProgramPackageV1 = {
   programId: "community.program.no-longer-installed",
   packageVersion: "7.0.0",
-  contentDigest: "7".repeat(64),
 } as const;
 
 function transcriptEntryV1(processId: string, sequence: number): TranscriptEntryV1 {

@@ -40,9 +40,9 @@ does not create another Process, Workspace, transcript or execution authority.
 ## Program and Harness boundary
 
 `sillyos.translation@1.0.0` is an ordinary bundled Program package. Bundled and
-imported packages use the same archive admission, persistence, exact-package
-pinning, runtime-profile selection and Program UI Container. Translation has no
-builtin privilege.
+imported packages use the same archive admission, current-installation
+resolution, runtime-profile selection and Program UI Container. Translation has
+no builtin privilege.
 
 The package is organized as:
 
@@ -62,9 +62,11 @@ environments for other Programs; Translation will select CodeAct only after a
 real workflow needs a reusable transformation that the shipped operations
 cannot express.
 
-Package resources are read from the exact package pinned by the Process. They
-are not copied into the mutable Process Workspace, and a newer installed package
-does not replace the package of an existing Process.
+Package resources are read from the current compatible Program implementation.
+They are not copied into the mutable Process Workspace. A Process retains only
+its `programId` and compatibility marker, so compatible fixes apply when it is
+reopened; an incompatible or missing implementation degrades to the read-only
+Conversation instead of restoring historical package bytes.
 
 ## Current document denominator
 
