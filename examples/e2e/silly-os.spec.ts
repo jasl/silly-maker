@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// <reference lib="dom" />
+import { AxeBuilder } from "@axe-core/playwright";
 import type { Frame, Locator, Page, Route } from "@playwright/test";
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
@@ -28,6 +29,7 @@ const deterministicFetchUrlProbePrefixV1 =
 const deterministicDownloadProbePrefixV1 =
   "Exercise the product-fixed Pi download tool for exact URL: ";
 const deterministicDownloadRelativePathV1 = ".sillyos/n2-download.bin";
+const programCandidateArtifactRelativePathV1 = ".sillyos-agent-candidate.v1.json";
 const p4aTranscriptWindowQualificationBytesV1 = 384 * 1024;
 const externalTranslationProgramIdV1 = "community.translation-review";
 const externalTranslationRuntimeProfileV1 = "agent.translation.v1";
@@ -872,6 +874,13 @@ async function expectCreatorStorageReadyV1(page: Page): Promise<void> {
   await expect(page.locator('[data-program-storage-state="ready"]')).toBeVisible();
 }
 
+async function expectNoWcagViolationsV1(page: Page, surface: string): Promise<void> {
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22a", "wcag22aa"])
+    .analyze();
+  expect(results.violations, `axe violations on ${surface}`).toEqual([]);
+}
+
 async function expectProgramLibraryV1(page: Page): Promise<Locator> {
   const library = page.locator('[data-silly-os-view="program-library"]');
   await expect(library).toBeVisible();
@@ -1303,6 +1312,22 @@ async function currentOrdinaryWorkspaceSandboxFrameV1(page: Page): Promise<Frame
   return frame;
 }
 
+async function sandboxWorkspaceVolumeExistsV1(page: Page, volumeId: string): Promise<boolean> {
+  const frame = await currentOrdinaryWorkspaceSandboxFrameV1(page);
+  return await frame.evaluate(async (requestedVolumeId) => {
+    try {
+      let directory = await navigator.storage.getDirectory();
+      for (const name of [".sillyos-workspace-host-v1", "volumes", requestedVolumeId]) {
+        directory = await directory.getDirectoryHandle(name);
+      }
+      return true;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "NotFoundError") return false;
+      throw error;
+    }
+  }, volumeId);
+}
+
 async function controlOriginHasWorkspaceVolumeV1(page: Page, volumeId: string): Promise<boolean> {
   return await page.evaluate(async (requestedVolumeId) => {
     try {
@@ -1488,15 +1513,21 @@ function assertOrdinaryWorkspaceArchiveV1(
     readonly text: string;
   },
 ): void {
+  const candidateName = `workspace/${programCandidateArtifactRelativePathV1}`;
   const fileName = `workspace/${ordinaryWorkspaceRoundTripPathV1}`;
   const entries = readZipCentralDirectoryV1(archiveBytes);
-  expect(entries.map((entry) => entry.name)).toEqual([workspaceExportManifestNameV1, fileName]);
+  expect(entries.map((entry) => entry.name)).toEqual([
+    workspaceExportManifestNameV1,
+    candidateName,
+    fileName,
+  ]);
   expect(entries.every((entry) => entry.compressionMethod === 0)).toBe(true);
   const extracted = new Map(entries.map((entry) => [entry.name, entry.bytes]));
   const manifestBytes = extracted.get(workspaceExportManifestNameV1);
+  const candidateBytes = extracted.get(candidateName);
   const workspaceBytes = extracted.get(fileName);
-  if (manifestBytes === undefined || workspaceBytes === undefined) {
-    throw new Error("Ordinary Workspace ZIP omitted its manifest or Pi-written file");
+  if (manifestBytes === undefined || candidateBytes === undefined || workspaceBytes === undefined) {
+    throw new Error("Ordinary Workspace ZIP omitted its manifest, candidate, or Pi-written file");
   }
   const manifest = JSON.parse(
     new TextDecoder("utf-8", { fatal: true }).decode(manifestBytes),
@@ -1510,6 +1541,7 @@ function assertOrdinaryWorkspaceArchiveV1(
     workspaceId: expected.workspaceId,
     generation: expected.generation,
   });
+  expect(candidateBytes.byteLength).toBeGreaterThan(0);
   expect(new TextDecoder("utf-8", { fatal: true }).decode(workspaceBytes)).toBe(expected.text);
 }
 
@@ -1622,6 +1654,12 @@ async function settleVisualFixtureV1(page: Page): Promise<void> {
     await new Promise<void>((resolveV1) => requestAnimationFrame(() => resolveV1()));
     await new Promise<void>((resolveV1) => requestAnimationFrame(() => resolveV1()));
     (document.activeElement as HTMLElement | null)?.blur();
+  });
+}
+
+async function pinChatFeedToBottomV1(page: Page): Promise<void> {
+  await page.locator(".chat-pane__feed").evaluate((feedV1) => {
+    feedV1.scrollTop = feedV1.scrollHeight;
   });
 }
 
@@ -1842,6 +1880,53 @@ test("Program Library is the product home and launches bundled Programs through 
 });
 
 test(
+  "@release SillyOS has no WCAG A or AA violations on its representative Program surfaces",
+  async ({ durableProgramPage: page }) => {
+    test.setTimeout(120_000);
+    await page.goto(sillyOsTargetUrlV1("?locale=en"));
+
+    const library = await expectProgramLibraryV1(page);
+    await expectNoWcagViolationsV1(page, "Program Library");
+
+    await library.getByRole("button", { name: "Settings", exact: true }).click();
+    const settings = page.locator('[data-silly-os-view="settings"]');
+    await expect(settings).toBeVisible();
+    await settings.getByRole("button", { name: "Providers", exact: true }).click();
+    await expect(page.locator('[data-settings-section="providers"]')).toBeVisible();
+    await expect(page.locator('[data-provider-id="openai"]')).toBeVisible();
+    await expectNoWcagViolationsV1(page, "Settings Providers");
+
+    await page.locator(".silly-os-settings__back").click();
+    await expectProgramLibraryV1(page);
+    await launchCreatorFromLibraryV1(page);
+    await expectNoWcagViolationsV1(page, "Creator Home");
+
+    await returnToProgramLibraryV1(page);
+    await launchProgramFromLibraryV1(page, "Translation");
+    const translation = page.locator('[data-silly-os-view="translation-workspace"]');
+    await expect(translation).toBeVisible();
+    await expect(translation.locator('input[type="file"]')).toBeVisible();
+    await expectNoWcagViolationsV1(page, "Translation intake");
+
+    await translation.locator('input[type="file"]').setInputFiles({
+      name: "accessibility.srt",
+      mimeType: "application/x-subrip",
+      buffer: Buffer.from([
+        "1",
+        "00:00:00,000 --> 00:00:01,500",
+        "A representative line for the accessible workbench.",
+        "",
+      ].join("\n")),
+    });
+    await expect(page.getByRole("heading", { name: "accessibility.srt" })).toBeVisible();
+    await expect(page.getByRole("button", {
+      name: /^1 A representative line for the accessible workbench\. — Pending$/u,
+    })).toBeVisible();
+    await expectNoWcagViolationsV1(page, "Translation workbench");
+  },
+);
+
+test(
   "@program-package an external Program ZIP persists, creates distinct Processes, and reopens each through the current compatible implementation",
   async ({ durableProgramPage: page }) => {
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
@@ -1930,6 +2015,259 @@ test(
       secondProcessId,
     );
     await expectExternalProcessV1();
+  },
+);
+
+test(
+  "@program-package a Process keeps its durable Conversation when its external Program is missing",
+  async ({ durableProgramPage: page }) => {
+    await page.goto(sillyOsTargetUrlV1("?locale=en"));
+    let library = await expectProgramLibraryV1(page);
+    await library.getByLabel("Import Program ZIP").setInputFiles({
+      name: "external-translation-review.zip",
+      mimeType: "application/zip",
+      buffer: externalTranslationProgramZipV1(),
+    });
+    const packageRow = library.locator(".program-library__package").filter({
+      has: page.getByRole("heading", { name: "External Translation Review", exact: true }),
+    });
+    await expect(packageRow).toHaveCount(1);
+    await packageRow.getByRole("button", { name: "Open", exact: true }).click();
+
+    const workspace = page.locator('[data-silly-os-view="translation-workspace"]');
+    await expect(workspace).toBeVisible();
+    const processId = await workspace.getAttribute("data-process-id");
+    if (processId === null) throw new Error("External Program omitted its Process identity");
+    await page.getByRole("tab", { name: "Conversation" }).click();
+    const durableTranscript = "Translation workspace is ready. Add a source document to begin.";
+    await expect(page.getByText(durableTranscript, { exact: true })).toBeVisible();
+
+    library = await returnToProgramLibraryV1(page);
+    await packageRow.getByRole("button", { name: "Remove external Program" }).click();
+    const removalDialog = page.getByRole("alertdialog", {
+      name: "Remove External Translation Review?",
+    });
+    await expect(removalDialog).toBeVisible();
+    await removalDialog.getByRole("button", { name: "Remove Program" }).click();
+    await expect(page.getByText("Removed External Translation Review", { exact: true }))
+      .toBeVisible();
+    await page.reload();
+    library = await expectProgramLibraryV1(page);
+    await expect(packageRow).toHaveCount(0);
+    const recentProcess = library.locator(".program-library__process").filter({
+      has: page.getByText(processId, { exact: true }),
+    });
+    await expect(recentProcess).toHaveCount(1);
+    await recentProcess.getByRole("button", { name: "View Conversation", exact: true }).click();
+
+    const conversation = page.locator(
+      `[data-silly-os-view="read-only-conversation"][data-process-id="${processId}"]`,
+    );
+    await expect(conversation).toBeVisible();
+    await expect(
+      conversation.locator(
+        '[data-degradation-capability="package"][data-degradation-code="package_missing"]',
+      ),
+    ).toContainText(
+      "The current Program implementation is missing, damaged, or incompatible with this Process. Its Conversation remains readable.",
+    );
+    await expect(conversation.getByText(durableTranscript, { exact: true })).toBeVisible();
+    await expect(conversation.locator(".chat-composer")).toHaveCount(0);
+    await expect(conversation.getByRole("textbox")).toHaveCount(0);
+    await expect(
+      page.locator(`[data-program-runtime-profile="${externalTranslationRuntimeProfileV1}"]`),
+    )
+      .toHaveCount(0);
+  },
+);
+
+test(
+  "@release Clear all data removes Program, Provider, Vault, and Workspace state across tabs",
+  async ({ durableProgramPage: page }) => {
+    test.setTimeout(120_000);
+    const customName = "Reset qualification endpoint";
+    const customEndpoint = "https://reset-qualification.example.test/v1";
+    const customModel = "reset-model-v1";
+    const customKey = "sillyos-reset-qualification-key";
+
+    const workspace = await openTranslationWorkspaceV1(page);
+    const programId = await readProgramIdV1(workspace);
+    const processId = await workspace.getAttribute("data-process-id");
+    if (processId === null) throw new Error("Creator Process omitted its identity");
+    const beforeReset = await readProgramDataProjectionV1(page, programId, processId);
+    if (beforeReset.continuation === null) {
+      throw new Error("Creator Process omitted its Workspace continuation");
+    }
+    expect(beforeReset.catalog).not.toBeNull();
+    expect(beforeReset.process).not.toBeNull();
+    expect(beforeReset.transcriptEntries.length).toBeGreaterThan(0);
+    expect(await sandboxWorkspaceVolumeExistsV1(page, beforeReset.continuation.volumeId)).toBe(
+      true,
+    );
+
+    await returnToProgramLibraryV1(page);
+    await page.goto(sillyOsTargetUrlV1("?locale=en"));
+    let library = await expectProgramLibraryV1(page);
+    await library.getByLabel("Import Program ZIP").setInputFiles({
+      name: "external-translation-review.zip",
+      mimeType: "application/zip",
+      buffer: externalTranslationProgramZipV1(),
+    });
+    const externalPackage = library.locator(".program-library__package").filter({
+      has: page.getByRole("heading", { name: "External Translation Review", exact: true }),
+    });
+    const recentProcess = library.locator(".program-library__process").filter({
+      has: page.getByText(processId, { exact: true }),
+    });
+    await expect(externalPackage).toHaveCount(1);
+    await expect(recentProcess).toHaveCount(1);
+
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(page.locator('[data-silly-os-view="settings"]')).toBeVisible();
+    await page.getByRole("button", { name: "Providers", exact: true }).click();
+    await page.locator('[data-add-custom-endpoint="true"]').click();
+    await page.getByLabel("Name").fill(customName);
+    await page.getByLabel("API format").selectOption("openai-responses");
+    await page.locator('.provider-settings__custom-form input[name="baseUrl"]').fill(
+      `${customEndpoint}/`,
+    );
+    await page.getByLabel("Model ID").fill(customModel);
+    await page.getByLabel("Context window").fill("32768");
+    await page.getByLabel("Maximum output tokens").fill("4096");
+    await page.getByRole("button", { name: "Save endpoint" }).click();
+    const customProfile = page.locator("[data-custom-profile-id]");
+    await expect(customProfile).toHaveCount(1);
+    await expect(customProfile).toContainText(customName);
+    await page.getByLabel("API key", { exact: true }).fill(customKey);
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.locator('.provider-settings__credential-form[data-key-saved="true"]'))
+      .toBeVisible();
+    await page.getByRole("button", { name: "Credential Vault", exact: true }).click();
+    await expect(page.locator('[data-vault-phase="unlocked"]')).toBeVisible();
+    await expect(page.locator(".provider-settings__vault-bindings")).toContainText(
+      customEndpoint,
+    );
+
+    const secondPage = await page.context().newPage();
+    try {
+      await secondPage.goto(sillyOsTargetUrlV1("?locale=en"));
+      const secondLibrary = await expectProgramLibraryV1(secondPage);
+      await expect(
+        secondLibrary.locator(".program-library__package").filter({
+          has: secondPage.getByRole("heading", {
+            name: "External Translation Review",
+            exact: true,
+          }),
+        }),
+      ).toHaveCount(1);
+      await expect(
+        secondLibrary.locator(".program-library__process").filter({
+          has: secondPage.getByText(processId, { exact: true }),
+        }),
+      ).toHaveCount(1);
+      await secondPage.evaluate(() => {
+        (globalThis as typeof globalThis & { sillyOsResetE2eMarker?: boolean })
+          .sillyOsResetE2eMarker = true;
+      });
+
+      await Promise.all([
+        page.waitForLoadState("networkidle"),
+        secondPage.waitForLoadState("networkidle"),
+      ]);
+
+      await page.getByRole("button", { name: "General", exact: true }).click();
+      await page.getByRole("button", { name: "Clear all data", exact: true }).click();
+      const confirmation = page.getByRole("alertdialog", { name: "Clear all SillyOS data?" });
+      await expect(confirmation).toBeVisible();
+      const firstReload = page.waitForEvent("framenavigated", {
+        predicate: (frame) => frame === page.mainFrame(),
+      });
+      const secondReload = secondPage.waitForEvent("framenavigated", {
+        predicate: (frame) => frame === secondPage.mainFrame(),
+      });
+      await confirmation.getByRole("button", { name: "Clear all data", exact: true }).click();
+      await Promise.all([firstReload, secondReload]);
+
+      const [resetLibrary, remotelyResetSecondLibrary] = await Promise.all([
+        expectProgramLibraryV1(page),
+        expectProgramLibraryV1(secondPage),
+      ]);
+      library = resetLibrary;
+      expect(
+        await secondPage.evaluate(() =>
+          (globalThis as typeof globalThis & { sillyOsResetE2eMarker?: boolean })
+            .sillyOsResetE2eMarker
+        ),
+      ).toBeUndefined();
+
+      for (const currentLibrary of [library, remotelyResetSecondLibrary]) {
+        await expect(currentLibrary.getByRole("heading", {
+          name: "Program Creator",
+          exact: true,
+        })).toBeVisible();
+        await expect(currentLibrary.getByRole("heading", { name: "Translation", exact: true }))
+          .toBeVisible();
+        await expect(
+          currentLibrary.locator(".program-library__package").filter({
+            has: currentLibrary.getByRole("heading", {
+              name: "External Translation Review",
+              exact: true,
+            }),
+          }),
+        ).toHaveCount(0);
+        await expect(
+          currentLibrary.locator(".program-library__process").filter({
+            has: currentLibrary.getByText(processId, { exact: true }),
+          }),
+        ).toHaveCount(0);
+      }
+
+      const afterReset = await readProgramDataProjectionV1(page, programId, processId);
+      expect(afterReset).toEqual({
+        catalog: null,
+        continuation: null,
+        process: null,
+        transcriptEntries: [],
+        networkAccess: null,
+      });
+      expect(await sandboxWorkspaceVolumeExistsV1(page, beforeReset.continuation.volumeId)).toBe(
+        false,
+      );
+
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page.getByRole("button", { name: "Providers", exact: true }).click();
+      await expect(page.locator("[data-custom-profile-id]")).toHaveCount(0);
+      const resetProviderSettings = await page.evaluate((storageKey) => {
+        const serialized = localStorage.getItem(storageKey);
+        return serialized === null ? null : JSON.parse(serialized) as unknown;
+      }, browserProviderSettingsStorageKeyV3);
+      expect(resetProviderSettings).toMatchObject({
+        revision: 3,
+        customProfiles: [],
+        lastSuccessfulModel: null,
+      });
+      expect(JSON.stringify(resetProviderSettings)).not.toContain(customName);
+      expect(JSON.stringify(resetProviderSettings)).not.toContain(customEndpoint);
+      expect(JSON.stringify(resetProviderSettings)).not.toContain(customModel);
+      expect(JSON.stringify(resetProviderSettings)).not.toContain(customKey);
+      await page.getByRole("button", { name: "Credential Vault", exact: true }).click();
+      await expect(page.locator('[data-vault-phase="unlocked"]')).toBeVisible();
+      await expect(page.locator('[data-vault-mode="device"]')).toContainText("Automatic");
+      await expect(page.getByText("No Provider API key is saved.", { exact: true })).toBeVisible();
+
+      await page.reload();
+      library = await expectProgramLibraryV1(page);
+      await expect(
+        library.locator(".program-library__process").filter({
+          has: page.getByText(processId, { exact: true }),
+        }),
+      ).toHaveCount(0);
+      expect(await sandboxWorkspaceVolumeExistsV1(page, beforeReset.continuation.volumeId)).toBe(
+        false,
+      );
+    } finally {
+      await secondPage.close();
+    }
   },
 );
 
@@ -2151,7 +2489,8 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(sillyOsTargetUrlV1("?locale=en"));
   await expectProgramLibraryV1(page);
-  await launchCreatorFromLibraryV1(page);
+  await test.step("launch Creator before configuring Providers", () =>
+    launchCreatorFromLibraryV1(page));
   const creatorReadiness = page.locator('[data-creator-readiness-surface="home"]');
   await expect(creatorReadiness).toHaveAttribute(
     "data-creator-readiness",
@@ -2453,7 +2792,8 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
 
   await page.reload();
   await expectProgramLibraryV1(page);
-  await launchCreatorFromLibraryV1(page);
+  await test.step("cold-reopen Creator with the password Vault locked", () =>
+    launchCreatorFromLibraryV1(page));
   await expect(creatorReadiness).toHaveAttribute("data-creator-readiness", "vault_locked");
   await expect(homeModelControl).toHaveCount(0);
   await page.locator('[data-open-settings="home"]').click();
@@ -2707,10 +3047,13 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
     providerId: "openai",
     modelId: "gpt-4.1-nano",
   });
+  await expect(page.locator('[data-pi-agent-run-status="running"]')).toHaveCount(0);
+  await expect(page.getByText("OK", { exact: true }).last()).toBeVisible();
 
   await page.reload();
   await expectProgramLibraryV1(page);
-  await launchCreatorFromLibraryV1(page);
+  await test.step("cold-reopen Creator after the first Provider run", () =>
+    launchCreatorFromLibraryV1(page));
   await expect(creatorReadiness).toHaveAttribute("data-creator-readiness", "vault_locked");
   await expect(homeModelControl).toHaveCount(0);
   const homeSettings = page.locator('[data-open-settings="home"]');
@@ -3877,7 +4220,7 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   ).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
   await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "3");
   await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "write");
   await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
   await expect(workspace).toHaveAttribute(
@@ -3894,7 +4237,7 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   await page.getByRole("tab", { name: "Capabilities" }).click();
   await expect(page.getByText("Deterministic test wiring", { exact: true })).toBeVisible();
   await expect(page.getByText("Program workspace checkpoint", { exact: true })).toBeVisible();
-  await expect(page.getByText("Closed · generation 2", { exact: true })).toBeVisible();
+  await expect(page.getByText("Closed · generation 3", { exact: true })).toBeVisible();
   await expect(page.getByText("Last write: succeeded / changed", { exact: false })).toBeVisible();
 
   await returnToCreatorHomeV1(page);
@@ -3947,7 +4290,7 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   await expect(page.getByText(persistenceProbe, { exact: true })).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v3");
   await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-state", "closed");
-  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-generation", "4");
   await expect(reopenedWorkspace).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
   const reopenedWorkspaceSessionId = await readWorkspaceSessionIdV1(reopenedWorkspace);
   expect(reopenedWorkspaceSessionId).not.toBe(firstWorkspaceSessionId);
@@ -4060,7 +4403,7 @@ test("@s1b-edit the pinned native Pi edit tool changes and cold-reopens exact Sa
   ).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
   await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "3");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "4");
   await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "edit");
   await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
   await expect(workspace).toHaveAttribute(
@@ -4115,7 +4458,7 @@ test("@s1b-bash the pinned native Pi bash tool changes and cold-reopens exact Sa
   ).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
   await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "3");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "4");
   await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "bash");
   await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
   await expect(workspace).toHaveAttribute(
@@ -4181,12 +4524,12 @@ test("@s2-file-ops Pi native bash preserves the exact workspace file lifecycle a
   ).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
   await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "22");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "23");
   await expect(workspace).toHaveAttribute("data-execution-workspace-receipt", "1");
   await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "bash");
   await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
   await expect(workspace).toHaveAttribute("data-execution-workspace-path", ".sillyos");
-  await expect(workspace).toHaveAttribute("data-workspace-review-pending-generation", "22");
+  await expect(workspace).toHaveAttribute("data-workspace-review-pending-generation", "23");
 
   const continuation = await readWorkspaceContinuationV1(page, programId);
   if (continuation === null) {
@@ -4237,7 +4580,7 @@ test("@s2-file-ops Pi native bash preserves the exact workspace file lifecycle a
   const reopened = page.getByRole("main", { name: "SillyOS program workspace" });
   await expect(reopened).toHaveAttribute("data-execution-workspace-state", "closed");
   await expect(reopened).not.toHaveAttribute("data-execution-workspace-generation", /.+/u);
-  await expect(reopened).toHaveAttribute("data-workspace-review-pending-generation", "22");
+  await expect(reopened).toHaveAttribute("data-workspace-review-pending-generation", "23");
   expect(await readWorkspaceContinuationV1(page, programId)).toEqual(continuation);
   await expect.poll(() => inspectSandboxWorkspaceEntriesV1(page, continuation, inspectedPaths))
     .toEqual(expectedEntries);
@@ -4363,7 +4706,7 @@ test("@s1a-ordinary an active Process becomes read-only in another page and its 
   await expect(second.page.getByText(verify, { exact: true })).toBeVisible();
   await expect(second.page.locator('[data-proposal-status="pending"]')).toContainText("v2");
   await expect(recovered).toHaveAttribute("data-execution-workspace-state", "closed");
-  await expect(recovered).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(recovered).toHaveAttribute("data-execution-workspace-generation", "3");
   await expect(recovered).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
   expect(await readWorkspaceSessionIdV1(recovered)).not.toBe(ownerSessionId);
   await expectOrdinaryWorkspaceSandboxV1(second.page, initialContinuation, durableText);
@@ -4396,7 +4739,7 @@ test("Playwright WebKit's non-persistent context reports unavailable OPFS withou
 });
 
 test(
-  "@s1a-ordinary an accepted Program cancels before download authorization, then exports its generation 2 snapshot",
+  "@s1a-ordinary an accepted Program cancels before download authorization, then exports its generation 3 snapshot",
   async ({ durableProgramPage: page }, testInfo) => {
     test.setTimeout(120_000);
     await page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
@@ -4416,7 +4759,7 @@ test(
     await page.getByRole("button", { name: "Send" }).click();
     await expect(page.locator('[data-pi-agent-run-status="running"]')).toHaveCount(0);
     await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
-    await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
+    await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "3");
     await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "write");
     const continuation = await readWorkspaceContinuationV1(page, programId);
     if (continuation === null) throw new Error("Snapshot Program has no Workspace continuation");
@@ -4436,11 +4779,11 @@ test(
       volumeId: continuation.volumeId,
       workspaceFormat: 1,
       programRevision: 2,
-      generation: 2,
-      fileCount: 1,
+      generation: 3,
+      fileCount: 2,
     });
-    await expect(workspace).toHaveAttribute("data-workspace-review-accepted-generation", "2");
-    await expect(workspace).toHaveAttribute("data-workspace-review-accepted-file-count", "1");
+    await expect(workspace).toHaveAttribute("data-workspace-review-accepted-generation", "3");
+    await expect(workspace).toHaveAttribute("data-workspace-review-accepted-file-count", "2");
     await expect(workspace).toHaveAttribute(
       "data-workspace-review-accepted-status",
       "unavailable",
@@ -4490,12 +4833,12 @@ test(
     expect(await download.failure()).toBeNull();
     await expect(exportStatus).toHaveAttribute("data-workspace-export-status", "download-started");
     await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
-    await expect(exportStatus).toHaveAttribute("data-workspace-export-files-completed", "1");
-    await expect(exportStatus).toHaveAttribute("data-workspace-export-files-total", "1");
+    await expect(exportStatus).toHaveAttribute("data-workspace-export-files-completed", "2");
+    await expect(exportStatus).toHaveAttribute("data-workspace-export-files-total", "2");
     assertOrdinaryWorkspaceArchiveV1(new Uint8Array(await readFile(archivePath)), {
       programId,
       workspaceId: continuation.workspaceId,
-      generation: 2,
+      generation: 3,
       text: snapshotText,
     });
     await expectOrdinaryWorkspaceSandboxV1(page, continuation, snapshotText);
@@ -4750,12 +5093,14 @@ test("@ds1-visual Workspace keeps its representative desktop and phone compositi
     }
   });
 
+  await pinChatFeedToBottomV1(page);
   await settleVisualFixtureV1(page);
   await expectVisualSnapshotV1(page, "ds1-desktop-workspace.png");
 
   await page.setViewportSize({ width: 390, height: 844 });
   const navigation = page.getByRole("navigation", { name: "Workspace views" });
   await navigation.getByRole("button", { name: "Chat" }).click();
+  await pinChatFeedToBottomV1(page);
   await settleVisualFixtureV1(page);
   await expectVisualSnapshotV1(page, "ds1-phone-chat.png");
 
@@ -5076,7 +5421,7 @@ test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Pr
   await expect.poll(() => capturedRequests.length).toBe(1);
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
   await expect(workspace).toHaveAttribute("data-execution-workspace-state", "closed");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "3");
   await expect(workspace).toHaveAttribute("data-execution-workspace-receipt", "1");
   await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "download");
   await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");

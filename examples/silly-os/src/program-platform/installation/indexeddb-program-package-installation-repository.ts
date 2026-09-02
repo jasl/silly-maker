@@ -27,7 +27,7 @@ import {
 
 export const programPackageInstallationDatabaseNameV1 =
   "sillymaker.example-silly-os.program-packages";
-export const programPackageInstallationDatabaseVersionV1 = 3;
+export const programPackageInstallationDatabaseVersionV1 = 4;
 export const programPackageInstallationObjectStoreNameV1 = "packages";
 export const programPackageInstallationMetadataObjectStoreNameV1 = "package_metadata";
 
@@ -48,6 +48,7 @@ interface StoredProgramPackageMetadataV1 {
   readonly programId: string;
   readonly schemaVersion: 1;
   readonly acquisition: ProgramPackageAcquisitionV1;
+  readonly installationId: string;
   readonly manifest: ProgramPackageManifestV1;
   readonly initialUiSurfaceId: string | null;
 }
@@ -261,12 +262,14 @@ function storedPackageV1(
 function storedPackageMetadataV1(
   admitted: AdmittedProgramPackageArchiveV1,
   acquisition: ProgramPackageAcquisitionV1,
+  installationId: string,
 ): StoredProgramPackageMetadataV1 {
   const projection = projectProgramPackageRuntimeProfileV1(admitted);
   return {
     programId: admitted.reference.programId,
     schemaVersion: 1,
     acquisition,
+    installationId,
     manifest: cloneProgramPackageManifestV1(admitted.manifest),
     initialUiSurfaceId: projection.initialUiSurfaceId,
   };
@@ -313,12 +316,15 @@ function restoreStoredPackageMetadataV1(
       !exactKeysV1(record, [
         "acquisition",
         "initialUiSurfaceId",
+        "installationId",
         "manifest",
         "programId",
         "schemaVersion",
       ]) ||
       record.schemaVersion !== 1 ||
       !acquisitionV1(record.acquisition) ||
+      typeof record.installationId !== "string" ||
+      record.installationId.length === 0 ||
       (record.initialUiSurfaceId !== null &&
         (typeof record.initialUiSurfaceId !== "string" ||
           (record.initialUiSurfaceId.length > 0 &&
@@ -337,6 +343,7 @@ function restoreStoredPackageMetadataV1(
     };
     return {
       acquisition: record.acquisition,
+      installationId: record.installationId,
       metadata,
     };
   } catch {
@@ -434,6 +441,7 @@ export function createIndexedDbProgramPackageInstallationRepositoryV1(
             storedPackageMetadataV1(
               admitted,
               installOptions.acquisition,
+              installationId,
             ),
           ),
         );
@@ -492,9 +500,22 @@ export function createIndexedDbProgramPackageInstallationRepositoryV1(
         throw mapFailureV1(error, operation);
       }
     },
-    async remove(programIdValue) {
+    async remove(programIdValue, removeOptions = {}) {
       const operation = "remove" as const;
       const programId = admitProgramPackageProgramIdV1(programIdValue);
+      if (
+        removeOptions.ifAcquisition !== undefined &&
+        !acquisitionV1(removeOptions.ifAcquisition)
+      ) {
+        throw new TypeError("sillyos.program_package.acquisition_invalid");
+      }
+      if (
+        removeOptions.ifInstallationId !== undefined &&
+        (typeof removeOptions.ifInstallationId !== "string" ||
+          removeOptions.ifInstallationId.length === 0)
+      ) {
+        throw new TypeError("sillyos.program_package.installation_id_invalid");
+      }
       try {
         const currentDatabase = await databaseForV1(operation);
         const transaction = currentDatabase.transaction(
@@ -503,17 +524,34 @@ export function createIndexedDbProgramPackageInstallationRepositoryV1(
         );
         const completion = transactionCompletionV1(transaction);
         const packages = transaction.objectStore(programPackageInstallationObjectStoreNameV1);
-        const existingKey = await requestResultV1(packages.getKey(programId));
-        if (existingKey !== undefined) {
-          await requestResultV1(packages.delete(programId));
-          await requestResultV1(
-            transaction.objectStore(programPackageInstallationMetadataObjectStoreNameV1).delete(
-              programId,
-            ),
-          );
+        const metadataStore = transaction.objectStore(
+          programPackageInstallationMetadataObjectStoreNameV1,
+        );
+        const [existingKey, storedMetadata] = await Promise.all([
+          requestResultV1(packages.getKey(programId)),
+          requestResultV1(metadataStore.get(programId)),
+        ]);
+        if (existingKey === undefined && storedMetadata === undefined) {
+          await completion;
+          return false;
         }
+        if (existingKey === undefined || storedMetadata === undefined) {
+          throw new ProgramPackageInstallationRepositoryErrorV1("schema_invalid", operation);
+        }
+        const existing = restoreStoredPackageMetadataV1(storedMetadata, options);
+        if (
+          (removeOptions.ifAcquisition !== undefined &&
+            existing.acquisition !== removeOptions.ifAcquisition) ||
+          (removeOptions.ifInstallationId !== undefined &&
+            existing.installationId !== removeOptions.ifInstallationId)
+        ) {
+          await completion;
+          return false;
+        }
+        await requestResultV1(packages.delete(programId));
+        await requestResultV1(metadataStore.delete(programId));
         await completion;
-        return existingKey !== undefined;
+        return true;
       } catch (error) {
         throw mapFailureV1(error, operation);
       }

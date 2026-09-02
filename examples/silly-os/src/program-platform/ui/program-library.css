@@ -276,6 +276,20 @@
   flex-wrap: wrap;
 }
 
+.program-library__package-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.program-library__removal-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .program-library__metadata {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, auto)) minmax(12rem, 1fr);

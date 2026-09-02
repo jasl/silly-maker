@@ -113,8 +113,8 @@ const creatorEnglishV1 = {
   piTestInitializing: "Starting the Agent Worker…",
   samplePrompts: Object.freeze([
     "Translate a visual novel and keep each character’s voice consistent",
-    "Turn my research notes into a chapter-by-chapter writing room",
-    "Create a role-play studio with editable character and world memory",
+    "Translate subtitles into natural English and flag uncertain terminology for review",
+    "Create a bilingual Markdown translation workflow that preserves links and code",
   ]),
   capabilitiesTab: "Capabilities",
   fullscreen: "Open full screen",
@@ -194,8 +194,8 @@ const creatorChineseV1 = {
   piTestInitializing: "正在启动 Agent Worker……",
   samplePrompts: Object.freeze([
     "翻译一部视觉小说，并保持每位角色的语言风格一致",
-    "把我的调研笔记整理成可以逐章推进的写作工作室",
-    "创建一个能编辑角色设定与世界记忆的 AI 角色扮演工作室",
+    "把字幕翻译成自然中文，并把不确定的术语交给我审查",
+    "创建一个保留链接和代码的双语 Markdown 翻译流程",
   ]),
   capabilitiesTab: "能力",
   fullscreen: "全屏打开",

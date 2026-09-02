@@ -2,8 +2,12 @@
 
 # SillyOS product and visual contract
 
-Status: active Browser-first dual-target rewrite with P2 Browser Program
-persistence, bounded terminal Agent-run receipts, and all three P3c-B0
+Status: Browser Technical Preview release candidate. The preview closes the
+current Creator and Translation Browser denominator; Writing, RolePlay, Deno
+Desktop product qualification, all-data restore and the broader Translation
+research lanes remain explicit follow-ons. The delivered foundation includes
+P2 Browser Program persistence, bounded terminal Agent-run receipts, and all
+three P3c-B0
 checkpoints delivered and closed on 2026-08-27: OPFS Program workspace
 authority, cold reopen, recovery/contender semantics, explicit storage policy,
 the automated Chromium/persistent-WebKit `20 MiB+` scale gate, and canonical

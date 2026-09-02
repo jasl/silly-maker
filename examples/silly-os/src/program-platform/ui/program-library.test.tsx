@@ -9,11 +9,13 @@ import type {
   ProgramPackageInstallationResultV1,
 } from "../installation/program-package-installation-repository.ts";
 import type {
+  ProgramPackageExternalRemovalActionV1,
   ProgramPackageLibraryEntryV1,
   ProgramPackageServiceV1,
 } from "../installation/program-package-service.ts";
 import type { DecodeProgramPackageZipOptionsV1 } from "../package/program-package-zip.ts";
 import type { ProcessSummaryV1 } from "../process/program-process-repository.ts";
+import { SillyOsOverlayHostV1 } from "../../ui/design-system/overlay-host.tsx";
 import { ProgramLibraryV1 } from "./program-library.tsx";
 
 afterEach(cleanup);
@@ -38,6 +40,7 @@ function installedV1(input: {
   readonly name: string;
   readonly version: string;
   readonly compatibility: ProgramPackageLibraryEntryV1["compatibility"];
+  readonly externalRemoval?: ProgramPackageExternalRemovalActionV1;
 }): ProgramPackageLibraryEntryV1 {
   const runtimeProfile = `${input.programId}.runtime.v1`;
   return {
@@ -61,12 +64,17 @@ function installedV1(input: {
       capabilityIds: [],
     },
     compatibility: input.compatibility,
+    externalRemoval: input.externalRemoval === undefined ? null : {
+      action: input.externalRemoval,
+      installationId: `installation.${input.programId}`,
+    },
   };
 }
 
 function serviceV1(input: {
   readonly listLibrary: ProgramPackageServiceV1["listLibrary"];
   readonly installZip?: ProgramPackageServiceV1["installZip"];
+  readonly removeExternal?: ProgramPackageServiceV1["removeExternal"];
 }): ProgramPackageServiceV1 {
   return {
     listLibrary: input.listLibrary,
@@ -86,6 +94,8 @@ function serviceV1(input: {
       };
     },
     installZip: input.installZip ?? vi.fn(),
+    removeExternal: input.removeExternal ??
+      vi.fn<ProgramPackageServiceV1["removeExternal"]>(async () => false),
     async reset() {},
     async dispose() {},
   };
@@ -283,6 +293,154 @@ describe("SillyOS Program library", () => {
     expect(onInstalled).toHaveBeenCalledWith(result);
     expect(within(status).getByText("The Program was installed."))
       .toBeInTheDocument();
+  });
+
+  it("restores the bundled implementation behind an external override", async () => {
+    const external = installedV1({
+      programId: "example.translation",
+      name: "Translation",
+      version: "1.0.0",
+      compatibility: "ready",
+      externalRemoval: "restore_bundled",
+    });
+    const bundled = installedV1({
+      programId: "example.translation",
+      name: "Translation",
+      version: "1.0.0",
+      compatibility: "ready",
+    });
+    let entries: readonly ProgramPackageLibraryEntryV1[] = [external];
+    const removeExternal = vi.fn<ProgramPackageServiceV1["removeExternal"]>(async () => {
+      entries = [bundled];
+      return true;
+    });
+    render(
+      <SillyOsOverlayHostV1>
+        <ProgramLibraryV1
+          service={serviceV1({ listLibrary: async () => entries, removeExternal })}
+          zipDecodeOptions={decodeOptionsV1}
+          locale="en"
+        />
+      </SillyOsOverlayHostV1>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Restore built-in" }));
+    const restoreDialog = await screen.findByRole("alertdialog", {
+      name: "Restore the built-in Translation?",
+    });
+    fireEvent.click(within(restoreDialog).getByRole("button", { name: "Restore built-in" }));
+    expect(await screen.findByText("Restored the built-in Translation")).toBeInTheDocument();
+    expect(removeExternal).toHaveBeenCalledWith(
+      "example.translation",
+      "installation.example.translation",
+    );
+    expect(screen.queryByRole("button", { name: "Restore built-in" })).toBeNull();
+    expect(screen.getByText(
+      "Saved Conversations are unchanged. Compatible Processes use the current built-in implementation.",
+    )).toBeInTheDocument();
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole("status"));
+    });
+  });
+
+  it("removes an external-only Program while keeping its saved Conversation visible", async () => {
+    const external = installedV1({
+      programId: "community.writer",
+      name: "Community Writer",
+      version: "1.0.0",
+      compatibility: "ready",
+      externalRemoval: "remove",
+    });
+    const summary: ProcessSummaryV1 = {
+      schemaVersion: 1,
+      processId: "process.community.writer",
+      processRevision: 3,
+      programPackage: external.reference,
+      subjectProgramId: null,
+      status: "active",
+      transcriptFrontier: 7,
+      updatedAt: Date.UTC(2026, 8, 2, 11, 30),
+    };
+    let entries: readonly ProgramPackageLibraryEntryV1[] = [external];
+    const removeExternal = vi.fn<ProgramPackageServiceV1["removeExternal"]>(async () => {
+      entries = [];
+      return true;
+    });
+    render(
+      <SillyOsOverlayHostV1>
+        <ProgramLibraryV1
+          service={serviceV1({ listLibrary: async () => entries, removeExternal })}
+          zipDecodeOptions={decodeOptionsV1}
+          locale="en"
+          listRecentProcesses={async (input) => ({
+            before: input.before,
+            summaries: [summary],
+            byteLength: 512,
+            nextCursor: null,
+          })}
+          onOpenProcess={vi.fn()}
+        />
+      </SillyOsOverlayHostV1>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Remove external Program" }),
+    );
+    const removalDialog = await screen.findByRole("alertdialog", {
+      name: "Remove Community Writer?",
+    });
+    fireEvent.click(within(removalDialog).getByRole("button", { name: "Remove Program" }));
+    expect(await screen.findByText("Removed Community Writer")).toBeInTheDocument();
+    expect(removeExternal).toHaveBeenCalledWith(
+      "community.writer",
+      "installation.community.writer",
+    );
+    expect(screen.queryByRole("heading", { name: "Community Writer" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "community.writer" })).toBeInTheDocument();
+    expect(screen.getByText(
+      "Saved Conversations remain available read-only. Reinstall this Program to restore its runtime.",
+    )).toBeInTheDocument();
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole("status"));
+    });
+  });
+
+  it("refreshes without deleting a successor when an external removal action is stale", async () => {
+    const external = installedV1({
+      programId: "community.writer",
+      name: "Community Writer",
+      version: "1.0.0",
+      compatibility: "ready",
+      externalRemoval: "remove",
+    });
+    const removeExternal = vi.fn<ProgramPackageServiceV1["removeExternal"]>(async () => false);
+    render(
+      <SillyOsOverlayHostV1>
+        <ProgramLibraryV1
+          service={serviceV1({ listLibrary: async () => [external], removeExternal })}
+          zipDecodeOptions={decodeOptionsV1}
+          locale="en"
+        />
+      </SillyOsOverlayHostV1>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Remove external Program" }),
+    );
+    const removalDialog = await screen.findByRole("alertdialog", {
+      name: "Remove Community Writer?",
+    });
+    fireEvent.click(within(removalDialog).getByRole("button", { name: "Remove Program" }));
+
+    expect(await screen.findByText("The Program changed in another window")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Community Writer" })).toBeInTheDocument();
+    expect(removeExternal).toHaveBeenCalledWith(
+      "community.writer",
+      "installation.community.writer",
+    );
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole("status"));
+    });
   });
 
   it("announces ZIP admission failures without replacing the installed list", async () => {

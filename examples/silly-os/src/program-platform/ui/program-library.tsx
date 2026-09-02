@@ -7,6 +7,8 @@ import {
   LoaderCircle,
   MessageSquareText,
   PackageOpen,
+  RotateCcw,
+  Trash2,
 } from "lucide-react";
 import {
   type ChangeEvent,
@@ -23,6 +25,7 @@ import type {
   ProgramPackageInstallationResultV1,
 } from "../installation/program-package-installation-repository.ts";
 import type {
+  ProgramPackageExternalRemovalActionV1,
   ProgramPackageLibraryEntryV1,
   ProgramPackageServiceV1,
 } from "../installation/program-package-service.ts";
@@ -35,6 +38,15 @@ import type {
 import { BadgeV1 } from "../../ui/design-system/badge.tsx";
 import { ButtonV1 } from "../../ui/design-system/button.tsx";
 import { InputV1 } from "../../ui/design-system/input.tsx";
+import {
+  AlertDialogActionV1,
+  AlertDialogCancelV1,
+  AlertDialogContentV1,
+  AlertDialogDescriptionV1,
+  AlertDialogTitleV1,
+  AlertDialogTriggerV1,
+  AlertDialogV1,
+} from "../../ui/design-system/alert-dialog.tsx";
 import {
   StatusContentV1,
   StatusDescriptionV1,
@@ -56,6 +68,27 @@ type ImportStateV1 =
   | { readonly kind: "installed"; readonly fileName: string; readonly disposition: string }
   | { readonly kind: "warning"; readonly fileName: string; readonly message: string }
   | { readonly kind: "failed"; readonly fileName: string; readonly message: string };
+
+type RemovalStateV1 =
+  | { readonly kind: "idle" }
+  | {
+    readonly kind: "removing";
+    readonly programId: string;
+    readonly name: string;
+    readonly action: ProgramPackageExternalRemovalActionV1;
+  }
+  | {
+    readonly kind: "completed";
+    readonly name: string;
+    readonly action: ProgramPackageExternalRemovalActionV1;
+    readonly changed: boolean;
+  }
+  | {
+    readonly kind: "failed";
+    readonly name: string;
+    readonly action: ProgramPackageExternalRemovalActionV1;
+    readonly message: string;
+  };
 
 type RecentProcessLoadStateV1 =
   | { readonly kind: "loading" }
@@ -198,12 +231,20 @@ function ProgramPackageRowV1({
   entry,
   locale,
   onLaunch,
+  onRemoveExternal,
+  removalBusy,
+  removing,
 }: {
   readonly entry: ProgramPackageLibraryEntryV1;
   readonly locale: LocaleV1;
   readonly onLaunch?: (programId: string) => void | Promise<void>;
+  readonly onRemoveExternal: (entry: ProgramPackageLibraryEntryV1) => void | Promise<void>;
+  readonly removalBusy: boolean;
+  readonly removing: boolean;
 }): ReactNode {
   const compatibility = compatibilityTextV1(entry, locale);
+  const [removalDialogOpen, setRemovalDialogOpen] = useState(false);
+  const restoringBundled = entry.externalRemoval?.action === "restore_bundled";
   return (
     <li className="program-library__package" data-compatibility={entry.compatibility}>
       <div className="program-library__package-heading">
@@ -219,18 +260,88 @@ function ProgramPackageRowV1({
         </div>
       </div>
       <p className="program-library__compatibility-detail">{compatibility.detail}</p>
-      {entry.compatibility === "ready" && onLaunch !== undefined
-        ? (
-          <ButtonV1
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={() => void onLaunch(entry.reference.programId)}
-          >
-            {locale === "zh-CN" ? "打开" : "Open"}
-          </ButtonV1>
-        )
-        : null}
+      <div className="program-library__package-actions">
+        {entry.compatibility === "ready" && onLaunch !== undefined
+          ? (
+            <ButtonV1
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => void onLaunch(entry.reference.programId)}
+            >
+              {locale === "zh-CN" ? "打开" : "Open"}
+            </ButtonV1>
+          )
+          : null}
+        {entry.externalRemoval === null
+          ? null
+          : (
+            <AlertDialogV1 open={removalDialogOpen} onOpenChange={setRemovalDialogOpen}>
+              <AlertDialogTriggerV1>
+                <ButtonV1
+                  type="button"
+                  size="sm"
+                  variant={restoringBundled ? "secondary" : "destructive"}
+                  icon={restoringBundled ? RotateCcw : Trash2}
+                  disabled={removalBusy}
+                  aria-busy={removing || undefined}
+                >
+                  {removing
+                    ? restoringBundled
+                      ? locale === "zh-CN" ? "正在恢复…" : "Restoring…"
+                      : locale === "zh-CN"
+                      ? "正在移除…"
+                      : "Removing…"
+                    : restoringBundled
+                    ? locale === "zh-CN" ? "恢复内置版本" : "Restore built-in"
+                    : locale === "zh-CN"
+                    ? "移除外部 Program"
+                    : "Remove external Program"}
+                </ButtonV1>
+              </AlertDialogTriggerV1>
+              <AlertDialogContentV1>
+                <AlertDialogTitleV1>
+                  {restoringBundled
+                    ? locale === "zh-CN"
+                      ? `恢复 ${entry.manifest.name} 的内置版本？`
+                      : `Restore the built-in ${entry.manifest.name}?`
+                    : locale === "zh-CN"
+                    ? `移除 ${entry.manifest.name}？`
+                    : `Remove ${entry.manifest.name}?`}
+                </AlertDialogTitleV1>
+                <AlertDialogDescriptionV1>
+                  {restoringBundled
+                    ? locale === "zh-CN"
+                      ? "外部实现会被移除。已有 Conversation 保持不变，兼容的 Process 将使用当前内置实现。"
+                      : "The external implementation will be removed. Existing Conversations stay unchanged, and compatible Processes will use the current built-in implementation."
+                    : locale === "zh-CN"
+                    ? "Program 实现会被移除，但已有 Conversation 仍可只读查看；以后可以重新安装来恢复运行能力。"
+                    : "The Program implementation will be removed, but existing Conversations remain available read-only. Reinstall it later to restore its runtime."}
+                </AlertDialogDescriptionV1>
+                <div className="program-library__removal-dialog-actions">
+                  <AlertDialogCancelV1>
+                    <ButtonV1 type="button" variant="secondary">
+                      {locale === "zh-CN" ? "取消" : "Cancel"}
+                    </ButtonV1>
+                  </AlertDialogCancelV1>
+                  <AlertDialogActionV1>
+                    <ButtonV1
+                      type="button"
+                      variant={restoringBundled ? "primary" : "destructive"}
+                      onClick={() => void onRemoveExternal(entry)}
+                    >
+                      {restoringBundled
+                        ? locale === "zh-CN" ? "恢复内置版本" : "Restore built-in"
+                        : locale === "zh-CN"
+                        ? "移除 Program"
+                        : "Remove Program"}
+                    </ButtonV1>
+                  </AlertDialogActionV1>
+                </div>
+              </AlertDialogContentV1>
+            </AlertDialogV1>
+          )}
+      </div>
       <dl className="program-library__metadata">
         <div>
           <dt>Program</dt>
@@ -273,6 +384,8 @@ export function ProgramLibraryV1({
   const inputDescriptionId = useId();
   const [loadState, setLoadState] = useState<LibraryLoadStateV1>({ kind: "loading" });
   const [importState, setImportState] = useState<ImportStateV1>({ kind: "idle" });
+  const [removalState, setRemovalState] = useState<RemovalStateV1>({ kind: "idle" });
+  const removalStatusRef = useRef<HTMLDivElement | null>(null);
   const [recentProcesses, setRecentProcesses] = useState<RecentProcessLoadStateV1>(() =>
     listRecentProcesses === undefined ? { kind: "ready", summaries: [], nextCursor: null } : {
       kind: "loading",
@@ -393,7 +506,34 @@ export function ProgramLibraryV1({
     }
   };
 
+  const removeExternalV1 = async (entry: ProgramPackageLibraryEntryV1): Promise<void> => {
+    const removal = entry.externalRemoval;
+    if (removal === null || removalState.kind === "removing") return;
+    const programId = entry.reference.programId;
+    const name = entry.manifest.name;
+    setRemovalState({ kind: "removing", programId, name, action: removal.action });
+    try {
+      const changed = await service.removeExternal(programId, removal.installationId);
+      await refreshV1();
+      if (mounted.current) {
+        setRemovalState({ kind: "completed", name, action: removal.action, changed });
+        requestAnimationFrame(() => removalStatusRef.current?.focus());
+      }
+    } catch (error) {
+      if (mounted.current) {
+        setRemovalState({
+          kind: "failed",
+          name,
+          action: removal.action,
+          message: errorMessageV1(error),
+        });
+        requestAnimationFrame(() => removalStatusRef.current?.focus());
+      }
+    }
+  };
+
   const importing = importState.kind === "installing";
+  const removalBusy = removalState.kind === "removing";
   return (
     <section className="program-library" aria-labelledby={`${inputId}-title`}>
       <header className="program-library__header">
@@ -487,6 +627,78 @@ export function ProgramLibraryV1({
                     : locale === "zh-CN"
                     ? "Program 已安装。"
                     : "The Program was installed."}
+                </StatusDescriptionV1>
+              )
+              : null}
+          </StatusContentV1>
+        </StatusV1>
+      )}
+
+      {removalState.kind === "idle" ? null : (
+        <StatusV1
+          ref={removalStatusRef}
+          tabIndex={-1}
+          className="program-library__import-status"
+          variant={removalState.kind === "failed"
+            ? "danger"
+            : removalState.kind === "completed" && !removalState.changed
+            ? "info"
+            : removalState.kind === "completed"
+            ? "success"
+            : "info"}
+          icon={removalState.kind === "failed"
+            ? CircleAlert
+            : removalState.kind === "removing"
+            ? LoaderCircle
+            : CheckCircle2}
+          role={removalState.kind === "failed" ? "alert" : "status"}
+          aria-live={removalState.kind === "failed" ? "assertive" : "polite"}
+          data-busy={removalBusy || undefined}
+        >
+          <StatusContentV1>
+            <StatusTitleV1>
+              {removalState.kind === "removing"
+                ? removalState.action === "restore_bundled"
+                  ? locale === "zh-CN"
+                    ? `正在恢复 ${removalState.name} 的内置版本`
+                    : `Restoring the built-in ${removalState.name}`
+                  : locale === "zh-CN"
+                  ? `正在移除 ${removalState.name}`
+                  : `Removing ${removalState.name}`
+                : removalState.kind === "failed"
+                ? removalState.action === "restore_bundled"
+                  ? locale === "zh-CN"
+                    ? `无法恢复 ${removalState.name}`
+                    : `Could not restore ${removalState.name}`
+                  : locale === "zh-CN"
+                  ? `无法移除 ${removalState.name}`
+                  : `Could not remove ${removalState.name}`
+                : !removalState.changed
+                ? locale === "zh-CN"
+                  ? "Program 已在其他窗口中发生变化"
+                  : "The Program changed in another window"
+                : removalState.action === "restore_bundled"
+                ? locale === "zh-CN"
+                  ? `已恢复 ${removalState.name} 的内置版本`
+                  : `Restored the built-in ${removalState.name}`
+                : locale === "zh-CN"
+                ? `已移除 ${removalState.name}`
+                : `Removed ${removalState.name}`}
+            </StatusTitleV1>
+            {removalState.kind === "failed"
+              ? <StatusDescriptionV1>{removalState.message}</StatusDescriptionV1>
+              : removalState.kind === "completed"
+              ? (
+                <StatusDescriptionV1>
+                  {!removalState.changed
+                    ? locale === "zh-CN" ? "Library 已刷新。" : "The Library was refreshed."
+                    : removalState.action === "restore_bundled"
+                    ? locale === "zh-CN"
+                      ? "已保存的 Conversations 保持不变；兼容的 Process 将使用当前内置实现。"
+                      : "Saved Conversations are unchanged. Compatible Processes use the current built-in implementation."
+                    : locale === "zh-CN"
+                    ? "已保存的 Conversations 仍可只读查看；重新安装此 Program 后可恢复其运行能力。"
+                    : "Saved Conversations remain available read-only. Reinstall this Program to restore its runtime."}
                 </StatusDescriptionV1>
               )
               : null}
@@ -613,6 +825,10 @@ export function ProgramLibraryV1({
                   key={entry.reference.programId}
                   entry={entry}
                   locale={locale}
+                  removalBusy={removalBusy}
+                  removing={removalState.kind === "removing" &&
+                    removalState.programId === entry.reference.programId}
+                  onRemoveExternal={removeExternalV1}
                   {...(onLaunch === undefined ? {} : { onLaunch })}
                 />
               ))}

@@ -4929,10 +4929,11 @@ request backed by the real consumer, not permission to create a second runtime.
 
 ### P5 — translation Program
 
-**Current status (2026-09-02):** the first ordinary Browser Translation V1
-journey is closed; P5 remains active for semantic planning/QA, Agent-generated
-OpenUI, Provider-quality evidence, broader format coverage, and final target
-qualification.
+**Current status (2026-09-02):** the Browser Technical Preview denominator is
+closed. The first ordinary Browser Translation V1 journey is complete;
+semantic planning/QA, Agent-generated OpenUI, broader format coverage and
+model-quality research are deferred follow-ons rather than conditions that
+reopen this preview denominator.
 P5-A used LinguaGacha, AiNiee and ainiee-translate-skill as prior art to settle
 the deterministic codec, prompt, Skill and review-assisted workflow contracts.
 Its one-off Provider runner, evaluation corpora and fixed-script experiment
@@ -5068,9 +5069,9 @@ response-model text never update it. Bundled and ZIP packages share the same
 contract; current bundled Programs declare neither hint. This current contract
 supersedes the historical S3-R1 preferred/current-model wording below, which is
 retained only as a dated delivery receipt. Missing and explicit-empty hint
-declarations add no identity bytes, while this revision's code-unit canonical
-file-ordering correction intentionally rotates affected pre-release package
-digests; preview storage clean-resets rather than migrating them.
+declarations are behaviorally equivalent. Preview storage remains
+clean-resettable before a stable release rather than carrying compatibility
+machinery for superseded schemas.
 
 The first ordinary Browser V1 path now closes import, bounded multi-batch Agent
 execution, stale-safe candidate publication, editable human accept/reject,
@@ -5082,11 +5083,11 @@ retry; neither behavior is Translation-specific. TXT, Markdown, SRT, VTT, ASS,
 and the closed Translation JSON format round-trip through the exporter. PDF
 exports deterministic page-aware plain text and does not claim PDF round-trip.
 
-P5 remains open for model-assisted semantic QA, a confirmed
+Post-preview Translation work may add model-assisted semantic QA, a confirmed
 Planning/meaning-fact workbench, Agent-generated OpenUI, repeated product-scale
-Provider qualification, full Browser/Desktop/accessibility/packaging evidence,
-OCR/multimodal routing, broader formats, Python, and a concrete Translation
-CodeAct path. See
+Provider qualification, OCR/multimodal routing, broader formats, Python, and a
+concrete Translation CodeAct path. None is claimed by the Browser Technical
+Preview. See
 [Translation Program decisions](./programs/translation/notes/TRANSLATION-PROGRAM-RESEARCH.md).
 
 Make translation the first complete product consumer. Its denominator is one
@@ -5114,14 +5115,14 @@ Only shared boundaries reproduced by this product may graduate into the P4 Pi
 extension and UI mapping. Startup, bundle, memory, and long-project evidence are
 measured on real representative data without vendoring a reference product.
 
-### P6 — writing Program
+### P6 — writing Program (owner-deferred after the Browser Technical Preview)
 
 Add a complete writing journey with a brief, outline, manuscript sections,
 revision decisions, and export. Writing reuses proven Program/session/storage/
 tool contracts but owns its artifact package and editorial workflow. It does
 not force translation's segment model into a universal content schema.
 
-### P7 — role-play Program
+### P7 — role-play Program (owner-deferred after the Browser Technical Preview)
 
 Add a complete role-play journey with a world contract, characters, scenario,
 append-only run events/transcript, materialized current branch state, explicit
@@ -5130,7 +5131,20 @@ and current branch state remain distinct. Role-play does not begin by adding a
 public SillyMaker plugin API, unbounded Pi Package installation, a graph
 database, a prompt-combinator framework, or multiple scripting languages.
 
-### P8 — product closure
+### P8-A — Browser Technical Preview release
+
+Close the preview on the current Creator and Translation denominator only:
+reconcile public copy with the runnable Programs; pass current Chromium and
+WebKit product journeys, a narrow accessibility review, production builds and
+the three-origin response-policy checks; deploy the Workspace Sandbox, Network
+Broker and control artifact from one clean source identity; then smoke the
+public Program Library, Creator, Translation, reload/reopen and one real
+Provider Translation route. Record the exact source and three Cloudflare
+versions plus the all-or-nothing rollback set. Preview-local data may reset
+across pre-stable schema changes, all-data restore is unavailable, and
+Translation output remains subject to human review.
+
+### P8-B — stable and complete product qualification (owner-deferred)
 
 Reconcile the semantic table in [DESIGN.md](./DESIGN.md) against real
 implementation. Qualify Browser and Deno Desktop startup, recovery, persistence,

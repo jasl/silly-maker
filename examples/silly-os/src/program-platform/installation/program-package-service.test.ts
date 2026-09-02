@@ -95,13 +95,23 @@ function memoryRepositoryV1(): ProgramPackageInstallationRepositoryV1 {
     async listMetadata() {
       return [...packages.values()].map((entry) => ({
         acquisition: entry.acquisition,
+        installationId: entry.installationId,
         metadata: {
           ...projectProgramPackageRuntimeProfileV1(entry.package),
           reference: entry.package.reference,
         },
       }));
     },
-    async remove(programId) {
+    async remove(programId, options = {}) {
+      const current = packages.get(programId);
+      if (
+        current !== undefined && options.ifAcquisition !== undefined &&
+        current.acquisition !== options.ifAcquisition
+      ) return false;
+      if (
+        current !== undefined && options.ifInstallationId !== undefined &&
+        current.installationId !== options.ifInstallationId
+      ) return false;
       return packages.delete(programId);
     },
     async reset() {
@@ -249,8 +259,178 @@ describe("Program package service V1", () => {
     });
     expect(bundledLoads).toBe(0);
     await expect(service.listLibrary()).resolves.toEqual([
-      expect.objectContaining({ reference: external.reference }),
+      expect.objectContaining({
+        reference: external.reference,
+        externalRemoval: {
+          action: "restore_bundled",
+          installationId: expect.any(String),
+        },
+      }),
     ]);
+  });
+
+  it("removes an external override and restores the current bundled implementation", async () => {
+    const bundled = archiveV1("1.0.0", "Bundled current implementation.");
+    let bundledLoads = 0;
+    const service = createServiceV1({
+      bundledSources: [await bundledSourceV1(bundled, () => bundledLoads += 1)],
+    });
+    const external = await service.installArchive(
+      archiveV1("1.0.0", "External override."),
+    );
+
+    const [externalEntry] = await service.listLibrary();
+    if (externalEntry?.externalRemoval === null || externalEntry === undefined) {
+      throw new Error("expected external removal action");
+    }
+    await expect(service.removeExternal(
+      external.reference.programId,
+      externalEntry.externalRemoval.installationId,
+    )).resolves.toBe(true);
+    expect(bundledLoads).toBe(0);
+    await expect(service.listLibrary()).resolves.toEqual([
+      expect.objectContaining({
+        reference: external.reference,
+        externalRemoval: null,
+      }),
+    ]);
+    expect(bundledLoads).toBe(0);
+    const current = await service.resolveForProcess(external.reference);
+    if (current.kind !== "ready") throw new Error("expected restored bundled Program");
+    expect(readProgramPackageTextFileV1(current.package, "PROGRAM.md")).toBe(
+      "Bundled current implementation.",
+    );
+    expect(bundledLoads).toBe(1);
+    await expect(service.removeExternal(
+      external.reference.programId,
+      externalEntry.externalRemoval.installationId,
+    )).resolves.toBe(false);
+  });
+
+  it("removes an external-only implementation without retaining a runnable package", async () => {
+    const service = createServiceV1({});
+    const external = await service.installArchive(archiveV1("1.0.0", "External only."));
+
+    await expect(service.listLibrary()).resolves.toEqual([
+      expect.objectContaining({
+        reference: external.reference,
+        externalRemoval: {
+          action: "remove",
+          installationId: expect.any(String),
+        },
+      }),
+    ]);
+    const [externalEntry] = await service.listLibrary();
+    if (externalEntry?.externalRemoval === null || externalEntry === undefined) {
+      throw new Error("expected external removal action");
+    }
+    await expect(service.removeExternal(
+      external.reference.programId,
+      externalEntry.externalRemoval.installationId,
+    )).resolves.toBe(true);
+    await expect(service.resolveForProcess(external.reference)).resolves.toEqual({
+      kind: "package_missing",
+      reference: external.reference,
+    });
+    await expect(service.listLibrary()).resolves.toEqual([]);
+  });
+
+  it("does not remove an external successor installed after the Library projection", async () => {
+    const repository = memoryRepositoryV1();
+    const service = createServiceV1({ repository });
+    await service.installArchive(archiveV1("1.0.0", "First external implementation."));
+    const [staleEntry] = await service.listLibrary();
+    if (staleEntry?.externalRemoval === null || staleEntry === undefined) {
+      throw new Error("expected stale external removal action");
+    }
+    await service.installArchive(archiveV1("1.0.0", "Current external implementation."));
+    const current = await repository.load("example.translation");
+
+    await expect(service.removeExternal(
+      staleEntry.reference.programId,
+      staleEntry.externalRemoval.installationId,
+    )).resolves.toBe(false);
+    await expect(repository.load("example.translation")).resolves.toMatchObject({
+      acquisition: "external",
+      installationId: current?.installationId,
+    });
+  });
+
+  it("does not remove an external implementation that wins while retired bundled data clears", async () => {
+    const baseRepository = memoryRepositoryV1();
+    await baseRepository.install(archiveV1("1.0.0", "Retired bundled implementation."), {
+      acquisition: "bundled",
+    });
+    let racePending = true;
+    const external = archiveV1("1.0.0", "Concurrent external implementation.");
+    const repository: ProgramPackageInstallationRepositoryV1 = {
+      ...baseRepository,
+      async remove(programId, options) {
+        if (racePending) {
+          racePending = false;
+          await baseRepository.install(external, { acquisition: "external" });
+        }
+        return await baseRepository.remove(programId, options);
+      },
+    };
+    const service = createServiceV1({ repository });
+
+    const current = await service.resolveCurrent("example.translation");
+
+    expect(current).toMatchObject({
+      kind: "ready",
+      package: { reference: { programId: "example.translation" } },
+    });
+    await expect(repository.load("example.translation")).resolves.toMatchObject({
+      acquisition: "external",
+    });
+  });
+
+  it("keeps an in-flight bundled refresh owned until reset has cleared its result", async () => {
+    let markBundledLoadStarted: (() => void) | undefined;
+    const bundledLoadStarted = new Promise<void>((resolve) => {
+      markBundledLoadStarted = resolve;
+    });
+    let continueBundledLoad: (() => void) | undefined;
+    const bundledLoadGate = new Promise<void>((resolve) => {
+      continueBundledLoad = resolve;
+    });
+    const bundled = archiveV1("1.0.0", "Deferred bundled implementation.");
+    const source = await bundledSourceV1(bundled);
+    const repository = memoryRepositoryV1();
+    const service = createServiceV1({
+      repository,
+      bundledSources: [{
+        ...source,
+        async loadArchive() {
+          markBundledLoadStarted?.();
+          await bundledLoadGate;
+          return bundled;
+        },
+      }],
+    });
+    const pendingResolution = service.resolveCurrent("example.translation");
+    await bundledLoadStarted;
+    await service.installArchive(archiveV1("1.0.0", "Temporary external implementation."));
+    const [externalEntry] = await service.listLibrary();
+    if (externalEntry?.externalRemoval === null || externalEntry === undefined) {
+      throw new Error("expected external removal action");
+    }
+    await service.removeExternal(
+      externalEntry.reference.programId,
+      externalEntry.externalRemoval.installationId,
+    );
+    let resetSettled = false;
+    const reset = service.reset().then(() => {
+      resetSettled = true;
+    });
+    await Promise.resolve();
+    expect(resetSettled).toBe(false);
+
+    continueBundledLoad?.();
+    await Promise.all([pendingResolution, reset]);
+
+    await expect(repository.load("example.translation")).resolves.toBeNull();
   });
 
   it("accepts an external implementation that wins after a bundled refresh commits", async () => {

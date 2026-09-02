@@ -17,6 +17,7 @@ import {
 } from "../package/program-runtime-profile-descriptor.ts";
 import { installProgramPackageZipV1 } from "./install-program-package-zip.ts";
 import type {
+  InstalledProgramPackageMetadataV1,
   InstalledProgramPackageV1,
   ProgramPackageInstallationRepositoryV1,
   ProgramPackageInstallationResultV1,
@@ -65,11 +66,20 @@ export type ProgramPackageCompatibilityV1 =
   | "runtime_profile_incompatible"
   | "runtime_profile_unavailable";
 
-/** Read-only library projection; acquisition origin is deliberately absent. */
+export type ProgramPackageExternalRemovalActionV1 = "restore_bundled" | "remove";
+
+export interface ProgramPackageExternalRemovalV1 {
+  readonly action: ProgramPackageExternalRemovalActionV1;
+  /** Opaque fence for the implementation represented by this Library entry. */
+  readonly installationId: string;
+}
+
+/** Read-only library projection; exposes an action, not acquisition metadata. */
 export interface ProgramPackageLibraryEntryV1 {
   readonly reference: InstalledProgramPackageReferenceV1;
   readonly manifest: ProgramPackageManifestV1;
   readonly compatibility: ProgramPackageCompatibilityV1;
+  readonly externalRemoval: ProgramPackageExternalRemovalV1 | null;
 }
 
 export interface ProgramPackageServiceV1 {
@@ -86,6 +96,8 @@ export interface ProgramPackageServiceV1 {
     bytes: Uint8Array | ArrayBuffer,
     decodeOptions: DecodeProgramPackageZipOptionsV1,
   ): Promise<ProgramPackageInstallationResultV1>;
+  /** Removes only an external current implementation; durable Processes are a separate authority. */
+  removeExternal(programId: string, installationId: string): Promise<boolean>;
   /** Clears installed packages. Bundled sources remain sources and are installed on demand. */
   reset(): Promise<void>;
   dispose(): Promise<void>;
@@ -179,7 +191,13 @@ export function createProgramPackageServiceV1(
     const installed = await options.repository.load(programId);
     if (installed?.acquisition === "external") return installed;
     if (source === undefined) {
-      if (installed?.acquisition === "bundled") await options.repository.remove(programId);
+      if (installed?.acquisition === "bundled") {
+        const removed = await options.repository.remove(programId, {
+          ifAcquisition: "bundled",
+          ifInstallationId: installed.installationId,
+        });
+        if (!removed) return await options.repository.load(programId);
+      }
       return null;
     }
 
@@ -245,18 +263,24 @@ export function createProgramPackageServiceV1(
     async listLibrary() {
       await initializeV1();
       const installed = await options.repository.listMetadata();
-      const externalByProgramId = new Map<string, ProgramPackageMetadataV1>();
+      const externalByProgramId = new Map<string, InstalledProgramPackageMetadataV1>();
       for (const entry of installed) {
         if (entry.acquisition === "external") {
-          externalByProgramId.set(entry.metadata.reference.programId, entry.metadata);
+          externalByProgramId.set(entry.metadata.reference.programId, entry);
         }
       }
       const entries: ProgramPackageLibraryEntryV1[] = [];
-      for (const metadata of externalByProgramId.values()) {
+      for (const installedMetadata of externalByProgramId.values()) {
+        const metadata = installedMetadata.metadata;
+        const programId = metadata.reference.programId;
         entries.push({
           reference: { ...metadata.reference },
           manifest: cloneProgramPackageManifestV1(metadata.manifest),
           compatibility: classifyCompatibilityV1(metadata),
+          externalRemoval: {
+            action: bundledSources.has(programId) ? "restore_bundled" : "remove",
+            installationId: installedMetadata.installationId,
+          },
         });
       }
       for (const source of bundledSources.values()) {
@@ -265,6 +289,7 @@ export function createProgramPackageServiceV1(
           reference: { ...source.metadata.reference },
           manifest: cloneProgramPackageManifestV1(source.metadata.manifest),
           compatibility: classifyCompatibilityV1(source.metadata),
+          externalRemoval: null,
         });
       }
       return entries.toSorted((left, right) =>
@@ -302,6 +327,19 @@ export function createProgramPackageServiceV1(
       });
       refreshedBundled.delete(result.reference.programId);
       return result;
+    },
+    async removeExternal(programId, installationId) {
+      await initializeV1();
+      if (
+        !await options.repository.remove(programId, {
+          ifAcquisition: "external",
+          ifInstallationId: installationId,
+        })
+      ) {
+        return false;
+      }
+      refreshedBundled.delete(programId);
+      return true;
     },
     async reset() {
       await initializeV1();

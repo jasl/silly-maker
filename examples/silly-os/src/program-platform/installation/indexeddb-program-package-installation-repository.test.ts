@@ -247,12 +247,59 @@ describe("IndexedDB Program package installation repository V1", () => {
 
     await repository.install(archiveV1(), { acquisition: "bundled" });
     const bundled = await repository.load("community.example.translation");
+    if (bundled === null) throw new Error("expected bundled installation");
     const replaced = await repository.install(archiveV1(), { acquisition: "external" });
     const external = await repository.load("community.example.translation");
 
     expect(replaced.disposition).toBe("replaced");
     expect(external?.acquisition).toBe("external");
     expect(external?.installationId).not.toBe(bundled?.installationId);
+  });
+
+  it("conditionally removes only the current external implementation", async () => {
+    const repository = createIndexedDbProgramPackageInstallationRepositoryV1({
+      indexedDB: new IDBFactory(),
+      databaseName: "program-packages.conditional-remove",
+      limits: limitsV1,
+    });
+    repositoriesV1.push(repository);
+
+    await repository.install(archiveV1(), { acquisition: "bundled" });
+    const bundled = await repository.load("community.example.translation");
+    if (bundled === null) throw new Error("expected bundled installation");
+    await expect(repository.remove("community.example.translation", {
+      ifAcquisition: "external",
+      ifInstallationId: bundled.installationId,
+    })).resolves.toBe(false);
+    await expect(repository.load("community.example.translation")).resolves.toMatchObject({
+      acquisition: "bundled",
+    });
+
+    await repository.install(archiveV1(), { acquisition: "external" });
+    const firstExternal = await repository.load("community.example.translation");
+    if (firstExternal === null) throw new Error("expected first external installation");
+    await repository.install(archiveV1("1.0.0", "Replacement external instructions."), {
+      acquisition: "external",
+    });
+    const currentExternal = await repository.load("community.example.translation");
+    if (currentExternal === null) throw new Error("expected current external installation");
+    expect(currentExternal.installationId).not.toBe(firstExternal.installationId);
+    await expect(repository.remove("community.example.translation", {
+      ifAcquisition: "external",
+      ifInstallationId: firstExternal.installationId,
+    })).resolves.toBe(false);
+    await expect(repository.load("community.example.translation")).resolves.toMatchObject({
+      acquisition: "external",
+      installationId: currentExternal.installationId,
+    });
+    await expect(repository.remove("community.example.translation", {
+      ifAcquisition: "external",
+      ifInstallationId: currentExternal.installationId,
+    })).resolves.toBe(true);
+    await expect(repository.remove("community.example.translation", {
+      ifAcquisition: "external",
+    })).resolves.toBe(false);
+    await expect(repository.listMetadata()).resolves.toEqual([]);
   });
 
   it("returns owned bytes so callers cannot mutate the stored implementation", async () => {
@@ -294,7 +341,7 @@ describe("IndexedDB Program package installation repository V1", () => {
     });
     repositoriesV1.push(repository);
     await repository.install(archiveV1(), { acquisition: "external" });
-    await repository.remove("community.example.translation");
+    await repository.remove("community.example.translation", { ifAcquisition: "external" });
 
     const reopened = await requestResultV1(indexedDB.open("program-packages.process-control"));
     await expect(requestResultV1(

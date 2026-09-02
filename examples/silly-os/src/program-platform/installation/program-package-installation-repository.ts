@@ -24,6 +24,13 @@ export interface InstallProgramPackageOptionsV1 {
   readonly acquisition: ProgramPackageAcquisitionV1;
 }
 
+export interface RemoveProgramPackageOptionsV1 {
+  /** Deletes only when the current implementation still has this acquisition origin. */
+  readonly ifAcquisition?: ProgramPackageAcquisitionV1;
+  /** Deletes only the exact implementation observed by the caller. */
+  readonly ifInstallationId?: string;
+}
+
 /**
  * Repository-private current installation. `installationId` invalidates
  * same-version runtime caches; it is not Program or Process identity.
@@ -36,6 +43,8 @@ export interface InstalledProgramPackageV1 {
 
 export interface InstalledProgramPackageMetadataV1 {
   readonly acquisition: ProgramPackageAcquisitionV1;
+  /** Opaque current-implementation fence; it is not Program or Process identity. */
+  readonly installationId: string;
   readonly metadata: ProgramPackageMetadataV1;
 }
 
@@ -48,7 +57,7 @@ export interface ProgramPackageInstallationRepositoryV1 {
   ): Promise<ProgramPackageInstallationResultV1>;
   load(programId: string): Promise<InstalledProgramPackageV1 | null>;
   listMetadata(): Promise<readonly InstalledProgramPackageMetadataV1[]>;
-  remove(programId: string): Promise<boolean>;
+  remove(programId: string, options?: RemoveProgramPackageOptionsV1): Promise<boolean>;
   reset(): Promise<void>;
   dispose(): Promise<void>;
 }

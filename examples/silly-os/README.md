@@ -62,7 +62,9 @@ Key 会一直保存到用户 Forget 或清除此站点数据。
 Bedrock 这类 ambient、OAuth、keyless 或多字段凭据 profile 仍可查看，但不会被压成一个假的
 API-key 表单，也不会显示可用的 Test connection。
 
-- 从 Program Library 打开 Creator 并提交翻译、写作、角色扮演或通用创作意图；
+- 从 Program Library 打开 Creator，提交意图并审查一个 Program proposal；当前 Browser
+  Technical Preview 只把 Translation 作为可直接运行的完整 Program，Writing 与 RolePlay
+  已明确延期；
 - 查看确定性的本地 Creator 回复和带明确版本的 Program proposal；
 - 在 Creator 的 Process Workspace 中同时查看人类/Creator 的分页富文本 Conversation、proposal 与预览；
 - 接受或拒绝当前精确版本；补充要求会形成新的 `pending` 版本，旧版本决定会被完整拒绝；
